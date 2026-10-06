@@ -5,10 +5,11 @@ import path from 'node:path';
 import os from 'node:os';
 import { promisify } from 'node:util';
 import { execFile } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { analyze, readWorkspace, addStringField } from '../extensions/e365-workbench/core.mjs';
 
 const exec = promisify(execFile);
-const root = new URL('../examples/e365/', import.meta.url).pathname;
+const root = fileURLToPath(new URL('../examples/e365/', import.meta.url));
 const files = await readWorkspace(root);
 const appPath = 'appViews/entities/example_module/requests.json', formPath = 'widgets/entities/example_module.requests/edit_form';
 const app = JSON.parse(files.find(f => f.path === appPath).text), form = JSON.parse(files.find(f => f.path === formPath).text);
@@ -86,6 +87,6 @@ test('reader does not traverse symlinks or unrelated configuration files', async
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'e365-read-')); t.after(() => fs.rm(directory, { recursive: true, force: true }));
   await fs.mkdir(path.join(directory, 'widgets/entities/demo'), { recursive: true });
   await fs.writeFile(path.join(directory, 'config.json'), '{"secret":"excluded"}');
-  await fs.symlink(path.join(root, formPath), path.join(directory, 'widgets/entities/demo/link'));
+  await fs.symlink(path.dirname(path.join(root, formPath)), path.join(directory, 'widgets/entities/demo/link'), process.platform === 'win32' ? 'junction' : 'dir');
   assert.deepEqual(await readWorkspace(directory), []);
 });
