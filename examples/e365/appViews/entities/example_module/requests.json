@@ -1,0 +1,8 @@
+{
+  "namespace": "example_module",
+  "code": "requests",
+  "fields": [
+    { "code": "title", "type": "STRING", "required": false, "view": { "name": "Тема" } },
+    { "code": "category", "type": "SYS_COLLECTION", "array": true, "single": true, "data": { "namespace": "example_module", "code": "categories", "isDependent": false, "linkedFieldCode": "" } }
+  ]
+}

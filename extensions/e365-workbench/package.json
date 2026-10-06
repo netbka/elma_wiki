@@ -1,0 +1,22 @@
+{
+  "name": "e365-workbench",
+  "displayName": "E365 Workbench",
+  "description": "Локальная навигация и диагностика распакованных конфигураций ELMA365",
+  "version": "0.1.0",
+  "publisher": "elma-wiki",
+  "license": "UNLICENSED",
+  "engines": { "vscode": "^1.90.0" },
+  "categories": ["Other"],
+  "main": "./extension.cjs",
+  "capabilities": { "untrustedWorkspaces": { "supported": false } },
+  "activationEvents": ["onView:e365.entities"],
+  "contributes": {
+    "views": { "explorer": [{ "id": "e365.entities", "name": "E365 Workbench" }] },
+    "commands": [
+      { "command": "e365.refresh", "title": "E365: Обновить индекс" },
+      { "command": "e365.references", "title": "E365: Где используется поле?" },
+      { "command": "e365.verify", "title": "E365: Проверить runtime через elma-dev (offline)" }
+    ],
+    "menus": { "view/title": [{ "command": "e365.refresh", "when": "view == e365.entities", "group": "navigation" }] }
+  }
+}

@@ -13,3 +13,6 @@
 @media print{.sidebar,.topbar,.article-toc,.page-actions,.copy,.filters,.pagination,.search-modal,.mobile-scrim{display:none!important}.page{margin:0;padding:0}.page-inner{max-width:none;padding:0}.article-layout{display:block}.page-footer{margin-top:20px}body{background:white;font-size:11px}h1{font-size:25px}.article-section p,.article-section li{font-size:11px;line-height:1.6}.codeblock{background:#f4f5f1;color:black;break-inside:avoid}.codebar{color:#444}.table-wrap,.callout{break-inside:avoid}.article-section{margin-bottom:20px}.breadcrumbs{display:none}a{color:#333}.article-main{max-width:none}}
 
 .upload-input{display:block;width:100%;margin:8px 0 20px;padding:12px;border:1px solid #d8ded8;border-radius:8px}.import-button{background:#236745;color:white;border:0;padding:12px 20px;border-radius:8px;cursor:pointer}.import-button:disabled{opacity:.5}#import-result{margin-top:18px;white-space:pre-wrap;overflow-wrap:anywhere}
+
+
+.developer-entry{border:1px solid var(--line);border-radius:8px;background:#edf5f0;padding:22px;margin:28px 0}.developer-entry .section-label{margin-top:0}.developer-entry p{font-size:14px;color:#52625a}.article-sources code,.article-sources a{overflow-wrap:anywhere;white-space:normal}

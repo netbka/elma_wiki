@@ -1,0 +1,42 @@
+{
+  "namespace": "example_module.requests",
+  "code": "edit_form",
+  "dataNamespace": "example_module",
+  "dataCode": "requests",
+  "descriptor": {
+    "fields": [
+      {
+        "code": "ready",
+        "type": "BOOLEAN"
+      }
+    ],
+    "template": {
+      "descriptor": "form",
+      "id": "7adc36cd-b68a-4517-bba6-9cd06af4353d",
+      "values": {},
+      "content": {
+        "[content]": [
+          {
+            "id": "38d9079a-5b96-4784-ad6c-21454e69c285",
+            "descriptor": "dynamic-form-row",
+            "values": {
+              "control": {
+                "path": [
+                  "item",
+                  "title"
+                ]
+              },
+              "required": true,
+              "showDisplayName": true
+            }
+          }
+        ]
+      }
+    },
+    "clientScripts": "",
+    "serverScripts": ""
+  },
+  "runtime": {
+    "version": 1
+  }
+}

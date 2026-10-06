@@ -59,7 +59,7 @@ function shell() {
   const groups = [
     {label:'Начало работы',items:[['overview','Обзор проекта','home'],['article/start','Как пользоваться вики','book'],['article/architecture','Архитектура проекта','layers'],['article/environments','Серверы и окружение','server']]},
     {label:'Конфигурация',items:[['solutions','Решения','grid',s.stats.exported],['structure','Структура конфигурации','folder'],['article/filesystem','Файлы и формат .e365','file'],['entities','Каталог сущностей','list',num(s.stats.entities)],['fields','Поля и переменные','code'],['functions','Функции и обработчики','code'],['dependency-map','Карта зависимостей','branch'],['comparison','Сравнение окружений','compare'],['upload','Загрузить конфигурацию','file']]},
-    ...['Разработка','Процедуры','Справочник'].map(label=>({label,items:articles.filter(a=>a.group===label).map(a=>['article/'+a.id,a.title,label==='Процедуры'?'terminal':'book'])}))
+    ...['Разработка через файлы','Разработка','Процедуры','Справочник'].map(label=>({label,items:articles.filter(a=>a.group===label).map(a=>['article/'+a.id,a.title,label==='Процедуры'?'terminal':'book'])}))
   ];
   $('#app').innerHTML = `
     <div class="mobile-scrim" data-action="menu-close"></div>
@@ -92,7 +92,7 @@ function overview() {
     <div class="section-label"><h2>С чего начать</h2><span>Короткий путь к нужному файлу</span></div>
     <div class="home-grid"><div class="start-cards">${cards.map(([id,t,desc,i])=>`<a class="start-card" href="#/article/${id}"><div class="card-icon">${icon(i)}</div><h3>${t}</h3><p>${desc}</p><footer><span>Открыть руководство</span>${icon('arrow')}</footer></a>`).join('')}</div>
       <div class="terminal"><div class="eyebrow">Карта исходников</div><h3>От задачи к месту изменения</h3><p>Выберите сервер и решение. Найдите модуль, сущность и связанные файлы — в одном каталоге.</p><pre><code><span class="terminal-root">example_solution/</span>\n└─ modules/example_module/\n   ├─ appViews     → поля приложения\n   ├─ widgets      → формы и скрипты\n   ├─ processor    → логика процессов\n   └─ permissions  → доступ и роли</code></pre><a href="#/structure">Исследовать структуру ${icon('arrow')}</a></div></div>
-    <div class="section-label"><h2>Как проходит изменение</h2><a href="#/article/workflow">Полная процедура ${icon('arrow')}</a></div>${flow()}
+    <section class="developer-entry"><div class="section-label"><h2>Разработка ELMA365 через файлы</h2></div><p>Работайте с JSON и TypeScript в привычном редакторе. Поля, формы, связи, проверка runtime и первая версия расширения VS Code.</p><div class="article-links">${[["file-development","Начать с E365"],["field-form-recipe","Примеры с кодом"],["workbench","Инструменты и VS Code"]].map(([id,title])=>`<a class="article-link" href="#/article/${id}">${icon("code")}${title}${icon("chevron")}</a>`).join("")}</div></section><div class="section-label"><h2>Как проходит изменение</h2><a href="#/article/workflow">Полная процедура ${icon('arrow')}</a></div>${flow()}
     <div class="notice-inline">${icon('file')}<p>Загрузите .e365 в этот портал. Исходный код не исполняется, значения и тела скриптов не входят в индекс. <a href="#/upload">Загрузить конфигурацию</a></p></div>
     <div class="home-bottom"><div><div class="section-label" style="margin-top:0"><h2>Полезные инструкции</h2></div><div class="article-links">${[['environments','Как выбрать сервер и переменные окружения'],['widgets','Где менять форму, скрипт и обработчик'],['compiler','Что проверять перед сборкой пакета'],['troubleshooting','Ошибка, причина и следующий шаг']].map(([id,t])=>`<a class="article-link" href="#/article/${id}">${icon('book')}${t}<span>${articleMap.get(id).time}</span>${icon('chevron')}</a>`).join('')}</div></div>
     <div><div class="section-label" style="margin-top:0"><h2>Окружения портала</h2></div><div class="server-summary">${Object.entries(data.servers).map(([key,v])=>`<div class="server-box"><strong>${esc(v.label||key)}</strong><p>${v.stats.exported} из ${v.stats.catalog} решений<br>${num(v.stats.entities)} записей сущностей</p><div class="mini-bar"><div style="width:${v.stats.catalog ? v.stats.exported/v.stats.catalog*100 : 0}%"></div></div><a href="#/solutions" data-switch-server="${key}">Состав конфигурации ${icon('arrow')}</a></div>`).join('')}</div><p class="hint-line">Namespace может повторяться в зависимых пакетах. Данные серверов сохраняются раздельно.</p></div></div>${footer()}`;
@@ -100,9 +100,9 @@ function overview() {
 function articlePage(id) {
   const a = articleMap.get(id); if (!a) return notFound();
   const n = articles.indexOf(a), prev = articles[n-1], next = articles[n+1];
-  return `${breadcrumbs(a.title,a.group)}<div class="article-layout"><article class="article-main">${heading(a.group,a.title,esc(a.lead))}<div class="article-meta"><span>${icon('clock')}${a.time} чтения</span><span>${icon('check')}По структуре формата</span><span>Универсальное руководство</span></div>
+  return `${breadcrumbs(a.title,a.group)}<div class="article-layout"><article class="article-main">${heading(a.group,a.title,esc(a.lead))}<div class="article-meta"><span>${icon('clock')}${a.time} чтения</span><span>${icon('check')}${esc(a.status || 'По структуре формата')}</span><span>Универсальное руководство</span></div>
     ${a.sections.map(s=>`<section class="article-section" id="section-${s.id}"><h2>${s.title}</h2>${s.body}</section>`).join('')}
-    <div class="article-sources"><h3>Локальные источники этой статьи</h3>${a.sources.map(s=>`<code>${esc(s)}</code>`).join('')}</div>
+    <div class="article-sources"><h3>Источники и реализация</h3>${a.sources.map(s=>/^https:\/\//.test(s)?`<p><a href="${esc(s)}" rel="noreferrer">${esc(s)}</a></p>`:`<code>${esc(s)}</code>`).join('')}</div>
     <div class="article-next">${prev?`<div><small>Предыдущая статья</small><a href="#/article/${prev.id}">← ${esc(prev.title)}</a></div>`:'<div></div>'}${next?`<div><small>Далее</small><a href="#/article/${next.id}">${esc(next.title)} →</a></div>`:''}</div></article>
     <nav class="article-toc" aria-label="Содержание статьи"><strong>На этой странице</strong>${a.sections.map(s=>`<a href="#section-${s.id}" data-section="${s.id}">${s.title}</a>`).join('')}</nav></div>${footer()}`;
 }
@@ -316,3 +316,4 @@ try {
   const response=await fetch('./data.json');if(!response.ok)throw Error('Не удалось загрузить структурный индекс.');
   data=await response.json();if(!data.servers[activeServer])activeServer=Object.keys(data.servers)[0];applyRoute();
 } catch(error){$('#app').innerHTML=`<div class="initial-loading"><div class="brand-mark">E</div><h2>Не удалось открыть вики</h2><p>${esc(error.message)}</p><p>Откройте портал через HTTP-сервер, а не как файл file://.</p><button data-action="reload">Повторить загрузку</button></div>`;}
+

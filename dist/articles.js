@@ -1,9 +1,11 @@
+import { developerArticles } from './developer-articles.js';
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const p = s => `<p>${s}</p>`;
 const code = s => `<div class="codeblock"><div class="codebar"><span>Пример</span><button class="copy">Копировать</button></div><pre><code>${esc(s)}</code></pre></div>`;
 const section = (id, title, body) => ({ id, title, body });
 const doc = (id, group, title, lead, sections) => ({ id, group, title, lead, time: '5 мин', sources: ['README.md', 'lib/e365.mjs', 'server.mjs'], sections });
 export const articles = [
+...developerArticles,
 doc('start','Начало работы','Как пользоваться вики','Загрузите экспорт и найдите нужный объект, поле или функцию.',[
 section('load','Создайте портал',p('В кабинете выберите файлы .e365 и имя окружения. Несколько решений одного окружения образуют общий каталог. После разбора откройте портал. Файл загружается в этот сервис; сервис не обращается к исходной платформе.')),
 section('find','Найдите объект',p('Выберите окружение в верхней панели. Откройте каталог сущностей и фильтруйте по решению, модулю и сервису. Ctrl+K открывает поиск по статьям, кодам полей, именам функций и путям. Карточка показывает контексты и соответствующие файлы.')),
