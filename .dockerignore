@@ -1,0 +1,14 @@
+.git
+.local
+.env
+*.env
+node_modules
+qa
+**/*.e365
+**/*.zip
+**/*.tar
+**/*.tar.gz
+**/*.log
+test
+.openai
+.sites-workflow

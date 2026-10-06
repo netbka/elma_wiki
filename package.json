@@ -1,0 +1,24 @@
+{
+  "name": "elma-wiki",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node server.mjs",
+    "dev": "node --watch server.mjs",
+    "import": "node tools/import.mjs",
+    "test": "node --test test/*.test.mjs",
+    "verify": "node verify.mjs",
+    "test:browser": "node tools/browser-check.mjs"
+  },
+  "dependencies": {
+    "yauzl": "^3.2.0"
+  },
+  "devDependencies": {
+    "playwright": "^1.63.0",
+    "yazl": "^3.3.1"
+  }
+}

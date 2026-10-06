@@ -1,0 +1,17 @@
+services:
+  wiki:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:43171:43171"
+    environment:
+      HOST: 0.0.0.0
+      PORT: 43171
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-https://wiki.example.com}
+      DISABLE_LOCAL_LOGIN: "1"
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+    volumes:
+      - wiki-data:/app/.local
+volumes:
+  wiki-data:
