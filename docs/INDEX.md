@@ -21,7 +21,7 @@ Routing, not an always-read checklist.
 | Browser coding workspace (PR #8, PR #12) | WEB_DEVELOPER_WORKSPACE.md |
 | Offline compiler profile / per-project SDK | COMPILER_PROFILE.md |
 | Snapshot/storage | contracts/project-snapshots.md |
-| Baseline-first engine and private storage (not yet wired to HTTP/UI) | [contracts/managed-workspace.md](contracts/managed-workspace.md) |
+| Baseline-first engine, private storage and HTTP API (UI pending) | [contracts/managed-workspace.md](contracts/managed-workspace.md) |
 | Source/Target boundary | contracts/source-target-connections.md |
 | Developer code workspace | contracts/developer-workspace.md |
 | Deployment/verification | contracts/target-deployment.md |

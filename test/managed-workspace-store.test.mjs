@@ -27,7 +27,7 @@ async function setup(t) {
   const create = (snapshot = base.ref) => store.create(owner, { name: 'Synthetic managed workspace', baselineOwner: 'Korus', snapshot });
   return { directory, projects, store, upload, base, create };
 }
-const changeInput = (snapshot, revision = 0) => ({ kind: 'change', snapshot, expectedRevision: revision, team: 'Internal', taskRef: 'SYNTHETIC-1' });
+const changeInput = (snapshot, revision = 0) => ({ kind: 'change', snapshot, expectedRevision: revision, team: 'Internal', taskRef: 'SYNTHETIC-1', sameSourceConfirmed: true });
 const decisions = preview => ({ expectedRevision: preview.revision, reviewedDigest: preview.artifactDigest });
 
 test('persisted baseline, partial change, conflict, reconciliation and archive/reopen retain exact artifacts', async t => {
@@ -45,7 +45,7 @@ test('persisted baseline, partial change, conflict, reconciliation and archive/r
   assert.equal(state.current.find(row => row.code === 'x').team, 'Internal');
   const vendor = await upload([['a', 'vendor'], ['b', 'untouched'], ['x', 'theirs']], 'full');
   const reconciliation = await restarted.prepare(state.id, owner, { kind: 'reconciliation', snapshot: vendor.ref,
-    expectedRevision: state.revision, baselineOwner: 'Korus' });
+    expectedRevision: state.revision, baselineOwner: 'Korus', sameSourceConfirmed: true });
   const conflict = reconciliation.rows.find(row => row.classification === 'conflict');
   assert.ok(conflict);
   await assert.rejects(restarted.accept(state.id, owner, reconciliation.artifactId, decisions(reconciliation)), /Resolve each conflict/);
