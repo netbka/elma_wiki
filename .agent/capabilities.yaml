@@ -47,7 +47,7 @@ capabilities:
     routes: ["docs/contracts/source-target-connections.md", "docs/workflows/source-import.md"]
     boundaries: ["connection", "security", "storage"]
   target-connections:
-    owners: ["lib/", "server.mjs"]
+    owners: ["lib/delivery.mjs", "server.mjs", "test/delivery.test.mjs"]
     routes: ["docs/contracts/source-target-connections.md", "docs/contracts/target-deployment.md", "docs/runbooks/target-deployment.md"]
     boundaries: ["connection", "security", "ops"]
   developer-workspace:
@@ -59,11 +59,11 @@ capabilities:
     routes: ["docs/contracts/developer-workspace.md"]
     boundaries: ["compiler"]
   deployment:
-    owners: ["lib/", "server.mjs"]
+    owners: ["lib/delivery.mjs", "server.mjs", "web/releases/model.js"]
     routes: ["docs/contracts/target-deployment.md", "docs/runbooks/target-deployment.md"]
     boundaries: ["connection", "security", "ops"]
   verification:
-    owners: ["lib/", "test/"]
+    owners: ["lib/delivery.mjs", "test/delivery.test.mjs"]
     routes: ["docs/contracts/target-deployment.md"]
     boundaries: ["domain", "ops"]
   storybook-system:

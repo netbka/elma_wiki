@@ -11,6 +11,7 @@ import { portalStore } from './lib/portals.mjs';
 import { projectStore } from './lib/projects.mjs';
 import { workspaceStore } from './lib/workspaces.mjs';
 import { releaseStore } from './lib/releases.mjs';
+import { deliveryStore, syntheticAdapter } from './lib/delivery.mjs';
 import { demoData } from './lib/demo.mjs';
 
 const project = path.dirname(fileURLToPath(import.meta.url));
@@ -31,10 +32,15 @@ function serve(req, res, directory, pathname) {
 }
 export function createServer({ directory = path.join(project, '.local'), baseUrl = process.env.PUBLIC_BASE_URL || `http://127.0.0.1:${process.env.PORT || 43171}`,
   sendEmail = createEmailSender(), sendVk = createVkSender(), now = Date.now,
-  allowLocal = process.env.DISABLE_LOCAL_LOGIN === '0' && ['127.0.0.1', 'localhost'].includes(new URL(baseUrl).hostname) && (!process.env.HOST || process.env.HOST === '127.0.0.1') } = {}) {
+  allowLocal = process.env.DISABLE_LOCAL_LOGIN === '0' && ['127.0.0.1', 'localhost'].includes(new URL(baseUrl).hostname) && (!process.env.HOST || process.env.HOST === '127.0.0.1'),
+  // The synthetic Target adapter is for tests/Storybook; a hosted service must opt in explicitly.
+  syntheticDelivery = process.env.DELIVERY_SYNTHETIC_ADAPTER === '1',
+  protectedTargetHosts = (process.env.PROTECTED_TARGET_HOSTS || '').split(',') } = {}) {
   const base = new URL(baseUrl), auth = createAuth({ baseUrl, allowLocal, sendEmail, sendVk, now }), portals = portalStore(directory), projects = projectStore(directory), oldDemo = demoData(), sample = oldDemo.servers.showcase, demo = {entities:sample.entities,solution:sample.solutions[0],coverage:'structural',parserVersion:'2.0.0',inventory:[],provenance:{},synthetic:true};
   const workspaces = workspaceStore(projects);
-  const releases = releaseStore(directory, projects);
+  let delivery;
+  const releases = releaseStore(directory, projects, { deliverySummary: (id, owner) => delivery.summary(id, owner) });
+  delivery = deliveryStore(directory, releases, { adapters: syntheticDelivery ? { synthetic: syntheticAdapter } : {}, protectedHosts: protectedTargetHosts });
   let uploading = false;
   return http.createServer(async (req, res) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -63,7 +69,23 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
         if (!input || typeof input !== 'object' || Array.isArray(input)) return send(res,400,{error:'Некорректный запрос'});
         return send(res,201,await releases.create(session.user.id,input));
       }
-      const releaseMatch = /^\/api\/releases\/([^/]+)(?:\/(change|preview|bundle))?$/.exec(pathname);
+      const connectionMatch = /^\/api\/connections(?:\/([^/]+)(?:\/(probe))?)?$/.exec(pathname);
+      if (connectionMatch) {
+        const [,id,action] = connectionMatch;
+        if (!session) return send(res,id ? 404 : 401,{error:id ? 'Подключение не найдено' : 'Войдите в сервис'});
+        const owner = session.user.id;
+        if (id) await delivery.connections.get(id,owner);
+        if (req.method === 'GET' && !id) return send(res,200,await delivery.connections.list(owner));
+        if (req.method === 'GET' && id && !action) return send(res,200,await delivery.connections.get(id,owner));
+        if (req.method === 'DELETE' && id && !action) return send(res,200,await delivery.connections.remove(id,owner));
+        if (req.method === 'POST' && id && action === 'probe') return send(res,200,await delivery.connections.probe(id,owner));
+        if (req.method !== 'POST' || id) return send(res,405,{error:'Метод не поддерживается'});
+        if (req.headers['content-type']?.split(';')[0] !== 'application/json') return send(res,415,{error:'Требуется JSON'});
+        const input = JSON.parse((await body(req,16*1024)).toString('utf8'));
+        if (!input || typeof input !== 'object' || Array.isArray(input)) return send(res,400,{error:'Некорректный запрос'});
+        return send(res,201,await delivery.connections.create(owner,input));
+      }
+      const releaseMatch = /^\/api\/releases\/([^/]+)(?:\/(change|preview|bundle|delivery))?$/.exec(pathname);
       if (releaseMatch) {
         const [,id,action] = releaseMatch;
         if (!session) return send(res,404,{error:'Релиз не найден'});
@@ -72,11 +94,18 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
         await releases.authorize(id,owner);
         if (req.method === 'GET' && !action) return send(res,200,await releases.get(id,owner));
         if (req.method === 'GET' && action === 'preview') return send(res,200,await releases.preview(id,owner,url.searchParams.get('path'),url.searchParams.get('side')));
-        if (req.method !== 'POST' || !['change','bundle'].includes(action)) return send(res,405,{error:'Метод не поддерживается'});
+        if (req.method === 'GET' && action === 'delivery') return send(res,200,await delivery.list(id,owner));
+        if (req.method !== 'POST' || !['change','bundle','delivery'].includes(action)) return send(res,405,{error:'Метод не поддерживается'});
         if (req.headers['content-type']?.split(';')[0] !== 'application/json') return send(res,415,{error:'Требуется JSON'});
         const input = JSON.parse((await body(req,64*1024)).toString('utf8'));
         if (!input || typeof input !== 'object' || Array.isArray(input)) return send(res,400,{error:'Некорректный запрос'});
         if (action === 'change') return send(res,200,await releases.change(id,owner,input));
+        if (action === 'delivery') {
+          if (input.action === 'prepare') return send(res,201,await delivery.prepare(id,owner,input));
+          if (input.action === 'confirm') return send(res,200,await delivery.confirm(id,input.attemptId,owner,input));
+          if (input.action === 'verify') return send(res,200,await delivery.verify(id,input.attemptId,owner));
+          return send(res,400,{error:'Неизвестное действие доставки'});
+        }
         const bundle = await releases.bundle(id,owner,input.revision);
         res.writeHead(200,{'Content-Type':'application/zip','Content-Disposition':'attachment; filename="release-handoff.zip"','Cache-Control':'no-store'});
         return res.end(bundle);
@@ -109,6 +138,24 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
           finally { uploading = false; }
         }
         return send(res,405,{error:'Метод не поддерживается'});
+      }
+      const snapshotMatch = /^\/api\/projects\/([^/]+)\/snapshots(?:\/([^/]+)\/(data|report|inventory|original|select))?$/.exec(pathname);
+      if (snapshotMatch) {
+        const [,id,snapshotId,action] = snapshotMatch;
+        if (!session || !await projects.get(id,session.user.id)) return send(res,404,{error:'Проект не найден'});
+        const owner = session.user.id;
+        if (req.method === 'GET' && !snapshotId) return send(res,200,await projects.listSnapshots(id,owner));
+        if (req.method === 'GET' && ['data','report','inventory'].includes(action)) return send(res,200,await projects.readSnapshot(id,owner,snapshotId,action));
+        if (req.method === 'GET' && action === 'original') {
+          const bytes = await projects.snapshotOriginal(id,owner,snapshotId);
+          res.writeHead(200,{'Content-Type':'application/octet-stream','Content-Disposition':'attachment; filename="snapshot.e365"','Cache-Control':'no-store'});
+          return res.end(bytes);
+        }
+        if (req.method !== 'POST' || action !== 'select') return send(res,405,{error:'Метод не поддерживается'});
+        if (req.headers['content-type']?.split(';')[0] !== 'application/json') return send(res,415,{error:'Требуется JSON'});
+        const input = JSON.parse((await body(req,4096)).toString('utf8'));
+        if (!input || typeof input !== 'object' || Array.isArray(input)) return send(res,400,{error:'Некорректный запрос'});
+        return send(res,200,await projects.selectSnapshot(id,owner,snapshotId,input.expectedSnapshotId));
       }
       const projectMatch = /^\/api\/projects\/([^/]+)(?:\/(data|report|original|preview|reparse|diagnostic-summary))?$/.exec(pathname);
       if (projectMatch) {
