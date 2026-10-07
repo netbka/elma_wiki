@@ -27,3 +27,5 @@ jobs:
         run: npx playwright install --with-deps chromium
       - if: runner.os == 'Linux'
         run: npm run test:releases:browser
+      - if: runner.os == 'Linux'
+        run: npm run test:public:browser

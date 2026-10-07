@@ -1,6 +1,34 @@
 {
   "version": 2,
   "capabilities": {
+    "public-field-lookup": {
+      "entry": "/learn/find-field/",
+      "kind": "implemented",
+      "actions": [
+        "read-steps",
+        "inspect-source",
+        "check-answer",
+        "continue-in-designer"
+      ],
+      "renderer": [
+        "web/public-field-guide.mjs"
+      ],
+      "storyIds": [
+        "public-field-guide--ready",
+        "public-field-guide--unavailable",
+        "public-field-guide--ambiguous"
+      ],
+      "requiredVisibleStates": [
+        "ready",
+        "unavailable",
+        "ambiguous"
+      ],
+      "sources": [
+        "docs/workflows/public-field-lookup.md",
+        "test/public-field-guide.test.mjs",
+        "lib/public-site.mjs"
+      ]
+    },
     "public-site": {
       "entry": "/",
       "actions": [
