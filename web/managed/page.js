@@ -22,6 +22,7 @@ async function request(url, input, upload) {
 }
 const navigate = href => { location.href = href; };
 const actions = {
+  ...(api === '/api/solutions' ? { visual: artifactId => request(`${api}/${encodeURIComponent(id)}/artifacts/${encodeURIComponent(artifactId)}/visual`) } : {}),
   logout: async () => { await request('/auth/logout', {}); navigate('/login'); },
   upload: file => request((shared ? '/api/solutions/uploads?sharedConfirmed=true&filename=' : '/api/projects?filename=') + encodeURIComponent(file.name), file, true),
   create: async input => { const state = await request(api, input); navigate(href(state.id)); },

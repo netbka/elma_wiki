@@ -8,6 +8,7 @@ import { limits } from './lib/e365.mjs';
 import { createAuth } from './lib/auth.mjs';
 import { actorStore } from './lib/actors.mjs';
 import { solutionStore, SOLUTION_CATALOG } from './lib/solutions.mjs';
+import { snapshotVisual } from './lib/solution-visual.mjs';
 import { createEmailSender } from './lib/email.mjs';
 import { createVkSender } from './lib/vk-teams.mjs';
 import { createVkLoginBot } from './lib/vk-login-bot.mjs';
@@ -104,7 +105,7 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
         try { return send(res, 201, await solutions.uploads.create(SOLUTION_CATALOG, await body(req, limits.upload), url.searchParams.get('filename') || 'configuration.e365', session.user)); }
         finally { uploading = false; }
       }
-      const solutionMatch = /^\/api\/solutions(?:\/([^/]+)(?:\/(prepare|archive)|\/artifacts\/([^/]+)\/(preview|review|discussion|accept|original))?)?$/.exec(pathname);
+      const solutionMatch = /^\/api\/solutions(?:\/([^/]+)(?:\/(prepare|archive)|\/artifacts\/([^/]+)\/(preview|review|discussion|accept|original|visual))?)?$/.exec(pathname);
       if (solutionMatch) {
         const [, id, operation, artifactId, artifactAction] = solutionMatch, action = operation || artifactAction;
         if (!session) return send(res, id ? 404 : 401, { error: id ? 'Решение не найдено' : 'Войдите в сервис' });
@@ -118,6 +119,7 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
         }
         if (req.method === 'GET' && action === 'preview') return send(res, 200, await store.preview(id, SOLUTION_CATALOG, artifactId));
         if (req.method === 'GET' && action === 'review') return send(res, 200, await store.review(id, SOLUTION_CATALOG, artifactId));
+        if (req.method === 'GET' && action === 'visual') return send(res, 200, await snapshotVisual(await store.original(id, SOLUTION_CATALOG, artifactId), artifactId));
         if (req.method === 'GET' && action === 'original') {
           const bytes = await store.original(id, SOLUTION_CATALOG, artifactId);
           res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Disposition': 'attachment; filename="solution.e365"', 'Cache-Control': 'no-store' });

@@ -18,6 +18,10 @@ classification:
     tooling: "Storybook, agent docs, build/test tooling"
     content: "public/product/documentation wording"
 capabilities:
+  solution-visual:
+    owners: ["lib/solution-visual.mjs", "web/visual/", "storybook/stories/SolutionVisual.stories.js", "test/solution-visual.test.mjs", "tools/solution-visual-browser-check.mjs"]
+    routes: ["docs/contracts/solution-visual.md", "docs/SOLUTION_FIRST_PRODUCT_PLAN.md", "docs/contracts/shared-solutions.md"]
+    boundaries: ["ui", "parser", "security", "domain", "tooling"]
   shared-solutions:
     owners: ["lib/solutions.mjs", "lib/actors.mjs", "lib/managed-workspace-store.mjs", "server.mjs", "test/solutions-api.test.mjs"]
     routes: ["docs/contracts/shared-solutions.md", "docs/SOLUTION_FIRST_PRODUCT_PLAN.md", "docs/SOLUTION_FIRST_CONTRADICTIONS.md"]
