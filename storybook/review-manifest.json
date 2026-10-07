@@ -1,6 +1,13 @@
 {
   "version": 2,
   "capabilities": {
+    "delivery-ui": {
+      "kind": "implemented",
+      "renderer": ["web/releases/render.js", "web/releases/delivery.js", "web/releases/delivery-model.js", "web/releases/model.js"],
+      "storyIds": ["delivery--unavailable", "delivery--ready", "delivery--prepared", "delivery--deploying", "delivery--unverified", "delivery--verified", "delivery--mismatch", "delivery--unknown", "delivery--failed", "delivery--blocked", "delivery--cancelled", "delivery--stale", "delivery--load-error"],
+      "requiredVisibleStates": ["unavailable", "ready", "prepared", "deploying", "deployed-unverified", "verified", "verification-failed", "unknown-outcome", "failed", "blocked", "cancelled", "stale", "load-error"],
+      "sources": ["lib/delivery.mjs", "docs/contracts/target-deployment.md"]
+    },
     "public-site": {
       "entry": "/",
       "actions": [

@@ -33,6 +33,10 @@ try {
   await page.getByLabel('Назначение передачи (непроверенная компания или ответственный)', { exact: true }).fill('Учебный оператор TEST');
   await page.getByRole('button', { name: 'Начать рецензию', exact: true }).click();
   await page.getByRole('heading', { name: 'Рецензия учебного договора', exact: true }).waitFor();
+  const unavailableDelivery = page.getByRole('region', { name: 'Доставка и проверка результата', exact: true });
+  await unavailableDelivery.getByText('Доставка в ELMA пока недоступна. Используйте приватный пакет передачи.', { exact: true }).waitFor();
+  assert.equal(await unavailableDelivery.getByRole('button', { name: 'Добавить учебный стенд', exact: true }).count(), 0);
+  assert.equal(await unavailableDelivery.getByRole('button', { name: 'Подготовить учебную доставку', exact: true }).count(), 0);
   assert.equal(await page.getByRole('button', { name: 'Подготовить неизменяемый кандидат', exact: true }).isDisabled(), true);
   assert.match(await page.locator('.release-shell').textContent(), /Обязательность поля/);
   const staleTab = await page.context().newPage(); await staleTab.goto(page.url());
