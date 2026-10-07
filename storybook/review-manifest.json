@@ -579,6 +579,54 @@
         "test/managed-workspace-api.test.mjs",
         "tools/managed-workspace-browser-check.mjs"
       ]
+    },
+    "portal-requests": {
+      "entry": "/requests",
+      "kind": "implemented",
+      "actions": [
+        "create",
+        "clarify",
+        "approve",
+        "refresh",
+        "cancel",
+        "open-result"
+      ],
+      "renderer": [
+        "web/requests/render.js"
+      ],
+      "storyIds": [
+        "portal-requests--empty",
+        "portal-requests--loading",
+        "portal-requests--unconfigured",
+        "portal-requests--load-error",
+        "portal-requests--waiting-for-worker",
+        "portal-requests--clarification",
+        "portal-requests--approval",
+        "portal-requests--queued",
+        "portal-requests--implementing",
+        "portal-requests--result",
+        "portal-requests--blocked",
+        "portal-requests--cancelled"
+      ],
+      "requiredVisibleStates": [
+        "empty",
+        "loading",
+        "unconfigured",
+        "load-error",
+        "waiting-for-worker",
+        "clarification",
+        "approval",
+        "queued",
+        "implementing",
+        "result",
+        "blocked",
+        "cancelled"
+      ],
+      "sources": [
+        "docs/contracts/portal-requests.md",
+        "tools/requests-browser-check.mjs",
+        "test/request-coordinator.test.mjs"
+      ]
     }
   }
 }

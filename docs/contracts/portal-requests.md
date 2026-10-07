@@ -1,8 +1,11 @@
 # Portal requests and worker queue
 
 The Wiki and VK Teams are independent entry points to one request coordinator.
-VK credentials are not required for portal-origin requests. This is an API
-capability; the baseline-first workspace UI does not yet expose a task panel.
+VK credentials are not required for portal-origin requests. The internal
+execution panel is available at `/requests`: create a task, answer clarification,
+review/approve its specification, refresh execution status, request changes or
+cancel. It is a secondary pilot surface for development of the portal code,
+not a new primary destination or an ELMA configuration executor.
 
 The authenticated Wiki supplies `session.user.id` to the coordinator over a
 server-to-server connection. A private allowlist binds that exact owner ID to
@@ -60,5 +63,11 @@ Focused tests use the real Wiki login/session HTTP API, real coordinator HTTP
 API, SQLite queue and existing worker protocol, with synthetic accounts/keys.
 They verify owner isolation, role separation, current-version approval,
 clarification/cancellation, same-origin protection and restart-safe retries.
-They do not claim a live provider call, GitHub publication, VK connection,
-ELMA delivery or an integrated browser task panel.
+The browser check (`node tools/requests-browser-check.mjs`) also exercises the
+real session-to-queue-to-worker-claim lifecycle, lost-acknowledgement retry without
+duplicate creation, escaped user text, keyboard approval, cancellation, mobile
+reflow and 200% zoom. Twelve Storybook states use the production renderer.
+Browser screenshots/results are synthetic and retained under gitignored `qa/`.
+These checks do not claim a live provider call, GitHub publication, VK connection
+or ELMA delivery. The actual worker's model/repository credentials and approved
+scope still need private operator configuration before real execution.
