@@ -6,6 +6,8 @@ COPY --chown=node:node lib ./lib
 COPY --chown=node:node web ./web
 COPY --chown=node:node dist ./dist
 COPY --chown=node:node server.mjs ./
+COPY --chown=node:node tools/build-editor.mjs ./tools/build-editor.mjs
+RUN node tools/build-editor.mjs
 RUN mkdir .local && chown node:node .local
 USER node
 EXPOSE 43171

@@ -1,0 +1,8 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Редактор скриптов · ELMA Wiki</title><link rel="stylesheet" href="/workspace.css"><link rel="stylesheet" href="/assets/workspace.css"></head>
+<body><header><a id="back" href="/dashboard">← Проект</a><h1 id="title">Редактор скриптов</h1><span class="badge">Экспериментально</span><span id="save-state" role="status">Загрузка…</span></header>
+<section class="toolbar" aria-label="Действия"><button id="save" disabled>Сохранить</button><button id="check" disabled>Проверить TypeScript</button><button id="checkpoint" disabled>Контрольная точка</button><button id="changes" disabled>Изменения</button><select id="restore-choice" aria-label="Версия для восстановления"><option value="original">Оригинал загрузки</option></select><button id="restore" disabled>Восстановить</button><button id="compare" hidden>Сравнить конфликт</button><button id="accept-remote" hidden>Открыть сохранённую копию</button></section>
+<p id="notice" class="notice">Скрипт не выполняется. ELMA compiler, сборка и публикация недоступны.</p><p id="error" role="alert"></p>
+<main><nav id="explorer" aria-label="Исходники"></nav><section class="editor-panel"><h2 id="file-title">Исходник</h2><div id="editor" aria-label="Редактор TypeScript"></div><div id="diff" hidden aria-label="Сравнение исходников"></div></section></main>
+<section class="bottom"><h2>Проблемы <span id="check-state"></span></h2><ul id="problems"></ul><p class="muted">Типы полей получены из descriptor. Внешние ELMA API и зависимости не проверены. Просмотр типов доступен в списке исходников.</p></section>
+<script type="module" src="/assets/workspace.js"></script></body></html>
