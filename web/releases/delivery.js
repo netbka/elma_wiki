@@ -102,10 +102,13 @@ export function mountDelivery({ release, client, onAction, onRefresh } = {}) {
       if (view.canVerify) button(attempt, 'Прочитать и проверить результат', () => execute({ action: 'verify', attemptId: latest.id }));
       const comparison = latest.evidence.comparison;
       if (comparison) {
-        attempt.append(el('p', `Сравнено файлов: ${comparison.compared}. Не сравнивались служебные файлы: ${comparison.volatile.length}.`));
+        attempt.append(el('p', `Сравнено файлов: ${comparison.compared}. Политика проверки: ${comparison.policy || 'прежняя, требуется повторная проверка'}.`));
+        if (comparison.volatile?.length) attempt.append(el('p', 'Прежняя проверка исключала файлы: ' + comparison.volatile.join(', ') + '. Это не полная проверка пакета.', 'note'));
         if (comparison.missing.length) attempt.append(el('p', 'Отсутствуют: ' + comparison.missing.join(', '), 'release-hash'));
         if (comparison.different.length) attempt.append(el('p', 'Отличаются: ' + comparison.different.join(', '), 'release-hash'));
+        if (comparison.unexpected?.length) attempt.append(el('p', 'Лишние файлы: ' + comparison.unexpected.join(', '), 'release-hash'));
       }
+      if (latest.evidence.verificationError) attempt.append(el('p', 'Проверка результата не подтверждена. Проверьте личность стенда, ответ и актуальность кандидата; успешное сообщение операции не является доказательством.', 'note'));
       if (latest.evidence.operation) attempt.append(el('p', latest.evidence.operation.nativeResult || latest.evidence.operation.error || 'Операция завершилась; требуется проверка результата'));
       if (latest.evidence.rollbackReference) attempt.append(el('p', 'Зафиксировано состояние до операции. Восстановление документов или процессов этим не гарантируется.'));
       root.append(attempt);

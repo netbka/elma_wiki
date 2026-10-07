@@ -72,6 +72,7 @@ try {
   assert.equal(await page.evaluate(() => document.activeElement.textContent), 'Доставка и проверка результата');
   assert.match(await panel().getByRole('status').textContent(), /не доказательство доставки в ELMA/);
   assert.equal((await api(`/api/releases/${positive.id}`)).checks.find(c => c.id === 'target').result, 'pass');
+  await panel().getByText(/Политика проверки: exact-solution-inventory-v1/).waitFor();
   await page.getByLabel('Примечания для оператора', { exact: true }).fill('Условия изменились после проверки');
   await page.getByRole('button', { name: 'Сохранить условия (снимает принятие кандидата)', exact: true }).click();
   await page.locator('.release-checks').getByText(/Устарело/).waitFor();
@@ -88,7 +89,7 @@ try {
   await open(unapplied); const noOp = await prepare(unapplied, skipped); await confirm(noOp);
   await panel().getByRole('button', { name: 'Прочитать и проверить результат', exact: true }).click();
   await panel().getByRole('heading', { name: 'Последняя попытка: Результат проверки не совпал', exact: true }).waitFor();
-  assert.match(await panel().textContent(), /Отсутствуют: widgets\/form.json/);
+  assert.match(await panel().textContent(), /Отсутствуют:.*widgets\/form.json/);
   assert.equal((await api(`/api/releases/${unapplied.id}`)).checks.find(c => c.id === 'target').result, 'fail');
 
   await open(lost); const uncertain = await prepare(lost, connection);
@@ -125,8 +126,24 @@ try {
   await panel().getByRole('button', { name: 'Удалить подключение — Временный учебный стенд', exact: true }).click();
   await panel().getByRole('heading', { name: 'Временный учебный стенд', exact: true }).waitFor({ state: 'detached' });
   assert.equal((await api('/api/connections')).some(c => c.id === disposable.id), false);
+
+  // Isolated persisted evidence fixtures test the renderer; delivery.test.mjs covers comparator rejection.
+  const evidenceFile = path.join(directory, 'delivery', 'attempts', lost.id, uncertain.id + '.json');
+  const mismatch = JSON.parse(await fs.readFile(evidenceFile, 'utf8'));
+  mismatch.state = 'verification-failed';
+  mismatch.evidence.comparison = { ...mismatch.evidence.comparison, match: false, unexpected: ['permissionsSettings/extra.json'] };
+  mismatch.history.push({ at: new Date().toISOString(), state: mismatch.state, note: 'Synthetic unexpected-file evidence fixture' });
+  await fs.writeFile(evidenceFile, JSON.stringify(mismatch));
+  await page.reload();
+  await panel().getByText('Лишние файлы: permissionsSettings/extra.json', { exact: true }).waitFor();
+  assert.equal((await api(`/api/releases/${lost.id}`)).checks.find(c => c.id === 'target').result, 'fail');
+  mismatch.evidence.comparison = null;
+  mismatch.evidence.verificationError = { policy: 'exact-solution-inventory-v1', statusCode: 502 };
+  await fs.writeFile(evidenceFile, JSON.stringify(mismatch));
+  await page.reload(); await panel().getByText(/Проверка результата не подтверждена/).waitFor();
+  assert.equal(await panel().getByRole('button', { name: 'Подтвердить учебную операцию', exact: true }).count(), 0);
   assert.deepEqual(errors, []);
-  console.log('Delivery UI: synthetic identity, separate confirmation, read-back, unapplied import, stale evidence, cancellation, lost-response reconciliation, load retry and mobile passed.');
+  console.log('Delivery UI: strict policy, extra files, invalid evidence, identity, confirmation, read-back, stale evidence, cancellation, lost-response recovery, protected Target, connection removal and mobile passed.');
 } finally {
   await browser?.close();
   if (server.listening) await new Promise(resolve => server.close(resolve));
