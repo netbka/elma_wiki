@@ -25,6 +25,10 @@ A partial package never establishes a managed workspace. Absence from a partial 
 
 This direction does not change access rights, grant live ELMA/PROD authority, or claim unimplemented scope detection, component semantics or collaborative review already works.
 
+## Current delivery priority
+
+Owner decision, 2026-10-07: Vercel/public hosting is deferred to the [long-term roadmap](ROADMAP.md#later), not part of the current milestone. Focus current delivery and acceptance on the internal baseline-first Wiki. Preserve existing static-build support and educational content, but do not start further Vercel work or treat public hosting as a dependency or acceptance gate for the internal product. Resuming it requires a new explicit owner assignment; this decision does not select or authorize any deployment host.
+
 ## Execution and acceptance order
 
 1. **#34 / existing draft PR #32:** continue the existing engine lane; complete its domain/storage/API and snapshot association requirements before claiming an integrated foundation. Do not start a competing engine. The published engine checkpoint is not completion of #34.

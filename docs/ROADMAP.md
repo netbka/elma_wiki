@@ -14,6 +14,7 @@ Coordination only. Work starts from the owner request or assigned issue.
 - VK Teams request-to-Dev2 agent delivery - plans/vk-teams-agent-delivery.md; proposed six-PR implementation plan, not a connected bot or deployment authorization. User conversation: workflows/vk-teams-agent-delivery.md.
 
 ## LATER
+- Long-term / deferred: public Vercel hosting, promotion and further public-site delivery work. Owner decision, 2026-10-07: Vercel is not relevant to the current milestone. Prioritize the internal baseline-first Wiki; Vercel availability or deployment is not a blocker or acceptance requirement for it. Retain the existing static build/configuration and educational content; resume hosting work only after a new explicit owner assignment. Reference: [PUBLIC_DEPLOYMENT.md](PUBLIC_DEPLOYMENT.md).
 - VS Code client over shared Developer Core.
 - richer trace/replay and custom component framework research.
 - PROD deployment policy after TEST E2E is proven; use AR-06 in the analyst plan for explicit permission, drift, recovery and operational gates. PROD remains disabled until separately authorized.
