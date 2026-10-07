@@ -39,8 +39,9 @@ export function projectProcess(raw, source) {
     const sourceNode=nodes.filter(n=>n.id===edge.source), targetNode=nodes.filter(n=>n.id===edge.target);
     const id=text(edge.id)||key,pointer=`${source}#/process/transitions/${escape(key)}`,duplicate=transitionIds.get(id)>1;
     if(duplicate)issues.push({pointer,reason:'Неоднозначная идентичность перехода: повторяется код'});
-    return {id,name:text(edge.name),source:text(edge.source),target:text(edge.target),points,
+    return {id,name:text(edge.name),type:text(edge.type),source:text(edge.source),target:text(edge.target),points,
       supported:!duplicate && rawPoints.length>=2 && rawPoints.length<=100 && points.every(p=>p.x!==null&&p.y!==null)
+        && (edge.type===undefined || ['default','error','plain'].includes(edge.type))
         && sourceNode.length===1 && targetNode.length===1 && sourceNode[0].supported && targetNode[0].supported,
       pointer,behavior:'unknown'};
   });

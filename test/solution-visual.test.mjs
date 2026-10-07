@@ -30,11 +30,13 @@ test('missing/duplicate identities, unknown shapes and invalid geometry never in
   const raw=structuredClone(visualSource);
   raw.forms.push(raw.forms[0]);raw.process.items.review.type='unknown';raw.process.items.revise.x=Infinity;
   raw.process.transitions.return.path[0].x='10';
+  raw.process.transitions.approve.type='unknown-edge';
   const p=projectProcess(raw,'processor/approval.json');
   assert.equal(relatedForm(p,'review').status,'ambiguous');
   assert.equal(p.nodes.find(n=>n.id==='review').supported,false);
   assert.equal(p.nodes.find(n=>n.id==='revise').position,null);
   assert.equal(p.edges.find(e=>e.id==='return').supported,false);
+  assert.equal(p.edges.find(e=>e.id==='approve').supported,false);
   raw.process.items.duplicate={...raw.process.items.start};
   assert.equal(relatedForm(projectProcess(raw,'processor/approval.json'),'start').status,'ambiguous');
 });
