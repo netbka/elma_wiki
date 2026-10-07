@@ -1,43 +1,63 @@
-# ELMA Wiki Storybook authority
+# ELMA Wiki: единая карта поведения и Storybook
 
-Storybook is the current UI review surface for ELMA Wiki. It uses synthetic data only.
+Главный объект рецензии — законченный деловой сценарий: зачем человек пришёл, кто действует, какие правила применяются, что меняется и как доказать результат. Отдельные элементы интерфейса вторичны.
 
-## Core rule
+## Запуск
 
-For a wired surface there is one renderer:
+Из корня elma_wiki:
 
-production ViewModel -> shared renderer <- synthetic Storybook fixture.
+```powershell
+npm.cmd ci --prefix storybook
+npm.cmd run storybook
+```
 
-Do not copy production markup into stories.
+Откройте http://127.0.0.1:6006/. Порт фиксирован; занятый порт не освобождается автоматически. Storybook слушает только эту машину. Карта доступна также в сервисе по /flows без записи рецензий.
 
-When visible behavior/state changes, update the affected current story/workflow in the same task.
+```powershell
+npm.cmd run check:storybook
+npm.cmd run build:storybook
+npm.cmd run test:storybook:browser
+```
 
-## Initial groups
+Последняя команда проверяет работающий локальный Storybook. Статическая сборка в storybook/storybook-static предназначена для чтения: сервер записи рецензий в неё не входит. Для удалённой команды потребуется отдельная реализация доступа и совместного хранения.
 
-- Production/Public
-- Production/Projects
-- Production/ProjectViewer
-- Production/Connections
-- Production/DeveloperWorkspace
-- Production/Deployment
-- Workflows/SourceImport
-- Workflows/WorkspaceChange
-- Workflows/TargetDeployment
-- Workflows/Verification
-- Design/* only for explicitly current unimplemented targets
+## Где находится истина
 
-## Workflow requirement
+web/flows/catalog.js — единственный текущий каталог сценариев: цель, роли, правила, вопросы исследования, источники, шаги, ветки и ожидаемые доказательства. web/flows/model.js исполняет переходы. web/flows/render.js используется и /flows, и Storybook; разметка сценария не копируется.
 
-Source import and deployment are behavior-heavy. Their stories must expose normal, loading, partial/failure, retry and success/verified states defined by current contracts.
+Код и проверенные контракты определяют реализованное поведение. Каталог объясняет их и ссылается на источники; он не отменяет их. При расхождении зафиксируйте замечание и исправьте каталог либо реализацию с доказательством. Изменение поведения требует обновления сценария и источника в той же задаче.
 
-A successful deployment story must visually distinguish deployed-unverified from verified.
+| Обозначение | Что оно доказывает |
+| --- | --- |
+| Реализовано в Wiki | Поведение есть в коде/тестах; прохождение здесь синтетическое |
+| Рабочий инструмент рецензии | Панель комментариев работает локально; учебные действия внутри сценария отдельно моделируются |
+| Проектируемый контракт | Ожидаемое поведение, ещё не доказанное в сервисе |
+| Пример ELMA | Учебная логика, требующая сопоставления с конкретной конфигурацией |
 
-## Review manifest
+Stories не подключаются к ELMA. Показ Verified в модели не доказывает развёртывание. DEV и dev2 — разные серверы. Настоящие архивы, имена клиентов, токены и снимки экранов ELMA не входят в каталог.
 
-Create storybook/review-manifest.json as the versioned map capability -> action/entry -> renderer -> story ids -> required visible states. Current stories are either represented or explicitly excluded with a reason.
+## Начальная карта системы
 
-## Safety
+1. Файл → отдельный проект → карта/покрытие → исследование.
+2. Потребность → наблюдения → неизвестные правила → постановка → критерии приёмки.
+3. Прохождение → комментарии/отклонение → исправление → повторная рецензия.
+4. Source → снимок → исследование → изменение → проверки → кандидат → Target → read-back (проектируемый контракт).
+5. Согласование договора: положительное решение, пропуск дубля, возврат и новая версия.
+6. Переписка: связи, флаг, тематика, пустое значение, очистка копии.
+7. Рабочая копия: поддерживаемый скрипт → сохранение → TypeScript/offline compiler → diff/контрольная точка → восстановление; конфликт вкладок и снятие актуальности Check.
 
-Never put real .e365 archives, credentials, customer object names, customer code or production screenshots in Storybook. Use synthetic fixtures.
+storybook/review-manifest.json связывает возможности со stories и обязательными состояниями. check:storybook проверяет источники, stories и достижимость всех шагов. Публичный сайт, вход и прежний viewer имеют явные исключения до переноса их renderer; они не объявляются покрытыми этим каталогом.
 
-Storybook evidence proves the Wiki UI under fixture conditions. It does not prove an ELMA Source export, Target deployment or live provider/runtime behavior.
+## Рецензия
+
+Порядок и критерии: [EXPERIENCE_REVIEW.md](EXPERIENCE_REVIEW.md). Замечание относится к сценарию и текущему шагу. Рецензии разных stories одного сценария объединены.
+
+Панель сохраняет комментарии, ответы, отклонения, решения и повторное открытие в .local/storybook/reviews.json. Это приватная история вне Git. Имя — добровольная подпись локального рецензента; это не аутентификация и не назначение бизнес-ролей.
+
+Отклонения и открытые blocker/must запрещают принятие на сервере. Закрытие требует объяснения. Новый комментарий снимает старое принятие до нового решения. Отпечаток включает каталог, модель, renderer, stories, сценарные документы и правила рецензии. После изменения версии старые обсуждения доступны в истории, но принятие не наследуется. Старая вкладка получает конфликт версии; обновление комментариев не переносит её на новую версию. Действия рецензии блокируются до полной перезагрузки сценария.
+
+Принятие сценария не разрешает развёртывание и не заменяет проверку прав, компиляции или фактического состояния Target.
+
+## Добавление функции
+
+Начните с исследования: потребность, текущее поведение/источник, неизвестные правила, роли/права, данные, исключения, критерии приёмки. Добавьте сценарий и все ветки в каталог, story и manifest. Свяжите их с кодом/контрактом и проверкой. Обновляйте STATE только после фактической реализации.

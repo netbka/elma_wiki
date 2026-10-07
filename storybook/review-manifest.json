@@ -1,23 +1,350 @@
 {
-  "version": 1,
+  "version": 2,
   "capabilities": {
     "public-site": {
       "entry": "/",
-      "actions": ["read-guides", "browse-examples", "copy-example"],
-      "renderer": ["web/index.html", "lib/public-site.mjs"],
+      "actions": [
+        "read-guides",
+        "browse-examples",
+        "copy-example"
+      ],
+      "renderer": [
+        "web/index.html",
+        "lib/public-site.mjs"
+      ],
       "storyIds": [],
-      "requiredVisibleStates": ["landing", "guide", "article-index", "article", "examples", "example", "not-found", "desktop", "mobile"],
+      "requiredVisibleStates": [
+        "landing",
+        "guide",
+        "article-index",
+        "article",
+        "examples",
+        "example",
+        "not-found",
+        "desktop",
+        "mobile"
+      ],
       "workflow": "testing/workflows/public-site.json",
-      "exclusionReason": "Исполняемый Storybook пока не настроен. Публичная сборка проверяется через общий production renderer и синтетические примеры в tools/public-browser-check.mjs; копии разметки для stories нет."
+      "exclusionReason": "Production public renderer ещё не интегрирован в stories. tools/public-browser-check.mjs проверяет текущий публичный сайт; учебный workflow не заменяет эти проверки."
     },
     "email-authentication": {
       "entry": "/login",
-      "actions": ["request-key", "verify-key", "resend-key"],
-      "renderer": ["web/login.html", "web/service.js"],
+      "actions": [
+        "request-key",
+        "verify-key",
+        "resend-key"
+      ],
+      "renderer": [
+        "web/login.html",
+        "web/service.js"
+      ],
       "storyIds": [],
-      "requiredVisibleStates": ["ready", "email-unconfigured", "sending", "sent-with-resend-cooldown", "verifying", "invalid-or-expired-key", "delivery-failed", "rate-limited", "authenticated", "github-disabled"],
+      "requiredVisibleStates": [
+        "ready",
+        "email-unconfigured",
+        "sending",
+        "sent-with-resend-cooldown",
+        "verifying",
+        "invalid-or-expired-key",
+        "delivery-failed",
+        "rate-limited",
+        "authenticated",
+        "github-disabled"
+      ],
       "workflow": "testing/workflows/email-login.json",
-      "exclusionReason": "В текущем репозитории нет исполняемой настройки Storybook. Форма проверяется через production renderer в tools/browser-check.mjs с синтетическим отправителем; отдельной копии разметки нет."
+      "exclusionReason": "Production OTP renderer ещё не интегрирован в stories. tools/browser-check.mjs проверяет синтетическую доставку и настоящий login UI."
+    },
+    "upload": {
+      "entry": "/flows",
+      "kind": "implemented",
+      "actions": [
+        "upload",
+        "invalid",
+        "retry",
+        "parse",
+        "partial",
+        "inspect"
+      ],
+      "renderer": [
+        "web/flows/render.js",
+        "web/flows/model.js"
+      ],
+      "catalog": "web/flows/catalog.js",
+      "storyIds": [
+        "system--whole-system",
+        "system--upload",
+        "system--partial"
+      ],
+      "requiredVisibleStates": [
+        "start",
+        "invalid",
+        "stored",
+        "partial",
+        "ready"
+      ],
+      "sources": [
+        "docs/E365_FILE_PROJECTS.md",
+        "docs/contracts/project-snapshots.md",
+        "lib/projects.mjs",
+        "test/server.test.mjs"
+      ]
+    },
+    "investigation": {
+      "entry": "/flows",
+      "kind": "review-tool",
+      "actions": [
+        "observe",
+        "known",
+        "unknown",
+        "clarify",
+        "review",
+        "revise",
+        "accept"
+      ],
+      "renderer": [
+        "web/flows/render.js",
+        "web/flows/model.js"
+      ],
+      "catalog": "web/flows/catalog.js",
+      "storyIds": [
+        "investigation--journey",
+        "investigation--unknown"
+      ],
+      "requiredVisibleStates": [
+        "request",
+        "observe",
+        "unknown",
+        "proposal",
+        "review",
+        "ready"
+      ],
+      "sources": [
+        "docs/STORYBOOK.md",
+        "docs/EXPERIENCE_REVIEW.md",
+        "docs/contracts/project-snapshots.md"
+      ]
+    },
+    "feature-review": {
+      "entry": "/flows",
+      "kind": "review-tool",
+      "actions": [
+        "comment",
+        "reject",
+        "fix",
+        "approve"
+      ],
+      "renderer": [
+        "web/flows/render.js",
+        "web/flows/model.js"
+      ],
+      "catalog": "web/flows/catalog.js",
+      "storyIds": [
+        "review--journey",
+        "review--rejected"
+      ],
+      "requiredVisibleStates": [
+        "try",
+        "discuss",
+        "rejected",
+        "recheck",
+        "accepted"
+      ],
+      "sources": [
+        "docs/EXPERIENCE_REVIEW.md",
+        "lib/flow-reviews.mjs",
+        "web/flows/review.js"
+      ]
+    },
+    "source-target": {
+      "entry": "/flows",
+      "kind": "proposed",
+      "actions": [
+        "export",
+        "fail",
+        "retry",
+        "edit",
+        "pass",
+        "error",
+        "confirm",
+        "verify",
+        "mismatch"
+      ],
+      "renderer": [
+        "web/flows/render.js",
+        "web/flows/model.js"
+      ],
+      "catalog": "web/flows/catalog.js",
+      "storyIds": [
+        "target--journey",
+        "target--check-failed",
+        "target--unverified",
+        "target--mismatch"
+      ],
+      "requiredVisibleStates": [
+        "source",
+        "failed",
+        "investigate",
+        "check",
+        "check-failed",
+        "candidate",
+        "sent",
+        "mismatch",
+        "verified"
+      ],
+      "sources": [
+        "docs/workflows/source-import.md",
+        "docs/contracts/developer-workspace.md",
+        "docs/contracts/target-deployment.md"
+      ]
+    },
+    "approval": {
+      "entry": "/flows",
+      "kind": "illustrative",
+      "actions": [
+        "submit",
+        "approve",
+        "return",
+        "skip",
+        "change",
+        "resubmit"
+      ],
+      "renderer": [
+        "web/flows/render.js",
+        "web/flows/model.js"
+      ],
+      "catalog": "web/flows/catalog.js",
+      "storyIds": [
+        "elma--approval",
+        "elma--rework"
+      ],
+      "requiredVisibleStates": [
+        "draft",
+        "manager",
+        "duplicate",
+        "rework",
+        "done"
+      ],
+      "sources": [
+        "docs/workflows/elma-business-examples.md"
+      ]
+    },
+    "correspondence": {
+      "entry": "/flows",
+      "kind": "illustrative",
+      "actions": [
+        "enable",
+        "empty",
+        "fill",
+        "disable",
+        "unlink",
+        "relink"
+      ],
+      "renderer": [
+        "web/flows/render.js",
+        "web/flows/model.js"
+      ],
+      "catalog": "web/flows/catalog.js",
+      "storyIds": [
+        "elma--correspondence",
+        "elma--cleared"
+      ],
+      "requiredVisibleStates": [
+        "linked",
+        "empty",
+        "shown",
+        "cleared"
+      ],
+      "sources": [
+        "docs/workflows/elma-business-examples.md"
+      ]
+    },
+    "project-viewer": {
+      "entry": "/p/:id/",
+      "actions": [
+        "search",
+        "preview",
+        "report",
+        "reparse"
+      ],
+      "renderer": [
+        "dist/app.js"
+      ],
+      "storyIds": [],
+      "requiredVisibleStates": [
+        "objects",
+        "source-preview",
+        "parse-report"
+      ],
+      "exclusionReason": "Текущий viewer проверяется tools/browser-check.mjs. Storybook показывает общий путь загрузки, но не копирует интерфейс viewer."
+    },
+    "workspace": {
+      "entry": "/flows",
+      "kind": "implemented",
+      "actions": [
+        "edit",
+        "unsupported",
+        "back",
+        "save",
+        "conflict",
+        "compare",
+        "typescript",
+        "compiler",
+        "error",
+        "fix",
+        "profile",
+        "change",
+        "checkpoint",
+        "restore"
+      ],
+      "renderer": [
+        "web/flows/render.js",
+        "web/flows/model.js"
+      ],
+      "catalog": "web/flows/catalog.js",
+      "storyIds": [
+        "workspace--journey",
+        "workspace--conflict"
+      ],
+      "requiredVisibleStates": [
+        "open",
+        "unsupported",
+        "editing",
+        "conflict",
+        "saved",
+        "failed",
+        "typescript",
+        "checked",
+        "checkpoint"
+      ],
+      "sources": [
+        "docs/COMPILER_PROFILE.md",
+        "docs/contracts/developer-workspace.md",
+        "lib/workspaces.mjs",
+        "test/workspace.test.mjs",
+        "tools/workspace-browser-check.mjs"
+      ]
+    },
+    "workspace-ui": {
+      "entry": "/workspace/:project/:object",
+      "actions": [
+        "save",
+        "check",
+        "checkpoint",
+        "restore",
+        "compare"
+      ],
+      "renderer": [
+        "web/workspace-entry.js"
+      ],
+      "storyIds": [],
+      "requiredVisibleStates": [
+        "editing",
+        "saved",
+        "conflict",
+        "checked",
+        "restored"
+      ],
+      "exclusionReason": "tools/workspace-browser-check.mjs проверяет настоящий Monaco UI и API. Storybook описывает целый workflow, не копируя разметку редактора."
     }
   }
 }

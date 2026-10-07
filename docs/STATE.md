@@ -7,6 +7,8 @@ Last repository verification: 2026-10-07.
 - Manual .e365 upload/project parsing and structural viewer.
 - Synthetic showcase/fixtures.
 - E365 workbench tooling exists for file-oriented work.
+- Local workflow Storybook and shared /flows system map: investigation, review, upload, proposed Source/Target and synthetic ELMA examples.
+- Persistent local comments, replies, rejection/resolution/reopen and version-bound acceptance. Remote collaborative review is not implemented.
 - Browser Developer Workspace (PR #8, fix PR #12): for a recognised WIDGET the
   workspace offers Monaco, inferred context types/RPC completion, diagnostics,
   lint, a separate working copy, autosave, diff, checkpoints/restore and tab
@@ -24,7 +26,7 @@ Last repository verification: 2026-10-07.
 - Separate Target ELMA connection.
 - Snapshot/workspace/target comparisons.
 - Deployment candidate lifecycle and Target read-back verification.
-- Complete ELMA Wiki Storybook governance/catalog.
+- Storybook coverage of existing public/auth/project viewer renderers; workflow catalog has explicit exclusions for these surfaces.
 - Build, live ELMA connections, deployment candidates and read-back for the
   browser workspace (Slice B not started).
 
