@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { FIELD_GUIDE_PATH, FIELD_GUIDE_TITLE } from '../web/public-field-guide.mjs';
+import { SOURCES_TITLE } from '../web/public-article-sources.mjs';
 
 const root = path.resolve(fileURLToPath(new URL('../storybook/storybook-static/', import.meta.url)));
 await readFile(path.join(root, 'iframe.html')); // Fail early when build:storybook was not run.
@@ -61,14 +62,33 @@ try {
       }
       evidence.push({ state, width, scrollWidth, screenshot });
     }
+    for (const [state, linkCount] of [['listed', 2], ['empty', 0], ['invalid', 1]]) {
+      await page.goto(`${base}/iframe.html?id=public-article-sources--${state}&viewMode=story`);
+      const sources = page.locator(`.article-sources[data-sources-state="${state}"]`);
+      await sources.waitFor();
+      await sources.getByRole('heading', { name: SOURCES_TITLE, exact: true }).waitFor();
+      await page.evaluate(() => document.fonts.ready);
+      assert.equal(await sources.getByRole('link').count(), linkCount);
+      assert.equal(await sources.locator('.badge').count(), 0);
+      assert.ok(!(await sources.textContent()).includes('SYNTHETIC_PRIVATE_VALUE'));
+      const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+      assert.ok(scrollWidth <= width, `Sources horizontal overflow: ${state}/${width}`);
+      if (linkCount) {
+        await sources.getByRole('link').first().focus();
+        assert.ok(await sources.getByRole('link').first().evaluate(node => node === document.activeElement));
+      }
+      const screenshot = `qa/public-article-sources-story-${state}-${width}.png`;
+      await page.screenshot({ path: screenshot, fullPage: true });
+      evidence.push({ component: 'article-sources', state, width, scrollWidth, screenshot });
+    }
   }
   assert.deepEqual(errors, []); assert.deepEqual(failed, []); assert.deepEqual(external, []);
   await writeFile('qa/public-field-guide-visual-evidence.json', JSON.stringify({
     commit: process.env.GITHUB_SHA || null, browser: browser.version(),
-    scope: 'Built synthetic Storybook states; not live ELMA or accessibility conformance',
+    scope: 'Built synthetic public Storybook states; not live ELMA or accessibility conformance',
     evidence
   }, null, 2) + '\n');
-  console.log('Public field guide: all 3 built Storybook states passed at 1440/390; screenshots saved.');
+  console.log('Public field guide and article sources: all 6 built Storybook states passed at 1440/390; screenshots saved.');
 } finally {
   if (browser) await browser.close();
   server.closeAllConnections();

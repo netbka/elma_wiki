@@ -2,6 +2,7 @@ import { chromium } from 'playwright';
 import fs from 'node:fs/promises';
 import assert from 'node:assert/strict';
 import { FIELD_GUIDE_PATH, FIELD_GUIDE_TITLE } from '../web/public-field-guide.mjs';
+import { SOURCES_TITLE } from '../web/public-article-sources.mjs';
 import { articles } from '../dist/articles.js';
 import { buildPublicSite } from './build-public.mjs';
 import { createStaticPreview } from './public-preview.mjs';
@@ -40,11 +41,24 @@ try {
     await page.goto(base + '/');
     await page.getByRole('link', { name: 'Пройти учебный пример', exact: true }).click();
     assert.equal(new URL(page.url()).pathname, FIELD_GUIDE_PATH);
+    await page.goto(base + '/articles/field-form-recipe/');
+    await page.getByRole('link', { name: SOURCES_TITLE, exact: true }).click();
+    assert.equal(new URL(page.url()).hash, '#article-sources');
+    const sources = page.locator('.article-sources');
+    assert.equal(await sources.getAttribute('data-sources-state'), 'listed');
+    assert.equal(await sources.locator('.badge').count(), 0);
+    assert.equal(await sources.getByRole('link').count(), 4);
+    await sources.getByRole('link').first().focus();
+    assert.ok(await sources.getByRole('link').first().evaluate(node => node === document.activeElement));
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    await sources.screenshot({ path: `qa/public-article-sources-${width}.png` });
   }
   for (const article of articles) {
     await page.goto(base + '/articles/' + article.id + '/');
     await page.getByRole('heading', { name: article.title, exact: true }).waitFor();
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), article.id);
+    assert.equal(await page.locator('.article-sources[data-sources-state="listed"]').count(), 1, article.id);
+    assert.equal(await page.locator('.article-sources a').count(), article.sources.length, article.id);
   }
   await page.goto(base + '/articles/field-form-recipe/');
   await page.screenshot({ path: 'qa/public-article-mobile.png', fullPage: true });
@@ -64,7 +78,7 @@ try {
   assert.deepEqual(errors, []); assert.deepEqual(failed, []);
   assert.ok(requests.every(r => r.url.startsWith(base) && !['fetch', 'xhr', 'websocket'].includes(r.type)), 'Static site must not call a backend');
   for (const route of ['/api/session', '/auth/github', '/login', '/dashboard', '/server.mjs', '/.env', '/extensions/e365-workbench/']) assert.equal((await fetch(base + route)).status, 404, route);
-  console.log(`Public: landing, field-lookup journey, guide, ${articles.length} articles, 6 examples, mobile, clipboard and keyboard passed; no backend requests.`);
+  console.log(`Public: landing, field-lookup journey, guide, ${articles.length} articles with sources, 6 examples, mobile, clipboard and keyboard passed; no backend requests.`);
 } finally {
   if (browser) await browser.close();
   await new Promise(resolve => server.close(resolve));

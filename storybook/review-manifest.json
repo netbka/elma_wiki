@@ -1,6 +1,15 @@
 {
   "version": 2,
   "capabilities": {
+    "public-article-sources": {
+      "entry": "/articles/:id/#article-sources",
+      "kind": "implemented",
+      "actions": ["read-sources", "follow-public-reference"],
+      "renderer": ["web/public-article-sources.mjs"],
+      "storyIds": ["public-article-sources--listed", "public-article-sources--empty", "public-article-sources--invalid"],
+      "requiredVisibleStates": ["listed", "empty", "invalid"],
+      "sources": ["docs/workflows/public-article-sources.md", "test/public-article-sources.test.mjs", "test/public-article-sources-integration.test.mjs", "lib/public-site.mjs"]
+    },
     "public-field-lookup": {
       "entry": "/learn/find-field/",
       "kind": "implemented",
