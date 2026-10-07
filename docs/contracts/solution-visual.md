@@ -13,3 +13,9 @@ The shared `web/visual/render.js` is used by production review and Storybook. Ge
 Each selected source node carries an artifact ID, archive SHA-256, source object tuple, JSON pointer and projection fingerprint for the P4 discussion adapter. A changed artifact or changed node remains distinct evidence. This slice does not persist comments or silently migrate anchors. Durable discussion across versions, declared scenario requirements, missing-comment simulation and observed-vs-expected audit remain follow-up P4/P5 work. Native screenshot/runtime evidence requires its own separately authorized collection; reconstruction never creates it.
 
 Evidence is synthetic: source-shape projection tests, actual authenticated shared upload/capture/read API with checksum corruption rejection, and Chrome checks for source geometry, explicit form association, view-only approval/return paths, disabled actions, unknown descriptor, escaped text, keyboard, 390px reflow and 200% zoom. Five Storybook states reuse the renderer. Private export schemas were inspected locally to establish field shapes; no customer labels, IDs, fields, scripts or screenshots were copied into fixtures. Review/delivery acceptance guards remain unchanged.
+
+Duplicate node, lane and transition codes mark every occurrence unsupported,
+including the first. Source pointers remain distinct and each occurrence has
+an ambiguity explanation. Duplicate nodes cannot select a form or follow a
+transition by choosing the first match. A sixth Storybook state and browser
+regression exercise this ambiguous review state with the production renderer.

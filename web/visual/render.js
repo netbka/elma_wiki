@@ -30,7 +30,7 @@ export function mountSnapshotVisual(model={},actions={}) {
       diagram.querySelectorAll('[data-node]').forEach(n=>n.setAttribute('stroke',n.dataset.node===node.id?'#087451':'#536660'));
       const relation=relatedForm(process,node.id);
       if(relation.form){panel.append(el('p','Связь с формой указана в экспорте'),el('h4',relation.form.name));displayForm(relation.form.tree,panel);}
-      else panel.append(el('p',relation.status==='ambiguous'?'Связь неоднозначна: несколько форм с одним кодом.':'Связь с формой не подтверждена.'));
+      else panel.append(el('p',relation.status==='ambiguous'?'Связь неоднозначна: повторяется код узла или формы.':'Связь с формой не подтверждена.'));
       const branches=process.edges.filter(e=>e.source===node.id);
       panel.append(el('h4','Варианты перехода'));
       for(const edge of branches){const b=el('button','Посмотреть переход: '+(edge.name||'без названия'));b.type='button';b.disabled=!edge.supported;b.onclick=()=>{const target=process.nodes.find(n=>n.id===edge.target);if(target)select(target);};panel.append(b,el('small',' · Только просмотр связи, условия и исполнение неизвестны'));}

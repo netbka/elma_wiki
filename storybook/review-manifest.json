@@ -652,6 +652,7 @@
       "storyIds": [
         "solution-visual--source",
         "solution-visual--unknown",
+        "solution-visual--duplicate",
         "solution-visual--empty",
         "solution-visual--loading",
         "solution-visual--error"
@@ -659,6 +660,7 @@
       "requiredVisibleStates": [
         "source",
         "unknown",
+        "duplicate",
         "empty",
         "loading",
         "error"

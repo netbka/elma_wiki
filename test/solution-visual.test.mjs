@@ -36,8 +36,26 @@ test('missing/duplicate identities, unknown shapes and invalid geometry never in
   assert.equal(p.nodes.find(n=>n.id==='revise').position,null);
   assert.equal(p.edges.find(e=>e.id==='return').supported,false);
   raw.process.items.duplicate={...raw.process.items.start};
-  assert.equal(relatedForm(projectProcess(raw,'processor/approval.json'),'start').status,'unknown');
+  assert.equal(relatedForm(projectProcess(raw,'processor/approval.json'),'start').status,'ambiguous');
 });
+test('all duplicated node, lane and transition identities remain unsupported without choosing the first occurrence',()=>{
+  const raw=structuredClone(visualSource);
+  raw.process.items.duplicate={...raw.process.items.review,name:'Duplicate review',x:330};
+  raw.process.lanes.duplicate={...raw.process.lanes.review,name:'Duplicate lane',y:250};
+  raw.process.transitions.duplicate={...raw.process.transitions.approve,name:'Duplicate transition'};
+  const p=projectProcess(raw,'fixture');
+  assert.equal(p.nodes.filter(n=>n.id==='review').every(n=>!n.supported),true);
+  assert.equal(p.lanes.filter(n=>n.id==='review').every(n=>!n.supported),true);
+  assert.equal(p.edges.filter(e=>e.id==='approve').every(e=>!e.supported),true);
+  assert.equal(relatedForm(p,'review').status,'ambiguous');
+  assert.equal(p.issues.filter(i=>i.reason.includes('идентичность')).length,6);
+  const edgesOnly=structuredClone(visualSource);
+  edgesOnly.process.transitions.duplicate={...edgesOnly.process.transitions.approve};
+  const independent=projectProcess(edgesOnly,'fixture');
+  assert.equal(independent.nodes.every(n=>n.supported),true);
+  assert.equal(independent.edges.filter(e=>e.id==='approve').every(e=>!e.supported),true);
+});
+
 test('archive projection binds source anchors to immutable bytes and excludes all imported scripts',async()=>{
   const raw=structuredClone(visualSource);raw.scripts='throw Error("SECRET_EXECUTION_MARKER")';
   const bytes=await visualArchive(raw), first=await snapshotVisual(bytes,'artifact-one');
