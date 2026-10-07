@@ -109,6 +109,17 @@ test('bridge: token issued once and stored hashed; delivery runs end to end thro
   assert.equal((await releases.get(release.id, 'alice')).checks.find(c => c.id === 'target').result, 'pass');
 });
 
+async function waitForAttempt(delivery, releaseId, attemptId, expectedState) {
+  const deadline = Date.now() + 5000;
+  let attempt;
+  do {
+    attempt = await delivery.get(releaseId, attemptId, 'alice');
+    if (attempt.state === expectedState) return attempt;
+    await new Promise(resolve => setTimeout(resolve, 25));
+  } while (Date.now() < deadline);
+  assert.equal(attempt.state, expectedState, 'background operation did not reach its terminal state');
+}
+
 test('bridge: slow import returns deploying and finishes in the background; unapplied import never verifies; worker errors fail the attempt', async t => {
   const { projects, releases, delivery, bridges } = await setup(t, { confirmGraceMs: 100 });
   const { bridge, token } = await bridges.create('alice', { name: 'Медленный мост' });
@@ -120,8 +131,7 @@ test('bridge: slow import returns deploying and finishes in the background; unap
   attempt = await delivery.confirm(release.id, attempt.id, 'alice', { idempotencyKey: 'slow', confirmation: confirmation(attempt) });
   assert.equal(attempt.state, 'deploying');
   await assert.rejects(delivery.verify(release.id, attempt.id, 'alice'), /невозможен в состоянии «deploying»/);
-  await new Promise(resolve => setTimeout(resolve, 600));
-  attempt = await delivery.get(release.id, attempt.id, 'alice');
+  attempt = await waitForAttempt(delivery, release.id, attempt.id, 'deployed-unverified');
   assert.equal(attempt.state, 'deployed-unverified');
   attempt = await delivery.verify(release.id, attempt.id, 'alice');
   assert.equal(attempt.state, 'verification-failed'); assert.match(attempt.history.at(-1).note, /импорт не применён/);
@@ -132,6 +142,7 @@ test('bridge: slow import returns deploying and finishes in the background; unap
   const second = await approvedRelease(projects, releases);
   let failing = await delivery.prepare(second.id, 'alice', { revision: second.revision, connectionId: connection.id });
   failing = await delivery.confirm(second.id, failing.id, 'alice', { idempotencyKey: 'f', confirmation: confirmation(failing) });
+  failing = await waitForAttempt(delivery, second.id, failing.id, 'failed');
   assert.equal(failing.state, 'failed'); assert.match(failing.evidence.operation.error, /unresolved dependency/);
   await assert.rejects(delivery.verify(second.id, failing.id, 'alice'), /невозможен/);
   // Removing the bridge rejects anything still queued and invalidates the token.
