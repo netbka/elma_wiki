@@ -4,6 +4,7 @@ import { pathToFileURL } from 'node:url';
 import { Store } from './store.mjs';
 import { ciPolicy, refreshCi } from './ci.mjs';
 import { Coordinator, Fault } from './core.mjs';
+import { readPortal, commandPortal } from './portal.mjs';
 import { VkClient, GitHubClient, secretEqual, normalizeVkEvent, verifyWebhook, githubCommentEvent, dispatchOne, reconcileIssues } from './adapters.mjs';
 
 export function validateConfig(c, env) {
@@ -14,7 +15,7 @@ export function validateConfig(c, env) {
     if (['prod', 'production'].includes(String(p.environment).toLowerCase())) throw Error('PROD is not supported');
   }
   for (const b of c.bindings) {
-    if (typeof b.actor !== 'string' || !b.actor || typeof b.chat !== 'string' || !b.chat || !Array.isArray(b.projects) || !b.projects.length || b.projects.some(p => !c.projects[p])) throw Error('Invalid identity binding');
+    if (typeof b.actor !== 'string' || !b.actor || typeof b.chat !== 'string' || !b.chat || b.chat === 'portal' || !Array.isArray(b.projects) || !b.projects.length || b.projects.some(p => !c.projects[p])) throw Error('Invalid identity binding');
     if (b.githubUserId !== undefined && (!Number.isSafeInteger(b.githubUserId) || b.githubUserId < 1)) throw Error('Invalid GitHub identity');
   }
   const names = new Set(), values = new Set();
@@ -30,9 +31,17 @@ export function validateConfig(c, env) {
   }
   if (c.operatorTokenEnv) checkSecret(c.operatorTokenEnv);
   if (c.ingressTokenEnv) checkSecret(c.ingressTokenEnv);
-  if (!c.vk?.botId || !c.vk.apiBase || !c.vk.tokenEnv || !env[c.vk.tokenEnv] || !['dispatcher', 'dedicated-polling'].includes(c.vk.mode)) throw Error('VK transport configuration is required');
-  if (c.vk.mode === 'dispatcher' && !c.ingressTokenEnv) throw Error('Dispatcher ingress credential is required');
-  if (c.vk.mode === 'dedicated-polling' && c.vk.dedicatedBotConfirmed !== true) throw Error('Do not start a competing poller for an existing bot');
+  if (c.portal) {
+    checkSecret(c.portal.tokenEnv);
+    if (!Array.isArray(c.portal.bindings) || !c.portal.bindings.length || c.portal.bindings.some(b =>
+      typeof b.owner !== 'string' || !b.owner || b.owner.length > 200 || !Array.isArray(b.projects) || !b.projects.length || b.projects.some(p => !c.projects[p]))) throw Error('Invalid portal identity binding');
+  }
+  if (c.vk) {
+    if (!c.vk.botId || !c.vk.apiBase || !c.vk.tokenEnv || !env[c.vk.tokenEnv] || !['dispatcher', 'dedicated-polling'].includes(c.vk.mode)) throw Error('Invalid VK transport configuration');
+    if (c.vk.mode === 'dispatcher' && !c.ingressTokenEnv) throw Error('Dispatcher ingress credential is required');
+    if (c.vk.mode === 'dedicated-polling' && c.vk.dedicatedBotConfirmed !== true) throw Error('Do not start a competing poller for an existing bot');
+  }
+  if (!c.vk && !c.portal) throw Error('A portal or VK ingress is required');
   if (!c.github?.botLogin || !c.github.tokenEnv || !env[c.github.tokenEnv] || !c.github.webhookSecretEnv) throw Error('GitHub transport configuration is required');
   checkSecret(c.github.webhookSecretEnv);
   if (c.leaseMs !== undefined && (!Number.isInteger(c.leaseMs) || c.leaseMs < 1000 || c.leaseMs > 600000)) throw Error('Invalid lease duration');
@@ -62,6 +71,15 @@ export function createApp(core, adapters, env, { signal } = {}) {
       if (signal?.aborted) throw new Fault('service_stopping', 503);
       const path = new URL(req.url, 'http://localhost').pathname;
       if (path === '/healthz' && req.method === 'GET') return reply(200, { status: 'ok', liveDelivery: false });
+      if (path.startsWith('/portal/')) {
+        if (!c.portal || !secretEqual(bearer(req), env[c.portal.tokenEnv])) throw new Fault('unauthorized', 401);
+        if (req.method !== 'POST') throw new Fault('not_found', 404);
+        const data = parse(await body(req));
+        if (Object.keys(data).some(k => !['owner', 'id', 'input'].includes(k))) throw new Fault('invalid_command', 400);
+        if (path === '/portal/read' && data.input === undefined) return reply(200, readPortal(core, data.owner, data.id));
+        if (path === '/portal/command' && data.id === undefined) return reply(200, commandPortal(core, data.owner, data.input));
+        throw new Fault('not_found', 404);
+      }
       if (path.startsWith('/ops/')) {
         if (!secretEqual(bearer(req), env[c.operatorTokenEnv])) throw new Fault('unauthorized', 401);
         if (path === '/ops/status' && req.method === 'GET') return reply(200, {
@@ -71,7 +89,7 @@ export function createApp(core, adapters, env, { signal } = {}) {
         throw new Fault('not_found', 404);
       }
       if (path === '/integrations/vk/events' && req.method === 'POST') {
-        if (c.vk.mode !== 'dispatcher' || !secretEqual(bearer(req), env[c.ingressTokenEnv])) throw new Fault('unauthorized', 401);
+        if (c.vk?.mode !== 'dispatcher' || !secretEqual(bearer(req), env[c.ingressTokenEnv])) throw new Fault('unauthorized', 401);
         const data = parse(await body(req));
         if (!Array.isArray(data.events) || data.events.length > 100) throw new Fault('invalid_batch', 400);
         const events = data.events.map(e => normalizeVkEvent(e, c.vk.botId));
@@ -149,14 +167,14 @@ export async function main(env = process.env) {
   const config = validateConfig(JSON.parse(readFileSync(env.REQUEST_BOT_CONFIG, 'utf8')), env);
   process.umask(0o077);
   const store = new Store(env.REQUEST_BOT_DATABASE), core = new Coordinator(store, config);
-  const adapters = { vk: new VkClient({ ...config.vk, token: () => env[config.vk.tokenEnv] }), github: new GitHubClient({ ...config.github, token: () => env[config.github.tokenEnv] }) };
+  const adapters = { ...(config.vk ? { vk: new VkClient({ ...config.vk, token: () => env[config.vk.tokenEnv] }) } : {}), github: new GitHubClient({ ...config.github, token: () => env[config.github.tokenEnv] }) };
   const abort = new AbortController(), app = createApp(core, adapters, env, { signal: abort.signal });
   const port = Number(env.REQUEST_BOT_PORT || 43174);
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw Error('Invalid port');
   await new Promise((resolve, reject) => { app.once('error', reject); app.listen(port, '127.0.0.1', resolve); });
   const loops = startLoops(core, adapters, { signal: abort.signal, onError: code => console.error(code) });
   console.log(`Request coordinator listening on loopback:${port}; live delivery is disabled`);
-  if (config.vk.mode === 'dedicated-polling') void (async () => {
+  if (config.vk?.mode === 'dedicated-polling') void (async () => {
     let failures = 0;
     while (!abort.signal.aborted) {
       try { await pollOnce(core, adapters.vk); failures = 0; }

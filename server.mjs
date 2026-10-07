@@ -2,6 +2,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { requestCoordinator } from './lib/request-coordinator.mjs';
 import { readData } from './lib/store.mjs';
 import { limits } from './lib/e365.mjs';
 import { createAuth } from './lib/auth.mjs';
@@ -40,7 +41,8 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
   syntheticDelivery = process.env.DELIVERY_SYNTHETIC_ADAPTER === '1',
   protectedTargetHosts = (process.env.PROTECTED_TARGET_HOSTS || '').split(','),
   // A real export/import through the bridge takes minutes; the default covers a large solution.
-  deliveryTimeoutMs = Number(process.env.DELIVERY_TIMEOUT_MS) || 20 * 60 * 1000 } = {}) {
+  deliveryTimeoutMs = Number(process.env.DELIVERY_TIMEOUT_MS) || 20 * 60 * 1000,
+  requests = requestCoordinator() } = {}) {
   const base = new URL(baseUrl), auth = createAuth({ baseUrl, allowLocal, sendEmail, sendVk, now }), portals = portalStore(directory), projects = projectStore(directory), oldDemo = demoData(), sample = oldDemo.servers.showcase, demo = {entities:sample.entities,solution:sample.solutions[0],coverage:'structural',parserVersion:'2.0.0',inventory:[],provenance:{},synthetic:true};
   const workspaces = workspaceStore(projects);
   const managed = managedWorkspaceStore(directory, projects);
@@ -70,6 +72,20 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
       }
       if (await auth.route(req, res, url)) return;
       const session = auth.session(req);
+      const requestMatch = /^\/api\/requests(?:\/(REQ-[A-F0-9]{12})(?:\/(reply|approve|cancel))?)?$/.exec(pathname);
+      if (requestMatch) {
+        const [, id, action] = requestMatch;
+        if (!session) return send(res, id ? 404 : 401, { error: id ? 'Задание не найдено' : 'Войдите в сервис' });
+        if (!requests) return send(res, 503, { error: 'Worker ещё не подключён к порталу', configured: false });
+        const owner = session.user.id;
+        if (req.method === 'GET' && !action) return send(res, 200, await requests.read(owner, id));
+        if (req.method !== 'POST' || (id && !action)) return send(res, 405, { error: 'Метод не поддерживается' });
+        if (req.headers['content-type']?.split(';')[0] !== 'application/json') return send(res, 415, { error: 'Требуется JSON' });
+        const input = JSON.parse((await body(req, 32 * 1024)).toString('utf8'));
+        const allowed = id ? ['operationId', 'revision', ...(action === 'reply' ? ['text'] : [])] : ['operationId', 'project', 'text'];
+        if (!input || typeof input !== 'object' || Array.isArray(input) || Object.keys(input).some(k => !allowed.includes(k))) return send(res, 400, { error: 'Некорректное задание' });
+        return send(res, id ? 200 : 201, await requests.command(owner, { ...input, action: action || 'create', ...(id ? { requestId: id } : {}) }));
+      }
       const managedMatch = /^\/api\/managed-workspaces(?:\/([^/]+)(?:\/(prepare|archive)|\/artifacts\/([^/]+)\/(preview|accept|original))?)?$/.exec(pathname);
       if (managedMatch) {
         const [, id, operation, artifactId, artifactAction] = managedMatch, action = operation || artifactAction;

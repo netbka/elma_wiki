@@ -1,0 +1,18 @@
+{
+  "projects": {
+    "wiki": { "repository": "netbka/elma_wiki", "taskKind": "wiki_code", "baseRef": "main" }
+  },
+  "bindings": [],
+  "portal": {
+    "tokenEnv": "REQUEST_PORTAL_KEY",
+    "bindings": [{ "owner": "replace-with-exact-Wiki-session-user-id", "projects": ["wiki"] }]
+  },
+  "workers": [
+    { "id": "agent", "tokenEnv": "REQUEST_AGENT_KEY", "kinds": ["triage", "implement"], "projects": ["wiki"] },
+    { "id": "publisher", "tokenEnv": "REQUEST_PUBLISHER_KEY", "kinds": ["publish"], "projects": ["wiki"] }
+  ],
+  "github": {
+    "tokenEnv": "REQUEST_GITHUB_TOKEN", "botLogin": "replace-with-GitHub-bot-login",
+    "webhookSecretEnv": "REQUEST_GITHUB_WEBHOOK_SECRET"
+  }
+}
