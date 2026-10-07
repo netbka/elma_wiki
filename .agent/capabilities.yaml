@@ -1,0 +1,72 @@
+version: 1
+classification:
+  intents:
+    investigate: "inspect/reproduce/explain; no runtime change"
+    design: "define product/architecture/visible result"
+    change: "implement or repair assigned outcome"
+    verify: "test/review existing work"
+    operate: "connect/deploy/rollback or other environment operation"
+  boundaries:
+    ui: "visible layout/state/interaction"
+    domain: "project/snapshot/workspace/candidate behavior"
+    storage: "private project artifacts, persistence, ownership"
+    parser: ".e365 interpretation and coverage"
+    connection: "Source/Target/bridge protocol"
+    compiler: "typings, compile, lint, package build"
+    security: "identity, authorization, credentials, private data"
+    ops: "live environment/deployment/rollback"
+    tooling: "Storybook, agent docs, build/test tooling"
+    content: "public/product/documentation wording"
+capabilities:
+  public-site:
+    owners: ["web/index.html", "web/service.css", "web/service.js"]
+    routes: ["docs/INDEX.md"]
+    boundaries: ["ui", "content"]
+  projects:
+    owners: ["lib/projects.mjs", "lib/store.mjs", "server.mjs", "web/dashboard.html"]
+    routes: ["docs/contracts/project-snapshots.md"]
+    boundaries: ["domain", "storage", "security"]
+  e365-parser:
+    owners: ["lib/e365.mjs", "lib/project-parser.mjs"]
+    routes: ["docs/E365_FILE_PROJECTS.md", "docs/contracts/project-snapshots.md"]
+    boundaries: ["parser", "security"]
+  project-viewer:
+    owners: ["dist/app.js", "dist/articles.js", "dist/developer-articles.js"]
+    routes: ["docs/E365_FILE_PROJECTS.md"]
+    boundaries: ["ui", "domain"]
+  source-connections:
+    owners: ["lib/", "server.mjs"]
+    routes: ["docs/contracts/source-target-connections.md", "docs/workflows/source-import.md"]
+    boundaries: ["connection", "security", "storage"]
+  target-connections:
+    owners: ["lib/", "server.mjs"]
+    routes: ["docs/contracts/source-target-connections.md", "docs/contracts/target-deployment.md", "docs/runbooks/target-deployment.md"]
+    boundaries: ["connection", "security", "ops"]
+  developer-workspace:
+    owners: ["extensions/e365-workbench/", "lib/"]
+    routes: ["docs/contracts/developer-workspace.md"]
+    boundaries: ["compiler", "storage", "ui"]
+  compiler-lint:
+    owners: ["extensions/e365-workbench/", "lib/"]
+    routes: ["docs/contracts/developer-workspace.md"]
+    boundaries: ["compiler"]
+  deployment:
+    owners: ["lib/", "server.mjs"]
+    routes: ["docs/contracts/target-deployment.md", "docs/runbooks/target-deployment.md"]
+    boundaries: ["connection", "security", "ops"]
+  verification:
+    owners: ["lib/", "test/"]
+    routes: ["docs/contracts/target-deployment.md"]
+    boundaries: ["domain", "ops"]
+  storybook-system:
+    owners: ["storybook/", "testing/workflows/"]
+    routes: ["docs/STORYBOOK.md"]
+    boundaries: ["tooling", "ui"]
+  agent-system:
+    owners: ["AGENTS.md", ".agent/capabilities.yaml", "docs/INDEX.md"]
+    routes: ["AGENTS.md", "docs/INDEX.md"]
+    boundaries: ["tooling"]
+  operations:
+    owners: ["deploy/", "compose.yaml", "Dockerfile"]
+    routes: ["docs/runbooks/target-deployment.md"]
+    boundaries: ["ops", "security"]
