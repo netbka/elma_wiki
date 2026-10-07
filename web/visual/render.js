@@ -17,7 +17,9 @@ export function mountSnapshotVisual(model={},actions={}) {
     else if(tree.descriptor==='button'){const b=el('button',tree.label||'Действие');b.type='button';b.disabled=true;box.append(b,el('small','Поведение не проверено'));}
     else for(const f of tree.fields||[tree.field].filter(Boolean)){
       const label=el('label',f.name||f.code||'Поле без названия'), input=el('input');input.disabled=true;
-      input.type=f.type==='boolean'?'checkbox':f.type==='date'?'date':'text';label.append(input,el('small',f.required?' · Обязательное по экспорту':' · Представление поля'));box.append(label,source(f.pointer));
+      input.type=f.type==='boolean'?'checkbox':f.type==='date'?'date':'text';label.append(input,el('small',f.required?' · Обязательное по экспорту':' · Представление поля'));
+      if(!['string','text','boolean','date','number','integer','float','file','table','reference'].includes(f.type))label.append(el('small',' · Тип / привязка не поддерживаются'));
+      box.append(label,source(f.pointer));
     }
     tree.children.forEach(child=>displayForm(child,box));parent.append(box);
   };

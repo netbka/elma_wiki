@@ -29,8 +29,9 @@ export function projectProcess(raw, source) {
     const edge=object(value), rawPoints=Array.isArray(edge.path)?edge.path:[];
     const points=rawPoints.slice(0,100).map(p=>({x:coordinate(p?.x),y:coordinate(p?.y)}));
     const sourceNode=nodes.filter(n=>n.id===edge.source), targetNode=nodes.filter(n=>n.id===edge.target);
-    return {id:text(edge.id)||key,name:text(edge.name),source:text(edge.source),target:text(edge.target),points,
+    return {id:text(edge.id)||key,name:text(edge.name),type:text(edge.type),source:text(edge.source),target:text(edge.target),points,
       supported:rawPoints.length>=2 && rawPoints.length<=100 && points.every(p=>p.x!==null&&p.y!==null)
+        && (edge.type===undefined || ['default','error','plain'].includes(edge.type))
         && sourceNode.length===1 && targetNode.length===1 && sourceNode[0].supported && targetNode[0].supported,
       pointer:`${source}#/process/transitions/${escape(key)}`,behavior:'unknown'};
   });
