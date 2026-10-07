@@ -1,0 +1,45 @@
+name: Request bot contracts
+on:
+  pull_request:
+    paths:
+      - 'services/request-bot/**'
+      - '.github/workflows/request-bot.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'services/request-bot/**'
+      - '.github/workflows/request-bot.yml'
+permissions:
+  contents: read
+jobs:
+  contracts:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22.16.0'
+      - name: Contracts, recovery and HTTP authorization
+        working-directory: services/request-bot
+        run: npm test
+      - name: Explicitly synthetic conversation demo
+        working-directory: services/request-bot
+        run: npm run demo
+      - name: Capture exact tracked contract sources
+        if: always() && runner.os == 'Linux'
+        run: git archive --format=zip --output=request-bot-source.zip HEAD services/request-bot docs/contracts/request-bot.md .agent/capabilities.yaml AGENTS.md
+      - name: Retain reproducible contract source
+        if: always() && runner.os == 'Linux'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: request-bot-source-${{ github.sha }}
+          path: request-bot-source.zip
+          if-no-files-found: error
+          retention-days: 3

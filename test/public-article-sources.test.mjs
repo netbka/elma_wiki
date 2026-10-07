@@ -1,91 +1,132 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { classifySource, createArticleSourcesModel, renderArticleSources, SOURCES_SECTION_ID, SOURCES_TITLE } from '../web/public-article-sources.mjs';
+import fs from 'node:fs/promises';
+import { articles } from '../dist/articles.js';
+import { demoData } from '../lib/demo.mjs';
+import { renderPublicFiles } from '../lib/public-site.mjs';
+import {
+  REPOSITORY_URL, SOURCES_SECTION_ID, classifySource, createArticleSourcesModel, renderArticleSources
+} from '../web/public-article-sources.mjs';
 
-const repository = 'https://github.com/netbka/elma_wiki/blob/main/';
-const help = 'https://elma365.com/ru/help/platform/lowcode-devops-pm.html';
+const root = new URL('../', import.meta.url);
 
-test('declared public references retain their destinations without claiming verification', () => {
-  const input = ['README.md', help], before = structuredClone(input);
-  const model = createArticleSourcesModel(input), html = renderArticleSources(input);
-  assert.equal(model.state, 'listed');
-  assert.deepEqual(model.items.map(item => item.kind), ['repository', 'external']);
-  assert.deepEqual(model.items.map(item => item.href), [repository + 'README.md', help]);
-  assert.deepEqual(input, before);
+test('repository paths and allow-listed https documentation become links; nothing else does', () => {
+  assert.deepEqual(classifySource('lib/e365.mjs'), {
+    kind: 'repository', path: 'lib/e365.mjs', href: REPOSITORY_URL + '/blob/main/lib/e365.mjs', label: 'lib/e365.mjs'
+  });
+  assert.equal(classifySource('README.md').kind, 'repository');
+  assert.equal(classifySource('docs/E365_FILE_PROJECTS.md').href, REPOSITORY_URL + '/blob/main/docs/E365_FILE_PROJECTS.md');
+  const external = classifySource('https://elma365.com/ru/help/platform/export-import-elma365.html');
+  assert.equal(external.kind, 'external');
+  assert.equal(external.label, 'elma365.com/ru/help/platform/export-import-elma365.html');
+  assert.equal(classifySource('https://github.com/netbka/elma_wiki/blob/main/README.md').kind, 'external');
+  const rejected = {
+    'javascript:alert(1)': 'https',
+    'data:text/html,<b>x</b>': 'недопустимые символы',
+    'http://elma365.com/ru/help/': 'https',
+    'https://user:secret@elma365.com/ru/help/': 'учётные данные',
+    'https://evil.example/elma365.com/': 'вне списка',
+    'https://elma365.com/%ZZ': 'некорректное кодирование',
+    'https://elma365.com/%FF': 'некорректное кодирование',
+    'https://github.com/someone-else/repo': 'вне репозитория',
+    '../../.env': 'скрытый или недопустимый сегмент',
+    'docs/../.env': 'скрытый или недопустимый сегмент',
+    '.local/delivery/connections.json': 'скрытый или недопустимый сегмент',
+    '.env': 'скрытый или недопустимый сегмент',
+    '/etc/passwd': 'абсолютный путь',
+    'C:/Users/private/.env': 'абсолютный путь',
+    'lib\\e365.mjs': 'недопустимые символы',
+    'qa/public-landing-1440.png': 'вне публичной части',
+    'node_modules/playwright/package.json': 'вне публичной части',
+    'uploads/customer.e365': 'вне публичной части',
+    docs: 'путь к файлу',
+    'lib/e365.mjs" onmouseover="alert(1)': 'недопустимые символы',
+    '': 'пустое значение',
+    '   ': 'пустое значение'
+  };
+  for (const [value, reason] of Object.entries(rejected)) {
+    const item = classifySource(value);
+    assert.equal(item.kind, 'invalid', value);
+    assert.match(item.reason, new RegExp(reason), value);
+    assert.equal(item.href, undefined, value);
+  }
+  for (const value of [undefined, null, 42, {}, ['lib/e365.mjs'], { href: 'https://elma365.com/' }]) {
+    assert.equal(classifySource(value).kind, 'invalid');
+  }
+  assert.equal(classifySource('lib/' + 'a'.repeat(300) + '.mjs').reason, 'слишком длинное значение');
+});
+
+test('model states: listed, empty and invalid; status wording is preserved, never upgraded', () => {
+  const listed = createArticleSourcesModel(['README.md', 'https://elma365.com/ru/help/platform/lowcode-devops-pm.html'], { status: 'Экспериментально · импорт не испытан' });
+  assert.equal(listed.state, 'listed');
+  assert.equal(listed.status, 'Экспериментально · импорт не испытан');
+  for (const sources of [[], undefined, null]) {
+    const model = createArticleSourcesModel(sources, { status: undefined });
+    assert.equal(model.state, 'empty'); assert.deepEqual(model.items, []); assert.equal(model.status, 'Руководство');
+  }
+  for (const sources of ['README.md', {}]) assert.equal(createArticleSourcesModel(sources).state, 'invalid');
+  const invalid = createArticleSourcesModel(['README.md', 'javascript:alert(1)', 7], { status: 'Структура формата' });
+  assert.equal(invalid.state, 'invalid');
+  assert.deepEqual(invalid.items.map(item => item.kind), ['repository', 'invalid', 'invalid']);
+});
+
+test('renderer escapes labels, links only approved references and keeps the reference/verification distinction', () => {
+  const html = renderArticleSources(createArticleSourcesModel(
+    ['lib/e365.mjs', 'https://elma365.com/ru/help/platform/export-import-elma365.html', '<img src=x onerror=alert(1)>', 'javascript:alert(1)'],
+    { status: '<b>Проверено</b> · 1 января 2099' }
+  ));
+  assert.equal((html.match(/<a /g) || []).length, 2, 'only the two valid references are links');
+  assert.ok(html.includes(`href="${REPOSITORY_URL}/blob/main/lib/e365.mjs" rel="noreferrer noopener"`));
+  assert.ok(html.includes('href="https://elma365.com/ru/help/platform/export-import-elma365.html"'));
+  assert.ok(!html.includes('<img'), 'rejected source is not emitted');
+  assert.ok(!/href="javascript:/.test(html));
+  assert.ok(!html.includes('&lt;img src=x onerror=alert(1)&gt;'), 'even an escaped rejected value can contain private data');
+  assert.ok(html.includes('&lt;b&gt;Проверено&lt;/b&gt; · 1 января 2099'), 'status is shown verbatim and escaped');
+  assert.ok(html.includes('data-sources-state="invalid"'));
+  assert.ok(html.includes('не означает, что описанное поведение проверено на ELMA365'));
+  assert.ok(html.includes('ссылка не публикуется'));
   assert.ok(html.includes(`id="${SOURCES_SECTION_ID}"`));
-  assert.ok(html.includes(SOURCES_TITLE));
-  assert.match(html, /ELMA365/);
-  assert.doesNotMatch(html, /class="badge"|data-verified|<script|<iframe|<form/);
-  assert.equal(classifySource(repository + 'README.md').href, repository + 'README.md');
-  assert.equal(classifySource(help + '#usage').href, help + '#usage');
+  assert.deepEqual(html.match(/<span class="badge">[^<]*<\/span>/g), ['<span class="badge">&lt;b&gt;Проверено&lt;/b&gt; · 1 января 2099</span>'], 'the only badge is the article status itself');
+
+  const empty = renderArticleSources(createArticleSourcesModel([], {}));
+  assert.ok(empty.includes('data-sources-state="empty"'));
+  assert.ok(empty.includes('источники не указаны'));
+  assert.equal((empty.match(/<a /g) || []).length, 0);
+  assert.ok(empty.includes('<span class="badge">Руководство</span>'));
 });
 
-test('absent sources have an empty fallback, malformed containers are not treated as absent', () => {
-  for (const input of [undefined, null, []]) {
-    assert.equal(createArticleSourcesModel(input).state, 'empty');
-    assert.match(renderArticleSources(input), /data-sources-state="empty"/);
-    assert.doesNotMatch(renderArticleSources(input), /<a\b/);
-  }
-  for (const input of ['README.md', {}, 4, false]) {
-    assert.equal(createArticleSourcesModel(input).state, 'invalid');
-    assert.doesNotMatch(renderArticleSources(input), /<a\b/);
-  }
-});
-
-const rejected = [
-  '', 'javascript:alert(1)', 'data:text/html,<script>alert(1)</script>', 'file:///private/value',
-  '/etc/passwd', 'C:\\Users\\private\\config', '\\\\server\\private', '.env.production', '.local/projects/x',
-  'qa/result.png', 'node_modules/module/index.js', 'docs/private-data.json', 'tools/credentials.env',
-  '../README.md', 'docs/../README.md', 'docs//E365_FILE_PROJECTS.md', 'docs/./E365_FILE_PROJECTS.md',
-  'docs/%2e%2e/README.md', 'docs/E365_FILE_PROJECTS.md?token=SYNTHETIC_SECRET',
-  'https://github.com/netbka/elma365/blob/main/README.md',
-  repository + '.env', repository + '../main/README.md', repository + 'README.md?token=SYNTHETIC_SECRET',
-  'http://elma365.com/ru/help/platform/a.html', '//elma365.com/ru/help/platform/a.html',
-  'https://user:SYNTHETIC_SECRET@elma365.com/ru/help/platform/a.html',
-  'https://elma365.com:444/ru/help/platform/a.html',
-  'https://elma365.com.evil.example/ru/help/platform/a.html',
-  'https://elma365.com./ru/help/platform/a.html',
-  'https://localhost/ru/help/platform/a.html', 'https://127.0.0.1/ru/help/platform/a.html',
-  'https://elma365.com/ru/help/platform/a.html?redirect=https://evil.example',
-  'https://elma365.com/ru/help/platform/%', 'https://elma365.com/ru/help/platform/%E0%A4%A',
-  'https://elma365.com/ru/help/platform/%2e%2e/a.html',
-  'https://elma365.com/ru/help/platform/../a.html', 'https://elma365.com/ru/help//a.html',
-  'https://elma365.com/ru/help/platform/a.html#<img>',
-  'https://elma365.com/ru/help/platform/a.html\nSYNTHETIC_SECRET',
-  'README.md\u0000', '<img src=x onerror="alert(1)">', 'x'.repeat(1025)
-];
-
-test('unsafe, private, normalized and encoded references fail closed without public value echoes', () => {
-  for (const input of rejected) {
-    assert.deepEqual(classifySource(input), { kind: 'invalid' }, input);
-    const html = renderArticleSources([input]);
-    assert.match(html, /data-sources-state="invalid"/);
-    assert.doesNotMatch(html, /<a\b|<img|onerror|SYNTHETIC_SECRET/);
-    if (input.length > 3) assert.ok(!html.includes(input), input);
+test('every published article renders its declared sources; declared repository paths exist and only safe links are emitted', async () => {
+  // The real public generator with the real article data; rendered in memory so this
+  // test does not race test/public-site.test.mjs for the shared .public directory.
+  const files = renderPublicFiles({ landing: await fs.readFile(new URL('web/index.html', root), 'utf8'), articles, example: demoData().servers.showcase });
+  for (const article of articles) {
+    const html = files.get(`articles/${article.id}/index.html`);
+    assert.ok(html, article.id);
+    const section = html.match(/<section class="sources"[\s\S]*?<\/section>/)?.[0];
+    assert.ok(section, article.id);
+    assert.ok(section.includes('data-sources-state="listed"'), `${article.id}: all declared sources must be valid, got ${section.match(/data-sources-state="([^"]+)"/)[1]}`);
+    assert.ok(html.includes(`<a href="#${SOURCES_SECTION_ID}">Источники</a>`), `${article.id}: contents link`);
+    const links = [...section.matchAll(/href="([^"]+)"/g)].map(m => m[1]);
+    assert.equal(links.length, article.sources.length, article.id);
+    for (const href of links) assert.match(href, /^https:\/\/(github\.com\/netbka\/elma_wiki\/blob\/main\/|(?:www\.)?elma365\.com\/)/, `${article.id} -> ${href}`);
+    for (const source of article.sources) {
+      if (/^https:/.test(source)) continue;
+      await fs.access(new URL(source, root)).catch(() => assert.fail(`${article.id}: declared source ${source} is not in the repository`));
+    }
+    assert.ok(section.includes(`<span class="badge">${escape(article.status || 'Руководство')}</span>`), `${article.id}: status is repeated verbatim`);
   }
 });
 
-test('unserializable malformed metadata cannot crash rendering or invoke object conversion', () => {
-  const cycle = {}; cycle.self = cycle;
-  const hostile = { toString() { throw Error('unexpected conversion'); }, toJSON() { throw Error('unexpected serialization'); } };
-  const input = [cycle, hostile, 1n, Symbol('private'), null, false, ['README.md']];
-  assert.equal(createArticleSourcesModel(input).state, 'invalid');
-  assert.doesNotThrow(() => renderArticleSources(input));
-  assert.doesNotMatch(renderArticleSources(input), /<a\b/);
-  assert.equal(createArticleSourcesModel(new Array(2)).state, 'invalid');
+test('Storybook registers the same renderer and all three source states', async () => {
+  const manifest = JSON.parse(await fs.readFile(new URL('storybook/review-manifest.json', root), 'utf8'));
+  const stories = await import('../storybook/stories/PublicArticleSources.stories.js');
+  const entry = manifest.capabilities['public-article-sources'];
+  assert.equal(entry.kind, 'implemented');
+  assert.deepEqual(entry.renderer, ['web/public-article-sources.mjs']);
+  assert.deepEqual(entry.requiredVisibleStates, ['listed', 'empty', 'invalid']);
+  assert.deepEqual(entry.storyIds, ['Listed', 'Empty', 'Invalid'].map(name => `${stories.default.id}--${name.toLowerCase()}`));
+  for (const name of ['Listed', 'Empty', 'Invalid']) assert.equal(typeof stories[name].render, 'function');
+  for (const source of entry.sources) await fs.access(new URL(source, root));
 });
 
-test('mixed references preserve usable sources and hide rejected credentials', () => {
-  const html = renderArticleSources(['README.md', help, '.local/SYNTHETIC_SECRET', { secret: 'SYNTHETIC_SECRET' }]);
-  assert.match(html, /data-sources-state="invalid"/);
-  assert.equal([...html.matchAll(/<a\b/g)].length, 2);
-  assert.ok(html.includes(repository + 'README.md'));
-  assert.doesNotMatch(html, /SYNTHETIC_SECRET|\.local/);
-});
-
-test('source policy does not fetch URLs or inspect private files', () => {
-  const beforeFetch = globalThis.fetch;
-  globalThis.fetch = () => { throw Error('No network in source rendering'); };
-  try { assert.equal(createArticleSourcesModel([help]).state, 'listed'); renderArticleSources([help]); }
-  finally { globalThis.fetch = beforeFetch; }
-});
+const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
