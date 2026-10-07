@@ -8,6 +8,7 @@ import { Store } from '../store.mjs';
 import { Coordinator, digest } from '../core.mjs';
 import { GitHubClient } from '../adapters.mjs';
 import { createApp } from '../server.mjs';
+import { refreshCi } from '../ci.mjs';
 import { WorkStore, runOnce, validatePolicy, safePath,
   gitBlobSha, coordinatorClient, main } from '../worker.mjs';
 
@@ -62,24 +63,24 @@ function githubFixture() {
     }
     if (path.startsWith(root + '/git/matching-refs/heads/')) return json(g.branches.filter(x => x.ref.startsWith('refs/heads/' + path.split('/heads/')[1])));
     if (method === 'POST' && path === root + '/git/trees') { assert.equal(body.base_tree, TREE); g.treeWrite = body; return json({ sha: NEWTREE }); }
-    if (method === 'POST' && path === root + '/git/commits') { g.commit = body; if (g.driftAfterCommit) g.base = 'e'.repeat(40); return json({ sha: HEAD }); }
-    if (path === root + '/git/commits/' + HEAD) return json({ sha: HEAD, tree: { sha: g.badCommit ? TREE : NEWTREE }, parents: [{ sha: BASE }] });
+    if (method === 'POST' && path === root + '/git/commits') { g.commit = body; if (g.driftAfterCommit) g.base = 'e'.repeat(40); return json({ sha: g.head || HEAD }); }
+    if (path === root + '/git/commits/' + (g.head || HEAD)) return json({ sha: g.head || HEAD, tree: { sha: g.badCommit ? TREE : NEWTREE }, parents: [{ sha: BASE }] });
     if (method === 'POST' && path === root + '/git/refs') {
       g.branches.push({ ref: body.ref, object: { sha: body.sha } });
       if (g.refTimeout) throw Error('lost ref response');
       return json(g.branches.at(-1));
     }
     if (path === root + '/pulls') {
-      if (method === 'GET') return json(g.prs);
+      if (method === 'GET') return json(g.prs.filter(pr => !u.searchParams.has('head') || u.searchParams.get('head') === 'fixture:' + pr.head.ref));
       assert.equal(method, 'POST'); assert.equal(body.draft, true);
-      const pr = { number: 31, state: 'open', draft: true, body: body.body,
-        head: { ref: body.head, sha: HEAD, repo: { full_name: 'fixture/wiki' } },
-        base: { ref: body.base, repo: { full_name: 'fixture/wiki' } } };
+      const pr = { number: 31 + g.prs.length, state: 'open', draft: true, body: body.body,
+        head: { ref: body.head, sha: g.head || HEAD, repo: { full_name: 'fixture/wiki' } },
+        base: { ref: body.base, sha: BASE, repo: { full_name: 'fixture/wiki' } } };
       g.prs.push(pr);
       if (g.prTimeout) throw Error('lost PR response');
       return json(pr);
     }
-    if (path === root + '/pulls/31') return json({ ...g.prs[0], ...(g.badPr ? { head: { sha: BASE } } : {}) });
+    if (/\/pulls\/\d+$/.test(path)) return json({ ...g.prs.find(pr => pr.number === Number(path.split('/').at(-1))), ...(g.badPr ? { head: { sha: BASE } } : {}) });
     throw Error(`Unexpected fixture endpoint ${method} ${path}`);
   };
   g.client = new GitHubClient({ token: () => 'synthetic-github-token', botLogin: 'test-bot' }, g.fetch);
@@ -354,4 +355,80 @@ test('a stalled heartbeat cannot keep the provider running beyond the last grant
   });
   assert.equal(result.code, 'lease_or_deadline_lost');
   assert.equal(h.work.db.prepare('SELECT count(*) AS n FROM artifacts').get().n, 0);
+});
+
+test('HTTP repair loop: exact CI failure -> cumulative artifact -> new draft PR -> CI pass, same specification', async t => {
+  const h = await harness(t);
+  h.p.ci = { workflows: [{ id: 10, path: '.github/workflows/test.yml', jobs: ['unit'] }], maxRepairs: 2 };
+  const originalFetch = h.g.fetch;
+  let passing = false;
+  h.g.fetch = async (url, opts) => {
+    const path = new URL(url).pathname;
+    const pr = h.g.prs.at(-1), head = h.g.head || HEAD;
+    const json = v => new Response(JSON.stringify(v));
+    if (path.endsWith('/actions/runs')) return json({ total_count: 1, workflow_runs: [{ id: 100 + h.g.prs.length,
+      workflow_id: 10, path: '.github/workflows/test.yml', event: 'pull_request', head_sha: head,
+      head_branch: pr.head.ref, head_repository: { full_name: 'fixture/wiki' }, status: 'completed',
+      conclusion: passing ? 'success' : 'failure', run_attempt: 1,
+      pull_requests: [{ number: pr.number, head: { sha: head }, base: { sha: BASE } }] }] });
+    if (path.includes('/attempts/')) return json({ total_count: 1, jobs: [{ id: 500 + h.g.prs.length, run_id: 100 + h.g.prs.length,
+      name: 'unit', status: 'completed', conclusion: passing ? 'success' : 'failure', steps: [{ name: 'assert new message', conclusion: passing ? 'success' : 'failure' }] }] });
+    return originalFetch(url, opts);
+  };
+  const id = await h.approved();
+  const originalApproval = h.store.request(id).approval;
+  // First implementation touches two files. A later repair touches only one.
+  await h.run('agent', model('changes', { files: [...changes().files, { path: 'test/message.test.mjs', content: '// new synthetic assertion\n' }] }));
+  assert.equal((await h.run('publisher')).accepted,true);
+  const originalPr = structuredClone(h.g.prs[0]), originalArtifact = h.store.request(id).patch;
+  const gh = new GitHubClient({ token: () => 'fixture' }, (url, opts) => h.g.fetch(url, opts));
+  await refreshCi(h.core, gh);
+  assert.equal(h.store.request(id).iteration,1); assert.equal(h.store.request(id).state,'QUEUED');
+  assert.deepEqual(h.store.request(id).approval,originalApproval);
+  const repaired = model('changes', {files:[{path:'src/message.mjs',content:'export const greeting = "hello corrected";\n'}]});
+  const generated = await h.run('agent', repaired);
+  assert.equal(generated.accepted,true,JSON.stringify(generated));
+  const next = h.work.get(h.store.request(id).patch);
+  assert.equal(next.iteration,1); assert.equal(next.baseSha,BASE); assert.equal(next.files.length,2);
+  assert.equal(next.files.find(f=>f.path==='test/message.test.mjs').content,'// new synthetic assertion\n');
+  assert.equal(h.work.get(originalArtifact).files[0].content,changes().files[0].content);
+  const prompt = JSON.parse(h.modelRequests.at(-1).input[1].content);
+  assert.equal(prompt.files['src/message.mjs'].content, changes().files[0].content);
+  assert.equal(prompt.ciFailure.status,'failed'); assert.equal(prompt.ciFailure.workflows[0].jobs[0].failedSteps[0],'assert new message');
+  h.g.head = 'e'.repeat(40);
+  assert.equal((await h.run('publisher')).accepted,true);
+  assert.equal(h.g.prs[1].number,32); assert.match(h.g.prs[1].head.ref, /\/v1-fix1$/);
+  assert.deepEqual(h.g.prs[0],originalPr); assert.equal(h.g.branches.length,2);
+  passing = true; await refreshCi(h.core, gh);
+  assert.equal(h.store.request(id).ci.status,'passed'); assert.equal(h.store.request(id).state,'PR_READY');
+  assert.equal(h.store.request(id).revision,1); assert.deepEqual(await h.run('agent',repaired),{idle:true});
+  // A later failed rerun may consume the second approved repair, never a third.
+  passing = false; await refreshCi(h.core, gh);
+  assert.equal(h.store.request(id).iteration, 2);
+  const secondRepair = model('changes', {files:[{path:'src/message.mjs',content:'export const greeting = "final correction";\n'}]});
+  assert.equal((await h.run('agent',secondRepair)).accepted,true);
+  const secondArtifact = h.work.get(h.store.request(id).patch);
+  assert.equal(secondArtifact.iteration,2); assert.equal(secondArtifact.files.length,2);
+  assert.equal(secondArtifact.files.find(f=>f.path==='test/message.test.mjs').content,'// new synthetic assertion\n');
+  h.g.head = 'f'.repeat(40);
+  assert.equal((await h.run('publisher')).accepted,true);
+  assert.match(h.g.prs[2].head.ref,/\/v1-fix2$/);
+  await refreshCi(h.core,gh);
+  assert.equal(h.store.request(id).ci.status,'failed');
+  assert.equal(h.store.request(id).state,'PR_READY');
+  assert.equal(h.store.request(id).iteration,2);
+  assert.deepEqual(h.store.request(id).approval,originalApproval);
+  assert.deepEqual(await h.run('agent',secondRepair),{idle:true});
+  assert.equal(h.g.prs.length,3);
+
+});
+
+test('repair artifact identity cannot swap the previous iteration or owner', async t => {
+  const h=await harness(t), id=await h.approved(); await h.run('agent',changes());
+  const r=h.store.request(id), manifest=r.patch;
+  r.iteration=1; r.repairFrom={iteration:9,revision:1,patch:manifest,pr:{headSha:HEAD},feedback:{status:'failed',headSha:HEAD}};
+  r.state='QUEUED'; delete r.patch;
+  h.store.tx(()=>{h.store.run("UPDATE jobs SET status='cancelled' WHERE status='queued'");h.store.save(r);h.core.enqueue(r,'implement');});
+  const before=h.modelCalls(), result=await h.run('agent',changes());
+  assert.equal(result.blocked,true);assert.equal(result.reason,'invalid_repair_context');assert.equal(h.modelCalls(),before);
 });

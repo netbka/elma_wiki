@@ -2,6 +2,7 @@ import { createServer } from 'node:http';
 import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { Store } from './store.mjs';
+import { ciPolicy, refreshCi } from './ci.mjs';
 import { Coordinator, Fault } from './core.mjs';
 import { VkClient, GitHubClient, secretEqual, normalizeVkEvent, verifyWebhook, githubCommentEvent, dispatchOne, reconcileIssues } from './adapters.mjs';
 
@@ -9,6 +10,7 @@ export function validateConfig(c, env) {
   if (!c || typeof c !== 'object' || !c.projects || !Object.keys(c.projects).length || !Array.isArray(c.bindings) || !Array.isArray(c.workers)) throw Error('Invalid request-bot configuration');
   for (const [key, p] of Object.entries(c.projects)) {
     if (!/^[a-z][a-z0-9-]{0,39}$/.test(key) || !/^[A-Za-z0-9][A-Za-z0-9_.-]{0,99}\/[A-Za-z0-9][A-Za-z0-9_.-]{0,99}$/.test(p.repository) || !['wiki_code', 'elma_config'].includes(p.taskKind)) throw Error('Invalid project registry');
+    if (p.ci) { ciPolicy(p.ci); if (p.taskKind !== 'wiki_code') throw Error('CI repair supports Wiki code only'); }
     if (['prod', 'production'].includes(String(p.environment).toLowerCase())) throw Error('PROD is not supported');
   }
   for (const b of c.bindings) {
@@ -52,11 +54,12 @@ async function body(req) {
 function parse(raw) { try { const data = JSON.parse(raw.toString('utf8')); if (!data || typeof data !== 'object' || Array.isArray(data)) throw Error(); return data; } catch { throw new Fault('invalid_json', 400); } }
 function bearer(req) { return req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : ''; }
 
-export function createApp(core, adapters, env) {
+export function createApp(core, adapters, env, { signal } = {}) {
   const c = core.config;
   const server = createServer(async (req, res) => {
     const reply = (status, data) => { res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' }); res.end(JSON.stringify(data)); };
     try {
+      if (signal?.aborted) throw new Fault('service_stopping', 503);
       const path = new URL(req.url, 'http://localhost').pathname;
       if (path === '/healthz' && req.method === 'GET') return reply(200, { status: 'ok', liveDelivery: false });
       if (path.startsWith('/ops/')) {
@@ -64,7 +67,7 @@ export function createApp(core, adapters, env) {
         if (path === '/ops/status' && req.method === 'GET') return reply(200, {
           jobs: core.s.all('SELECT id,request_id,kind,status,attempts,expires FROM jobs ORDER BY id DESC LIMIT 100'),
           outbox: core.s.all('SELECT id,request_id,kind,status,error_code FROM outbox ORDER BY id DESC LIMIT 100') });
-        if (path === '/ops/reconcile' && req.method === 'POST') { const r = core.reconcile(); await reconcileIssues(core, adapters.github); return reply(200, r); }
+        if (path === '/ops/reconcile' && req.method === 'POST') { const r = core.reconcile(); await reconcileIssues(core, adapters.github); await refreshCi(core, adapters.github, signal); return reply(200, r); }
         throw new Fault('not_found', 404);
       }
       if (path === '/integrations/vk/events' && req.method === 'POST') {
@@ -104,7 +107,15 @@ export function createApp(core, adapters, env) {
   return server;
 }
 export function startLoops(core, adapters, { signal, onError = () => {} } = {}) {
-  let busy = false, reconciling = false;
+  const stopped = new AbortController();
+  const ciSignal = signal ? AbortSignal.any([signal, stopped.signal]) : stopped.signal;
+  let busy = false, reconciling = false, checking = false;
+  const checkCi = async () => {
+    if (checking || ciSignal.aborted) return;
+    checking = true;
+    try { await refreshCi(core, adapters.github, ciSignal); } catch { onError('ci_observation_failed'); }
+    finally { checking = false; }
+  };
   const flush = async () => {
     if (busy || signal?.aborted) return;
     busy = true;
@@ -114,15 +125,15 @@ export function startLoops(core, adapters, { signal, onError = () => {} } = {}) 
   const recover = async () => {
     if (reconciling || signal?.aborted) return;
     reconciling = true;
-    try { core.reconcile(); await reconcileIssues(core, adapters.github); }
+    try { core.reconcile(); await reconcileIssues(core, adapters.github); await checkCi(); }
     catch { onError('reconcile_failed'); } finally { reconciling = false; }
   };
-  const delivery = setInterval(flush, 1000), reconciliation = setInterval(recover, 15 * 60 * 1000);
-  delivery.unref(); reconciliation.unref();
-  const stop = () => { clearInterval(delivery); clearInterval(reconciliation); };
+  const delivery = setInterval(flush, 1000), reconciliation = setInterval(recover, 15 * 60 * 1000), ciTimer = setInterval(checkCi, 60000);
+  delivery.unref(); reconciliation.unref(); ciTimer.unref();
+  const stop = () => { stopped.abort(); clearInterval(delivery); clearInterval(reconciliation); clearInterval(ciTimer); };
   signal?.addEventListener('abort', stop, { once: true });
   void recover();
-  return { stop, flush, recover };
+  return { stop, flush, recover, checkCi };
 }
 export async function pollOnce(core, vk) {
   const stream = `vk:${core.config.vk.botId}`, cursor = core.s.get('SELECT position FROM cursors WHERE stream=?', stream)?.position || 0;
@@ -139,7 +150,7 @@ export async function main(env = process.env) {
   process.umask(0o077);
   const store = new Store(env.REQUEST_BOT_DATABASE), core = new Coordinator(store, config);
   const adapters = { vk: new VkClient({ ...config.vk, token: () => env[config.vk.tokenEnv] }), github: new GitHubClient({ ...config.github, token: () => env[config.github.tokenEnv] }) };
-  const abort = new AbortController(), app = createApp(core, adapters, env);
+  const abort = new AbortController(), app = createApp(core, adapters, env, { signal: abort.signal });
   const port = Number(env.REQUEST_BOT_PORT || 43174);
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw Error('Invalid port');
   await new Promise((resolve, reject) => { app.once('error', reject); app.listen(port, '127.0.0.1', resolve); });

@@ -75,7 +75,8 @@ export class VkClient {
   }
 }
 export const issueMarker = id => `<!-- request-bot:${id} -->`;
-export const prMarker = (id, revision) => `<!-- request-bot:${id}:v${revision} -->`;
+export const prMarker = (id, revision, iteration = 0) => `<!-- request-bot:${id}:v${revision}${iteration ? ':fix' + iteration : ''} -->`;
+export const prBranch = r => `bot/${r.id.toLowerCase()}/v${r.revision}${r.iteration ? '-fix' + r.iteration : ''}`;
 export class GitHubClient {
   constructor({ token, botLogin }, fetchImpl = fetch) { this.token = token; this.botLogin = botLogin; this.fetch = fetchImpl; }
   async call(path, method = 'GET', body) {
@@ -120,7 +121,7 @@ export class GitHubClient {
     const pr = await this.call(`/repos/${project.repository}/pulls/${result.number}`);
     if (pr.number !== result.number || pr.state !== 'open' || pr.head?.sha !== result.headSha || pr.base?.repo?.full_name !== project.repository ||
         pr.head?.repo?.full_name !== project.repository || pr.base?.ref !== (project.baseRef || 'main') ||
-        pr.head?.ref !== `bot/${r.id.toLowerCase()}/v${r.revision}` || !pr.body?.includes(prMarker(r.id, r.revision))) throw new Fault('publication_mismatch', 409);
+        pr.head?.ref !== prBranch(r) || !pr.body?.includes(prMarker(r.id, r.revision, r.iteration))) throw new Fault('publication_mismatch', 409);
     return { repository: project.repository, number: pr.number, headSha: pr.head.sha };
   }
 }
