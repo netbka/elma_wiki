@@ -18,6 +18,10 @@ classification:
     tooling: "Storybook, agent docs, build/test tooling"
     content: "public/product/documentation wording"
 capabilities:
+  shared-solutions:
+    owners: ["lib/solutions.mjs", "lib/actors.mjs", "lib/managed-workspace-store.mjs", "server.mjs", "test/solutions-api.test.mjs"]
+    routes: ["docs/contracts/shared-solutions.md", "docs/SOLUTION_FIRST_PRODUCT_PLAN.md", "docs/SOLUTION_FIRST_CONTRADICTIONS.md"]
+    boundaries: ["domain", "storage", "security"]
   managed-workspace:
     owners: ["lib/managed-workspace.mjs", "lib/managed-workspace-store.mjs", "server.mjs", "test/managed-workspace.test.mjs", "test/managed-workspace-store.test.mjs", "test/managed-workspace-api.test.mjs"]
     routes: ["docs/contracts/managed-workspace.md", "docs/contracts/project-snapshots.md"]

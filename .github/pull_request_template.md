@@ -1,6 +1,6 @@
 ## Outcome and scope
 
-Owning issue and bounded stage (for rebuild work, #33 plus #34-#41):
+Owning issue and bounded stage (for current convergence, #52 plus #54-#59):
 
 User-visible result or infrastructure outcome:
 
@@ -8,11 +8,11 @@ Not completed / concrete blockers:
 
 ## Integration with the product direction
 
-Review [the baseline-first direction](https://github.com/netbka/elma_wiki/blob/main/docs/PRODUCT_DIRECTION.md).
+Review [the Solution-first contract](https://github.com/netbka/elma_wiki/blob/main/docs/SOLUTION_FIRST_PRODUCT_PLAN.md).
 
-- [ ] State how this fits the managed workspace lifecycle, or why the change is independent. No partial package becomes a managed root; standalone inspection stays distinct.
+- [ ] State how this fits Solution -> Change -> Review -> Done, or why the change is independent. Preserve the internal full/partial/reconciliation engine; standalone inspection is compatibility-only.
 - [ ] Identify overlapping PRs/capabilities and record the current base/head. Preserve existing fixes and the #32 engine lane; no competing compiler/deployment/state model.
-- [ ] Record any conflicting product rule and its explicit owner decision, or state none. Older plans and later merge order do not override #33.
+- [ ] Record any conflicting product rule and its explicit owner decision in the contradiction register, or state none. Older plans and later merge order do not override #52.
 
 ## Evidence and integration gate
 
