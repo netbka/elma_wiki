@@ -300,7 +300,7 @@ test('discussion writes are atomic and older pending records retain conservative
 });
 
 test('selected visual step findings preserve verified source anchors across exact, changed, removed and duplicate steps', async t => {
-  const { request, post, login, uploadBytes, ref, create } = await setup(t);
+  const { directory, request, post, login, uploadBytes, ref, create } = await setup(t);
   const a = await login('alice@example.org'), b = await login('bob@example.org');
   const bytes = raw => zip([['package.json', { code: 'synthetic_visual', type: 'SOLUTION' }],
     ['processor/manifest.json', { entities: [{ code: 'approval', namespace: 'synthetic', kind: 'PROCESS', path: 'approval.json' }] }],
@@ -320,6 +320,15 @@ test('selected visual step findings preserve verified source anchors across exac
   await json(await post(pathFor(review.artifactId) + '/discussion', b.cookie, { ...input, sourceAnchor: { ...anchor, actor: a.user } }), 400);
   let discussion = await json(await post(pathFor(review.artifactId) + '/discussion', b.cookie, input));
   assert.deepEqual(discussion.findings[0].sourceAnchor, anchor); assert.deepEqual(discussion.findings[0].actor, b.user);
+  const recordPath = path.join(directory, 'shared-solutions', 'managed-workspaces', state.id, 'workspace.json');
+  const legacy = JSON.parse(await fs.readFile(recordPath, 'utf8'));
+  delete legacy.pending[0].sourceAnchors.version;
+  await fs.writeFile(recordPath, JSON.stringify(legacy));
+  const legacyReview = await json(await request(pathFor(review.artifactId) + '/review', a.cookie));
+  assert.equal(legacyReview.discussion.findings[0].anchorStatus, 'ambiguous', 'old cached projections cannot assert current source identity');
+  discussion = await json(await post(pathFor(review.artifactId) + '/discussion', b.cookie,
+    { ...input, expectedDiscussionRevision: 1, type: 'reply', parentId: discussion.findings[0].id }));
+  assert.equal(discussion.findings[0].anchorStatus, 'current', 'a guarded write rebuilds the index from captured bytes');
   const check = async status => {
     review = await prepare(review.artifactId);
     const detail = await json(await request(pathFor(review.artifactId) + '/review', a.cookie));
@@ -327,12 +336,13 @@ test('selected visual step findings preserve verified source anchors across exac
     assert.equal(detail.discussion.blocking, 1); return detail;
   };
   raw.process.items.end.name = 'Unrelated source change'; await check('current');
+  raw.process.items.review.settings.unrendered = { sourceRule: 'PRIVATE_SYNTHETIC_RULE' }; await check('stale');
   raw.process.items.review.name = 'Changed task'; await check('stale');
   const removed = raw.process.items.review; delete raw.process.items.review; await check('removed');
   raw.process.items.review = removed; raw.process.items.duplicate = { ...removed, name: 'Duplicate native ID' };
   const detail = await check('ambiguous'), finding = detail.discussion.findings[0];
   discussion = await json(await post(pathFor(review.artifactId) + '/discussion', a.cookie,
-    { expectedRevision: 0, expectedDiscussionRevision: 1, type: 'reply', text: 'Identity is still ambiguous', parentId: finding.id }));
+    { expectedRevision: 0, expectedDiscussionRevision: 2, type: 'reply', text: 'Identity is still ambiguous', parentId: finding.id }));
   assert.deepEqual(discussion.events.at(-1).sourceAnchor, anchor);
   assert.equal(discussion.findings[0].anchorStatus, 'ambiguous');
 });
