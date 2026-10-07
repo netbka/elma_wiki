@@ -163,9 +163,23 @@ Production-настройка требует HTTPS-адрес, EMAIL_FROM и EMA
 
 ## Разработка конфигурации и AI-агенты
 
-[Контракт рабочего процесса разработчика](docs/DEVELOPER_VALUE_WORKFLOW.md) описывает Designer-first, поддержанный файловый сценарий и командное review. Он задаёт следующий этап документации и UX; tutorial, встроенный файловый редактор и обновление ELMA через Wiki ещё не реализованы.
+[Контракт рабочего процесса разработчика](docs/DEVELOPER_VALUE_WORKFLOW.md) описывает Designer-first, файловый сценарий и командное review. Реализация #8 добавляет экспериментальный browser editor; tutorial, package build и обновление ELMA через Wiki ещё не реализованы.
 
-Следуйте [AGENTS.md](AGENTS.md). Viewer доступен только для чтения; изменение делается в отдельной приватной папке полного экспорта. Начните с пути объекта и его происхождения, прочитайте отчёт, учитывайте зависимые модули и сохраняйте непонятые части.
+Карта документации: [docs/INDEX.md](docs/INDEX.md). [STATE.md](docs/STATE.md) перечисляет реализованный viewer/editor и ограничения. [COMPILER_PROFILE.md](docs/COMPILER_PROFILE.md) описывает offline compiler/SDK, explicit host/version и evidence.
+
+Следуйте [AGENTS.md](AGENTS.md). Viewer доступен для чтения; для распознанного WIDGET со строковыми descriptor-скриптами или sidecar `.client.ts/.server.ts` доступна ссылка **Открыть редактор скриптов**. Экспериментальный browser workspace хранит отдельную рабочую копию, не меняя оригинал, descriptor, runtime или history пакета. Начните с пути объекта и его происхождения, прочитайте отчёт, учитывайте зависимые модули и сохраняйте непонятые части.
+
+Редактор использует локальные Monaco и TypeScript workers: autocomplete полей descriptor и объявленных server-функций, hover, inline diagnostics, Problems, отдельное предупреждение lint для динамического кода, точное сравнение с оригиналом, autosave, ручное сохранение и checkpoints/restore. Сборка editor assets выполняется перед `npm start`/`npm run dev` и внутри Docker; для запуска через `node server.mjs` сначала выполните `npm run build:editor`. Никаких CDN-запросов нет.
+
+Без compiler profile типы ограничены primitive-полями snapshot: bound app/process задаёт Context, descriptor — ViewContext. Hidden/EVENT fields фильтруются по стороне, неизвестные типы остаются unknown, внешние Namespace/Global/Application API не разрешаются. В inferred-режиме неаннотированный RPC return остаётся unknown.
+
+Оператор может установить **per-project offline SDK profile**: тогда Monaco использует полный предоставленный SDK, а Check — портированный platform compiler с точно закреплённым TypeScript 5.9.3, ES2018 и researched worker options/wrapping. UI показывает explicit host и platform/TS versions; результат pinned к revision/source hash/profile hash. Нет profile или exact DTS request — выводится reason и ограниченный TypeScript check. Установка, supported versions и evidence: [COMPILER_PROFILE.md](docs/COMPILER_PROFILE.md). Wiki не получает DTS из сети и не читает parent credentials/cache. Evidence предоставляет оператор; synthetic tests не являются live cross-check.
+
+Скрипты не исполняются. **Build, deployment и live verification недоступны**. Ни TypeScript PASS, ни offline compiler PASS не доказывают готовность пакета к импорту или состояние целевой компании.
+
+Workspace scoped по owner/project/object. Запись требует ожидаемую revision: конфликт вкладок возвращает 409 и сохраняет локальный текст для сравнения. Любое изменение или restore снимает Check; изменение SDK/profile также снимает compiler evidence. Сохраняются последние 10 autosave-состояний и до 20 именованных checkpoints. Ограничение каждого скрипта — 256 КБ, поддержанного JSON descriptor — 256 КБ. Check ограничен одним worker на процесс, 15 секундами и 256 МБ heap. Это дополнение к single-process модели хранилища.
+
+API редактора: `GET /api/projects/:id/workspace/:objectId`; `POST` к `/save`, `/check`, `/checkpoint`, `/restore` под этим путём. Все mutations требуют JSON, сессию владельца и существующие same-origin/header protections. Save принимает `{revision,files}`, Check — `{revision}`, Checkpoint — `{revision,label}`, Restore — `{revision,checkpoint}` (id либо `original`). Операции принимают только существующие client.ts/server.ts; generated и неизвестные части не редактируются. Исходники и история находятся только в `.local/projects/<id>/workspaces/<derived-id>/state.json`.
 
 Скриптовый цикл: `.client.ts/.server.ts` → совместимый компилятор → согласованные `descriptor/runtime/history` → проверки → импорт в проверочную компанию → повторный экспорт и проверка формы. Подтверждён конкретный сценарий платформы 2026.7.23 и elma365pm 1.19.0 для установленного решения; обновление авторского экземпляра сопровождалось collision. Структурные рецепты и перенос в production требуют самостоятельного испытания.
 
@@ -187,6 +201,7 @@ npm test
 npm run verify
 npx playwright install chromium
 npm run test:browser
+npm run test:workspace:browser
 ```
 
 Можно задать `BROWSER_CHANNEL=chrome`, чтобы использовать установленный Chrome. Тесты используют только синтетические данные и временные приватные каталоги. CI выполняет тесты и проверку публичных артефактов на Ubuntu и Windows.

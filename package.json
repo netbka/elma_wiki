@@ -11,6 +11,9 @@
     "build:storybook": "npm --prefix storybook run build",
     "check:storybook": "node tools/check-flow-catalog.mjs && node --test test/flow-reviews.test.mjs test/flows.test.mjs test/flow-review-api.test.mjs",
     "test:storybook:browser": "node tools/flows-browser-check.mjs",
+    "build:editor": "node tools/build-editor.mjs",
+    "prestart": "npm run build:editor",
+    "predev": "npm run build:editor",
     "start": "node server.mjs",
     "dev": "node --watch server.mjs",
     "build:public": "node tools/build-public.mjs",
@@ -22,10 +25,14 @@
     "import": "node tools/import.mjs",
     "test": "node --test test/*.test.mjs",
     "verify": "node verify.mjs",
-    "test:browser": "node tools/browser-check.mjs"
+    "test:browser": "node tools/browser-check.mjs",
+    "test:workspace:browser": "npm run build:editor && node tools/workspace-browser-check.mjs"
   },
   "dependencies": {
+    "esbuild": "^0.25.12",
+    "monaco-editor": "^0.55.1",
     "nodemailer": "^10.0.15",
+    "typescript": "5.9.3",
     "yauzl": "^3.2.0"
   },
   "devDependencies": {

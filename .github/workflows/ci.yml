@@ -17,6 +17,7 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci
+      - run: npm run build:editor
       - run: npm test
       - run: npm run verify
       - run: node tools/check-flow-catalog.mjs
