@@ -1,3 +1,5 @@
+import { hydrateObjectSearch } from './object-search.js';
+hydrateObjectSearch(document);
 // Optional clipboard convenience; the public site makes no API requests.
 document.querySelectorAll('.copy').forEach(button => {
   button.addEventListener('click', async () => {

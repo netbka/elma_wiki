@@ -13,7 +13,7 @@ const REPOSITORY_FILE_URL = REPOSITORY_URL + '/blob/main/';
 // Exact reviewed files, not entire directories which could contain private paths.
 // Add new public source files alongside their article and an existence check.
 const PUBLIC_FILES = new Set([
-  'README.md', 'server.mjs', 'lib/e365.mjs', 'lib/project-parser.mjs',
+  'README.md', 'docs/WEB_DEVELOPER_WORKSPACE.md', 'server.mjs', 'lib/e365.mjs', 'lib/project-parser.mjs',
   'lib/projects.mjs', 'docs/E365_FILE_PROJECTS.md', 'examples/e365/README.md',
   'extensions/e365-workbench/core.mjs', 'extensions/e365-workbench/extension.cjs',
   'tools/workbench.mjs', 'tools/package-workbench.mjs', 'test/workbench.test.mjs'

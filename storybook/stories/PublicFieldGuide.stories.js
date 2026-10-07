@@ -1,5 +1,5 @@
 import {
-  fieldGuideFixture, createFieldGuideModel, renderFieldGuide
+  fieldGuideFixture, createFieldGuideModel, renderFieldGuide, mountFieldExplorer
 } from '../../web/public-field-guide.mjs';
 
 export default {
@@ -12,6 +12,7 @@ const story = fixture => ({
   render: () => {
     const main = document.createElement('main');
     main.innerHTML = renderFieldGuide(createFieldGuideModel(fixture()));
+    mountFieldExplorer(main);
     return main;
   }
 });

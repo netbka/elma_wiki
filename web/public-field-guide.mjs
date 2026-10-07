@@ -1,3 +1,4 @@
+import { hydrateObjectSearch } from '../dist/object-search.js';
 // A documentation fixture, not an export, parser, editor, or ELMA runtime.
 // Both the static public build and Storybook use this model and renderer.
 export const FIELD_GUIDE_PATH = '/learn/find-field/';
@@ -56,6 +57,12 @@ export function createFieldGuideModel(records = fieldGuideFixture()) {
   }
   return {
     state: 'ready',
+    exploration: records.filter(record => record && Array.isArray(record.document?.fields)).map((record,index) => ({
+      id: 'synthetic-object-' + index, service: record.service, namespace: record.namespace, code: record.code, name: record.name, archivePath: record.sourcePath,
+      fields: record.document.fields.flatMap((field,i) => field && typeof field === 'object' ? [{
+        code: field.code, name: field.view?.name || field.code, type: field.type, origin: 'fields', source: record.sourcePath + '#/fields/' + i
+      }] : [])
+    })),
     owner: { namespace: owner.namespace, code: owner.code, name: owner.name || owner.code },
     field: { code: field.code, name: field.view?.name || field.code, type: field.type },
     sourcePath: owner.sourcePath,
@@ -102,6 +109,12 @@ export function renderFieldGuide(model = createFieldGuideModel()) {
       </section>${nextSteps}</article>`;
   }
   return `${header}
+    <section id="field-explore" class="section">
+      <h2>Попробуйте поиск и выбор</h2>
+      <p>Найдите title и выберите поле в «Обращениях», затем сравните такое же имя в «Категориях». Результат остаётся учебным.</p>
+      <div data-object-search data-query="title" data-entities="${escape(JSON.stringify(model.exploration || []))}"></div>
+      <noscript>Поиск требует JavaScript; описание и проверка ответа ниже доступны без него.</noscript>
+    </section>
     <nav aria-label="Шаги поиска поля" class="section">
       <ol>
         <li><a href="#field-owner">Выбрать приложение</a></li>
@@ -167,3 +180,5 @@ export function renderFieldGuide(model = createFieldGuideModel()) {
     ${nextSteps}
   </article>`;
 }
+
+export const mountFieldExplorer = root => hydrateObjectSearch(root);

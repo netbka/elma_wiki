@@ -5,13 +5,16 @@
       "entry": "/learn/find-field/",
       "kind": "implemented",
       "actions": [
+        "search",
+        "select-source",
         "read-steps",
         "inspect-source",
         "check-answer",
         "continue-in-designer"
       ],
       "renderer": [
-        "web/public-field-guide.mjs"
+        "web/public-field-guide.mjs",
+        "dist/object-search.js"
       ],
       "storyIds": [
         "public-field-guide--ready",
@@ -697,6 +700,38 @@
         "docs/contracts/solution-visual.md",
         "test/solution-visual.test.mjs",
         "tools/solution-visual-browser-check.mjs"
+      ]
+    },
+    "object-search": {
+      "entry": "/p/:id/#/objects",
+      "kind": "implemented",
+      "actions": [
+        "search",
+        "select-source",
+        "inspect-field",
+        "inspect-function"
+      ],
+      "renderer": [
+        "dist/object-search.js"
+      ],
+      "storyIds": [
+        "object-search--fields",
+        "object-search--functions",
+        "object-search--empty",
+        "object-search--selected",
+        "object-search--ambiguous"
+      ],
+      "requiredVisibleStates": [
+        "fields",
+        "functions",
+        "empty",
+        "selected",
+        "ambiguous"
+      ],
+      "sources": [
+        "docs/E365_FILE_PROJECTS.md",
+        "test/object-search.test.mjs",
+        "tools/first-use-browser-check.mjs"
       ]
     }
   }

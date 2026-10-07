@@ -58,6 +58,10 @@ capabilities:
     owners: ["lib/e365.mjs", "lib/project-parser.mjs"]
     routes: ["docs/E365_FILE_PROJECTS.md", "docs/contracts/project-snapshots.md"]
     boundaries: ["parser", "security"]
+  object-search:
+    owners: ["dist/object-search.js", "web/public-field-guide.mjs", "storybook/stories/ObjectSearch.stories.js", "test/object-search.test.mjs", "tools/first-use-browser-check.mjs"]
+    routes: ["docs/workflows/public-field-lookup.md", "docs/E365_FILE_PROJECTS.md", "docs/SOLUTION_FIRST_PRODUCT_PLAN.md"]
+    boundaries: ["ui", "domain", "security", "tooling", "content"]
   project-viewer:
     owners: ["dist/app.js", "dist/articles.js", "dist/developer-articles.js"]
     routes: ["docs/E365_FILE_PROJECTS.md"]

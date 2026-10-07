@@ -121,9 +121,15 @@ test('Storybook registers the same renderer and all three evidence states', asyn
   const manifest = JSON.parse(await fs.readFile(new URL('../storybook/review-manifest.json', import.meta.url), 'utf8'));
   const stories = await import('../storybook/stories/PublicFieldGuide.stories.js');
   const entry = manifest.capabilities['public-field-lookup'];
-  assert.deepEqual(entry.renderer, ['web/public-field-guide.mjs']);
+  assert.deepEqual(entry.renderer, ['web/public-field-guide.mjs', 'dist/object-search.js']);
   assert.deepEqual(entry.requiredVisibleStates, ['ready', 'unavailable', 'ambiguous']);
   assert.deepEqual(entry.storyIds, ['Ready', 'Unavailable', 'Ambiguous']
     .map(name => `${stories.default.id}--${name.toLowerCase()}`));
   for (const name of ['Ready', 'Unavailable', 'Ambiguous']) assert.equal(typeof stories[name].render, 'function');
+});
+
+test('interactive source pointers keep the original field position when malformed rows are skipped', () => {
+  const records=fieldGuideFixture();records[0].document.fields.unshift(null);
+  const model=createFieldGuideModel(records);assert.equal(model.pointer,'/fields/1');
+  assert.equal(model.exploration[0].fields.find(field=>field.code==='title').source,records[0].sourcePath+'#/fields/1');
 });
