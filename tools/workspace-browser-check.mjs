@@ -17,7 +17,7 @@ try {
   const context=await browser.newContext(),page=await context.newPage(),errors=[],requests=[];
   page.on('pageerror',e=>errors.push(e.message));page.on('request',r=>requests.push(r.url()));
   const request=context.request,headers={'X-Elma-Wiki-Request':'1'};
-  await request.post(base+'/auth/local',{headers});const bytes=await fixture();
+  await request.post(base+'/auth/local',{headers});const bytes=await fixture({widgetKind:'widget'});
   const created=await request.post(base+'/api/projects?filename=synthetic.e365',{headers:{...headers,'Content-Type':'application/octet-stream'},data:bytes});assert.equal(created.status(),201);
   const p=await created.json(),endpoint=base+`/api/projects/${p.id}/workspace/object-0`;
   await page.goto(base+`/p/${p.id}/#/object/object-0`);await page.getByRole('link',{name:'Открыть редактор скриптов'}).click();
