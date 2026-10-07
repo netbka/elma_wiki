@@ -525,7 +525,7 @@
       ]
     },
     "managed-workspace": {
-      "entry": "/workspaces",
+      "entry": "/solutions",
       "kind": "implemented",
       "actions": [
         "create",
@@ -555,7 +555,12 @@
         "managed-workspace--stale",
         "managed-workspace--archived",
         "managed-workspace--loading",
-        "managed-workspace--load-error"
+        "managed-workspace--load-error",
+        "managed-workspace--changes",
+        "managed-workspace--solution",
+        "managed-workspace--no-source",
+        "managed-workspace--needs-fixes",
+        "managed-workspace--pending-conflict"
       ],
       "requiredVisibleStates": [
         "empty",
@@ -571,13 +576,66 @@
         "stale",
         "archived",
         "loading",
-        "load-error"
+        "load-error",
+        "changes",
+        "solution",
+        "no-source",
+        "needs-fixes",
+        "pending-conflict"
       ],
       "sources": [
-        "docs/workflows/managed-workspace.md",
+        "docs/workflows/solutions.md",
         "docs/contracts/managed-workspace.md",
         "test/managed-workspace-api.test.mjs",
         "tools/managed-workspace-browser-check.mjs"
+      ]
+    },
+    "portal-requests": {
+      "entry": "/requests",
+      "kind": "implemented",
+      "actions": [
+        "create",
+        "clarify",
+        "approve",
+        "refresh",
+        "cancel",
+        "open-result"
+      ],
+      "renderer": [
+        "web/requests/render.js"
+      ],
+      "storyIds": [
+        "portal-requests--empty",
+        "portal-requests--loading",
+        "portal-requests--unconfigured",
+        "portal-requests--load-error",
+        "portal-requests--waiting-for-worker",
+        "portal-requests--clarification",
+        "portal-requests--approval",
+        "portal-requests--queued",
+        "portal-requests--implementing",
+        "portal-requests--result",
+        "portal-requests--blocked",
+        "portal-requests--cancelled"
+      ],
+      "requiredVisibleStates": [
+        "empty",
+        "loading",
+        "unconfigured",
+        "load-error",
+        "waiting-for-worker",
+        "clarification",
+        "approval",
+        "queued",
+        "implementing",
+        "result",
+        "blocked",
+        "cancelled"
+      ],
+      "sources": [
+        "docs/contracts/portal-requests.md",
+        "tools/requests-browser-check.mjs",
+        "test/request-coordinator.test.mjs"
       ]
     }
   }

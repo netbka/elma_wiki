@@ -18,7 +18,9 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build:editor
-      - run: npm test
+      - name: Unit and contract tests
+        timeout-minutes: 5
+        run: npm test
       - run: npm run verify
       - run: node tools/check-flow-catalog.mjs
       - run: npm ci --prefix storybook
@@ -39,6 +41,8 @@ jobs:
         run: npm run test:delivery:browser
       - if: runner.os == 'Linux'
         run: npm run test:managed:browser
+      - if: runner.os == 'Linux'
+        run: node tools/requests-browser-check.mjs
       - if: runner.os == 'Linux'
         run: node tools/vk-auth-browser-check.mjs
       - if: runner.os == 'Linux'
@@ -63,5 +67,7 @@ jobs:
           path: |
             qa/managed-*.png
             qa/managed-browser-evidence.json
+            qa/requests-*.png
+            qa/requests-browser-evidence.json
           retention-days: 7
           if-no-files-found: error

@@ -125,6 +125,7 @@ test('bridge: slow import returns deploying and finishes in the background; unap
   const { bridge, token } = await bridges.create('alice', { name: 'Медленный мост' });
   const connection = await delivery.connections.create('alice', { name: 'TEST через мост', role: 'target', environment: 'test', adapter: 'bridge', adapterOptions: { bridgeId: bridge.id } });
   let worker = fakeWorker(bridges, token, { inventory: await inventoryOf(await fixture(false)), delayMs: 300, importApplies: false });
+  t.after(() => worker.stop()); // Also stop the first worker if an assertion fails before replacement.
   await waitForWorker(bridges, bridge.id);
   const release = await approvedRelease(projects, releases);
   let attempt = await delivery.prepare(release.id, 'alice', { revision: release.revision, connectionId: connection.id });
@@ -138,7 +139,6 @@ test('bridge: slow import returns deploying and finishes in the background; unap
   await worker.stop();
   // A worker that reports an error: the attempt fails, nothing is marked verified.
   worker = fakeWorker(bridges, token, { inventory: await inventoryOf(await fixture(false)), deployError: 'import: unresolved dependency' });
-  t.after(() => worker.stop());
   const second = await approvedRelease(projects, releases);
   let failing = await delivery.prepare(second.id, 'alice', { revision: second.revision, connectionId: connection.id });
   failing = await delivery.confirm(second.id, failing.id, 'alice', { idempotencyKey: 'f', confirmation: confirmation(failing) });
