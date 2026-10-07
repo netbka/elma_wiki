@@ -1,23 +1,18 @@
 import { changeLabels, impactLabels } from './comparison.js';
 import { mountDelivery } from './delivery.js';
+import { mountSnapshotPicker } from './snapshot-picker.js';
 const el = (tag, content, className) => { const node = document.createElement(tag); if (content !== undefined) node.textContent = content; if (className) node.className = className; return node; };
 const stateLabels = { review: 'Рецензия', candidate: 'Кандидат подготовлен', prepared: 'Принят для локальной передачи', 'handed-off': 'Пакет передачи выдан' };
 const checkLabels = { pass: 'Пройдено', fail: 'Не пройдено', 'not-run': 'Не выполнялось', unsupported: 'Не поддерживается', stale: 'Устарело' };
 const eventLabels = { review: 'Решение по изменению', details: 'Условия передачи изменены', freeze: 'Кандидат подготовлен', approve: 'Кандидат принят для передачи', handoff: 'Пакет передачи выдан' };
 let fieldId = 0;
-export function mountRelease({ release, projects = [], releases = [], change, create, preview, download, open, visibleChanges = 20, deliveryClient } = {}) {
+export function mountRelease({ release, projects = [], releases = [], change, create, preview, download, open, visibleChanges = 20, deliveryClient, loadSnapshots } = {}) {
   const root = el('div', undefined, 'release-shell');
   const status = el('p'); status.setAttribute('role', 'status');
   const error = el('p'); error.setAttribute('role', 'alert');
   let busy = false, stale = false;
   const button = (label, action, parent = root) => { const node = el('button', label); node.type = 'button'; node.onclick = action; parent.append(node); return node; };
   const field = (form, label, value = '', kind = 'input') => { const wrapper = el('div'), caption = el('label', label), node = el(kind); node.id = `release-field-${++fieldId}`; caption.htmlFor = node.id; node.value = value; node.dataset.draftKey = label; node.dataset.savedValue = value; node.maxLength = kind === 'textarea' ? 4000 : 200; wrapper.append(caption, node); form.append(wrapper); return node; };
-  const choose = (form, label, allowNone) => {
-    const select = field(form, label, '', 'select');
-    const first = el('option', allowNone ? 'Нет базовой версии (ограниченное сравнение)' : 'Выберите загруженный DEV пакет'); first.value = ''; select.append(first);
-    for (const project of projects.filter(p => !p.legacy)) { const item = el('option', `${project.filename} · ${new Date(project.createdAt).toLocaleString('ru-RU')}`); item.value = project.id; select.append(item); }
-    if (!allowNone) select.required = true; return select;
-  };
   const run = async (operation, redraw = true, focusSelector = 'h1') => {
     if (busy || stale) return;
     busy = true; error.textContent = ''; root.querySelectorAll('button').forEach(b => b.disabled = true);
@@ -25,7 +20,7 @@ export function mountRelease({ release, projects = [], releases = [], change, cr
       const next = await operation();
       if (redraw && next) {
         const drafts = new Map([...root.querySelectorAll('[data-draft-key]')].filter(node => node.value !== node.dataset.savedValue).map(node => [node.dataset.draftKey, node.value]));
-        const replacement = mountRelease({ release: next, projects, releases, change, create, preview, download, open, visibleChanges, deliveryClient });
+        const replacement = mountRelease({ release: next, projects, releases, change, create, preview, download, open, visibleChanges, deliveryClient, loadSnapshots });
         for (const node of replacement.querySelectorAll('[data-draft-key]')) if (drafts.has(node.dataset.draftKey)) node.value = drafts.get(node.dataset.draftKey);
         root.replaceWith(replacement); const heading = replacement.querySelector(focusSelector); heading.tabIndex = -1; heading.focus({ preventScroll: true }); return;
       }
@@ -38,12 +33,18 @@ export function mountRelease({ release, projects = [], releases = [], change, cr
   root.append(el('p', 'Приватное пространство аналитика', 'eyebrow'), el('h1', release?.title || 'Подготовить релиз'), el('p', 'Загрузить DEV → Рассмотреть изменения → Подготовить кандидат → Передать', 'lead'), status, error);
   if (release?.synthetic) root.append(el('p', 'Синтетический пример. Решения не сохраняются; этот Storybook не принимает реальные пакеты.', 'note'));
   if (!release) {
-    root.append(el('p', 'Выберите два отдельных загруженных проекта. Имя и код решения не объединяют их автоматически. Исходные файлы сохраняются как неизменяемые снимки релиза.'));
+    root.append(el('p', 'Выберите сохранённые снимки нового пакета и базовой версии. Можно взять разные снимки одного проекта. Выбор относится только к новому релизу и не меняет текущий снимок проекта.'));
     if (!projects.some(p => !p.legacy)) { const link = el('a', 'Загрузить .e365 в мои проекты'); link.href = '/dashboard'; root.append(link); }
-    const form = el('form'), title = field(form, 'Название релиза'), intent = field(form, 'Деловая цель', '', 'textarea'), source = choose(form, 'Новый пакет DEV', false), baseline = choose(form, 'Предыдущий пакет DEV — базовая версия', true), target = field(form, 'Назначение передачи (непроверенная компания или ответственный)');
+    const form = el('form'), title = field(form, 'Название релиза'), intent = field(form, 'Деловая цель', '', 'textarea');
+    let source = null, baseline = null;
+    const update = () => { submit.disabled = !source || (baselinePicker.querySelector('select').value && !baseline); submit.dataset.unavailable = String(submit.disabled); };
+    const sourcePicker = mountSnapshotPicker({ label: 'Новый пакет DEV', projects, load: loadSnapshots, onChange: value => { source = value; update(); } });
+    const baselinePicker = mountSnapshotPicker({ label: 'Предыдущий пакет DEV — базовая версия', projects, optional: true, load: loadSnapshots, onChange: value => { baseline = value; update(); } });
+    form.append(sourcePicker, baselinePicker);
+    const target = field(form, 'Назначение передачи (непроверенная компания или ответственный)');
     title.required = intent.required = target.required = true; title.maxLength = 160;
-    form.onsubmit = event => { event.preventDefault(); if (form.reportValidity()) run(() => create({ title: title.value, intent: intent.value, sourceProjectId: source.value, baselineProjectId: baseline.value || null, targetIntent: target.value })); };
-    const submit = el('button', 'Начать рецензию'); submit.type = 'submit'; form.append(submit); root.append(form);
+    form.onsubmit = event => { event.preventDefault(); if (source && !submit.disabled && form.reportValidity()) run(() => create({ title: title.value, intent: intent.value, sourceProjectId: source.projectId, sourceSnapshotId: source.snapshotId, baselineProjectId: baseline?.projectId || null, ...(baseline ? { baselineSnapshotId: baseline.snapshotId } : {}), targetIntent: target.value })); };
+    const submit = el('button', 'Начать рецензию'); submit.type = 'submit'; update(); form.append(submit); root.append(form);
     const list = el('section'); list.append(el('h2', 'Продолжить релиз'));
     if (!releases.length) list.append(el('p', 'Сохранённых релизов пока нет.'));
     for (const row of releases) button(`${row.title} · ${stateLabels[row.state]}`, () => open(row.id), list);
@@ -60,6 +61,7 @@ export function mountRelease({ release, projects = [], releases = [], change, cr
     const section = el('section'); section.append(el('h2', label));
     if (snapshot) {
       section.append(el('p', `${snapshot.filename} · ${snapshot.importedAt} · решение ${snapshot.code || 'не определено'} · ${snapshot.coverage}`), el('p', `SHA-256: ${snapshot.checksum}`, 'release-hash'));
+      section.append(el('p', `Снимок: ${snapshot.snapshotId || 'старый релиз без ссылки на снимок'} · ${snapshot.source ? 'Source: ' + snapshot.source.connectionId : 'Ручная загрузка; Source не проверена'}`));
       const link = el('a', 'Исходный проект'); link.href = `/p/${snapshot.projectId}/`; section.append(link);
     } else section.append(el('p', 'Базовая версия отсутствует. Это двухсторонняя рецензия содержимого, а не доказательство отсутствия конфликтов.'));
     root.append(section);

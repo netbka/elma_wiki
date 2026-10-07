@@ -31,7 +31,7 @@ const deliveryClient = {
 async function open(id) {
   const [projects, releases, release] = await Promise.all([json('/api/projects'), json('/api/releases'), id ? json('/api/releases/' + encodeURIComponent(id)) : null]);
   history.replaceState(null, '', id ? '/releases?id=' + encodeURIComponent(id) : '/releases');
-  host.replaceChildren(mountRelease({ release, projects, releases, open, deliveryClient, create: async input => { const next = await json('/api/releases', input); history.replaceState(null, '', '/releases?id=' + next.id); return next; }, change: (id, input) => json(`/api/releases/${id}/change`, input), preview: (id, path, side) => json(`/api/releases/${id}/preview?path=${encodeURIComponent(path)}&side=${side}`), download: async (id, revision) => {
+  host.replaceChildren(mountRelease({ release, projects, releases, open, deliveryClient, loadSnapshots: id => json(`/api/projects/${encodeURIComponent(id)}/snapshots`), create: async input => { const next = await json('/api/releases', input); history.replaceState(null, '', '/releases?id=' + next.id); return next; }, change: (id, input) => json(`/api/releases/${id}/change`, input), preview: (id, path, side) => json(`/api/releases/${id}/preview?path=${encodeURIComponent(path)}&side=${side}`), download: async (id, revision) => {
     const blob = await (await request(`/api/releases/${id}/bundle`, { revision })).blob(), url = URL.createObjectURL(blob);
     const link = document.createElement('a'); link.href = url; link.download = 'release-handoff.zip'; document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 10000);
   } }));
