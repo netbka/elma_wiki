@@ -11,6 +11,7 @@ import { createVkLoginBot } from './lib/vk-login-bot.mjs';
 import { portalStore } from './lib/portals.mjs';
 import { projectStore } from './lib/projects.mjs';
 import { workspaceStore } from './lib/workspaces.mjs';
+import { managedWorkspaceStore } from './lib/managed-workspace-store.mjs';
 import { releaseStore } from './lib/releases.mjs';
 import { deliveryStore, syntheticAdapter } from './lib/delivery.mjs';
 import { bridgeStore } from './lib/bridge.mjs';
@@ -42,6 +43,7 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
   deliveryTimeoutMs = Number(process.env.DELIVERY_TIMEOUT_MS) || 20 * 60 * 1000 } = {}) {
   const base = new URL(baseUrl), auth = createAuth({ baseUrl, allowLocal, sendEmail, sendVk, now }), portals = portalStore(directory), projects = projectStore(directory), oldDemo = demoData(), sample = oldDemo.servers.showcase, demo = {entities:sample.entities,solution:sample.solutions[0],coverage:'structural',parserVersion:'2.0.0',inventory:[],provenance:{},synthetic:true};
   const workspaces = workspaceStore(projects);
+  const managed = managedWorkspaceStore(directory, projects);
   let delivery;
   const releases = releaseStore(directory, projects, { deliverySummary: (id, owner) => delivery.summary(id, owner) });
   // The bridge adapter is always available: it only does something once an owner registers a bridge and an
@@ -68,6 +70,31 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
       }
       if (await auth.route(req, res, url)) return;
       const session = auth.session(req);
+      const managedMatch = /^\/api\/managed-workspaces(?:\/([^/]+)(?:\/(prepare|archive)|\/artifacts\/([^/]+)\/(preview|accept|original))?)?$/.exec(pathname);
+      if (managedMatch) {
+        const [, id, operation, artifactId, artifactAction] = managedMatch, action = operation || artifactAction;
+        if (!session) return send(res, id ? 404 : 401, { error: id ? 'Workspace not found' : 'Войдите в сервис' });
+        const owner = session.user.id;
+        if (id) await managed.authorize(id, owner);
+        if (req.method === 'GET' && !action) {
+          if (id) return send(res, 200, await managed.get(id, owner));
+          const archived = url.searchParams.get('archived');
+          if (archived !== null && !['true', 'false'].includes(archived)) return send(res, 400, { error: 'archived must be true or false' });
+          return send(res, 200, await managed.list(owner, { archived: archived === 'true' }));
+        }
+        if (req.method === 'GET' && action === 'preview') return send(res, 200, await managed.preview(id, owner, artifactId));
+        if (req.method === 'GET' && action === 'original') {
+          const result = await managed.original(id, owner, artifactId);
+          res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Disposition': 'attachment; filename="snapshot.e365"', 'Cache-Control': 'no-store' });
+          return res.end(result);
+        }
+        if (req.method !== 'POST' || (id && !['prepare', 'archive', 'accept'].includes(action))) return send(res, 405, { error: 'Метод не поддерживается' });
+        if (req.headers['content-type']?.split(';')[0] !== 'application/json') return send(res, 415, { error: 'Требуется JSON' });
+        const input = JSON.parse((await body(req, 256 * 1024)).toString('utf8'));
+        const result = !id ? await managed.create(owner, input) : action === 'prepare' ? await managed.prepare(id, owner, input)
+          : action === 'accept' ? await managed.accept(id, owner, artifactId, input) : await managed.setArchived(id, owner, input);
+        return send(res, !id || action === 'prepare' ? 201 : 200, result);
+      }
       if (pathname === '/api/delivery/capabilities') {
         if (!session) return send(res,401,{error:'Войдите в сервис'});
         if (req.method !== 'GET') return send(res,405,{error:'Метод не поддерживается'});
