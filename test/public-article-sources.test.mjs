@@ -26,6 +26,8 @@ test('repository paths and allow-listed https documentation become links; nothin
     'http://elma365.com/ru/help/': 'https',
     'https://user:secret@elma365.com/ru/help/': 'учётные данные',
     'https://evil.example/elma365.com/': 'вне списка',
+    'https://elma365.com/%ZZ': 'некорректное кодирование',
+    'https://elma365.com/%FF': 'некорректное кодирование',
     'https://github.com/someone-else/repo': 'вне репозитория',
     '../../.env': 'скрытый или недопустимый сегмент',
     'docs/../.env': 'скрытый или недопустимый сегмент',

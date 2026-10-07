@@ -44,7 +44,9 @@ function classifyExternal(text, value) {
   if (url.username || url.password) return invalid(value, 'адрес содержит учётные данные');
   if (!EXTERNAL_HOSTS.has(url.hostname)) return invalid(value, 'узел вне списка публичной документации');
   if (url.hostname === 'github.com' && !url.pathname.startsWith('/netbka/elma_wiki/')) return invalid(value, 'ссылка на GitHub вне репозитория проекта');
-  return { kind: 'external', href: url.href, label: url.hostname + decodeURI(url.pathname).replace(/\/$/, '') };
+  let pathname;
+  try { pathname = decodeURI(url.pathname); } catch { return invalid(value, 'адрес содержит некорректное кодирование'); }
+  return { kind: 'external', href: url.href, label: url.hostname + pathname.replace(/\/$/, '') };
 }
 
 function classifyRepositoryPath(text, value) {

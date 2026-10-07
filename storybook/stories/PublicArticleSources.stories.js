@@ -10,8 +10,9 @@ export default {
 // public page uses, so the Storybook state is the production state.
 const story = (sources, status) => ({
   render: () => {
+    const model = createArticleSourcesModel(sources, { status });
     const main = document.createElement('main');
-    main.innerHTML = `<article class="article"><div class="eyebrow">Разработка через файлы</div><h1>Учебная статья</h1><p class="lead">Статья показывает, как читать пакет; поведение ELMA не проверялось в этом примере.</p><span class="badge">${status}</span><section id="body"><h2>Текст статьи</h2><p>Содержимое статьи для демонстрации блока источников.</p></section>${renderArticleSources(createArticleSourcesModel(sources, { status }))}</article>`;
+    main.innerHTML = `<article class="article"><div class="eyebrow">Разработка через файлы</div><h1>Учебная статья</h1><p class="lead">Статья показывает, как читать пакет; поведение ELMA не проверялось в этом примере.</p><span class="badge">${model.status}</span><section id="body"><h2>Текст статьи</h2><p>Содержимое статьи для демонстрации блока источников.</p></section>${renderArticleSources(model)}</article>`;
     return main;
   }
 });
