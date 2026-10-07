@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { projectProcess, relatedForm } from '../web/visual/model.js';
 import { visualSource } from '../web/visual/fixtures.js';
-import { snapshotVisual } from '../lib/solution-visual.mjs';
+import { snapshotVisual, sourceAnchorIndex } from '../lib/solution-visual.mjs';
 import { zip } from './fixture.mjs';
 import fs from 'node:fs/promises';
 import os from 'node:os';
@@ -75,6 +75,35 @@ test('deep and oversized source descriptors fail within bounded projection',()=>
   const raw=structuredClone(visualSource);let parent=raw.forms[0];
   for(let i=0;i<22;i++){const child={descriptor:'row',content:{}};parent.content={'':[child]};parent=child;}
   assert.throws(()=>projectProcess(raw,'fixture'),/ограничения/);
+});
+
+test('step fingerprint changes for unrendered source settings without exposing their content',async()=>{
+  const raw=structuredClone(visualSource);
+  raw.process.items.review.settings.unrendered={script:'PRIVATE_SYNTHETIC_SETTING_A'};
+  const before=await snapshotVisual(await visualArchive(raw),'before');
+  raw.process.items.review.settings.unrendered.script='PRIVATE_SYNTHETIC_SETTING_B';
+  const after=await snapshotVisual(await visualArchive(raw),'after');
+  assert.notEqual(before.processes[0].nodes[1].anchor.fingerprint,after.processes[0].nodes[1].anchor.fingerprint);
+  assert.equal(JSON.stringify(after).includes('PRIVATE_SYNTHETIC_SETTING'),false);
+});
+
+test('array positions without native IDs cannot become durable current step identities',async()=>{
+  const raw=structuredClone(visualSource);
+  raw.process.items=Object.values(raw.process.items).map(({id,...node})=>node);
+  const index=await sourceAnchorIndex(await visualArchive(raw),'array');
+  assert.equal(index.available,true);
+  assert.equal(index.nodes.some(node=>node.supported),false);
+});
+
+test('explicit native IDs survive dictionary relocation without choosing positional identity',async()=>{
+  const raw=structuredClone(visualSource);
+  const before=await snapshotVisual(await visualArchive(raw),'before');
+  raw.process.items.relocated=raw.process.items.review; delete raw.process.items.review;
+  const after=await snapshotVisual(await visualArchive(raw),'after');
+  const anchor=after.processes[0].nodes.find(node=>node.id==='review').anchor;
+  assert.notEqual(anchor.pointer,before.processes[0].nodes[1].anchor.pointer);
+  assert.equal(anchor.fingerprint,before.processes[0].nodes[1].anchor.fingerprint);
+  assert.equal((await sourceAnchorIndex(await visualArchive(raw),'after')).nodes.find(node=>node.nodeId==='review').supported,true);
 });
 test('visual API authorizes the captured shared artifact, rejects private/absent identities and rechecks bytes',async t=>{
   const directory=await fs.mkdtemp(path.join(os.tmpdir(),'solution-visual-'));
