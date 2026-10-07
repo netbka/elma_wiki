@@ -67,6 +67,15 @@ checks. `npm run check:storybook` validates the three registered story IDs;
 `test:public:browser` after the existing Chromium installation, alongside
 the release browser check.
 
+After `build:storybook`, run `node tools/public-field-guide-visual-check.mjs`.
+It serves the built Storybook on an ephemeral loopback port, checks all three
+actual stories at 1440 and 390 pixels, exercises native disclosures, rejects
+external requests and saves screenshots. CI retains only `qa/public-*.png`
+and the visual evidence JSON as `public-visual-evidence` for seven days.
+These are synthetic public fixtures, never private release/project screenshots.
+Inspect the images separately: passing overflow and state assertions is not
+itself a visual approval. The evidence records the tested CI commit and browser.
+
 Full build, browser and CI evidence must be reported separately from the
 standalone model/generator tests. This task does not establish WCAG
 conformance, deployment readiness or a live ELMA result.
