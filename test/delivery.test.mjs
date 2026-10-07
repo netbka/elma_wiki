@@ -112,7 +112,8 @@ test('stale approval and target drift block confirmation; duplicate confirmation
   const second = await approvedRelease(projects, releases);
   let fresh = await delivery.prepare(second.id, 'alice', { revision: second.revision, connectionId: ok.id });
   const [a, b] = await Promise.all([delivery.confirm(second.id, fresh.id, 'alice', { idempotencyKey: 'same', confirmation: confirmation(fresh) }), delivery.confirm(second.id, fresh.id, 'alice', { idempotencyKey: 'same', confirmation: confirmation(fresh) })]);
-  assert.equal(a.state, 'deployed-unverified'); assert.equal(b.state, 'deployed-unverified'); assert.equal(calls.length, 1);
+  assert.equal(a.state, 'deployed-unverified'); assert.ok(['deploying', 'deployed-unverified'].includes(b.state), 'the duplicate sees the same attempt, possibly still in progress'); assert.equal(calls.length, 1);
+  assert.equal((await delivery.get(second.id, fresh.id, 'alice')).state, 'deployed-unverified');
   await assert.rejects(delivery.confirm(second.id, fresh.id, 'alice', { idempotencyKey: 'other', confirmation: confirmation(fresh) }), /повторный запуск запрещён/);
 });
 

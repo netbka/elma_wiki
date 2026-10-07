@@ -12,6 +12,7 @@ import { projectStore } from './lib/projects.mjs';
 import { workspaceStore } from './lib/workspaces.mjs';
 import { releaseStore } from './lib/releases.mjs';
 import { deliveryStore, syntheticAdapter } from './lib/delivery.mjs';
+import { bridgeStore } from './lib/bridge.mjs';
 import { demoData } from './lib/demo.mjs';
 
 const project = path.dirname(fileURLToPath(import.meta.url));
@@ -35,12 +36,17 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
   allowLocal = process.env.DISABLE_LOCAL_LOGIN === '0' && ['127.0.0.1', 'localhost'].includes(new URL(baseUrl).hostname) && (!process.env.HOST || process.env.HOST === '127.0.0.1'),
   // The synthetic Target adapter is for tests/Storybook; a hosted service must opt in explicitly.
   syntheticDelivery = process.env.DELIVERY_SYNTHETIC_ADAPTER === '1',
-  protectedTargetHosts = (process.env.PROTECTED_TARGET_HOSTS || '').split(',') } = {}) {
+  protectedTargetHosts = (process.env.PROTECTED_TARGET_HOSTS || '').split(','),
+  // A real export/import through the bridge takes minutes; the default covers a large solution.
+  deliveryTimeoutMs = Number(process.env.DELIVERY_TIMEOUT_MS) || 20 * 60 * 1000 } = {}) {
   const base = new URL(baseUrl), auth = createAuth({ baseUrl, allowLocal, sendEmail, sendVk, now }), portals = portalStore(directory), projects = projectStore(directory), oldDemo = demoData(), sample = oldDemo.servers.showcase, demo = {entities:sample.entities,solution:sample.solutions[0],coverage:'structural',parserVersion:'2.0.0',inventory:[],provenance:{},synthetic:true};
   const workspaces = workspaceStore(projects);
   let delivery;
   const releases = releaseStore(directory, projects, { deliverySummary: (id, owner) => delivery.summary(id, owner) });
-  delivery = deliveryStore(directory, releases, { adapters: syntheticDelivery ? { synthetic: syntheticAdapter } : {}, protectedHosts: protectedTargetHosts });
+  // The bridge adapter is always available: it only does something once an owner registers a bridge and an
+  // operator runs the worker with the token. The service itself still makes no outbound connections.
+  const bridges = bridgeStore(directory);
+  delivery = deliveryStore(directory, releases, { adapters: { ...(syntheticDelivery ? { synthetic: syntheticAdapter } : {}), bridge: (options, connection) => bridges.adapter(options, connection) }, protectedHosts: protectedTargetHosts, timeoutMs: deliveryTimeoutMs });
   let uploading = false;
   return http.createServer(async (req, res) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -68,6 +74,42 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
         const input = JSON.parse((await body(req,64*1024)).toString('utf8'));
         if (!input || typeof input !== 'object' || Array.isArray(input)) return send(res,400,{error:'Некорректный запрос'});
         return send(res,201,await releases.create(session.user.id,input));
+      }
+      // Operator bridge worker: bearer token (hash-compared), never a browser session. Bodies stay small;
+      // the candidate artifact is streamed separately and only while its job is taken.
+      const bridgeWorkerMatch = /^\/api\/bridge\/(poll|jobs\/([^/]+)\/(artifact|result))$/.exec(pathname);
+      if (bridgeWorkerMatch) {
+        const [,,jobId,jobAction] = bridgeWorkerMatch, bridge = await bridges.authenticate(req.headers.authorization);
+        if (!jobId) {
+          if (req.method !== 'POST') return send(res,405,{error:'Метод не поддерживается'});
+          const input = JSON.parse((await body(req,16*1024)).toString('utf8') || '{}');
+          return send(res,200,{ job: await bridges.poll(bridge, input && typeof input === 'object' ? input : {}) });
+        }
+        if (jobAction === 'artifact') {
+          if (req.method !== 'GET') return send(res,405,{error:'Метод не поддерживается'});
+          const bytes = await bridges.artifact(bridge, jobId);
+          res.writeHead(200,{'Content-Type':'application/octet-stream','Content-Length':bytes.length,'Cache-Control':'no-store'});
+          return res.end(bytes);
+        }
+        if (req.method !== 'POST') return send(res,405,{error:'Метод не поддерживается'});
+        const input = JSON.parse((await body(req,2*1024*1024)).toString('utf8'));
+        if (!input || typeof input !== 'object' || Array.isArray(input)) return send(res,400,{error:'Некорректный запрос'});
+        return send(res,200,await bridges.complete(bridge, jobId, input));
+      }
+      const bridgeMatch = /^\/api\/bridges(?:\/([^/]+))?$/.exec(pathname);
+      if (bridgeMatch) {
+        const [,id] = bridgeMatch;
+        if (!session) return send(res,id ? 404 : 401,{error:id ? 'Мост не найден' : 'Войдите в сервис'});
+        const owner = session.user.id;
+        if (id) await bridges.get(id,owner);
+        if (req.method === 'GET' && !id) return send(res,200,await bridges.list(owner));
+        if (req.method === 'GET') return send(res,200,await bridges.get(id,owner));
+        if (req.method === 'DELETE' && id) return send(res,200,await bridges.remove(id,owner));
+        if (req.method !== 'POST' || id) return send(res,405,{error:'Метод не поддерживается'});
+        if (req.headers['content-type']?.split(';')[0] !== 'application/json') return send(res,415,{error:'Требуется JSON'});
+        const input = JSON.parse((await body(req,16*1024)).toString('utf8'));
+        if (!input || typeof input !== 'object' || Array.isArray(input)) return send(res,400,{error:'Некорректный запрос'});
+        return send(res,201,await bridges.create(owner,input));
       }
       if (pathname === '/api/connections/adapters') { if (!session) return send(res,401,{error:'Войдите в сервис'}); return send(res,200,{ adapters: delivery.adapterNames }); }
       const connectionMatch = /^\/api\/connections(?:\/([^/]+)(?:\/(probe))?)?$/.exec(pathname);

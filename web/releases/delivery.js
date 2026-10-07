@@ -8,21 +8,41 @@ const active = state => ['prepared', 'deploying', 'deployed-unverified', 'unknow
 let fieldId = 0;
 // Delivery section of the release page. `run` comes from the release shell so busy/stale handling stays shared;
 // every action reloads the whole release afterwards because attempts change the release's target check.
-export function mountDelivery({ release, connections = [], attempts = [], adapters = [], api, run, reload }) {
+// A bridge token is shown exactly once, in the render right after it was issued; the server keeps only its hash.
+const freshTokens = new Map();
+export function mountDelivery({ release, connections = [], attempts = [], adapters = [], bridges = [], api, run, reload }) {
   const section = el('section', undefined, 'release-delivery');
   section.append(el('h2', 'Доставка на Target'), el('p', 'Доставка идёт только через явно выбранное подключение Target после принятия кандидата. Успешный ответ инструмента не означает Verified: состояние Target читается заново и сравнивается с кандидатом. PROD отклоняется на сервере.'));
   const field = (form, label, value = '', kind = 'input') => { const wrapper = el('div'), caption = el('label', label), node = el(kind); node.id = `delivery-field-${++fieldId}`; caption.htmlFor = node.id; if (kind !== 'select') node.value = value; node.maxLength = 200; wrapper.append(caption, node); form.append(wrapper); return node; };
   const option = (select, value, label) => { const item = el('option', label); item.value = value; select.append(item); return item; };
   const button = (label, action, parent) => { const node = el('button', label); node.type = 'button'; node.onclick = action; parent.append(node); return node; };
-  const act = operation => run(async () => { await operation(); return reload(); });
+  const act = operation => run(async () => { freshTokens.clear(); await operation(); return reload(); });
   const targets = connections.filter(c => c.role === 'target' && c.environment !== 'prod');
   const current = attempts.find(a => active(a.state)) || null;
+  const bridgeName = id => bridges.find(b => b.id === id)?.name || 'мост удалён';
+  // Operator bridges: the service never connects to ELMA; an operator runs a worker next to elma365pm.
+  if (adapters.includes('bridge')) {
+    const block = el('section'); block.append(el('h3', `Мосты оператора: ${bridges.length}`), el('p', 'Мост — процесс на машине оператора рядом с elma365pm и токенами ELMA. Он сам опрашивает сервис и выполняет экспорт/импорт; сервис хранит только хеш токена моста и не делает исходящих подключений.', 'release-label'));
+    for (const bridge of bridges) {
+      const card = el('article', undefined, 'card');
+      card.append(el('h4', `${bridge.name} · ${bridge.online ? 'на связи' : 'не на связи'}`), el('p', bridge.lastSeen ? `Последний опрос ${bridge.lastSeen} · ${bridge.identity?.host ? `узел ${bridge.identity.host} · версия ${bridge.identity.version || 'не сообщена'}` : 'узел не сообщён'}${bridge.worker ? ` · ${bridge.worker}` : ''}` : 'Мост ещё не выходил на связь: запустите рабочий процесс с выданным токеном.'));
+      if (freshTokens.has(bridge.id)) { const token = el('p', undefined, 'release-token'); token.append(el('strong', 'Токен моста (показывается один раз, сохраните его в .env оператора): '), el('code', freshTokens.get(bridge.id))); card.append(token); }
+      const actions = el('div', undefined, 'actions');
+      button(`Удалить мост — ${bridge.name}`, () => act(() => api.removeBridge(bridge.id)), actions);
+      card.append(actions); block.append(card);
+    }
+    const form = el('form'), name = field(form, 'Название моста'); name.required = true; name.maxLength = 120;
+    form.onsubmit = event => { event.preventDefault(); if (form.reportValidity()) run(async () => { const issued = await api.createBridge({ name: name.value }); freshTokens.clear(); freshTokens.set(issued.bridge.id, issued.token); return reload(); }); };
+    const submit = el('button', 'Выдать токен моста'); submit.type = 'submit'; form.append(submit); block.append(form);
+    section.append(block);
+  }
   const list = el('section'); list.append(el('h3', `Подключения: ${connections.length}`));
   if (!adapters.length) list.append(el('p', 'На этом сервисе не настроен адаптер к ELMA. Подключения и доставка недоступны: передайте пакет оператору через приватный пакет передачи. Это ограничение сервиса, а не результат проверки.', 'note'));
   for (const connection of connections) {
     const card = el('article', undefined, 'card');
     card.append(el('h4', `${connection.name} · ${environmentLabels[connection.environment] || connection.environment} · ${connection.role === 'target' ? 'Target' : 'Source'} · адаптер ${connection.adapter}`));
     if (connection.adapterOptions?.scenario) card.append(el('p', `Сценарий: ${scenarioLabels[connection.adapterOptions.scenario] || connection.adapterOptions.scenario}`, 'release-label'));
+    if (connection.adapter === 'bridge') card.append(el('p', `Мост: ${bridgeName(connection.adapterOptions?.bridgeId)}`, 'release-label'));
     card.append(el('p', connection.probe ? `Проверено ${connection.probe.at}: ${connection.probe.ok ? 'доступно' : 'недоступно'} · ${connection.probe.identity ? `${connection.probe.identity.host} · версия ${connection.probe.identity.version || 'не сообщена'}` : 'личность не сообщена'}` : 'Личность не проверена: выполните проверку подключения перед доставкой.'));
     if (connection.probe?.protectedHost) card.append(el('p', 'Фактический узел входит в защищённый список: доставка на это подключение будет отклонена независимо от названия.', 'release-error'));
     if (connection.environment === 'prod') card.append(el('p', 'PROD: доставка отключена до отдельного разрешения и проверок AR-06.', 'release-error'));
@@ -39,8 +59,12 @@ export function mountDelivery({ release, connections = [], attempts = [], adapte
     for (const value of adapters) option(adapter, value, value);
     const scenario = field(form, 'Учебный сценарий синтетического адаптера', '', 'select');
     for (const [value, label] of Object.entries(scenarioLabels)) option(scenario, value, label);
-    const toggle = () => { scenario.parentElement.hidden = adapter.value !== 'synthetic'; }; adapter.onchange = toggle; toggle();
-    form.onsubmit = event => { event.preventDefault(); if (form.reportValidity()) act(() => api.createConnection({ name: name.value, role: 'target', environment: environment.value, adapter: adapter.value, adapterOptions: adapter.value === 'synthetic' ? { scenario: scenario.value } : {} })); };
+    const bridge = field(form, 'Мост оператора для этого подключения', '', 'select');
+    for (const item of bridges) option(bridge, item.id, `${item.name}${item.identity?.host ? ' · ' + item.identity.host : ''}`);
+    if (!bridges.length) option(bridge, '', 'сначала выдайте токен моста');
+    const toggle = () => { scenario.parentElement.hidden = adapter.value !== 'synthetic'; bridge.parentElement.hidden = adapter.value !== 'bridge'; bridge.required = adapter.value === 'bridge'; }; adapter.onchange = toggle; toggle();
+    const options = () => adapter.value === 'synthetic' ? { scenario: scenario.value } : adapter.value === 'bridge' ? { bridgeId: bridge.value } : {};
+    form.onsubmit = event => { event.preventDefault(); if (form.reportValidity()) act(() => api.createConnection({ name: name.value, role: 'target', environment: environment.value, adapter: adapter.value, adapterOptions: options() })); };
     const submit = el('button', 'Добавить подключение Target'); submit.type = 'submit'; form.append(el('p', 'Подключение — ссылка без учётных данных. Токены и пароли сюда вводить нельзя; они остаются у оператора/моста.', 'release-label'), submit); list.append(form);
   }
   section.append(list);
@@ -66,6 +90,7 @@ export function mountDelivery({ release, connections = [], attempts = [], adapte
       form.onsubmit = event => { event.preventDefault(); if (form.reportValidity()) act(() => api.confirm(attempt.id, { confirmation: confirmation.value.trim(), idempotencyKey: key })); };
       card.append(el('p', 'Перед запуском сервер повторно проверит личность Target, неизменность релиза и кандидата и отсутствие изменений решения на Target.', 'release-label'), form);
     }
+    if (attempt.state === 'deploying') { card.append(el('p', 'Операция выполняется на стороне моста/адаптера. Состояние обновится после завершения; обновите карточку, чтобы увидеть результат.', 'release-label')); button('Обновить состояние доставки', () => run(reload), card); }
     if (actionable(attempt.state)) button(attempt.state === 'verification-failed' ? 'Повторить read-back' : 'Выполнить read-back и сравнить', () => act(() => api.verify(attempt.id)), card);
     history.append(card);
   }

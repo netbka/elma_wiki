@@ -422,7 +422,9 @@
         "remove-connection",
         "prepare",
         "confirm",
-        "verify"
+        "verify",
+        "create-bridge",
+        "remove-bridge"
       ],
       "renderer": [
         "web/releases/delivery.js",
@@ -437,7 +439,9 @@
         "delivery--deployed-unverified",
         "delivery--unknown-outcome",
         "delivery--verified",
-        "delivery--verification-failed"
+        "delivery--verification-failed",
+        "delivery--bridge-offline",
+        "delivery--bridge-deploying"
       ],
       "requiredVisibleStates": [
         "no-adapter",
@@ -447,10 +451,13 @@
         "deployed-unverified",
         "unknown-outcome",
         "verified",
-        "verification-failed"
+        "verification-failed",
+        "bridge-offline",
+        "bridge-deploying"
       ],
       "sources": [
         "lib/delivery.mjs",
+        "lib/bridge.mjs",
         "docs/contracts/target-deployment.md"
       ]
     }

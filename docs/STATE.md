@@ -4,7 +4,7 @@ Last repository verification: 2026-10-07.
 
 ## Implemented
 - Immutable project snapshot storage foundation: isolated upload snapshots, trusted Source-reference append methods, pinned original bytes/parser revisions/provenance, owner-scoped snapshot reads and stale-safe selection. Legacy reparse pins its prior index; releases capture the selected snapshot. Synthetic evidence only; no Source adapter or selector UI. See contracts/project-snapshots.md.
-- Delivery foundation (AR-04 part 1): owner-scoped Target connection references without credentials, attempt lifecycle `prepared -> deploying -> deployed-unverified -> verified | verification-failed` with `failed`/`unknown-outcome`/`blocked`, server-side PROD refusal (environment and probed identity), explicit confirmation, idempotent single dispatch, drift/stale-approval blocking, restart reconciliation and read-back verification by file hash; «Доставка на Target» section on /releases with eight Storybook states and a browser check. Synthetic adapter only, disabled on a hosted service by default; no live Target. See contracts/target-deployment.md.
+- Delivery foundation (AR-04 part 1): owner-scoped Target connection references without credentials, attempt lifecycle `prepared -> deploying -> deployed-unverified -> verified | verification-failed` with `failed`/`unknown-outcome`/`blocked`, server-side PROD refusal (environment and probed identity), explicit confirmation, idempotent single dispatch, drift/stale-approval blocking, restart reconciliation and read-back verification by file hash; «Доставка на Target» section on /releases with eight Storybook states and a browser check. Operator bridge adapter (AR-04 part 3): one-time bridge tokens stored hashed, per-bridge job queue polled by elma-dev bridge --target=<dev|test> on the operator machine (export/unpack/import via elma365pm; tokens never reach the Wiki), long deploys answered as deploying and finished in the background. Exercised live read-only against dev2 (health, inspect); no live deploy has run. Synthetic adapter stays test-only. See contracts/target-deployment.md.
 - Owner-only offline analyst releases at /releases: explicitly pinned DEV/baseline originals, complete inventory comparison and structural field impact, durable decisions, revision conflicts, unchanged-original candidate and exact private handoff. Local acceptance never authorizes import; ELMA, dependency and target checks remain Not run. Workspace edits are excluded. See contracts/analyst-releases.md.
 - Node service with identity/auth (e-mail code login; GitHub OAuth removed) and isolated user projects.
 - Manual .e365 upload/project parsing and structural viewer.
@@ -26,7 +26,7 @@ Last repository verification: 2026-10-07.
 
 ## Designed, not yet proven as runtime
 - Source ELMA connection/export into immutable snapshots.
-- Separate Target ELMA connection with a real adapter/bridge (the reference model and lifecycle exist; the live path does not).
+- First live delivery through the bridge: the owner must designate the non-production Target (dev2 proposed) and a solution/candidate; the bridge and lifecycle exist, the live deploy evidence does not.
 - Snapshot/workspace/target comparisons.
 - Live Target read-back evidence (the delivery UI exists; only the synthetic adapter runs behind it).
 - Storybook coverage of existing public/auth/project viewer renderers; workflow catalog has explicit exclusions for these surfaces.

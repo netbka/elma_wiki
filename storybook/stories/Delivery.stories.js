@@ -21,11 +21,12 @@ function attempt(state) {
   return base;
 }
 const refuse = async () => { throw Error('Синтетический сценарий: действия не выполняются. Настоящая доставка доступна только в приватном сервисе с настроенным адаптером.'); };
-function story({ adapters = ['synthetic'], connections = [connection()], attempts = [] } = {}) {
+const bridge = (extra = {}) => ({ id: 'synthetic-bridge', name: 'Рабочее место оператора', createdAt: '2026-10-07T09:20:00Z', lastSeen: '2026-10-07T09:44:00Z', online: true, identity: { host: 'test.example.invalid', version: 'elma365pm 1.19.0 / ELMA 2025.5' }, worker: 'elma-dev bridge @ operator-pc → test', ...extra });
+function story({ adapters = ['synthetic'], connections = [connection()], attempts = [], bridges = [] } = {}) {
   const record = approvedRelease();
   const latest = attempts.at(-1) || null;
   const release = releaseView(record, { attempts: attempts.length, latest: latest && { id: latest.id, state: latest.state, connectionName: latest.connection.name, at: latest.history.at(-1).at } });
-  return mountRelease({ release, change: refuse, preview: refuse, download: refuse, open: refuse, delivery: { connections, attempts, adapters, api: { createConnection: refuse, probe: refuse, removeConnection: refuse, prepare: refuse, confirm: refuse, verify: refuse } } });
+  return mountRelease({ release, change: refuse, preview: refuse, download: refuse, open: refuse, delivery: { connections, attempts, adapters, bridges, api: { createConnection: refuse, probe: refuse, removeConnection: refuse, createBridge: refuse, removeBridge: refuse, prepare: refuse, confirm: refuse, verify: refuse } } });
 }
 export default { id: 'delivery', title: 'Аналитик/Доставка на Target', parameters: { layout: 'fullscreen' } };
 export const NoAdapter = { render: () => story({ adapters: [], connections: [] }) };
@@ -36,3 +37,6 @@ export const DeployedUnverified = { render: () => story({ attempts: [attempt('de
 export const UnknownOutcome = { render: () => story({ attempts: [attempt('unknown-outcome')] }) };
 export const Verified = { render: () => story({ attempts: [attempt('verified')] }) };
 export const VerificationFailed = { render: () => story({ attempts: [attempt('verification-failed')] }) };
+// Operator bridge: the service itself never connects to ELMA; the worker next to elma365pm polls for jobs.
+export const BridgeOffline = { render: () => story({ adapters: ['bridge'], bridges: [bridge({ lastSeen: null, online: false, identity: null, worker: null })], connections: [connection({ adapter: 'bridge', adapterOptions: { bridgeId: 'synthetic-bridge' }, name: 'TEST через мост', probe: { at: '2026-10-07T09:31:00Z', ok: false, identity: null, protectedHost: false } })] }) };
+export const BridgeDeploying = { render: () => story({ adapters: ['bridge'], bridges: [bridge()], connections: [connection({ adapter: 'bridge', adapterOptions: { bridgeId: 'synthetic-bridge' }, name: 'TEST через мост' })], attempts: [{ ...attempt('deployed-unverified'), state: 'deploying', connection: { id: 'synthetic-connection', name: 'TEST через мост', environment: 'test', adapter: 'bridge' }, evidence: { ...attempt('prepared').evidence, rollbackReference: attempt('deployed-unverified').evidence.rollbackReference }, history: attempt('deployed-unverified').history.slice(0, 2) }] }) };
