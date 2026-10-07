@@ -28,3 +28,22 @@ Nineteen shared `managed-workspace--*` stories cover the current tabs and empty/
 `npm run test:managed:browser` exercises shared creation, partial boundary review, full conflict choice, archive/reopen, stale rejection, fetch recovery, keyboard focus, one recommended action and 1920/800/390 reflow. It retains synthetic screenshots and `qa/managed-browser-evidence.json`. Build Storybook first; CI supplies Chromium when unavailable locally. VK browser verification checks the new entry.
 
 Automated evidence does not establish uncoached comprehension. #59/#38 require human review/owner acceptance. No live Source, TEST delivery, native runtime equivalence or production deployment is claimed.
+
+### Independent integration check — 8 October 2026
+
+Reviewed #63 at `71084d9` against main `cef0195` after #62 merged.
+The three merge conflicts were confined to protected routes and the task
+panel's return destinations. Retaining #63's `/solutions` routes and return
+links preserves both capabilities. The resolved application tree is identical
+to the reviewed #63 tree; the merge records main's ancestry.
+
+Local checks passed: 31 focused catalog/auth/ViewModel/coordinator/server/bridge
+tests, repository verification, the 83-story catalog and Storybook build.
+Headless Chrome passed the shared Solution lifecycle and all 19 managed stories,
+plus the task-panel queue/retry/clarification/approval/cancellation journey,
+keyboard, mobile and zoom checks. Desktop conflict, mobile overview and working
+task-panel screenshots were inspected. Evidence uses synthetic local data.
+GitHub's Verify service and Request bot contracts also passed at `71084d9`.
+
+This integration does not complete #57's separately claimed discussion work,
+#58's visual reconstruction, uncoached acceptance or any live delivery gate.
