@@ -18,6 +18,7 @@ try {
   }
   await page.goto(base + '/iframe.html?id=elma--approval&viewMode=story');
   for (const action of ['submit', 'approve', 'change', 'resubmit']) await page.locator(`[data-action="${action}"]`).click();
+  assert.equal(await page.locator('.flow-stage h2').evaluate(node => node === document.activeElement), true, 'Workflow transitions retain keyboard focus on the new step');
   assert.match(await page.locator('.flow-stage').textContent(), /Версия документа: 2. Согласована версия: нет/);
   for (const action of ['approve', 'skip']) await page.locator(`[data-action="${action}"]`).click();
   assert.match(await page.locator('.flow-stage h2').textContent(), /Остальные участники/);
@@ -59,7 +60,25 @@ try {
   await page.keyboard.press('Tab'); assert.notEqual(await page.evaluate(() => document.activeElement.tagName), 'BODY');
   await fs.mkdir('qa', { recursive: true }); await page.screenshot({ path: 'qa/workflow-review-mobile.png', fullPage: true });
   await page.setViewportSize({ width: 1440, height: 1000 }); await page.goto(base + '/iframe.html?id=system--whole-system&viewMode=story');
+  await page.locator('.review-status').filter({ hasText: /версия/ }).waitFor();
+  await page.locator('[data-flow="investigation"]').click();
+  await page.locator('[data-action="observe"]').click();
+  const retainedStep = await page.locator('.flow-stage h2').textContent();
+  await page.getByLabel('Цель, наблюдение, ожидаемый результат и причина').fill('Несохранённый вопрос исследования');
+  await page.locator('[data-flow="upload"]').click();
+  await page.locator('[data-flow="investigation"]').click();
+  assert.equal(await page.locator('.flow-stage h2').textContent(), retainedStep);
+  assert.equal(await page.getByLabel('Цель, наблюдение, ожидаемый результат и причина').inputValue(), 'Несохранённый вопрос исследования');
   await page.locator('.flow-stage h2').waitFor(); await page.screenshot({ path: 'qa/workflow-system-desktop.png', fullPage: true });
+  await page.route('**/__elma/reviews?flowId=upload', route => route.fulfill({ status: 503, json: { error: 'Синтетическая недоступность хранилища' } }));
+  await page.goto(base + '/iframe.html?id=system--upload&viewMode=story');
+  await page.getByRole('alert').filter({ hasText: /Синтетическая недоступность/ }).waitFor();
+  assert.equal(await page.getByRole('button', { name: 'Оставить комментарий', exact: true }).isDisabled(), true);
+  assert.equal(await page.getByRole('button', { name: 'Обновить рецензии', exact: true }).isDisabled(), false);
+  await page.unroute('**/__elma/reviews?flowId=upload');
+  await page.getByRole('button', { name: 'Обновить рецензии', exact: true }).click();
+  await page.locator('.review-status').filter({ hasText: /версия/ }).waitFor();
+  assert.equal(await page.getByRole('button', { name: 'Оставить комментарий', exact: true }).isDisabled(), false);
   directory = await fs.mkdtemp(path.join(os.tmpdir(), 'elma-flow-browser-'));
   wiki = createServer({ directory, allowLocal: true, sendEmail: undefined });
   await new Promise(resolve => wiki.listen(0, '127.0.0.1', resolve));
