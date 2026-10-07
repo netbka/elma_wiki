@@ -19,9 +19,9 @@ classification:
     content: "public/product/documentation wording"
 capabilities:
   managed-workspace:
-    owners: ["lib/managed-workspace.mjs", "test/managed-workspace.test.mjs"]
+    owners: ["lib/managed-workspace.mjs", "lib/managed-workspace-store.mjs", "test/managed-workspace.test.mjs", "test/managed-workspace-store.test.mjs"]
     routes: ["docs/contracts/managed-workspace.md", "docs/contracts/project-snapshots.md"]
-    boundaries: ["domain", "parser"]
+    boundaries: ["domain", "parser", "storage", "security"]
   request-bot:
     owners: ["services/request-bot/", ".github/workflows/request-bot.yml"]
     routes: ["docs/contracts/request-bot.md", "services/request-bot/README.md", "docs/plans/vk-teams-agent-delivery.md"]
@@ -79,8 +79,8 @@ capabilities:
     routes: ["docs/STORYBOOK.md", "docs/EXPERIENCE_REVIEW.md"]
     boundaries: ["tooling", "ui", "domain", "storage"]
   agent-system:
-    owners: ["AGENTS.md", ".agent/capabilities.yaml", "docs/INDEX.md"]
-    routes: ["AGENTS.md", "docs/INDEX.md"]
+    owners: ["AGENTS.md", ".agent/capabilities.yaml", "docs/INDEX.md", "docs/PRODUCT_DIRECTION.md", ".github/pull_request_template.md"]
+    routes: ["AGENTS.md", "docs/PRODUCT_DIRECTION.md", "docs/INDEX.md"]
     boundaries: ["tooling"]
   operations:
     owners: ["deploy/", "compose.yaml", "Dockerfile"]
