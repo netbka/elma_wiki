@@ -27,8 +27,11 @@ try {
   browser = await chromium.launch({ headless: true, ...(process.env.BROWSER_CHANNEL ? { channel: process.env.BROWSER_CHANNEL } : {}) });
   const context = await browser.newContext(), page = await context.newPage(), errors = [];
   page.on('pageerror', e => errors.push(e.message));
-  await page.goto(base + '/login'); await page.getByRole('button', { name: 'Войти локально', exact: true }).click();
-  await page.waitForURL('**/dashboard'); await page.goto(base + '/releases');
+  // This fixture tests release review, not the production bot-login journey.
+  // The local endpoint remains explicitly enabled only on this loopback server.
+  const login = await context.request.post(base + '/auth/local', { headers: { 'X-Elma-Wiki-Request': '1' } });
+  assert.equal(login.status(), 200);
+  await page.goto(base + '/releases');
   await page.getByLabel('Название релиза', { exact: true }).fill('Рецензия учебного договора');
   await page.getByLabel('Деловая цель', { exact: true }).fill('Проверить обязательность заголовка');
   await page.getByLabel('Новый пакет DEV', { exact: true }).selectOption(source.id);

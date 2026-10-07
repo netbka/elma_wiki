@@ -31,7 +31,9 @@ try {
   browser = await chromium.launch({ headless: true, ...(process.env.BROWSER_CHANNEL ? { channel: process.env.BROWSER_CHANNEL } : {}) });
   const page = await (await browser.newContext()).newPage(), errors = [];
   page.on('pageerror', error => errors.push(error.message));
-  await page.goto(base + '/login'); await page.getByRole('button', { name: 'Войти локально', exact: true }).click(); await page.waitForURL('**/dashboard');
+  // Authenticate the synthetic loopback fixture independently of bot-login UI.
+  const login = await page.context().request.post(base + '/auth/local', { headers: { 'X-Elma-Wiki-Request': '1' } });
+  assert.equal(login.status(), 200);
   const api = (route, input) => page.evaluate(async ({ route, input }) => {
     const response = await fetch(route, input ? { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Elma-Wiki-Request': '1' }, body: JSON.stringify(input) } : {});
     if (!response.ok) throw Error('Fixture API failed: ' + response.status); return response.json();
