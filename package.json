@@ -9,6 +9,8 @@
   "scripts": {
     "start": "node server.mjs",
     "dev": "node --watch server.mjs",
+    "setup": "node tools/setup.mjs",
+    "doctor": "node tools/doctor.mjs",
     "import": "node tools/import.mjs",
     "test": "node --test test/*.test.mjs",
     "verify": "node verify.mjs",
