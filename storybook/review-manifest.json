@@ -433,7 +433,8 @@
       "renderer": [
         "web/releases/render.js",
         "web/releases/model.js",
-        "web/releases/comparison.js"
+        "web/releases/comparison.js",
+        "web/releases/snapshot-picker.js"
       ],
       "storyIds": [
         "release--review",
@@ -442,7 +443,9 @@
         "release--blocked",
         "release--candidate",
         "release--prepared",
-        "release--handed-off"
+        "release--handed-off",
+        "release--snapshot-selection",
+        "release--snapshot-load-error"
       ],
       "requiredVisibleStates": [
         "review",
@@ -451,7 +454,9 @@
         "blocked",
         "candidate",
         "prepared",
-        "handed-off"
+        "handed-off",
+        "snapshot-selection",
+        "snapshot-load-error"
       ],
       "sources": [
         "lib/releases.mjs",
