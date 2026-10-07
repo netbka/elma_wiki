@@ -13,6 +13,14 @@ Wiki is not a replacement visual ELMA Designer.
 
 ## Start from the assigned outcome
 
+Before starting work, clean up finished worktrees:
+
+1. Run `git worktree list --porcelain`, refresh remote refs with `git fetch origin --prune`, and inspect current open PRs and active work.
+2. For each secondary worktree, check `git -C <path> status --short --untracked-files=all`, inspect ignored files for private data or artifacts worth keeping, and verify its branch/HEAD against current main and its PR. A clean worktree alone does not mean the work is finished: require merged ancestry or explicit evidence that the work was superseded or abandoned.
+3. Keep the primary/current worktree, active or open-PR worktrees, dirty worktrees, and any worktree whose completion or local-data disposition is uncertain. Preserve needed ignored artifacts outside the removal target before cleanup.
+4. Verify the resolved absolute removal path matches the inspected secondary worktree, then use `git worktree remove <path>` without force. Respect filesystem approval boundaries; do not recursively delete directories or delete branches as part of routine cleanup. If removal refuses, investigate and preserve the work instead of forcing it.
+5. Run `git worktree prune` to clear stale registration metadata and `git worktree list --porcelain` to verify the result. Report removed worktrees and any retained work needing attention.
+
 Classify the phase as investigate, design, change, verify or operate and select only boundaries/capabilities actually crossed. Use .agent/capabilities.yaml.
 
 A request to implement/fix/finish means investigate -> change -> focused verification without asking to switch modes. A roadmap item is not an assignment.
