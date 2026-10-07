@@ -4,7 +4,8 @@ Last repository verification: 2026-10-07.
 
 ## Implemented
 - Immutable project snapshot storage foundation: isolated upload snapshots, trusted Source-reference append methods, pinned original bytes/parser revisions/provenance, owner-scoped snapshot reads and stale-safe selection. Legacy reparse pins its prior index; releases capture the selected snapshot. Synthetic evidence only; no Source adapter or selector UI. See contracts/project-snapshots.md.
-- Delivery foundation (AR-04 part 1): owner-scoped Target connection references without credentials, attempt lifecycle `prepared -> deploying -> deployed-unverified -> verified | verification-failed` with `failed`/`unknown-outcome`/`blocked`, server-side PROD refusal (environment and probed identity), explicit confirmation, idempotent single dispatch, drift/stale-approval blocking, restart reconciliation and read-back verification by file hash. Synthetic adapter only, disabled on a hosted service by default; no UI; no live Target. See contracts/target-deployment.md.
+- Release delivery UI: unavailable state keeps offline handoff usable; explicitly enabled synthetic mode provides stand selection/probe, separate typed confirmation, read-back, discrepancies/history, preparation cancellation and lost-response reconciliation. Historical evidence becomes stale after candidate/condition changes. Shared production/Storybook renderer; no live adapter or ELMA delivery.
+- Delivery foundation (AR-04 part 1): owner-scoped Target connection references without credentials, attempt lifecycle `prepared -> deploying -> deployed-unverified -> verified | verification-failed` with `failed`/`unknown-outcome`/`blocked`/`cancelled`, server-side PROD refusal (environment and probed identity), explicit confirmation, idempotent single dispatch, drift/stale-approval blocking, restart reconciliation and read-back verification by file hash. Synthetic adapter only, disabled on a hosted service by default; no live Target. See contracts/target-deployment.md.
 - Owner-only offline analyst releases at /releases: explicitly pinned DEV/baseline originals, complete inventory comparison and structural field impact, durable decisions, revision conflicts, unchanged-original candidate and exact private handoff. Local acceptance never authorizes import; ELMA, dependency and target checks remain Not run. Workspace edits are excluded. See contracts/analyst-releases.md.
 - Node service with identity/auth (e-mail code login; GitHub OAuth removed) and isolated user projects.
 - Manual .e365 upload/project parsing and structural viewer.
@@ -28,7 +29,7 @@ Last repository verification: 2026-10-07.
 - Source ELMA connection/export into immutable snapshots.
 - Separate Target ELMA connection with a real adapter/bridge (the reference model and lifecycle exist; the live path does not).
 - Snapshot/workspace/target comparisons.
-- Delivery UI on the release page and live Target read-back evidence.
+- Live Target adapter and read-back evidence beyond the synthetic delivery UI.
 - Storybook coverage of existing public/auth/project viewer renderers; workflow catalog has explicit exclusions for these surfaces.
 - Build, live ELMA connections, deployment candidates and read-back for the
   browser workspace (Slice B not started).
