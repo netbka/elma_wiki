@@ -39,8 +39,6 @@ The live path keeps the Wiki free of ELMA credentials and outbound connections: 
 - Long operations: `confirm` persists `deploying`, hands the operation to the adapter outside the per-release lock and answers within a 2 s grace period — with the final state if the operation finished, otherwise with `deploying`; the attempt is completed in the background and the UI offers «Обновить состояние доставки». Read-only calls (`inspect`, `readBack`) fail with 504 on timeout; the deploy timeout still yields `unknown-outcome`. `DELIVERY_TIMEOUT_MS` (default 20 min) bounds every adapter call.
 - Worker-side refusals independent of the Wiki: target `prod` is not accepted at all; `WIKI_BRIDGE_PROTECTED_HOSTS` refuses deploy; an artifact whose hash or package code does not match is not imported. Env on the operator machine: `WIKI_BRIDGE_URL`, `WIKI_BRIDGE_TOKEN`, optional `WIKI_BRIDGE_CA` (private CA PEM).
 
-## Bridge dispatch cancellation and restart
-
 Read-only preflight on 2026-10-08 verified the corrected worker's inventory
 against Wiki's reader for all 48 files of one native dev2 solution package.
 Two subsequent fresh worker exports matched each other exactly, including all
@@ -55,6 +53,8 @@ is a separate environment used with the partner company, which promotes that
 work to PROD. dev2 is the owner's additional environment for technical work.
 Select by task purpose, verify the actual host, and separately bind the approved
 candidate to its Target. See [server roles](https://github.com/netbka/elma365/blob/main/docs/server-environments.md).
+
+## Bridge dispatch cancellation and restart
 
 A persisted job is not permission to dispatch. Polling and artifact reads require a live, unexpired request in the current service process. Abort fences an unclaimed job as `cancelled` and removes its candidate bytes before rejecting the waiter. An already claimed job becomes `unknown-outcome`: new artifact reads are denied, but an operator that already downloaded the artifact may still be running. A late result is retained with `lateCompletion: true`; it does not restore the expired request or verify a release.
 
