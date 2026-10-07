@@ -5,6 +5,7 @@ Routing, not an always-read checklist.
 | Need | Read |
 | --- | --- |
 | Agent behavior | ../AGENTS.md |
+| Primary product direction / rebuild integration and acceptance order (#33) | [PRODUCT_DIRECTION.md](PRODUCT_DIRECTION.md) |
 | Capability routing | ../.agent/capabilities.yaml |
 | Current implemented truth | STATE.md |
 | Public Vercel site / internal Docker | PUBLIC_DEPLOYMENT.md |
@@ -34,4 +35,4 @@ Routing, not an always-read checklist.
 | VK Teams request-to-Dev2 automation (proposed) | plans/vk-teams-agent-delivery.md |
 | VK Teams user conversation (proposed) | workflows/vk-teams-agent-delivery.md |
 
-Product Constitution/Principles are intentionally pending a separate ELMA-specific rewrite. Never copy Dyk product semantics as temporary authority.
+[PRODUCT_DIRECTION.md](PRODUCT_DIRECTION.md) records the owner-directed baseline-first lifecycle now. The final integrated product contract/owner acceptance remains #38, not a prerequisite for following #33 during implementation. Never copy Dyk product semantics as temporary authority.
