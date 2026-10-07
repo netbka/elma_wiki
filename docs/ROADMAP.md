@@ -7,6 +7,7 @@ Coordination only. Work starts from the owner request or assigned issue.
 - Port/adapt generic Storybook engineering skeleton from Dyk.
 - Create ELMA-specific Product Constitution + executable Principles as a separate product-authority task.
 - Integrate supported Developer Workspace/compiler flow with snapshot/candidate lifecycle after the Source/Target skeleton works.
+- VK Teams request-to-Dev2 agent delivery - plans/vk-teams-agent-delivery.md; proposed six-PR implementation plan, not a connected bot or deployment authorization. User conversation: workflows/vk-teams-agent-delivery.md.
 
 ## LATER
 - VS Code client over shared Developer Core.

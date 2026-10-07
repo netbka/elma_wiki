@@ -19,5 +19,7 @@ Routing, not an always-read checklist.
 | Target procedure | runbooks/target-deployment.md |
 | Storybook authority | STORYBOOK.md |
 | E2E implementation package | plans/source-target-e2e.md |
+| VK Teams request-to-Dev2 automation (proposed) | plans/vk-teams-agent-delivery.md |
+| VK Teams user conversation (proposed) | workflows/vk-teams-agent-delivery.md |
 
 Product Constitution/Principles are intentionally pending a separate ELMA-specific rewrite. Never copy Dyk product semantics as temporary authority.
