@@ -372,6 +372,44 @@
       ],
       "workflow": "testing/workflows/vk-login.json",
       "exclusionReason": "Production login renderer пока не интегрирован в stories. tools/vk-auth-browser-check.mjs проверяет настоящий UI с синтетической доставкой; копии разметки в Storybook нет."
+    },
+    "analyst-release": {
+      "entry": "/releases",
+      "kind": "implemented",
+      "actions": [
+        "create",
+        "review",
+        "details",
+        "freeze",
+        "approve",
+        "preview",
+        "bundle"
+      ],
+      "renderer": [
+        "web/releases/render.js",
+        "web/releases/model.js",
+        "web/releases/comparison.js"
+      ],
+      "storyIds": [
+        "release--review",
+        "release--missing-baseline",
+        "release--blocked",
+        "release--candidate",
+        "release--prepared",
+        "release--handed-off"
+      ],
+      "requiredVisibleStates": [
+        "review",
+        "missing-baseline",
+        "blocked",
+        "candidate",
+        "prepared",
+        "handed-off"
+      ],
+      "sources": [
+        "lib/releases.mjs",
+        "docs/contracts/analyst-releases.md"
+      ]
     }
   }
 }

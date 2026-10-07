@@ -16,6 +16,11 @@ export async function reviewRevision(root) {
   hash.update(await fs.readFile(path.join(root, 'docs/EXPERIENCE_REVIEW.md')));
   hash.update(await fs.readFile(path.join(root, 'lib/flow-reviews.mjs')));
   hash.update(await fs.readFile(path.join(root, 'storybook/review-api.mjs')));
+  // Optional for old workspaces/tests; release stories use these production modules.
+  for (const name of ['comparison.js','model.js','render.js','styles.css']) {
+    try { hash.update(await fs.readFile(path.join(root,'web/releases',name))); }
+    catch (error) { if (error.code !== 'ENOENT') throw error; }
+  }
   return hash.digest('hex');
 }
 const loopback = address => ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(address);

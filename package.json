@@ -7,6 +7,7 @@
     "node": ">=22"
   },
   "scripts": {
+    "test:releases:browser": "node tools/releases-browser-check.mjs",
     "storybook": "npm --prefix storybook run dev",
     "build:storybook": "npm --prefix storybook run build",
     "check:storybook": "node tools/check-flow-catalog.mjs && node --test test/flow-reviews.test.mjs test/flows.test.mjs test/flow-review-api.test.mjs",
@@ -34,10 +35,10 @@
     "monaco-editor": "^0.55.1",
     "nodemailer": "^10.0.15",
     "typescript": "5.9.3",
-    "yauzl": "^3.2.0"
+    "yauzl": "^3.2.0",
+    "yazl": "^3.3.1"
   },
   "devDependencies": {
-    "playwright": "^1.63.0",
-    "yazl": "^3.3.1"
+    "playwright": "^1.63.0"
   }
 }

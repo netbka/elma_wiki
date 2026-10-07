@@ -23,3 +23,7 @@ jobs:
       - run: node tools/check-flow-catalog.mjs
       - run: npm ci --prefix storybook
       - run: npm run build:storybook
+      - if: runner.os == 'Linux'
+        run: npx playwright install --with-deps chromium
+      - if: runner.os == 'Linux'
+        run: npm run test:releases:browser

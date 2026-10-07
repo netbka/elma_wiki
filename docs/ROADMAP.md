@@ -3,6 +3,7 @@
 Coordination only. Work starts from the owner request or assigned issue.
 
 ## OPEN
+- Analyst release offline milestone is implemented for review: explicit upload/baseline pinning, owner-only resumable decisions and unchanged-original candidate/handoff. See contracts/analyst-releases.md. Live Source/TEST delivery (AR-04), optional edited candidates and production gates remain open.
 - Source -> Workspace -> Target E2E implementation - plans/source-target-e2e.md.
 - Extend workflow Storybook to existing public/auth/viewer renderers and authenticated remote collaboration when assigned.
 - Analyst release workspace - [proposed PR sequence](plans/analyst-release-workspace.md) and [audit brief](audits/analyst-release-audit-brief.md). Extends the existing E2E, not a competing pipeline. Current assignment is planning; runtime slices require assignment. No-edit review/handoff precedes TEST delivery and optional edits.

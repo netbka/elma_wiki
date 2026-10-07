@@ -10,6 +10,7 @@ import { createVkSender } from './lib/vk-teams.mjs';
 import { portalStore } from './lib/portals.mjs';
 import { projectStore } from './lib/projects.mjs';
 import { workspaceStore } from './lib/workspaces.mjs';
+import { releaseStore } from './lib/releases.mjs';
 import { demoData } from './lib/demo.mjs';
 
 const project = path.dirname(fileURLToPath(import.meta.url));
@@ -33,6 +34,7 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
   allowLocal = process.env.DISABLE_LOCAL_LOGIN === '0' && ['127.0.0.1', 'localhost'].includes(new URL(baseUrl).hostname) && (!process.env.HOST || process.env.HOST === '127.0.0.1') } = {}) {
   const base = new URL(baseUrl), auth = createAuth({ baseUrl, allowLocal, sendEmail, sendVk, now }), portals = portalStore(directory), projects = projectStore(directory), oldDemo = demoData(), sample = oldDemo.servers.showcase, demo = {entities:sample.entities,solution:sample.solutions[0],coverage:'structural',parserVersion:'2.0.0',inventory:[],provenance:{},synthetic:true};
   const workspaces = workspaceStore(projects);
+  const releases = releaseStore(directory, projects);
   let uploading = false;
   return http.createServer(async (req, res) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -52,6 +54,33 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
       }
       if (await auth.route(req, res, url)) return;
       const session = auth.session(req);
+      if (pathname === '/api/releases') {
+        if (!session) return send(res,401,{error:'Войдите в сервис'});
+        if (req.method === 'GET') return send(res,200,await releases.list(session.user.id));
+        if (req.method !== 'POST') return send(res,405,{error:'Метод не поддерживается'});
+        if (req.headers['content-type']?.split(';')[0] !== 'application/json') return send(res,415,{error:'Требуется JSON'});
+        const input = JSON.parse((await body(req,64*1024)).toString('utf8'));
+        if (!input || typeof input !== 'object' || Array.isArray(input)) return send(res,400,{error:'Некорректный запрос'});
+        return send(res,201,await releases.create(session.user.id,input));
+      }
+      const releaseMatch = /^\/api\/releases\/([^/]+)(?:\/(change|preview|bundle))?$/.exec(pathname);
+      if (releaseMatch) {
+        const [,id,action] = releaseMatch;
+        if (!session) return send(res,404,{error:'Релиз не найден'});
+        const owner = session.user.id;
+        // Authorization precedes method/body validation on every release surface.
+        await releases.authorize(id,owner);
+        if (req.method === 'GET' && !action) return send(res,200,await releases.get(id,owner));
+        if (req.method === 'GET' && action === 'preview') return send(res,200,await releases.preview(id,owner,url.searchParams.get('path'),url.searchParams.get('side')));
+        if (req.method !== 'POST' || !['change','bundle'].includes(action)) return send(res,405,{error:'Метод не поддерживается'});
+        if (req.headers['content-type']?.split(';')[0] !== 'application/json') return send(res,415,{error:'Требуется JSON'});
+        const input = JSON.parse((await body(req,64*1024)).toString('utf8'));
+        if (!input || typeof input !== 'object' || Array.isArray(input)) return send(res,400,{error:'Некорректный запрос'});
+        if (action === 'change') return send(res,200,await releases.change(id,owner,input));
+        const bundle = await releases.bundle(id,owner,input.revision);
+        res.writeHead(200,{'Content-Type':'application/zip','Content-Disposition':'attachment; filename="release-handoff.zip"','Cache-Control':'no-store'});
+        return res.end(bundle);
+      }
       const workspaceMatch = /^\/api\/projects\/([^/]+)\/workspace\/([^/]+)(?:\/(save|check|checkpoint|restore))?$/.exec(pathname);
       if (workspaceMatch) {
         const [,id,object,action] = workspaceMatch;
@@ -119,8 +148,8 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
         return serve(req, res, path.join(project, 'dist'), requested);
       }
       if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, { error: 'Метод не поддерживается' });
-      if (pathname === '/dashboard' && !session) { res.writeHead(302, { Location: '/login' }); return res.end(); }
-      if (['/', '/login', '/dashboard', '/guide', '/flows'].includes(pathname)) return serve(req, res, path.join(project, 'web'), pathname === '/' ? '/index.html' : pathname + '.html');
+      if (['/dashboard','/releases'].includes(pathname) && !session) { res.writeHead(302, { Location: '/login' }); return res.end(); }
+      if (['/', '/login', '/dashboard', '/guide', '/flows','/releases'].includes(pathname)) return serve(req, res, path.join(project, 'web'), pathname === '/' ? '/index.html' : pathname + '.html');
       return serve(req, res, path.join(project, 'web'), pathname);
     } catch (error) {
       if (!res.headersSent) send(res, error.statusCode || error.status || 400, { error: error instanceof SyntaxError ? 'Некорректный JSON' : error instanceof URIError ? 'Некорректный URL' : error.code ? 'Операция хранилища недоступна' : /fetch|ENOTFOUND|ECONN/.test(error.message) ? 'Внешний сервис недоступен' : error.message });
