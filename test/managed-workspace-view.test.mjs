@@ -20,7 +20,9 @@ test('review requires explicit boundary decisions and per-conflict choices; ambi
 test('overview summaries distinguish a manual Source assertion, accepted baseline and current interventions', () => {
   const state = managedFixture().workspace, summary = workspaceSummary(state);
   assert.equal(summary.changed, 1); assert.equal(summary.pending, 0);
-  assert.equal(summary.baseline.id, state.baselineId); assert.match(summary.source, /владельцем/);
+  assert.equal(summary.baseline.id, state.baselineId); assert.match(summary.source, /не проверено/);
+  state.artifacts.unshift({ id: 'old', snapshot: { source: { connectionId: 'synthetic-dev' } } });
+  assert.equal(workspaceSummary(state).source, 'synthetic-dev', 'manual baseline does not erase known workspace Source');
   assert.equal(workspaceSummary({ changedComponents: 5, pendingCount: 2, baselineSnapshot: { source: { connectionId: 'synthetic-source' } } }).pending, 2);
   assert.equal(componentName('["widgets","synthetic","contract"]'), 'contract');
   assert.equal(componentName('<img src=x>'), '<img src=x>'); // renderer must use textContent, never HTML

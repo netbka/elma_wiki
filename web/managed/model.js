@@ -11,7 +11,8 @@ export function workspaceSummary(state) {
   const baseline = state.artifacts?.find(row => row.id === state.baselineId);
   return { baseline, changed: state.current?.filter(row => row.interventionId).length ?? state.changedComponents ?? 0,
     pending: state.pending?.length ?? state.pendingCount ?? 0,
-    source: (baseline?.snapshot || state.baselineSnapshot)?.source?.connectionId || 'Ручная загрузка · источник подтверждён владельцем' };
+    source: (state.artifacts?.find(row => row.snapshot?.source)?.snapshot.source || state.sourceReference || state.baselineSnapshot?.source)?.connectionId
+      || 'Ручная загрузка · подключение к источнику не проверено' };
 }
 export function reviewGate(review, boundaryKeys = [], resolutions = {}) {
   if (!review || review.stale) return 'Сравнение устарело. Обновите пространство и подготовьте новое сравнение.';

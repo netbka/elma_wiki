@@ -33,6 +33,8 @@ try {
   const review = id && artifact && view === 'review' ? await request(`${api}/${encodeURIComponent(id)}/artifacts/${encodeURIComponent(artifact)}/preview`) : null;
   const rows = !id && view !== 'create' ? await request(api + (view === 'archived' ? '?archived=true' : '')) : [];
   root.replaceChildren(mountManagedWorkspace({ workspace, view, review, rows }, actions));
+  document.title = (workspace?.name || (view === 'create' ? 'Создать пространство' : 'Рабочие пространства')) + ' · E365 Wiki';
+  root.querySelector('h1')?.focus({ preventScroll: true });
 } catch (error) {
   root.replaceChildren(mountManagedWorkspace({ workspace, view, error: error.message, stale: error.status === 409 }, actions));
 }

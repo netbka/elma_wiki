@@ -55,6 +55,7 @@ try {
   await page.getByLabel('Подтверждаю принятие рассмотренного изменения', { exact: true }).check();
   await page.getByRole('button', { name: 'Принять изменение', exact: true }).focus(); await page.keyboard.press('Enter');
   await page.getByRole('heading', { name: 'Рабочее состояние · 3 объектов', exact: true }).waitFor(); evidence.keyboard = true;
+  assert.equal(await page.evaluate(() => document.activeElement?.tagName), 'H1', 'focus returns to workspace context after acceptance');
   await page.getByRole('link', { name: 'Обновить полный снимок', exact: true }).click();
   await upload(await archive([['contract', 'vendor'], ['untouched', 'base'], ['added', 'ours']]), true);
   await page.getByLabel('Подтверждаю: снимок относится к тому же источнику и решению, что и пространство', { exact: true }).check();
