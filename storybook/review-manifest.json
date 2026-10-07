@@ -669,7 +669,10 @@
         "solution-visual--duplicate",
         "solution-visual--empty",
         "solution-visual--loading",
-        "solution-visual--error"
+        "solution-visual--error",
+        "solution-visual--happy",
+        "solution-visual--return",
+        "solution-visual--missing-comment"
       ],
       "requiredVisibleStates": [
         "source",
@@ -677,7 +680,10 @@
         "duplicate",
         "empty",
         "loading",
-        "error"
+        "error",
+        "happy",
+        "return",
+        "missing-comment"
       ],
       "sources": [
         "docs/contracts/solution-visual.md",

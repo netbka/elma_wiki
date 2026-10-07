@@ -9,6 +9,7 @@ import { vkLoginLinks } from '../lib/vk-login-links.mjs';
 import { projectStore } from '../lib/projects.mjs';
 import { managedWorkspaceStore } from '../lib/managed-workspace-store.mjs';
 import { zip } from './fixture.mjs';
+import { visualSource } from '../web/visual/fixtures.js';
 
 const endpoint = '/api/solutions';
 const secret = 'SYNTHETIC_LINK_SECRET_NOT_A_REAL_CREDENTIAL';
@@ -296,4 +297,42 @@ test('discussion writes are atomic and older pending records retain conservative
   review = await json(await request(route + '/artifacts/' + prepared.artifactId + '/review', a.cookie));
   assert.equal(review.stale, true); assert.equal(review.artifactDigest, null);
   assert.equal(review.ambiguities[0].reason, 'historical-comparison-unavailable');
+});
+
+test('selected visual step findings preserve verified source anchors across exact, changed, removed and duplicate steps', async t => {
+  const { request, post, login, uploadBytes, ref, create } = await setup(t);
+  const a = await login('alice@example.org'), b = await login('bob@example.org');
+  const bytes = raw => zip([['package.json', { code: 'synthetic_visual', type: 'SOLUTION' }],
+    ['processor/manifest.json', { entities: [{ code: 'approval', namespace: 'synthetic', kind: 'PROCESS', path: 'approval.json' }] }],
+    ['processor/approval.json', raw]]);
+  const raw = structuredClone(visualSource);
+  const state = await json(await create(a.cookie, await uploadBytes(a.cookie, await bytes(raw))), 201), route = endpoint + '/' + state.id;
+  const prepare = async previous => json(await post(route + '/prepare', b.cookie, { kind: 'reconciliation', baselineOwner: 'Vendor',
+    expectedRevision: 0, sameSourceConfirmed: true, snapshot: ref(await uploadBytes(b.cookie, await bytes(raw)), 'full'),
+    ...(previous ? { supersedesArtifactId: previous } : {}) }), 201);
+  let review = await prepare();
+  const pathFor = id => route + '/artifacts/' + id;
+  const visual = await json(await request(pathFor(review.artifactId) + '/visual', a.cookie));
+  const anchor = visual.processes[0].nodes.find(node => node.id === 'review').anchor, key = JSON.stringify(anchor.object);
+  const input = { expectedRevision: 0, expectedDiscussionRevision: 0, type: 'reject', text: 'Return needs a comment', componentKey: key, sourceAnchor: anchor };
+  for (const forged of [{ fingerprint: '0'.repeat(64) }, { checksum: '0'.repeat(64) }, { nodeId: 'invented' }, { artifactId: state.baselineId }])
+    await json(await post(pathFor(review.artifactId) + '/discussion', b.cookie, { ...input, sourceAnchor: { ...anchor, ...forged } }), 409);
+  await json(await post(pathFor(review.artifactId) + '/discussion', b.cookie, { ...input, sourceAnchor: { ...anchor, actor: a.user } }), 400);
+  let discussion = await json(await post(pathFor(review.artifactId) + '/discussion', b.cookie, input));
+  assert.deepEqual(discussion.findings[0].sourceAnchor, anchor); assert.deepEqual(discussion.findings[0].actor, b.user);
+  const check = async status => {
+    review = await prepare(review.artifactId);
+    const detail = await json(await request(pathFor(review.artifactId) + '/review', a.cookie));
+    assert.equal(detail.discussion.findings[0].anchorStatus, status); assert.deepEqual(detail.discussion.findings[0].sourceAnchor, anchor);
+    assert.equal(detail.discussion.blocking, 1); return detail;
+  };
+  raw.process.items.end.name = 'Unrelated source change'; await check('current');
+  raw.process.items.review.name = 'Changed task'; await check('stale');
+  const removed = raw.process.items.review; delete raw.process.items.review; await check('removed');
+  raw.process.items.review = removed; raw.process.items.duplicate = { ...removed, name: 'Duplicate native ID' };
+  const detail = await check('ambiguous'), finding = detail.discussion.findings[0];
+  discussion = await json(await post(pathFor(review.artifactId) + '/discussion', a.cookie,
+    { expectedRevision: 0, expectedDiscussionRevision: 1, type: 'reply', text: 'Identity is still ambiguous', parentId: finding.id }));
+  assert.deepEqual(discussion.events.at(-1).sourceAnchor, anchor);
+  assert.equal(discussion.findings[0].anchorStatus, 'ambiguous');
 });

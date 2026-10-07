@@ -62,6 +62,7 @@ export function projectProcess(raw, source) {
     return {descriptor,pointer,label:text(values.label)||text(values.title),supported:containers.has(descriptor)
       ||['dynamic-form','dynamic-form-row','button'].includes(descriptor),children,
       ...(descriptor==='dynamic-form'?{fields:fields.slice(0,100).map((f,i)=>({code:text(f?.code),name:text(f?.view?.name)||text(f?.name)||text(f?.code),type:text(f?.type),required:f?.required===true,pointer:`${pointer}/values/fields/${i}`}))}:{}),
+      ...(descriptor==='dynamic-form' && values.fields!==undefined && !Array.isArray(values.fields)?{binding:'unknown'}:{}),
       ...(descriptor==='dynamic-form-row'?{field:{name:text(values.displayName),required:values.required===true,type:'unknown',pointer:pointer+'/values/control'},binding:'unknown'}:{})};
   };
   const projectedForms=forms.map((value,i)=>({code:text(value?.code),name:text(value?.name)||text(value?.code),tree:form(value,`${source}#/forms/${i}`)}));
@@ -78,4 +79,28 @@ export function relatedForm(process,nodeId) {
   if(nodes.length!==1||!nodes[0].formCode)return {status:'unknown'};
   const forms=process.forms.filter(f=>f.code===nodes[0].formCode);
   return forms.length===1?{status:'source-derived',form:forms[0]}:{status:forms.length?'ambiguous':'missing'};
+}
+export function scenarioFields(process, nodeId) {
+  const relation = relatedForm(process, nodeId), fields = [];
+  let unknown = relation.status !== 'source-derived';
+  const visit = tree => {
+    if (!tree.supported || tree.binding === 'unknown') unknown = true;
+    for (const field of tree.fields || [tree.field].filter(Boolean)) {
+      const supported = ['string','text','boolean','date','number','integer','float'].includes(field.type);
+      if (!supported) unknown = true;
+      fields.push({ ...field, supported });
+    }
+    tree.children.forEach(visit);
+  };
+  if (relation.form) visit(relation.form.tree);
+  return { fields, unknown };
+}
+export function checkScenarioStep(process, nodeId, values = {}, transitionId) {
+  const nodes = process.nodes.filter(node => node.id === nodeId), edges = process.edges.filter(edge => edge.id === transitionId && edge.source === nodeId);
+  const { fields, unknown } = scenarioFields(process, nodeId);
+  const missing = fields.filter(field => field.required && field.supported &&
+    (values[field.pointer] === undefined || values[field.pointer] === null || typeof values[field.pointer] === 'string' && !values[field.pointer].trim()));
+  const supported = nodes.length === 1 && nodes[0].supported && edges.length === 1 && edges[0].supported;
+  return { allowed: supported && !missing.length, missing, unknown: unknown || !supported,
+    evidence: 'simulated', nativeObservation: 'absent' };
 }

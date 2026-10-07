@@ -8,3 +8,6 @@ export const Duplicate = story('duplicate');
 export const Empty = story('empty');
 export const Loading = story('loading');
 export const Error = story('error');
+export const Happy = story('happy');
+export const Return = story('return');
+export const MissingComment = story('missing-comment');

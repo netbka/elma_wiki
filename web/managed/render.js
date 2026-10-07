@@ -164,13 +164,16 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
   }
 
   if (view === 'review' && review) {
+    let selectedSource = null, showSelectedSource = () => {};
     if (actions.visual) {
       const details=el('details'), target=el('div');
       details.append(el('summary','Посмотреть процесс и форму'),target); content.append(details);
       let loaded=false;
       const load=async()=>{
         target.replaceChildren(mountSnapshotVisual({loading:true}));
-        try { target.replaceChildren(mountSnapshotVisual(await actions.visual(review.artifactId), {selectAnchor:actions.selectAnchor})); loaded=true; }
+        try { target.replaceChildren(mountSnapshotVisual(await actions.visual(review.artifactId), {
+          selectAnchor: anchor => { selectedSource = anchor; showSelectedSource(); }
+        })); loaded=true; }
         catch(e){target.replaceChildren(mountSnapshotVisual({error:e.message},{retry:load}));}
       };
       details.ontoggle=()=>{if(details.open&&!loaded)load();};
@@ -240,15 +243,28 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
     if (review.discussion) {
       const discussion = el('section', undefined, 'change-discussion'); discussion.append(el('h2', 'Комментарии и замечания'));
       const anchorLabels = { current: 'Объект совпадает', stale: 'Объект изменился; исходная ссылка сохранена', removed: 'Объект удалён из полного экспорта', ambiguous: 'Связь с объектом неоднозначна' };
+      const stepLabels = { current: 'Шаг совпадает', stale: 'Шаг изменился; исходная ссылка сохранена', removed: 'Шаг отсутствует в новом процессе', ambiguous: 'Связь с шагом неоднозначна' };
       const editable = !review.stale && state.status === 'active';
       const entry = (parent, label, type, parentId) => {
         const f = el('form'), caption = el('label', label), text = el('textarea'); text.id = 'change-comment-' + ++sequence; text.required = true; text.maxLength = 4000; caption.htmlFor = text.id; f.append(caption, text);
         let key;
         if (!parentId) { key = el('select'); key.setAttribute('aria-label', 'К чему относится комментарий'); const all = el('option', 'К изменению'); all.value = ''; key.append(all);
-          review.rows.forEach(row => { const option = el('option', componentName(row.key)); option.value = row.key; key.append(option); }); f.append(key); }
+          review.rows.forEach(row => { const option = el('option', componentName(row.key)); option.value = row.key; key.append(option); }); f.append(key);
+          const sourceCaption = el('p', '', 'managed-muted'); sourceCaption.setAttribute('role', 'status'); f.append(sourceCaption);
+          showSelectedSource = () => {
+            if (selectedSource) {
+              const value = JSON.stringify(selectedSource.object);
+              if (![...key.options].some(option => option.value === value)) { const option = el('option', selectedSource.object[2]); option.value = value; key.append(option); }
+              key.value = value; sourceCaption.textContent = 'Комментарий к выбранному шагу: ' + selectedSource.nodeId;
+            }
+            else sourceCaption.textContent = '';
+          };
+          key.onchange = () => { selectedSource = null; showSelectedSource(); };
+          showSelectedSource();
+        }
         const send = async kind => { await actions.comment(review.artifactId, { expectedRevision: state.revision,
           expectedDiscussionRevision: review.discussion.version, type: kind, text: text.value,
-          ...(parentId ? { parentId } : key?.value ? { componentKey: key.value } : {}) }); };
+          ...(parentId ? { parentId } : key?.value ? { componentKey: key.value, ...(selectedSource ? { sourceAnchor: selectedSource } : {}) } : {}) }); };
         const submit = el('button', type === 'comment' ? 'Комментарий' : type === 'reply' ? 'Ответить' : type === 'resolve' ? 'Замечание устранено' : 'Открыть замечание', 'secondary'); submit.type = 'submit'; f.append(submit);
         f.onsubmit = event => { event.preventDefault(); if (f.reportValidity()) run(() => send(type)); };
         if (type === 'comment') button('Нужны изменения', () => { if (f.reportValidity()) run(() => send('reject')); }, f).className = 'secondary';
@@ -258,7 +274,8 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
       for (const finding of review.discussion.findings) {
         const card = el('article', undefined, 'managed-card'); card.append(el('h3', finding.type === 'reject' ? finding.status === 'open' ? 'Нужны изменения' : 'Замечание устранено' : 'Комментарий'),
           el('p', `${finding.actor?.login || finding.author} · ${dateLabel(finding.createdAt)}`, 'managed-muted'), el('p', finding.text, 'change-text'));
-        if (finding.anchor?.key) card.append(el('p', `${componentName(finding.anchor.key)} · ${anchorLabels[finding.anchorStatus]}`, 'managed-muted'));
+        if (finding.anchor?.key) card.append(el('p', `${componentName(finding.anchor.key)} · ${(finding.sourceAnchor ? stepLabels : anchorLabels)[finding.anchorStatus]}`, 'managed-muted'));
+        if (finding.sourceAnchor) { card.append(el('p', 'Шаг: ' + finding.sourceAnchor.nodeId)); technical(card, 'Исходная ссылка на шаг', finding.sourceAnchor); }
         for (const reply of finding.replies) card.append(el('p', `${reply.actor?.login || reply.author}: ${reply.text}`, 'change-text'));
         if (finding.resolution) card.append(el('p', `${finding.resolution.actor?.login || finding.resolution.author}: ${finding.resolution.text}`, 'change-text'));
         if (editable) { const d = el('details'); d.append(el('summary', 'Ответить или изменить статус')); entry(d, 'Ответ', 'reply', finding.id);

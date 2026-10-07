@@ -38,5 +38,11 @@ export function visualFixture(state='source') {
     raw.process.items.duplicate={...raw.process.items.review,name:'Повторное согласование',x:330};
     raw.process.transitions.duplicate={...raw.process.transitions.approve,name:'Повторяющийся переход'};
   }
-  return {synthetic:true,processes:[{name:'Учебное согласование',...projectProcess(raw,'processor/entities/synthetic/approval.json')}]};
+  const process = {name:'Учебное согласование',...projectProcess(raw,'processor/entities/synthetic/approval.json')};
+  const model = {synthetic:true,processes:[process]};
+  if(['happy','return','missing-comment'].includes(state)) {
+    const stepId=state==='happy'?'review':'revise', field=process.forms.find(form=>form.code===(stepId==='review'?'approval':'return')).tree.children[0].fields[0];
+    model.scenario={stepId,values:{[stepId]:{[field.pointer]:state==='missing-comment'?'':state==='happy'?'Учебный договор':'Исправьте срок договора'}},missing:state==='missing-comment'};
+  }
+  return model;
 }

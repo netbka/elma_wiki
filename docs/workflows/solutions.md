@@ -12,7 +12,7 @@ Signed-in home and the verified VK link open `/solutions`. Empty state offers on
 2. Overview: current version, attention and one recommended action. Add change / Update version are subordinate when not recommended. Source/history/archiving are disclosed when needed.
 3. Add change: describe it, identify responsibility, upload a partial export and confirm scope, same Solution/Source and shared admission. Missing objects never mean deletion in a partial export.
 4. Review: examine changed objects/responsibility, confirm each relevant boundary or choose each conflict version, then Accept change. A full update advances the current version. Neither decision installs anything in ELMA.
-5. Changes shows pending review and accepted history; Solution shows current objects. Discussion, object preview and contextual code follow in P4/P5.
+5. Changes shows pending review and accepted history; Solution shows current objects. A Change contains attributed discussion/findings, before/after source context and supported contextual code. Process/form preview exposes the captured scenario catalog, bounded Wiki path checks and step-linked comments; native behavior remains unknown.
 6. Archive is a secondary disclosed action. Archived state recommends reopening and retains history/originals.
 
 ## Attention and recovery
@@ -23,7 +23,7 @@ Preparation saves conflict/unknown counts as overview hints. Acceptance still re
 
 ## Evidence and limits
 
-Nineteen shared `managed-workspace--*` stories cover the current tabs and empty/source/pending/needs-fixes/conflict/unknown/loading/error/stale/archive states. ViewModel tests verify attention priority and gates; catalog/API/storage/auth tests preserve identity/privacy and lifecycle.
+Twenty-six shared `managed-workspace--*` stories cover the current tabs, attention/recovery and Change discussion/decision states; nine `solution-visual--*` stories cover reconstructed process/form and bounded scenario states. ViewModel tests verify attention priority and gates; catalog/API/storage/auth tests preserve identity/privacy and lifecycle.
 
 `npm run test:managed:browser` exercises shared creation, attributed Change findings, explicit correction, retained stale anchors, resolution, acceptance history, contextual editor save/check, partial boundary review, full conflict choice, archive/reopen, stale rejection, fetch recovery, keyboard focus and 1920/800/390 reflow. It retains synthetic screenshots and `qa/managed-browser-evidence.json`. The 26 shared states include comments, findings, resolved/accepted review and stale/removed/ambiguous anchors. Build the editor and Storybook first; CI supplies Chromium when unavailable locally. VK browser verification checks the entry.
 
