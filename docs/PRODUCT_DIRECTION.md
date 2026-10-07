@@ -1,5 +1,7 @@
 # Baseline-first product direction
 
+> **Supersession note (2026-10-07):** this document remains the engine/lifecycle foundation from #33. User-facing product authority is now being converged in [SOLUTION_FIRST_PRODUCT_PLAN.md](SOLUTION_FIRST_PRODUCT_PLAN.md): **Solution -> Change -> Review -> Done**, one obvious next action, identity without MVP role tiers. Where this document says Workspace or preserves owner-private behavior, treat that as implementation/domain history to reconcile through [SOLUTION_FIRST_CONTRADICTIONS.md](SOLUTION_FIRST_CONTRADICTIONS.md), not as a reason to expose those concepts in the target UI.
+
 Authority: [epic #33](https://github.com/netbka/elma_wiki/issues/33) and the owner's 2026-10-07 instruction to preserve this rethink across parallel work. This is the implementation direction, **not final product acceptance** or a claim that the rebuilt UI is available. Final acceptance remains [#38](https://github.com/netbka/elma_wiki/issues/38).
 
 ## One primary lifecycle

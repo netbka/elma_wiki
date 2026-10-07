@@ -5,7 +5,10 @@ Routing, not an always-read checklist.
 | Need | Read |
 | --- | --- |
 | Agent behavior | ../AGENTS.md |
-| Primary product direction / rebuild integration and acceptance order (#33) | [PRODUCT_DIRECTION.md](PRODUCT_DIRECTION.md) |
+| Canonical Solution-first product contract (PR #53 / #52) | [SOLUTION_FIRST_PRODUCT_PLAN.md](SOLUTION_FIRST_PRODUCT_PLAN.md) |
+| Solution-first execution order | [SOLUTION_FIRST_EXECUTION.md](SOLUTION_FIRST_EXECUTION.md) |
+| Product contradictions / migration register | [SOLUTION_FIRST_CONTRADICTIONS.md](SOLUTION_FIRST_CONTRADICTIONS.md) |
+| Prior baseline-first implementation direction (#33; reconcile through PR #53) | [PRODUCT_DIRECTION.md](PRODUCT_DIRECTION.md) |
 | Capability routing | ../.agent/capabilities.yaml |
 | Current implemented truth | STATE.md |
 | Public Vercel site / internal Docker | PUBLIC_DEPLOYMENT.md |

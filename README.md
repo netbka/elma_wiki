@@ -1,5 +1,7 @@
 # E365 Wiki
 
+> **Current product direction:** the authenticated product is converging on a simple **Solution-first** model: Solution -> Change -> Review -> Done, with identity used for authorship rather than role tiers. See [product contract](docs/SOLUTION_FIRST_PRODUCT_PLAN.md), [execution plan](docs/SOLUTION_FIRST_EXECUTION.md), and [contradiction/migration register](docs/SOLUTION_FIRST_CONTRADICTIONS.md). Descriptions below of private file projects, separate release pages and subsystem routes document currently implemented/legacy behavior; they are not the target information architecture.
+
 Самостоятельный Node.js-сервис с русским интерфейсом. Единственный источник конфигурации — загруженный `.e365`. Каждый файл создаёт отдельный приватный проект: оригинал, безопасно извлечённые части, структурный индекс и отчёт разбора. Вход — по одноразовому ключу из письма; GitHub отключён.
 
 Главная объясняет пользу для сопровождения без обещаний измеренной экономии. Viewer начинается с задачи: **найти поле**, **изменить обработчик**, **подготовить обновление**. Публичная демонстрация полностью синтетическая.
