@@ -1,6 +1,15 @@
 {
   "version": 1,
   "capabilities": {
+    "public-site": {
+      "entry": "/",
+      "actions": ["read-guides", "browse-examples", "copy-example"],
+      "renderer": ["web/index.html", "lib/public-site.mjs"],
+      "storyIds": [],
+      "requiredVisibleStates": ["landing", "guide", "article-index", "article", "examples", "example", "not-found", "desktop", "mobile"],
+      "workflow": "testing/workflows/public-site.json",
+      "exclusionReason": "Исполняемый Storybook пока не настроен. Публичная сборка проверяется через общий production renderer и синтетические примеры в tools/public-browser-check.mjs; копии разметки для stories нет."
+    },
     "email-authentication": {
       "entry": "/login",
       "actions": ["request-key", "verify-key", "resend-key"],

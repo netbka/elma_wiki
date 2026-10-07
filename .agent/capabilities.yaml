@@ -19,8 +19,8 @@ classification:
     content: "public/product/documentation wording"
 capabilities:
   public-site:
-    owners: ["web/index.html", "web/service.css", "web/service.js"]
-    routes: ["docs/INDEX.md"]
+    owners: ["web/index.html", "web/service.css", "web/service.js", "web/public.js", "web/public.css", "lib/public-site.mjs", "tools/build-public.mjs", "vercel.json"]
+    routes: ["docs/PUBLIC_DEPLOYMENT.md", "docs/INDEX.md"]
     boundaries: ["ui", "content"]
   projects:
     owners: ["lib/projects.mjs", "lib/store.mjs", "server.mjs", "web/dashboard.html"]

@@ -1,0 +1,11 @@
+{
+  "capability": "public-site",
+  "entry": "/",
+  "renderer": ["web/index.html", "lib/public-site.mjs"],
+  "sources": ["dist/articles.js", "lib/demo.mjs"],
+  "states": ["landing", "guide", "article-index", "article", "examples", "example", "not-found"],
+  "layouts": ["desktop", "mobile"],
+  "evidence": ["test/public-site.test.mjs", "tools/public-browser-check.mjs"],
+  "backendRequestsAllowed": false,
+  "vercelDeploymentVerified": false
+}

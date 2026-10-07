@@ -13,3 +13,5 @@ qa
 test
 .openai
 .sites-workflow
+.public
+.vercel

@@ -1,0 +1,9 @@
+/* Public reading pages share the service theme and add article-only polish. */
+main{overflow-wrap:anywhere}
+.codebar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:24px;font-size:13px;color:var(--muted)}
+.codebar button{font-size:13px;padding:8px 12px}
+.codeblock pre{margin-top:10px}
+.callout{border-left:4px solid #d69634;padding:16px 24px;background:#fff9ea;margin:24px 0}
+.article nav{display:block}
+.article nav ul{padding-left:24px}
+.article nav li{margin:8px 0}

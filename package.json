@@ -9,6 +9,10 @@
   "scripts": {
     "start": "node server.mjs",
     "dev": "node --watch server.mjs",
+    "build:public": "node tools/build-public.mjs",
+    "preview:public": "node tools/public-preview.mjs",
+    "test:public": "node --test test/public-site.test.mjs",
+    "test:public:browser": "node tools/public-browser-check.mjs",
     "setup": "node tools/setup.mjs",
     "doctor": "node tools/doctor.mjs",
     "import": "node tools/import.mjs",
