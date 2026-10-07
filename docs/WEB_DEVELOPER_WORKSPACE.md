@@ -2,6 +2,8 @@
 
 Date: 2026-10-07.
 
+Status: proposed implementation contract. The browser editor, compiler integration and bridge described here are not shipped. See [STATE.md](STATE.md) for current behavior and [INDEX.md](INDEX.md) for the relationship between proposals.
+
 ## Product decision
 
 ELMA Wiki evolves from a read-only structural viewer into **developer tools for ELMA365**.
@@ -411,9 +413,13 @@ Store separately:
 
 Every record is scoped by ownerId + projectId.
 
+Every read and mutation checks the authenticated owner on the server, including source, checkpoints, diagnostics and generated artifacts. Mutations keep the existing same-origin and request-header protections. Knowing a project or checkpoint id never grants access.
+
 ### Autosave
 
 Browser edits autosave as working-state deltas/checkpoints.
+
+Each save includes the expected workspace revision. A stale save from another tab or client is rejected as a conflict without overwriting newer work; the user can compare and resolve it. Restore creates a new revision and preserves the immutable original and checkpoint history.
 
 Autosave is not deployment.
 
@@ -424,6 +430,8 @@ A visible state indicator distinguishes:
 - Built;
 - Deployed to DEV;
 - Verified on target.
+
+Checks and builds record the exact source revision/hash, tool version and capability used. Editing or restoring source invalidates current Checked/Built status. A candidate pins an immutable build and its check evidence; deployment cannot silently substitute a newer workspace. Verification identifies the candidate and target connection plus the read-back evidence. Historical evidence stays available but never certifies a changed revision.
 
 This avoids the dangerous "saved means live" mental model.
 
@@ -475,6 +483,8 @@ VS Code extension is optional later for developers who want local files, native 
 AI consumes the same APIs/checks and cannot bypass deployment gates.
 
 ## Landing page positioning
+
+This section describes the future coding product. Until Slice A passes its acceptance checks, the current homepage uses the shipped viewer promise in [DEVELOPER_VALUE_WORKFLOW.md](DEVELOPER_VALUE_WORKFLOW.md). Planned functionality belongs in a clearly labeled roadmap, not the current hero, proof strip or an active editor CTA. Public UI stays Russian under AGENTS.md; the English copy below is a design sketch to translate when the associated capability ships.
 
 The homepage must no longer lead with "we decoded .e365" or "technical wiki".
 

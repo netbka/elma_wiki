@@ -2,6 +2,8 @@
 
 Date: 2026-10-07.
 
+Status: proposed target architecture, not current runtime authority. The existing upload-only and network restrictions in AGENTS.md remain in force. Connections require a separate implementation and security review; integrating this document does not authorize live access or deployment. See [STATE.md](STATE.md) and [ROADMAP.md](ROADMAP.md).
+
 ## Purpose
 
 Keep the existing ELMA Wiki/project viewer, and add a second major capability: the service becomes a controlled intermediate layer between an ELMA development/source company and a target company.
@@ -78,6 +80,8 @@ A target is an explicitly configured ELMA company/environment that may receive a
 
 Source and target are separate connection identities. Never infer target from source metadata or from URLs found inside scripts.
 
+Each connection and action is authorized for the authenticated owner and project. A connection reference is not a credential or an access grant. Before any export or deployment, verify the explicitly selected host, role, company and supported platform/tool versions; reject missing or mismatched identity rather than falling back to a default server.
+
 The target may be DEV, TEST, staging or production. The product stores the role explicitly.
 
 PROD must remain a separately protected operation.
@@ -133,6 +137,8 @@ ELMA source or target
 The bridge keeps credentials in protected local storage and returns capabilities and structured evidence, not secrets.
 
 The project stores a connection reference and safe metadata, not raw credentials.
+
+Hosted Wiki cannot fetch arbitrary user-supplied URLs. A future direct connector needs explicit endpoint policy, SSRF and redirect controls, credential isolation and network authorization before it is enabled. The initial private-network path is the local bridge; the direct model above remains a separate design option.
 
 The implementation must support source and target as separate named connection references.
 
