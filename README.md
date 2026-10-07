@@ -135,6 +135,8 @@ Production-настройка требует HTTPS-адрес и оба OAuth-п
 
 ## Разработка конфигурации и AI-агенты
 
+[Контракт рабочего процесса разработчика](docs/DEVELOPER_VALUE_WORKFLOW.md) описывает Designer-first, файловый сценарий и командное review. Реализация #8 добавляет экспериментальный browser editor; tutorial, package build и обновление ELMA через Wiki ещё не реализованы.
+
 Карта документации: [docs/INDEX.md](docs/INDEX.md). [STATE.md](docs/STATE.md) перечисляет реализованный viewer/editor и ограничения. [COMPILER_PROFILE.md](docs/COMPILER_PROFILE.md) описывает offline compiler/SDK, explicit host/version и evidence.
 
 Следуйте [AGENTS.md](AGENTS.md). Viewer доступен для чтения; для распознанного WIDGET со строковыми descriptor-скриптами или sidecar `.client.ts/.server.ts` доступна ссылка **Открыть редактор скриптов**. Экспериментальный browser workspace хранит отдельную рабочую копию, не меняя оригинал, descriptor, runtime или history пакета. Начните с пути объекта и его происхождения, прочитайте отчёт, учитывайте зависимые модули и сохраняйте непонятые части.
