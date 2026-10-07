@@ -74,6 +74,7 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
     context.append(el('p', `${state.status === 'archived' ? 'Архив' : 'В работе'} · ${summary.source}`),
       el('p', `База принята: ${dateLabel(state.baselineAcceptedAt)} · Ответственный за базу: ${state.baselineOwner}`));
     if (view !== 'overview') context.append(link('← К обзору пространства', workspaceUrl(state.id)));
+    context.append(el('p', 'Ответственность заявлена при рассмотрении пакета. Авторы публикаций ELMA не установлены.', 'managed-muted'));
     content.append(context);
     if (view === 'overview') {
       const actionsBar = el('div', undefined, 'managed-actions');
@@ -90,7 +91,7 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
       const lower = el('div', undefined, 'managed-columns'), current = el('section'), history = el('section');
       current.append(el('h2', `Рабочее состояние · ${state.current.length} объектов`), el('p', 'Отсутствие объекта в частичном пакете не удаляет его. Рабочее состояние не является готовым архивом для установки.', 'managed-muted'));
       const table = el('table'), head = el('tr'); ['Объект', 'Ответственность', 'Состояние'].forEach(label => head.append(el('th', label))); table.append(head);
-      for (const row of state.current) { const tr = el('tr'); tr.append(el('td', row.code), el('td', row.team), el('td', row.interventionId ? 'Изменён командой' : 'Принятая база')); table.append(tr); }
+      for (const row of state.current) { const tr = el('tr'); tr.append(el('td', row.code), el('td', row.team), el('td', row.interventionId ? 'Заявленное изменение' : 'Принятая база')); table.append(tr); }
       const scroll = el('div', undefined, 'managed-table'); scroll.tabIndex = 0; scroll.setAttribute('role', 'region'); scroll.setAttribute('aria-label', 'Рабочее состояние объектов'); scroll.append(table); current.append(scroll);
       history.append(el('h2', 'История'), el('p', `Принято изменений: ${state.changes.length} · Обновлений базы: ${state.reconciliations.length}`));
       const events = { created: 'Принята исходная база', 'change-accepted': 'Принято частичное изменение', 'baseline-accepted': 'Принята новая база', archived: 'Перемещено в архив', reopened: 'Работа возобновлена' };

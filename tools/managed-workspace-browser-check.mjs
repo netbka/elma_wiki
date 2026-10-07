@@ -73,8 +73,10 @@ try {
   assert.equal(state.current.find(row => row.code === 'added').team, 'Поставщик');
   for (const size of [{ width: 1920, height: 1080 }, { width: 800, height: 1000 }, { width: 390, height: 844 }]) {
     await page.setViewportSize(size);
-    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'No page overflow at ' + size.width);
-    await page.screenshot({ path: `qa/managed-overview-${size.width}.png`, fullPage: true }); evidence.viewports.push(size);
+    await page.screenshot({ path: `qa/managed-overview-${size.width}.png`, fullPage: true });
+    const overflow = await page.evaluate(() => [...document.querySelectorAll('body *')].filter(node => node.getBoundingClientRect().right > innerWidth + 1).slice(0, 12).map(node => ({ tag: node.tagName, className: node.className, width: node.getBoundingClientRect().width })));
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'No page overflow at ' + size.width + ': ' + JSON.stringify(overflow));
+    evidence.viewports.push(size);
   }
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.getByLabel('Убрать из активных; сохранить снимки, изменения и историю', { exact: true }).check();
