@@ -3,31 +3,31 @@
   "entry": "/login",
   "renderer": [
     "web/login.html",
-    "web/service.js"
+    "web/service.js",
+    "web/login-view.js"
   ],
   "fixture": {
-    "login": "person",
     "domain": "example.org",
-    "sender": "injected synthetic sendVk callback"
+    "sender": "synthetic private VK event"
   },
   "states": [
     "ready",
     "unconfigured",
-    "sending",
-    "sent-with-resend-cooldown",
-    "verifying",
-    "invalid-or-expired-code",
-    "delivery-failed",
-    "rate-limited",
+    "bot-private-message",
+    "link-delivered",
+    "expired-or-invalid-link",
+    "transport-retry",
     "authenticated"
   ],
   "evidence": [
+    "test/vk-links.test.mjs",
     "test/vk-auth.test.mjs",
     "tools/vk-auth-browser-check.mjs"
   ],
   "rules": [
-    "Private chat delivery using existing SvoiBot auth token; no polling",
-    "10-minute single-use code, five attempts, resend cooldown",
-    "No SMTP required; provider-scoped owner; CSRF protected"
+    "One button opens the dedicated Wiki bot; no login or code fields",
+    "Private event sender owns the signed link; groups and foreign domains ignored",
+    "Reusable signed link and session last seven days; owner stays vk-scoped",
+    "Explicit single poller; private durable cursor advances after successful reply"
   ]
 }

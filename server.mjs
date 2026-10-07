@@ -7,6 +7,7 @@ import { limits } from './lib/e365.mjs';
 import { createAuth } from './lib/auth.mjs';
 import { createEmailSender } from './lib/email.mjs';
 import { createVkSender } from './lib/vk-teams.mjs';
+import { createVkLoginBot } from './lib/vk-login-bot.mjs';
 import { portalStore } from './lib/portals.mjs';
 import { projectStore } from './lib/projects.mjs';
 import { workspaceStore } from './lib/workspaces.mjs';
@@ -48,7 +49,8 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
   const bridges = bridgeStore(directory);
   delivery = deliveryStore(directory, releases, { adapters: { ...(syntheticDelivery ? { synthetic: syntheticAdapter } : {}), bridge: (options, connection) => bridges.adapter(options, connection) }, protectedHosts: protectedTargetHosts, timeoutMs: deliveryTimeoutMs });
   let uploading = false;
-  return http.createServer(async (req, res) => {
+  const loginBot = createVkLoginBot({ directory, issueLink: auth.issueVkLink });
+  const server = http.createServer(async (req, res) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'no-referrer');
     res.setHeader('X-Frame-Options', 'DENY');
@@ -173,7 +175,7 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
         return send(res,200,await workspaces[action](id,session.user.id,object,payload));
       }
       if (pathname === '/api/session' && req.method === 'GET') return send(res, 200, { user: session?.user || null, githubConfigured: false, emailConfigured: auth.emailConfigured, vkConfigured: auth.vkConfigured, vkBotUrl: auth.vkBotUrl, localEnabled: allowLocal });
-      if (pathname === '/healthz' && req.method === 'GET') return send(res, 200, { ok: true });
+      if (pathname === '/healthz' && req.method === 'GET') return send(res, loginBot?.status.error === 'cursor_unavailable' ? 503 : 200, { ok: loginBot?.status.error !== 'cursor_unavailable', loginBot: loginBot?.status || { enabled: false } });
       if (pathname === '/api/projects') {
         if (!session) return send(res,401,{error:'Войдите в сервис'});
         if (req.method === 'GET') {
@@ -254,6 +256,12 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
       else res.destroy();
     }
   });
+  server.loginBot = loginBot;
+  if (loginBot) {
+    server.once('listening', () => { void loginBot.run(); });
+    server.once('close', () => loginBot.stop());
+  }
+  return server;
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   // Node's built-in env loader keeps deployment independent of dotenv packages.
