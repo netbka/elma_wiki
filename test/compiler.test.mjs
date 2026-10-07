@@ -51,3 +51,12 @@ test('compiler cannot read referenced filesystem files or accept missing SDK inp
   const result=compileScript({source:'/// <reference path="../../server.mjs" />\nimport fs from "node:fs";\nContext.data.title;',runtime:'client',dts:'declare const Context: {data:{title:string}};'});
   assert.equal(result.ok,false);assert.ok(result.errors.some(e=>e.code===2307 || e.code===6053));
 });
+test('SDK accepts Windows path aliases while rejecting an actual compiler-directory junction',async t=>{
+  if(process.platform!=='win32'){t.skip('Windows filesystem aliases');return;}
+  const c=await context(t),{root}=await installSyntheticProfile({...c,boundFields:c.bound});
+  const aliased=workspaceStore(projectStore(c.directory.toLowerCase()));
+  assert.equal((await aliased.read(c.project.id,'local','object-0')).capabilities.elmaCompiler,true);
+  const moved=path.join(c.directory,'operator-sdk');await fs.rename(root,moved);await fs.symlink(moved,root,'junction');
+  assert.equal((await c.workspaces.read(c.project.id,'local','object-0')).capabilities.elmaCompiler,false);
+  await fs.unlink(root);await fs.rename(moved,root);
+});
