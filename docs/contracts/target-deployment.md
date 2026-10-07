@@ -35,11 +35,26 @@ Guards enforced server-side:
 The live path keeps the Wiki free of ELMA credentials and outbound connections: an operator runs `elma-dev bridge --target=<dev|test>` (repo `elma-development/commands/bridge.mjs`) on the machine that already has `elma365pm` and the ELMA tokens in `.env`; the worker polls the Wiki and executes jobs.
 
 - `lib/bridge.mjs`: owner-scoped bridges (`POST /api/bridges` issues a `wb_…` token **once**; only its SHA-256 is stored, listing never returns it; max 10 per owner), a file-backed job queue per bridge (`.local/delivery/bridges/`), worker routes authenticated by `Authorization: Bearer <token>` with constant-time hash comparison: `POST /api/bridge/poll` (long-poll ≤ 25 s, records `lastSeen`, reported host/version and worker label), `GET /api/bridge/jobs/:id/artifact` (candidate bytes, only while the job is taken, hash re-checked), `POST /api/bridge/jobs/:id/result`. Removing a bridge invalidates its token and rejects queued jobs. A browser session cannot call worker routes; a worker token cannot call owner routes.
-- Adapter `bridge` (always registered; option `bridgeId`, owner checked on every call): `health` is `ok:false` when the bridge has not polled within 90 s or does not answer a health job in 30 s; `inspectSolution`/`readBack` → job `inspect`/`readBack` (worker: `elma365pm export solution --allow-deps` into a temp dir, hashed inventory of the directory walk — the same `<service>/<path>` layout the Wiki derives from an `.e365`); `deployCandidate` → job `deploy` with the approved `.e365` as artifact (worker: SHA-256 check, `elma365pm unpack`, package code must equal the job's code, `elma365pm import --version-up`). Jobs carry only the solution code and the hash; identity comes from the worker's configured host, so a worker pointed at a protected host is refused by the existing identity guard.
+- Adapter `bridge` (always registered; option `bridgeId`, owner checked on every call): `health` is `ok:false` when the bridge has not polled within 90 s or does not answer a health job in 30 s; `inspectSolution`/`readBack` → job `inspect`/`readBack`. The worker exports with `elma365pm export solution --allow-deps` into a private temporary source directory, packs to an archive outside that source, and hashes every packed entry with one service-ZIP expansion level. Package/service metadata and unknown files stay included; directory exports are a different representation and must not be compared directly with the candidate archive. The bounded standard-library reader requires Python 3 (`ELMA_PYTHON` may select the executable). `deployCandidate` → job `deploy` with the approved `.e365` as artifact (worker: SHA-256 check, `elma365pm unpack`, package code must equal the job's code, `elma365pm import --version-up`). Jobs carry only the solution code and the hash; identity comes from the worker's configured host, so a worker pointed at a protected host is refused by the existing identity guard.
 - Long operations: `confirm` persists `deploying`, hands the operation to the adapter outside the per-release lock and answers within a 2 s grace period — with the final state if the operation finished, otherwise with `deploying`; the attempt is completed in the background and the UI offers «Обновить состояние доставки». Read-only calls (`inspect`, `readBack`) fail with 504 on timeout; the deploy timeout still yields `unknown-outcome`. `DELIVERY_TIMEOUT_MS` (default 20 min) bounds every adapter call.
 - Worker-side refusals independent of the Wiki: target `prod` is not accepted at all; `WIKI_BRIDGE_PROTECTED_HOSTS` refuses deploy; an artifact whose hash or package code does not match is not imported. Env on the operator machine: `WIKI_BRIDGE_URL`, `WIKI_BRIDGE_TOKEN`, optional `WIKI_BRIDGE_CA` (private CA PEM).
 
 ## Bridge dispatch cancellation and restart
+
+Read-only preflight on 2026-10-08 verified the corrected worker's inventory
+against Wiki's reader for all 48 files of one native dev2 solution package.
+Two subsequent fresh worker exports matched each other exactly, including all
+metadata. Earlier differences against an older capture overlapped another
+session's fixture publications; they do not prove unchanged-target instability.
+No import or delivery Verified result was produced. Candidate/import/export
+metadata correspondence remains a live gate; do not exclude metadata to pass.
+See [transport evidence](https://github.com/netbka/elma365/blob/main/docs/bridge-packed-readback-2026-10-08.md).
+
+The legacy worker target `dev` resolves to dev2. The owner's shared business DEV
+is a separate environment used with the partner company, which promotes that
+work to PROD. dev2 is the owner's additional environment for technical work.
+Select by task purpose, verify the actual host, and separately bind the approved
+candidate to its Target. See [server roles](https://github.com/netbka/elma365/blob/main/docs/server-environments.md).
 
 A persisted job is not permission to dispatch. Polling and artifact reads require a live, unexpired request in the current service process. Abort fences an unclaimed job as `cancelled` and removes its candidate bytes before rejecting the waiter. An already claimed job becomes `unknown-outcome`: new artifact reads are denied, but an operator that already downloaded the artifact may still be running. A late result is retained with `lateCompletion: true`; it does not restore the expired request or verify a release.
 
