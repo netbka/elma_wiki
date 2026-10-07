@@ -8,8 +8,11 @@ services:
       PORT: 43171
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:?Set PUBLIC_BASE_URL in private env file}
       DISABLE_LOCAL_LOGIN: "1"
-      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:?Set GITHUB_CLIENT_ID in private env file}
-      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:?Set GITHUB_CLIENT_SECRET in private env file}
+      EMAIL_FROM: ${EMAIL_FROM:?Укажите EMAIL_FROM в приватном env файле}
+      EMAIL_CRED_KEY: ${EMAIL_CRED_KEY:?Укажите EMAIL_CRED_KEY в приватном env файле}
+      SMTP_HOST: ${SMTP_HOST:-smtp.mail.ru}
+      SMTP_PORT: ${SMTP_PORT:-465}
+      SMTP_SSL_TLS: ${SMTP_SSL_TLS:-true}
     ports:
       - "127.0.0.1:43171:43171"
     volumes:

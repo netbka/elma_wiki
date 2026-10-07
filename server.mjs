@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { readData } from './lib/store.mjs';
 import { limits } from './lib/e365.mjs';
 import { createAuth } from './lib/auth.mjs';
+import { createEmailSender } from './lib/email.mjs';
 import { portalStore } from './lib/portals.mjs';
 import { projectStore } from './lib/projects.mjs';
 import { demoData } from './lib/demo.mjs';
@@ -26,9 +27,9 @@ function serve(req, res, directory, pathname) {
   fs.createReadStream(file).on('error', () => res.destroy()).pipe(res);
 }
 export function createServer({ directory = path.join(project, '.local'), baseUrl = process.env.PUBLIC_BASE_URL || `http://127.0.0.1:${process.env.PORT || 43171}`,
-  clientId = process.env.GITHUB_CLIENT_ID, clientSecret = process.env.GITHUB_CLIENT_SECRET,
-  allowLocal = process.env.DISABLE_LOCAL_LOGIN !== '1' && ['127.0.0.1', 'localhost'].includes(new URL(baseUrl).hostname) && (!process.env.HOST || process.env.HOST === '127.0.0.1'), fetchImpl = fetch } = {}) {
-  const base = new URL(baseUrl), auth = createAuth({ baseUrl, clientId, clientSecret, allowLocal, fetchImpl }), portals = portalStore(directory), projects = projectStore(directory), oldDemo = demoData(), sample = oldDemo.servers.showcase, demo = {entities:sample.entities,solution:sample.solutions[0],coverage:'structural',parserVersion:'2.0.0',inventory:[],provenance:{},synthetic:true};
+  sendEmail = createEmailSender(), now = Date.now,
+  allowLocal = process.env.DISABLE_LOCAL_LOGIN === '0' && ['127.0.0.1', 'localhost'].includes(new URL(baseUrl).hostname) && (!process.env.HOST || process.env.HOST === '127.0.0.1') } = {}) {
+  const base = new URL(baseUrl), auth = createAuth({ baseUrl, allowLocal, sendEmail, now }), portals = portalStore(directory), projects = projectStore(directory), oldDemo = demoData(), sample = oldDemo.servers.showcase, demo = {entities:sample.entities,solution:sample.solutions[0],coverage:'structural',parserVersion:'2.0.0',inventory:[],provenance:{},synthetic:true};
   let uploading = false;
   return http.createServer(async (req, res) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -48,7 +49,7 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
       }
       if (await auth.route(req, res, url)) return;
       const session = auth.session(req);
-      if (pathname === '/api/session' && req.method === 'GET') return send(res, 200, { user: session?.user || null, githubConfigured: auth.configured, localEnabled: allowLocal });
+      if (pathname === '/api/session' && req.method === 'GET') return send(res, 200, { user: session?.user || null, githubConfigured: false, emailConfigured: auth.emailConfigured, localEnabled: allowLocal });
       if (pathname === '/healthz' && req.method === 'GET') return send(res, 200, { ok: true });
       if (pathname === '/api/projects') {
         if (!session) return send(res,401,{error:'Войдите в сервис'});
@@ -102,7 +103,7 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
       if (['/', '/login', '/dashboard', '/guide'].includes(pathname)) return serve(req, res, path.join(project, 'web'), pathname === '/' ? '/index.html' : pathname + '.html');
       return serve(req, res, path.join(project, 'web'), pathname);
     } catch (error) {
-      if (!res.headersSent) send(res, 400, { error: error instanceof SyntaxError ? 'Некорректный JSON' : error instanceof URIError ? 'Некорректный URL' : error.code ? 'Операция хранилища недоступна' : /fetch|ENOTFOUND|ECONN/.test(error.message) ? 'Внешний сервис недоступен' : error.message });
+      if (!res.headersSent) send(res, error.statusCode || 400, { error: error instanceof SyntaxError ? 'Некорректный JSON' : error instanceof URIError ? 'Некорректный URL' : error.code ? 'Операция хранилища недоступна' : /fetch|ENOTFOUND|ECONN/.test(error.message) ? 'Внешний сервис недоступен' : error.message });
       else res.destroy();
     }
   });

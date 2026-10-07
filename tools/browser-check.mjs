@@ -6,8 +6,10 @@ import assert from 'node:assert/strict';
 import { createServer } from '../server.mjs';
 import { fixture } from '../test/fixture.mjs';
 import { articles } from '../dist/articles.js';
+import { loginEmail } from '../lib/email.mjs';
 const directory=await fs.mkdtemp(path.join(os.tmpdir(),'e365-browser-test-'));
-const server=createServer({directory,allowLocal:true,clientId:'',clientSecret:''});
+const messages=[];
+const server=createServer({directory,allowLocal:false,sendEmail:async message=>messages.push(message)});
 await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
 const base=`http://127.0.0.1:${server.address().port}`;
 let browser;
@@ -20,7 +22,13 @@ try {
   await page.goto(base+'/p/showcase/');await page.getByRole('heading',{name:'Что нужно сделать?'}).waitFor();
   await page.goto(base+'/p/showcase/#/objects');assert.equal(await page.locator('.entity-row').count(),6);
   for (const article of articles) {await page.goto(base+'/p/showcase/#/article/'+article.id);await page.getByRole('heading',{name:article.title,exact:true}).waitFor();}
-  await page.goto(base+'/login');await page.locator('#local-login').click();await page.waitForURL('**/dashboard');
+  await page.goto(base+'/login');assert.equal(await page.locator('#github-login').isDisabled(),true);
+  await page.setViewportSize({width:390,height:844});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+  await page.locator('#email').fill('person@example.org');await page.locator('#send-key').click();await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('Ключ отправлен'));
+  await page.locator('#key').fill(messages.at(-1).key);await page.screenshot({path:'qa/email-login-mobile.png',fullPage:true});
+  const emailPreview=await browser.newPage({viewport:{width:680,height:900}});
+  await emailPreview.setContent(loginEmail(messages.at(-1)).html);await emailPreview.screenshot({path:'qa/email-preview.png',fullPage:true});await emailPreview.close();
+  await page.locator('#verify-key').click();await page.waitForURL('**/dashboard');await page.setViewportSize({width:1440,height:1000});
   await page.locator('#file').setInputFiles({name:'synthetic.e365',mimeType:'application/octet-stream',buffer:await fixture({secret:'<script>globalThis.pwned=true</script>'})});
   await page.getByRole('button',{name:'Создать проект из файла'}).click();await page.waitForURL(/\/p\/[0-9a-f-]{36}\/$/);
   const projectURL=page.url();await page.getByRole('heading',{name:'Что нужно сделать?'}).waitFor();

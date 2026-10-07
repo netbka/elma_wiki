@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "capabilities": {
+    "email-authentication": {
+      "entry": "/login",
+      "actions": ["request-key", "verify-key", "resend-key"],
+      "renderer": ["web/login.html", "web/service.js"],
+      "storyIds": [],
+      "requiredVisibleStates": ["ready", "email-unconfigured", "sending", "sent-with-resend-cooldown", "verifying", "invalid-or-expired-key", "delivery-failed", "rate-limited", "authenticated", "github-disabled"],
+      "workflow": "testing/workflows/email-login.json",
+      "exclusionReason": "В текущем репозитории нет исполняемой настройки Storybook. Форма проверяется через production renderer в tools/browser-check.mjs с синтетическим отправителем; отдельной копии разметки нет."
+    }
+  }
+}

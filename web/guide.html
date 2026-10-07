@@ -13,7 +13,7 @@ npm run doctor
 npm run setup -- --production
 npm run doctor -- --production
 docker compose --env-file .env.production config --quiet
-docker compose --env-file .env.production up -d --build</code></pre><p>Команда setup показывает Homepage URL и callback для регистрации GitHub OAuth App. Client Secret вводится скрыто в вашем терминале и сохраняется только в приватном файле настройки. Существующий файл не перезаписывается. Для локальной работы без GitHub оставьте Client ID пустым.</p><p>doctor проверяет параметры и доступность локального хранилища, не печатая значения, секреты или содержимое проектов. Настоящий OAuth-вход и внешний HTTPS проверяются отдельно.</p><p>Compose хранит проекты в volume, отключает локальный вход и слушает только loopback хоста. Reverse proxy должен передавать Host, совпадающий с PUBLIC_BASE_URL. Перед обновлением резервируйте volume. Для остановки используйте docker compose down без удаления volume.</p></section><section><h2>GitHub OAuth App</h2><p>Создайте OAuth App в GitHub Settings → Developer settings → OAuth Apps. Homepage URL — ваш HTTPS адрес. Authorization callback URL — https://wiki.example.org/auth/github/callback. В локальной разработке можно зарегистрировать отдельное приложение с callback http://127.0.0.1:43171/auth/github/callback.</p><p>Скопируйте .env.example в .env и задайте GITHUB_CLIENT_ID и GITHUB_CLIENT_SECRET. Секрет остаётся на сервере и не попадает в Git. Используется только scope read:user; токен после получения профиля не хранится в сессии.</p></section><section><h2>Развёртывание</h2><pre><code>docker build -t e365-wiki .
+docker compose --env-file .env.production up -d --build</code></pre><p>Команда setup запрашивает EMAIL_FROM и скрыто — EMAIL_CRED_KEY, пароль приложения почты. Секрет сохраняется только в приватном файле настройки. Существующий файл не перезаписывается.</p><p>doctor проверяет параметры и доступность локального хранилища, не печатая значения, секреты или содержимое проектов. Доставка писем и внешний HTTPS проверяются отдельно.</p><p>Compose хранит проекты в volume, отключает локальный вход и слушает только loopback хоста. Reverse proxy должен передавать Host, совпадающий с PUBLIC_BASE_URL. Перед обновлением резервируйте volume. Для остановки используйте docker compose down без удаления volume.</p></section><section><h2>Вход по почте</h2><p>GitHub отключён. Укажите EMAIL_FROM и EMAIL_CRED_KEY — пароль приложения почты. Для Mail.ru: SMTP_HOST=smtp.mail.ru, SMTP_PORT=465, SMTP_SSL_TLS=true. IMAP получает почту и не используется для отправки ключей.</p><p>Введите почту на странице входа, получите ключ и введите его. Ключ одноразовый, действует 72 часа; сессия после входа — 72 часа. Новый ключ отменяет предыдущий. После перезапуска сервиса запросите новый ключ. Локальный вход по умолчанию отключён; для разработки на loopback можно явно установить DISABLE_LOCAL_LOGIN=0.</p></section><section><h2>Развёртывание</h2><pre><code>docker build -t e365-wiki .
 docker run -d --name e365-wiki   --env-file .env.production   -p 127.0.0.1:43171:43171   -v e365-projects:/app/.local e365-wiki
 
 # .env.production, вне Git:
@@ -21,8 +21,11 @@ HOST=0.0.0.0
 PORT=43171
 PUBLIC_BASE_URL=https://wiki.example.org
 DISABLE_LOCAL_LOGIN=1
-GITHUB_CLIENT_ID=YOUR_APP_ID
-GITHUB_CLIENT_SECRET=YOUR_APP_SECRET</code></pre><p>Перед контейнером нужен reverse proxy с HTTPS. Данные сохраняются в volume. Резервируйте всё приватное хранилище, ограничьте доступ к нему и храните резервные копии с той же защитой. Поддерживается один процесс сервиса: файловая очередь не является распределённой блокировкой. После перезапуска войдите заново; проекты сохраняются.</p></section><section><h2>API: загрузка в своей сессии</h2><pre><code>const response = await fetch('/api/projects?filename=solution.e365', {
+EMAIL_FROM=sender@example.org
+EMAIL_CRED_KEY=YOUR_APP_PASSWORD
+SMTP_HOST=smtp.mail.ru
+SMTP_PORT=465
+SMTP_SSL_TLS=true</code></pre><p>Перед контейнером нужен reverse proxy с HTTPS. Данные сохраняются в volume. Резервируйте всё приватное хранилище, ограничьте доступ к нему и храните резервные копии с той же защитой. Поддерживается один процесс сервиса: файловая очередь не является распределённой блокировкой. После перезапуска войдите заново; проекты сохраняются.</p></section><section><h2>API: загрузка в своей сессии</h2><pre><code>const response = await fetch('/api/projects?filename=solution.e365', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/octet-stream',

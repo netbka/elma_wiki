@@ -17,6 +17,7 @@
     "test:browser": "node tools/browser-check.mjs"
   },
   "dependencies": {
+    "nodemailer": "^10.0.15",
     "yauzl": "^3.2.0"
   },
   "devDependencies": {

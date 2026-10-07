@@ -11,7 +11,7 @@ import { fixture, zip } from './fixture.mjs';
 const headers = {'X-Elma-Wiki-Request':'1'};
 async function instance(t,options={}) {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(),'e365-project-test-'));
-  const server = createServer({directory,clientId:'',clientSecret:'',...options});
+  const server = createServer({directory,allowLocal:true,sendEmail:undefined,...options});
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
   t.after(async()=>{ await new Promise(resolve=>server.close(resolve)); assert.equal(path.dirname(directory),path.resolve(os.tmpdir())); assert.ok(path.basename(directory).startsWith('e365-project-test-')); await fs.rm(directory,{recursive:true,force:true}); });
   return {directory,server,base:`http://127.0.0.1:${server.address().port}`,request:(route,options)=>fetch(`http://127.0.0.1:${server.address().port}`+route,options)};
@@ -93,16 +93,12 @@ test('CSRF and host restrictions apply to every write',async t=>{
   for (const extra of [{}, {...headers,Origin:'https://other.example'}]) assert.equal((await request('/api/projects',{method:'POST',headers:{cookie,'Content-Type':'application/octet-stream',...extra},body:bytes})).status,403);
   const status=await new Promise((resolve,reject)=>{ const req=http.request(base,{headers:{Host:'attacker.example'}},res=>{res.resume();res.on('end',()=>resolve(res.statusCode));});req.on('error',reject);req.end(); });assert.equal(status,403);
 });
-test('GitHub OAuth requests identity only and replay is rejected',async t=>{
-  const calls=[];
-  const {request}=await instance(t,{clientId:'example-client',clientSecret:'example-secret',fetchImpl:async(url,options)=>{calls.push([url,options]);return {ok:true,json:async()=>url.endsWith('/user')?{id:42,login:'example-user'}:{access_token:'synthetic-token'}};}});
-  const first=await request('/auth/github',{redirect:'manual'}),target=new URL(first.headers.get('location'));
-  assert.equal(target.searchParams.get('scope'),'read:user'); assert.equal(target.searchParams.get('code_challenge_method'),'S256');
-  const cookie=first.headers.getSetCookie()[0].split(';')[0],callback='/auth/github/callback?code=example&state='+target.searchParams.get('state');
-  const result=await request(callback,{headers:{cookie},redirect:'manual'});assert.equal(result.status,302);assert.equal(calls.length,2);
-  const session=await (await request('/api/session',{headers:{cookie:result.headers.getSetCookie().find(s=>s.startsWith('elma_session=')).split(';')[0]}})).json(); assert.equal(session.user.id,'github:42');assert.ok(!JSON.stringify(session).includes('synthetic-token'));
-  assert.equal((await request(callback,{headers:{cookie},redirect:'manual'})).status,400);
+test('GitHub is disabled even with old credentials configured',async t=>{
+  const {request}=await instance(t,{clientId:'old-client',clientSecret:'old-secret'});
+  for (const route of ['/auth/github','/auth/github/callback?code=example']) assert.equal((await request(route,{redirect:'manual'})).status,403);
+  assert.equal((await (await request('/api/session')).json()).githubConfigured,false);
 });
+
 test('legacy owner indexes remain accessible and are explicitly marked without originals',async t=>{
   const {request,directory}=await instance(t),cookie=await login(request),id='10000000-0000-4000-8000-000000000000';
   await fs.writeFile(path.join(directory,'portals.json'),JSON.stringify([{id,owner:'local',name:'Legacy'}]));await fs.mkdir(path.join(directory,'portals',id),{recursive:true});await fs.writeFile(path.join(directory,'portals',id,'data.json'),JSON.stringify({readOnly:true,servers:{local:{entities:[],solutions:[]}}}));

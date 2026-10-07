@@ -8,8 +8,25 @@ async function init() {
   if (location.pathname === '/login') {
     const session = await request('/api/session');
     $('local-login-card').classList.toggle('hidden',!session.localEnabled);
-    $('oauth-setup').classList.toggle('hidden',session.githubConfigured);
-    $('github-login').classList.toggle('hidden',!session.githubConfigured);
+    $('email-setup').classList.toggle('hidden',session.emailConfigured);
+    $('send-key').disabled = $('verify-key').disabled = !session.emailConfigured;
+    $('email-request').onsubmit = async event => {
+      event.preventDefault(); $('send-key').disabled = true;
+      status('Отправляем ключ…');
+      try {
+        const result = await request('/auth/email/request',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:$('email').value})});
+        status(result.message + '. Проверьте также папку «Спам».'); $('key').focus();
+        let seconds = 60;
+        const timer = setInterval(() => { seconds--; $('send-key').textContent = seconds > 0 ? `Отправить повторно через ${seconds} с` : 'Отправить ключ повторно'; if (seconds <= 0) { clearInterval(timer); $('send-key').disabled = false; } },1000);
+      } catch(e) { status(e.message); $('send-key').disabled = false; }
+    };
+    $('email-verify').onsubmit = async event => {
+      event.preventDefault();
+      if (!$('email').reportValidity()) return;
+      $('verify-key').disabled = true; status('Проверяем ключ…');
+      try { await request('/auth/email/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:$('email').value,key:$('key').value})}); location.href='/dashboard'; }
+      catch(e) { status(e.message); $('verify-key').disabled = false; }
+    };
     $('local-login').onclick = async () => { try { await request('/auth/local',{method:'POST'}); location.href='/dashboard'; } catch(e) { status(e.message); } };
   }
   if (location.pathname !== '/dashboard') return;
