@@ -54,8 +54,20 @@ export function mountDelivery({ release, client, onAction, onRefresh } = {}) {
     button(root, 'Обновить состояние доставки', onRefresh);
     if (view.synthetic) {
       const create = el('form'), name = field(create, 'Название учебного стенда'); name.maxLength = 120; name.required = true;
-      button(create, 'Добавить учебный стенд', () => { if (create.reportValidity()) refresh(() => client.createConnection({ name: name.value.trim(), role: 'target', environment: 'test', adapter: 'synthetic' })); });
+      const scenario = field(create, 'Учебный сценарий', '', 'select');
+      for (const [value, label] of Object.entries({ apply: 'Импорт применяется', unapplied: 'Успешный ответ без изменений', fail: 'Ошибка импорта', timeout: 'Нет ответа', drift: 'Состояние меняется после подготовки' })) {
+        const option = el('option', label); option.value = value; scenario.append(option);
+      }
+      button(create, 'Добавить учебный стенд', () => { if (create.reportValidity()) refresh(() => client.createConnection({ name: name.value.trim(), role: 'target', environment: 'test', adapter: 'synthetic', adapterOptions: { scenario: scenario.value } })); });
       create.onsubmit = event => event.preventDefault(); root.append(create);
+      for (const connection of view.connections) {
+        const card = el('article', undefined, 'card');
+        card.append(el('h3', connection.name), el('p', `${connection.environment.toUpperCase()} · ${connection.adapter} · ${connection.probe?.identity?.host || 'Личность не проверена'}`));
+        if (connection.probe?.protectedHost) card.append(el('p', 'Фактический узел входит в защищённый список: доставка будет отклонена независимо от названия.', 'release-error'));
+        button(card, 'Проверить подключение — ' + connection.name, () => refresh(() => client.probeConnection(connection.id)));
+        if (client?.removeConnection) button(card, 'Удалить подключение — ' + connection.name, () => refresh(() => client.removeConnection(connection.id)));
+        root.append(card);
+      }
       const picker = field(root, 'Учебный стенд для доставки', '', 'select');
       const empty = el('option', 'Выберите учебный стенд'); empty.value = ''; picker.append(empty);
       for (const connection of view.connections) {

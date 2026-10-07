@@ -1,8 +1,8 @@
 import { mountRelease } from './render.js';
 const host = document.getElementById('release-root');
-async function request(url, input) {
+async function request(url, input, method = 'POST') {
   let response;
-  try { response = await fetch(url, input === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Elma-Wiki-Request': '1' }, body: JSON.stringify(input) }); }
+  try { response = await fetch(url, input === undefined ? {} : { method, headers: { 'Content-Type': 'application/json', 'X-Elma-Wiki-Request': '1' }, ...(method === 'DELETE' ? {} : { body: JSON.stringify(input) }) }); }
   catch (error) {
     if (input !== undefined && url.endsWith('/delivery')) throw Object.assign(Error('Нет ответа от сервиса. Результат операции неизвестен; обновите релиз перед продолжением.'), { requiresRefresh: true });
     throw error;
@@ -18,6 +18,7 @@ const deliveryClient = {
   },
   createConnection: input => json('/api/connections', input),
   probeConnection: id => json(`/api/connections/${id}/probe`, {}),
+  removeConnection: id => request(`/api/connections/${id}`, {}, 'DELETE'),
   async act(id, input) {
     try { await json(`/api/releases/${id}/delivery`, input); return await json(`/api/releases/${id}`); }
     catch (error) {

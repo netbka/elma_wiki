@@ -70,7 +70,7 @@ export function mountRelease({ release, projects = [], releases = [], change, cr
   if (!release.changes.length) changes.append(el('p', 'Файлы в распакованном составе совпадают. Сам архив может иметь другую упаковку; передаётся точный новый оригинал.'));
   if (release.changes.length) changes.append(el('p', `Показано ${Math.min(visibleChanges, release.changes.length)} из ${release.changes.length}. Все файлы остаются в области рецензии.`));
   for (const item of release.changes.slice(0, visibleChanges)) {
-    const card = el('article', undefined, 'card'); card.append(el('h3', `${changeLabels[item.type]}: ${item.title}`), el('p', `${item.path} · ${impactLabels[item.impact]}`));
+    const card = el('article', undefined, 'card release-change'); card.append(el('h3', `${changeLabels[item.type]}: ${item.title}`), el('p', `${item.path} · ${impactLabels[item.impact]}`));
     for (const [label, value] of [['До', item.before], ['После', item.after]]) card.append(el('p', value ? `${label}: ${value.size} байт · ${value.sha256}` : `${label}: файл отсутствует`, 'release-hash'));
     for (const diff of item.fields) card.append(el('p', `Поле ${diff.code}: ${diff.before ? JSON.stringify(diff.before) : 'отсутствует'} → ${diff.after ? JSON.stringify(diff.after) : 'отсутствует'}`));
     const details = el('details'); details.append(el('summary', 'Посмотреть точные исходные фрагменты (приватно)'));

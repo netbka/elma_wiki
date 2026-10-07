@@ -41,7 +41,7 @@ Confirmation uses a stable key derived from the attempt ID; the server retains i
 - Comparison is by expanded file hash, not by ELMA semantics; descriptor/runtime/version comparison for the supported widget path comes with the bridge.
 - One service process; the lock is per release, not a distributed job queue. Interrupted operations are reconciled lazily to `unknown-outcome` on the next read.
 - Rollback reference is the pre-deploy inventory hash of the Target only; no package restore is performed.
-- The real Source/Target journey in the workflow catalog remains proposed; the wired delivery screen and its 13 Storybook states cover only the implemented synthetic path.
+- The real Source/Target journey in the workflow catalog remains proposed; the wired delivery screen and its 14 Storybook states cover only the implemented synthetic path, including protected Target refusal.
 
 ## Evidence
 `node --test test/delivery.test.mjs`: complete prepare/confirm/verify path with linked evidence; success-but-unapplied import never verified; PROD by environment and by actual identity refused; stale approval and drift block confirmation; duplicate confirmations run the operation once; timeout and restart produce `unknown-outcome` that only read-back resolves; credential-like fields refused; owner isolation; API gating of the synthetic adapter. Synthetic only — no live Target was touched.

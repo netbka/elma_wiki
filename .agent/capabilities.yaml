@@ -59,7 +59,7 @@ capabilities:
     routes: ["docs/contracts/developer-workspace.md"]
     boundaries: ["compiler"]
   deployment:
-    owners: ["lib/delivery.mjs", "server.mjs", "web/releases/model.js", "web/releases/delivery.js", "web/releases/delivery-model.js", "tools/delivery-browser-check.mjs"]
+    owners: ["lib/delivery.mjs", "server.mjs", "web/releases/model.js", "web/releases/delivery.js", "web/releases/delivery-model.js", "tools/delivery-browser-check.mjs", "storybook/stories/Delivery.stories.js", "tools/releases-browser-check.mjs"]
     routes: ["docs/contracts/target-deployment.md", "docs/runbooks/target-deployment.md"]
     boundaries: ["ui", "domain", "connection", "security", "ops", "tooling"]
   verification:

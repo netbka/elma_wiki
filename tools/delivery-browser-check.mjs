@@ -9,7 +9,7 @@ import { releaseStore } from '../lib/releases.mjs';
 import { zip } from '../test/fixture.mjs';
 
 const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'elma-delivery-browser-'));
-const server = createServer({ directory, allowLocal: true, syntheticDelivery: true, sendEmail: undefined, sendVk: undefined });
+const server = createServer({ directory, allowLocal: true, syntheticDelivery: true, protectedTargetHosts: ['prod.example.invalid'], sendEmail: undefined, sendVk: undefined });
 let browser;
 try {
   const fixture = required => zip([
@@ -116,6 +116,15 @@ try {
   await page.setViewportSize({ width: 390, height: 844 }); assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
   await panel().getByRole('button', { name: 'Обновить состояние доставки', exact: true }).focus(); await page.keyboard.press('Tab');
   assert.notEqual(await page.evaluate(() => document.activeElement.tagName), 'BODY');
+  const disposable = await api('/api/connections', { name: 'Временный учебный стенд', role: 'target', environment: 'test', adapter: 'synthetic' });
+  const protectedConnection = await api('/api/connections', { name: 'Защищённый учебный узел', role: 'target', environment: 'test', adapter: 'synthetic', adapterOptions: { identity: { host: 'prod.example.invalid', version: 'synthetic' } } });
+  await api(`/api/connections/${protectedConnection.id}/probe`, {});
+  await page.reload();
+  await panel().getByText(/Фактический узел входит в защищённый список/).waitFor();
+  assert.equal(await panel().locator(`option[value="${protectedConnection.id}"]`).isDisabled(), true);
+  await panel().getByRole('button', { name: 'Удалить подключение — Временный учебный стенд', exact: true }).click();
+  await panel().getByRole('heading', { name: 'Временный учебный стенд', exact: true }).waitFor({ state: 'detached' });
+  assert.equal((await api('/api/connections')).some(c => c.id === disposable.id), false);
   assert.deepEqual(errors, []);
   console.log('Delivery UI: synthetic identity, separate confirmation, read-back, unapplied import, stale evidence, cancellation, lost-response reconciliation, load retry and mobile passed.');
 } finally {
