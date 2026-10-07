@@ -70,3 +70,7 @@ capabilities:
     owners: ["deploy/", "compose.yaml", "Dockerfile"]
     routes: ["docs/runbooks/target-deployment.md"]
     boundaries: ["ops", "security"]
+  analyst-release-planning:
+    owners: ["docs/plans/analyst-release-workspace.md", "docs/audits/analyst-release-audit-brief.md"]
+    routes: ["docs/plans/analyst-release-workspace.md", "docs/audits/analyst-release-audit-brief.md", "docs/plans/source-target-e2e.md"]
+    boundaries: ["content"]

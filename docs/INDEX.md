@@ -10,6 +10,8 @@ Routing, not an always-read checklist.
 | Public Vercel site / internal Docker | PUBLIC_DEPLOYMENT.md |
 | Open coordination | ROADMAP.md |
 | Source -> Workspace -> Target architecture | SOURCE_TARGET_GATEWAY_AND_ENGINEERING_SYSTEM.md |
+| Analyst release implementation sequence (proposed) | [plans/analyst-release-workspace.md](plans/analyst-release-workspace.md) |
+| Analyst release audit method and scenarios | [audits/analyst-release-audit-brief.md](audits/analyst-release-audit-brief.md) |
 | Manual .e365 projects | E365_FILE_PROJECTS.md |
 | Developer workflow (PR #7) | DEVELOPER_VALUE_WORKFLOW.md |
 | Browser coding workspace (PR #8, PR #12) | WEB_DEVELOPER_WORKSPACE.md |
