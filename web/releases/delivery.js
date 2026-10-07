@@ -1,84 +1,124 @@
 import { deliveryStateLabels } from './model.js';
-const el = (tag, content, className) => { const node = document.createElement(tag); if (content !== undefined) node.textContent = content; if (className) node.className = className; return node; };
-export const environmentLabels = { dev: 'DEV', test: 'TEST', prod: 'PROD (доставка запрещена)' };
-export const scenarioLabels = { apply: 'учебный: импорт применяется', unapplied: 'учебный: импорт «успешен», но не применён', fail: 'учебный: ошибка импорта', timeout: 'учебный: нет ответа', drift: 'учебный: Target меняется после подготовки' };
-const operationLabels = { returned: 'операция вернула успех (ещё не проверено)', error: 'ошибка операции', timeout: 'нет ответа в отведённое время' };
-const actionable = state => ['deployed-unverified', 'unknown-outcome', 'verification-failed'].includes(state);
-const active = state => ['prepared', 'deploying', 'deployed-unverified', 'unknown-outcome'].includes(state);
-let fieldId = 0;
-// Delivery section of the release page. `run` comes from the release shell so busy/stale handling stays shared;
-// every action reloads the whole release afterwards because attempts change the release's target check.
-export function mountDelivery({ release, connections = [], attempts = [], adapters = [], api, run, reload }) {
-  const section = el('section', undefined, 'release-delivery');
-  section.append(el('h2', 'Доставка на Target'), el('p', 'Доставка идёт только через явно выбранное подключение Target после принятия кандидата. Успешный ответ инструмента не означает Verified: состояние Target читается заново и сравнивается с кандидатом. PROD отклоняется на сервере.'));
-  const field = (form, label, value = '', kind = 'input') => { const wrapper = el('div'), caption = el('label', label), node = el(kind); node.id = `delivery-field-${++fieldId}`; caption.htmlFor = node.id; if (kind !== 'select') node.value = value; node.maxLength = 200; wrapper.append(caption, node); form.append(wrapper); return node; };
-  const option = (select, value, label) => { const item = el('option', label); item.value = value; select.append(item); return item; };
-  const button = (label, action, parent) => { const node = el('button', label); node.type = 'button'; node.onclick = action; parent.append(node); return node; };
-  const act = operation => run(async () => { await operation(); return reload(); });
-  const targets = connections.filter(c => c.role === 'target' && c.environment !== 'prod');
-  const current = attempts.find(a => active(a.state)) || null;
-  const list = el('section'); list.append(el('h3', `Подключения: ${connections.length}`));
-  if (!adapters.length) list.append(el('p', 'На этом сервисе не настроен адаптер к ELMA. Подключения и доставка недоступны: передайте пакет оператору через приватный пакет передачи. Это ограничение сервиса, а не результат проверки.', 'note'));
-  for (const connection of connections) {
-    const card = el('article', undefined, 'card');
-    card.append(el('h4', `${connection.name} · ${environmentLabels[connection.environment] || connection.environment} · ${connection.role === 'target' ? 'Target' : 'Source'} · адаптер ${connection.adapter}`));
-    if (connection.adapterOptions?.scenario) card.append(el('p', `Сценарий: ${scenarioLabels[connection.adapterOptions.scenario] || connection.adapterOptions.scenario}`, 'release-label'));
-    card.append(el('p', connection.probe ? `Проверено ${connection.probe.at}: ${connection.probe.ok ? 'доступно' : 'недоступно'} · ${connection.probe.identity ? `${connection.probe.identity.host} · версия ${connection.probe.identity.version || 'не сообщена'}` : 'личность не сообщена'}` : 'Личность не проверена: выполните проверку подключения перед доставкой.'));
-    if (connection.probe?.protectedHost) card.append(el('p', 'Фактический узел входит в защищённый список: доставка на это подключение будет отклонена независимо от названия.', 'release-error'));
-    if (connection.environment === 'prod') card.append(el('p', 'PROD: доставка отключена до отдельного разрешения и проверок AR-06.', 'release-error'));
-    const actions = el('div', undefined, 'actions');
-    button(`Проверить подключение — ${connection.name}`, () => act(() => api.probe(connection.id)), actions);
-    button(`Удалить подключение — ${connection.name}`, () => act(() => api.removeConnection(connection.id)), actions);
-    card.append(actions); list.append(card);
-  }
-  if (adapters.length) {
-    const form = el('form'), name = field(form, 'Название подключения'), environment = field(form, 'Среда', '', 'select'), adapter = field(form, 'Адаптер', '', 'select');
-    name.required = true; name.maxLength = 120;
-    for (const [value, label] of Object.entries(environmentLabels)) option(environment, value, label);
-    environment.value = 'test';
-    for (const value of adapters) option(adapter, value, value);
-    const scenario = field(form, 'Учебный сценарий синтетического адаптера', '', 'select');
-    for (const [value, label] of Object.entries(scenarioLabels)) option(scenario, value, label);
-    const toggle = () => { scenario.parentElement.hidden = adapter.value !== 'synthetic'; }; adapter.onchange = toggle; toggle();
-    form.onsubmit = event => { event.preventDefault(); if (form.reportValidity()) act(() => api.createConnection({ name: name.value, role: 'target', environment: environment.value, adapter: adapter.value, adapterOptions: adapter.value === 'synthetic' ? { scenario: scenario.value } : {} })); };
-    const submit = el('button', 'Добавить подключение Target'); submit.type = 'submit'; form.append(el('p', 'Подключение — ссылка без учётных данных. Токены и пароли сюда вводить нельзя; они остаются у оператора/моста.', 'release-label'), submit); list.append(form);
-  }
-  section.append(list);
-  const history = el('section'); history.append(el('h3', `Попытки доставки: ${attempts.length}`));
-  if (!attempts.length) history.append(el('p', 'Доставок ещё не было.'));
-  for (const attempt of [...attempts].reverse()) {
-    const card = el('article', undefined, `card${['verification-failed', 'failed', 'blocked'].includes(attempt.state) ? ' release-error' : attempt.state === 'verified' ? ' release-decision' : ''}`);
-    card.append(el('h4', `${attempt.connection.name} · ${deliveryStateLabels[attempt.state] || attempt.state}`), el('p', `Target: ${attempt.targetIdentity?.host || 'не подтверждён'} · версия ${attempt.targetIdentity?.version || 'не сообщена'} · ${environmentLabels[attempt.connection.environment] || attempt.connection.environment}`));
-    card.append(el('p', `Кандидат ${attempt.candidateId} · SHA-256 ${attempt.sha256}`, 'release-hash'), el('p', `Состояние Target до доставки: ${attempt.evidence.preDeploy.inventoryHash} (${attempt.evidence.preDeploy.files} файлов)`, 'release-hash'));
-    if (attempt.evidence.operation) card.append(el('p', `Операция: ${operationLabels[attempt.evidence.operation.result] || attempt.evidence.operation.result}${attempt.evidence.operation.nativeResult ? ` · ответ инструмента: ${attempt.evidence.operation.nativeResult}` : ''}${attempt.evidence.operation.error ? ` · ${attempt.evidence.operation.error}` : ''}`));
-    if (attempt.evidence.readBack) {
-      const c = attempt.evidence.comparison;
-      card.append(el('p', `Read-back: ${attempt.evidence.readBack.inventoryHash} (${attempt.evidence.readBack.files} файлов)`, 'release-hash'), el('p', c.match ? `Совпадение: ${c.compared} файлов сравнены по SHA-256; служебные файлы не сравнивались: ${c.volatile.length}` : `Расхождение: отсутствуют ${c.missing.length}, отличаются ${c.different.length}, сравнивалось ${c.compared}`));
-      for (const p of [...c.missing, ...c.different].slice(0, 20)) card.append(el('p', p, 'release-hash'));
+import { deliveryPanelView } from './delivery-model.js';
+
+const el = (tag, value, className) => { const node = document.createElement(tag); if (value !== undefined) node.textContent = value; if (className) node.className = className; return node; };
+let sequence = 0;
+export function mountDelivery({ release, client, onAction, onRefresh } = {}) {
+  const root = el('section', undefined, 'release-delivery'); root.setAttribute('aria-label', 'Доставка и проверка результата');
+  let data = null, busy = false, selected = '', loadError = '';
+  const execute = async input => {
+    const status = root.querySelector('[role="status"]');
+    status.textContent = input.action === 'confirm' ? 'Учебная операция выполняется. Дождитесь ответа; повторный запуск не нужен.' : input.action === 'verify' ? 'Читаем и сравниваем результат учебной операции…' : 'Обновляем подготовку учебной операции…';
+    await onAction(input);
+    if (root.isConnected) status.textContent = 'Действие не подтверждено. Проверьте сообщение об ошибке и обновите состояние перед продолжением.';
+  };
+  const button = (parent, label, action, unavailable = false) => {
+    const node = el('button', label); node.type = 'button'; node.dataset.unavailable = String(unavailable); node.disabled = unavailable || busy;
+    node.onclick = action; parent.append(node); return node;
+  };
+  const field = (parent, label, value = '', tag = 'input') => {
+    const wrap = el('div'), caption = el('label', label), node = el(tag);
+    node.id = 'delivery-field-' + ++sequence; caption.htmlFor = node.id; node.value = value;
+    node.dataset.draftKey = label; node.dataset.savedValue = value; wrap.append(caption, node); parent.append(wrap); return node;
+  };
+  const refresh = async operation => {
+    if (busy) return;
+    busy = true; loadError = ''; root.querySelectorAll('button').forEach(b => b.disabled = true);
+    try { if (operation) await operation(); data = await client.load(release.id); }
+    catch (error) { loadError = error.message; }
+    finally { busy = false; draw(); }
+  };
+  const draw = () => {
+    if (root.contains(document.activeElement)) {
+      const focusKey = document.activeElement.dataset.draftKey;
+      queueMicrotask(() => {
+        if (!root.isConnected) return;
+        const target = [...root.querySelectorAll('[data-draft-key]')].find(node => focusKey && node.dataset.draftKey === focusKey) || root.querySelector('h2');
+        target.tabIndex = target.tagName === 'H2' ? -1 : 0; target.focus({ preventScroll: true });
+      });
     }
-    if (attempt.evidence.rollbackReference) card.append(el('p', `Ссылка для отката: ${attempt.evidence.rollbackReference.inventoryHash}. ${attempt.evidence.rollbackReference.note}`, 'release-label'));
-    const steps = el('details'); steps.append(el('summary', 'Журнал попытки'));
-    for (const event of attempt.history) steps.append(el('p', `${event.at} · ${deliveryStateLabels[event.state] || event.state}${event.note ? ': ' + event.note : ''}`)); card.append(steps);
-    if (attempt.state === 'prepared') {
-      const expected = `DEPLOY ${attempt.solutionCode} ${attempt.sha256.slice(0, 12)}`, form = el('form'), confirmation = field(form, `Подтверждение доставки: введите ${expected}`); confirmation.required = true;
-      const key = crypto.randomUUID(); // one key per rendered form: a repeated click cannot start a second operation
-      const confirm = el('button', 'Подтвердить доставку на Target'); confirm.type = 'submit'; form.append(confirm);
-      form.onsubmit = event => { event.preventDefault(); if (form.reportValidity()) act(() => api.confirm(attempt.id, { confirmation: confirmation.value.trim(), idempotencyKey: key })); };
-      card.append(el('p', 'Перед запуском сервер повторно проверит личность Target, неизменность релиза и кандидата и отсутствие изменений решения на Target.', 'release-label'), form);
+    const drafts = new Map([...root.querySelectorAll('[data-draft-key]')].map(node => [node.dataset.draftKey, node.value]));
+    root.replaceChildren(el('h2', 'Доставка и проверка результата'));
+    const alert = el('p', loadError); alert.setAttribute('role', 'alert'); root.append(alert);
+    if (loadError) {
+      root.append(el('p', 'Состояние доставки не получено. Действия заблокированы до успешного обновления.'));
+      button(root, 'Повторить загрузку доставки', () => refresh()); return;
     }
-    if (actionable(attempt.state)) button(attempt.state === 'verification-failed' ? 'Повторить read-back' : 'Выполнить read-back и сравнить', () => act(() => api.verify(attempt.id)), card);
-    history.append(card);
-  }
-  section.append(history);
-  const approved = release.approval?.revision === release.revision;
-  const next = el('p', !approved ? 'Доставка доступна после принятия текущего кандидата.' : current ? `Есть незавершённая доставка: ${deliveryStateLabels[current.state]}. Завершите или проверьте её прежде чем готовить новую.` : !targets.length ? 'Добавьте и проверьте подключение Target (не PROD), чтобы подготовить доставку.' : 'Выберите проверенное подключение Target и подготовьте доставку: будут зафиксированы личность Target и состояние решения до изменения.');
-  section.append(next);
-  if (approved && !current && targets.length) {
-    const form = el('form'), target = field(form, 'Подключение Target для доставки', '', 'select');
-    for (const connection of targets) option(target, connection.id, `${connection.name} · ${environmentLabels[connection.environment]}${connection.probe?.identity ? ' · ' + connection.probe.identity.host : ' · не проверено'}`);
-    const prepare = el('button', 'Подготовить доставку'); prepare.type = 'submit'; form.append(prepare);
-    form.onsubmit = event => { event.preventDefault(); act(() => api.prepare({ connectionId: target.value, revision: release.revision })); };
-    section.append(form);
-  }
-  return section;
+    if (!data) {
+      root.append(el('p', client ? 'Загружаем состояние доставки…' : 'Доставка в ELMA пока недоступна. Используйте приватный пакет передачи.'));
+      return;
+    }
+    const view = deliveryPanelView(release, data);
+    if (view.synthetic) root.append(el('p', 'Учебный режим: стенд синтетический, ELMA не подключена. Операции и успешная проверка относятся только к этому примеру.', 'note'));
+    const status = el('p', view.next); status.setAttribute('role', 'status'); root.append(status);
+    button(root, 'Обновить состояние доставки', onRefresh);
+    if (view.synthetic) {
+      const create = el('form'), name = field(create, 'Название учебного стенда'); name.maxLength = 120; name.required = true;
+      const scenario = field(create, 'Учебный сценарий', '', 'select');
+      for (const [value, label] of Object.entries({ apply: 'Импорт применяется', unapplied: 'Успешный ответ без изменений', fail: 'Ошибка импорта', timeout: 'Нет ответа', drift: 'Состояние меняется после подготовки' })) {
+        const option = el('option', label); option.value = value; scenario.append(option);
+      }
+      button(create, 'Добавить учебный стенд', () => { if (create.reportValidity()) refresh(() => client.createConnection({ name: name.value.trim(), role: 'target', environment: 'test', adapter: 'synthetic', adapterOptions: { scenario: scenario.value } })); });
+      create.onsubmit = event => event.preventDefault(); root.append(create);
+      for (const connection of view.connections) {
+        const card = el('article', undefined, 'card');
+        card.append(el('h3', connection.name), el('p', `${connection.environment.toUpperCase()} · ${connection.adapter} · ${connection.probe?.identity?.host || 'Личность не проверена'}`));
+        if (connection.probe?.protectedHost) card.append(el('p', 'Фактический узел входит в защищённый список: доставка будет отклонена независимо от названия.', 'release-error'));
+        button(card, 'Проверить подключение — ' + connection.name, () => refresh(() => client.probeConnection(connection.id)));
+        if (client?.removeConnection) button(card, 'Удалить подключение — ' + connection.name, () => refresh(() => client.removeConnection(connection.id)));
+        root.append(card);
+      }
+      const picker = field(root, 'Учебный стенд для доставки', '', 'select');
+      const empty = el('option', 'Выберите учебный стенд'); empty.value = ''; picker.append(empty);
+      for (const connection of view.connections) {
+        const option = el('option', `${connection.name}${connection.environment === 'prod' ? ' — PROD недоступен' : ''}`); option.value = connection.id;
+        option.disabled = connection.environment === 'prod' || connection.adapter !== 'synthetic' || connection.probe?.protectedHost === true;
+        picker.append(option);
+      }
+      picker.value = selected; picker.onchange = () => { selected = picker.value; draw(); };
+      const connection = view.connections.find(c => c.id === selected);
+      if (connection) {
+        const identity = connection.probe?.identity;
+        root.append(el('p', identity ? `Проверенный учебный стенд: ${identity.host} · версия ${identity.version || 'не определена'} · ${connection.probe.ok ? 'доступен' : 'недоступен'}` : 'Стенд ещё не проверен. Его имя не подтверждает личность.'));
+        button(root, 'Проверить учебный стенд', () => refresh(() => client.probeConnection(connection.id)));
+      }
+      button(root, 'Подготовить учебную доставку', () => execute({ action: 'prepare', revision: release.revision, connectionId: selected }), !view.canPrepare || !connection || connection.environment === 'prod' || connection.adapter !== 'synthetic' || connection.probe?.protectedHost === true);
+    }
+    const latest = view.latest;
+    if (latest) {
+      const attempt = el('section', undefined, 'card'); attempt.setAttribute('aria-label', 'Последняя попытка доставки');
+      attempt.append(el('h3', `Последняя попытка: ${deliveryStateLabels[latest.state] || latest.state}`), el('p', `${latest.connection.adapter === 'synthetic' ? 'Учебный стенд (не ELMA)' : 'Target'}: ${latest.connection.name} · ${latest.targetIdentity.host} · версия ${latest.targetIdentity.version || 'не определена'}`), el('p', `Решение ${latest.solutionCode} · ревизия ${latest.releaseRevision}`), el('p', `Кандидат SHA-256: ${latest.sha256}`, 'release-hash'));
+      if (!view.current) attempt.append(el('p', 'Устаревшая попытка: текущий кандидат или условия релиза изменились.', 'note'));
+      if (view.canConfirm) {
+        const form = el('form'); form.append(el('p', `Для отдельного подтверждения введите: ${view.confirmation}`, 'release-hash'));
+        const confirmation = field(form, 'Подтверждение учебной операции'); confirmation.dataset.draftKey += ' ' + latest.id; confirmation.maxLength = 200; confirmation.autocomplete = 'off'; confirmation.required = true;
+        const confirm = button(form, 'Подтвердить учебную операцию', () => {
+          if (confirmation.value === view.confirmation) execute({ action: 'confirm', attemptId: latest.id, confirmation: confirmation.value, idempotencyKey: 'release-ui-' + latest.id });
+        }, true);
+        confirmation.oninput = () => { const disabled = confirmation.value !== view.confirmation; confirm.disabled = disabled; confirm.dataset.unavailable = String(disabled); };
+        form.onsubmit = event => event.preventDefault(); attempt.append(form);
+      }
+      if (view.canCancel) button(attempt, 'Отменить подготовку', () => execute({ action: 'cancel', attemptId: latest.id }));
+      if (view.canVerify) button(attempt, 'Прочитать и проверить результат', () => execute({ action: 'verify', attemptId: latest.id }));
+      const comparison = latest.evidence.comparison;
+      if (comparison) {
+        attempt.append(el('p', `Сравнено файлов: ${comparison.compared}. Не сравнивались служебные файлы: ${comparison.volatile.length}.`));
+        if (comparison.missing.length) attempt.append(el('p', 'Отсутствуют: ' + comparison.missing.join(', '), 'release-hash'));
+        if (comparison.different.length) attempt.append(el('p', 'Отличаются: ' + comparison.different.join(', '), 'release-hash'));
+      }
+      if (latest.evidence.operation) attempt.append(el('p', latest.evidence.operation.nativeResult || latest.evidence.operation.error || 'Операция завершилась; требуется проверка результата'));
+      if (latest.evidence.rollbackReference) attempt.append(el('p', 'Зафиксировано состояние до операции. Восстановление документов или процессов этим не гарантируется.'));
+      root.append(attempt);
+    }
+    if (data.attempts.length) {
+      const history = el('details'); history.append(el('summary', 'История доставок'));
+      for (const attempt of data.attempts) {
+        history.append(el('h3', `${attempt.connection.name} · ревизия ${attempt.releaseRevision} · ${deliveryStateLabels[attempt.state] || attempt.state}`));
+        for (const event of attempt.history) history.append(el('p', `${event.at} · ${deliveryStateLabels[event.state] || event.state} · ${event.note || ''}`));
+      }
+      root.append(history);
+    }
+    for (const node of root.querySelectorAll('[data-draft-key]')) if (drafts.has(node.dataset.draftKey)) { node.value = drafts.get(node.dataset.draftKey); node.oninput?.(); }
+  };
+  draw(); if (client) refresh(); return root;
 }

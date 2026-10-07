@@ -60,6 +60,11 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
       }
       if (await auth.route(req, res, url)) return;
       const session = auth.session(req);
+      if (pathname === '/api/delivery/capabilities') {
+        if (!session) return send(res,401,{error:'Войдите в сервис'});
+        if (req.method !== 'GET') return send(res,405,{error:'Метод не поддерживается'});
+        return send(res,200,{ mode: syntheticDelivery ? 'synthetic' : 'unavailable', liveDelivery: false });
+      }
       if (pathname === '/api/releases') {
         if (!session) return send(res,401,{error:'Войдите в сервис'});
         if (req.method === 'GET') return send(res,200,await releases.list(session.user.id));
@@ -105,6 +110,7 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
           if (input.action === 'prepare') return send(res,201,await delivery.prepare(id,owner,input));
           if (input.action === 'confirm') return send(res,200,await delivery.confirm(id,input.attemptId,owner,input));
           if (input.action === 'verify') return send(res,200,await delivery.verify(id,input.attemptId,owner));
+          if (input.action === 'cancel') return send(res,200,await delivery.cancel(id,input.attemptId,owner));
           return send(res,400,{error:'Неизвестное действие доставки'});
         }
         const bundle = await releases.bundle(id,owner,input.revision);

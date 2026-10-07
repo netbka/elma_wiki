@@ -1,6 +1,79 @@
 {
   "version": 2,
   "capabilities": {
+    "public-field-lookup": {
+      "entry": "/learn/find-field/",
+      "kind": "implemented",
+      "actions": [
+        "read-steps",
+        "inspect-source",
+        "check-answer",
+        "continue-in-designer"
+      ],
+      "renderer": [
+        "web/public-field-guide.mjs"
+      ],
+      "storyIds": [
+        "public-field-guide--ready",
+        "public-field-guide--unavailable",
+        "public-field-guide--ambiguous"
+      ],
+      "requiredVisibleStates": [
+        "ready",
+        "unavailable",
+        "ambiguous"
+      ],
+      "sources": [
+        "docs/workflows/public-field-lookup.md",
+        "test/public-field-guide.test.mjs",
+        "lib/public-site.mjs"
+      ]
+    },
+    "delivery-ui": {
+      "kind": "implemented",
+      "renderer": [
+        "web/releases/render.js",
+        "web/releases/delivery.js",
+        "web/releases/delivery-model.js",
+        "web/releases/model.js"
+      ],
+      "storyIds": [
+        "delivery--unavailable",
+        "delivery--ready",
+        "delivery--prepared",
+        "delivery--deploying",
+        "delivery--unverified",
+        "delivery--verified",
+        "delivery--mismatch",
+        "delivery--unknown",
+        "delivery--failed",
+        "delivery--blocked",
+        "delivery--cancelled",
+        "delivery--stale",
+        "delivery--load-error",
+        "delivery--protected-target"
+      ],
+      "requiredVisibleStates": [
+        "unavailable",
+        "ready",
+        "prepared",
+        "deploying",
+        "deployed-unverified",
+        "verified",
+        "verification-failed",
+        "unknown-outcome",
+        "failed",
+        "blocked",
+        "cancelled",
+        "stale",
+        "load-error",
+        "protected-target"
+      ],
+      "sources": [
+        "lib/delivery.mjs",
+        "docs/contracts/target-deployment.md"
+      ]
+    },
     "public-site": {
       "entry": "/",
       "actions": [
@@ -411,47 +484,6 @@
       "sources": [
         "lib/releases.mjs",
         "docs/contracts/analyst-releases.md"
-      ]
-    },
-    "target-delivery": {
-      "entry": "/releases",
-      "kind": "implemented",
-      "actions": [
-        "create-connection",
-        "probe",
-        "remove-connection",
-        "prepare",
-        "confirm",
-        "verify"
-      ],
-      "renderer": [
-        "web/releases/delivery.js",
-        "web/releases/render.js",
-        "web/releases/model.js"
-      ],
-      "storyIds": [
-        "delivery--no-adapter",
-        "delivery--ready-to-prepare",
-        "delivery--protected-target",
-        "delivery--prepared",
-        "delivery--deployed-unverified",
-        "delivery--unknown-outcome",
-        "delivery--verified",
-        "delivery--verification-failed"
-      ],
-      "requiredVisibleStates": [
-        "no-adapter",
-        "ready-to-prepare",
-        "protected-target",
-        "prepared",
-        "deployed-unverified",
-        "unknown-outcome",
-        "verified",
-        "verification-failed"
-      ],
-      "sources": [
-        "lib/delivery.mjs",
-        "docs/contracts/target-deployment.md"
       ]
     }
   }

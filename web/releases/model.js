@@ -1,5 +1,6 @@
 import { compareSnapshots } from './comparison.js';
-export const deliveryStateLabels = { prepared: 'Подготовлена', deploying: 'Выполняется', 'deployed-unverified': 'Доставлено, не проверено', 'unknown-outcome': 'Результат неизвестен', verified: 'Проверено read-back', 'verification-failed': 'Read-back не совпал', failed: 'Ошибка операции', blocked: 'Заблокирована' };
+export const deliveryStateLabels = { prepared: 'Подготовлена', deploying: 'Выполняется', 'deployed-unverified': 'Операция завершена, результат не проверен', 'unknown-outcome': 'Результат неизвестен', verified: 'Проверено чтением результата', 'verification-failed': 'Результат проверки не совпал', failed: 'Ошибка операции', blocked: 'Заблокирована', cancelled: 'Подготовка отменена' };
+export const deliveryIsCurrent = (release, attempt) => !!attempt && release.approval?.revision === release.revision && attempt.releaseRevision === release.revision && attempt.candidateId === release.candidate?.id && attempt.sha256 === release.candidate?.sha256;
 export function releaseView(record, delivery = null) {
   const changes = compareSnapshots(record.source, record.baseline);
   const blockers = [];
@@ -18,12 +19,12 @@ export function releaseView(record, delivery = null) {
   const { owner, ...publicRecord } = record;
   const latest = delivery?.latest || null;
   // Only a matching read-back passes; a returned import, a timeout or a mismatch never does.
-  const targetResult = !latest ? 'not-run' : latest.state === 'verified' ? 'pass' : ['verification-failed', 'failed', 'blocked'].includes(latest.state) ? 'fail' : 'not-run';
+  const targetResult = !latest ? 'not-run' : !deliveryIsCurrent(record, latest) ? 'stale' : latest.state === 'verified' ? 'pass' : ['verification-failed', 'failed', 'blocked'].includes(latest.state) ? 'fail' : 'not-run';
   return { ...publicRecord, changes, blockers, unreviewed: unreviewed.length, rejected: rejected.length, state, delivery: delivery || { attempts: 0, latest: null }, checks: [
     { id: 'artifact', result: 'pass', label: 'Оригинал сохранён с SHA-256' },
     { id: 'review', result: blockers.length ? 'fail' : 'pass', label: 'Локальная рецензия всего пакета' },
     { id: 'compiler', result: 'not-run', label: 'Проверка ELMA / компиляция' },
     { id: 'dependencies', result: 'not-run', label: 'Зависимости на целевой компании' },
-    { id: 'target', result: targetResult, label: latest ? `Target «${latest.connectionName}»: ${deliveryStateLabels[latest.state] || latest.state}` : 'Личность и состояние Target / read-back' }
+    { id: 'target', result: targetResult, label: latest ? `${latest.adapter === 'synthetic' ? 'Учебный стенд (не ELMA)' : 'Target'} «${latest.connectionName}»: ${deliveryStateLabels[latest.state] || latest.state}` : 'Личность и состояние Target / read-back' }
   ] };
 }
