@@ -42,7 +42,8 @@ export class Coordinator {
     if (JSON.stringify(r.route) !== JSON.stringify(this.route(r.project))) throw new Fault('routing_changed');
   }
   binding(actor, chat, project) {
-    const b = this.config.bindings.find(b => b.actor === actor && b.chat === chat && b.projects.includes(project));
+    const b = chat === 'portal' ? this.config.portal?.bindings.find(b => b.owner === actor && b.projects.includes(project))
+      : this.config.bindings.find(b => b.actor === actor && b.chat === chat && b.projects.includes(project));
     if (!b) throw new Fault('not_authorized', 403);
     return b;
   }
@@ -62,6 +63,8 @@ export class Coordinator {
     return true;
   }
   out(r, kind, payload) {
+    // Portal requests are read through the authenticated API, never delivered to a VK chat.
+    if (kind === 'vk' && r.chat === 'portal') return;
     this.s.run('INSERT INTO outbox(request_id,kind,revision,payload) VALUES(?,?,?,?)', r.id, kind, r.revision, JSON.stringify(payload));
   }
   notify(r, detail = '') {
@@ -93,7 +96,7 @@ export class Coordinator {
     if (r.messages.length >= 20) throw new Fault('conversation_limit', 429);
     r.messages.push({ actor, text: text(body), at: this.clock() });
     r.revision++; r.state = 'TRIAGING';
-    delete r.spec; delete r.approval; delete r.patch; delete r.blocker;
+    delete r.spec; delete r.approval; delete r.patch; delete r.blocker; delete r.questions;
     r.iteration = 0; delete r.ci; delete r.repairFrom;
     // Old PRs remain traceable; no destructive close or overwrite on a new iteration.
     if (r.pr) { r.previousPrs = [...(r.previousPrs || []), r.pr]; delete r.pr; }

@@ -99,7 +99,7 @@ export class GitHubClient {
   }
   async createComment(r, project, payload) {
     const result = await this.call(`/repos/${project.repository}/issues/${r.issueNumber}/comments`, 'POST', {
-      body: `Request ${r.id}: **${payload.state}**, requirements v${r.revision}.\nThis is a status projection, not deployment evidence. Private details remain in VK Teams.\n<!-- request-bot:${r.id}:state:${payload.state}:v${r.revision} -->`
+      body: `Request ${r.id}: **${payload.state}**, requirements v${r.revision}.\nThis is a status projection, not deployment evidence. Private details remain in the authorized request service.\n<!-- request-bot:${r.id}:state:${payload.state}:v${r.revision} -->`
     });
     if (!Number.isSafeInteger(result.id)) throw new Fault('invalid_comment_receipt', 502);
     return String(result.id);
