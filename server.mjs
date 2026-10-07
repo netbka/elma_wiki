@@ -6,6 +6,8 @@ import { requestCoordinator } from './lib/request-coordinator.mjs';
 import { readData } from './lib/store.mjs';
 import { limits } from './lib/e365.mjs';
 import { createAuth } from './lib/auth.mjs';
+import { actorStore } from './lib/actors.mjs';
+import { solutionStore, SOLUTION_CATALOG } from './lib/solutions.mjs';
 import { createEmailSender } from './lib/email.mjs';
 import { createVkSender } from './lib/vk-teams.mjs';
 import { createVkLoginBot } from './lib/vk-login-bot.mjs';
@@ -43,7 +45,9 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
   // A real export/import through the bridge takes minutes; the default covers a large solution.
   deliveryTimeoutMs = Number(process.env.DELIVERY_TIMEOUT_MS) || 20 * 60 * 1000,
   requests = requestCoordinator() } = {}) {
-  const base = new URL(baseUrl), auth = createAuth({ baseUrl, allowLocal, sendEmail, sendVk, now }), portals = portalStore(directory), projects = projectStore(directory), oldDemo = demoData(), sample = oldDemo.servers.showcase, demo = {entities:sample.entities,solution:sample.solutions[0],coverage:'structural',parserVersion:'2.0.0',inventory:[],provenance:{},synthetic:true};
+  const actors = actorStore(directory);
+  const base = new URL(baseUrl), auth = createAuth({ baseUrl, allowLocal, sendEmail, sendVk, now, onLogin: actors.resolve }), portals = portalStore(directory), projects = projectStore(directory), oldDemo = demoData(), sample = oldDemo.servers.showcase, demo = {entities:sample.entities,solution:sample.solutions[0],coverage:'structural',parserVersion:'2.0.0',inventory:[],provenance:{},synthetic:true};
+  const solutions = solutionStore(directory);
   const workspaces = workspaceStore(projects);
   const managed = managedWorkspaceStore(directory, projects);
   let delivery;
@@ -72,6 +76,46 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
       }
       if (await auth.route(req, res, url)) return;
       const session = auth.session(req);
+      if (pathname === '/api/solutions/uploads') {
+        if (!session) return send(res, 401, { error: 'Войдите в сервис' });
+        if (req.method !== 'POST') return send(res, 405, { error: 'Метод не поддерживается' });
+        if (url.searchParams.get('sharedConfirmed') !== 'true' || [...url.searchParams.keys()].some(k => !['filename', 'sharedConfirmed'].includes(k)))
+          return send(res, 400, { error: 'Подтвердите доступ к файлу для всех пользователей сервиса' });
+        if (req.headers['content-type']?.split(';')[0] !== 'application/octet-stream') return send(res, 415, { error: 'Загрузите файл .e365' });
+        if (uploading) return send(res, 409, { error: 'Дождитесь завершения текущей загрузки' });
+        uploading = true;
+        try { return send(res, 201, await solutions.uploads.create(SOLUTION_CATALOG, await body(req, limits.upload), url.searchParams.get('filename') || 'configuration.e365', session.user)); }
+        finally { uploading = false; }
+      }
+      const solutionMatch = /^\/api\/solutions(?:\/([^/]+)(?:\/(prepare|archive)|\/artifacts\/([^/]+)\/(preview|accept|original))?)?$/.exec(pathname);
+      if (solutionMatch) {
+        const [, id, operation, artifactId, artifactAction] = solutionMatch, action = operation || artifactAction;
+        if (!session) return send(res, id ? 404 : 401, { error: id ? 'Решение не найдено' : 'Войдите в сервис' });
+        const store = solutions.managed;
+        if (id) await store.authorize(id, SOLUTION_CATALOG);
+        if (req.method === 'GET' && !action) {
+          if (id) return send(res, 200, await store.get(id, SOLUTION_CATALOG));
+          const archived = url.searchParams.get('archived');
+          if (archived !== null && !['true', 'false'].includes(archived)) return send(res, 400, { error: 'archived must be true or false' });
+          return send(res, 200, await store.list(SOLUTION_CATALOG, { archived: archived === 'true' }));
+        }
+        if (req.method === 'GET' && action === 'preview') return send(res, 200, await store.preview(id, SOLUTION_CATALOG, artifactId));
+        if (req.method === 'GET' && action === 'original') {
+          const bytes = await store.original(id, SOLUTION_CATALOG, artifactId);
+          res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Disposition': 'attachment; filename="solution.e365"', 'Cache-Control': 'no-store' });
+          return res.end(bytes);
+        }
+        if (req.method !== 'POST' || (id && !['prepare', 'archive', 'accept'].includes(action))) return send(res, 405, { error: 'Метод не поддерживается' });
+        if (req.headers['content-type']?.split(';')[0] !== 'application/json') return send(res, 415, { error: 'Требуется JSON' });
+        const input = JSON.parse((await body(req, 256 * 1024)).toString('utf8'));
+        if (!id) {
+          if (input?.sharedConfirmed !== true) return send(res, 400, { error: 'Подтвердите общее решение' });
+          delete input.sharedConfirmed;
+        }
+        const result = !id ? await store.create(SOLUTION_CATALOG, input, session.user) : action === 'prepare' ? await store.prepare(id, SOLUTION_CATALOG, input, session.user)
+          : action === 'accept' ? await store.accept(id, SOLUTION_CATALOG, artifactId, input, session.user) : await store.setArchived(id, SOLUTION_CATALOG, input, session.user);
+        return send(res, !id || action === 'prepare' ? 201 : 200, result);
+      }
       const requestMatch = /^\/api\/requests(?:\/(REQ-[A-F0-9]{12})(?:\/(reply|approve|cancel))?)?$/.exec(pathname);
       if (requestMatch) {
         const [, id, action] = requestMatch;

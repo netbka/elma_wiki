@@ -8,8 +8,8 @@ Authority target: SOLUTION_FIRST_PRODUCT_PLAN.md.
 | --- | --- | --- | --- |
 | Primary object | Older file-project flow: one uploaded .e365 creates a private project | User-facing primary object is Solution | Keep file-project primitives only as storage/legacy inspection where needed |
 | Workspace term | #33 and managed-workspace contracts use Workspace | Workspace stays internal; UI says Solution | Rename user-facing navigation/copy, not domain objects blindly |
-| Visibility | Current project/release APIs are owner-scoped/private | MVP authenticated users share the approved Solution catalog and permissions | One explicit migration; existing private records remain private until classified |
-| Authentication | Login/session currently implies owner scope | Authentication establishes actor identity; no role tiers in MVP | Persist stable actor; defer ACL/roles |
+| Visibility | Legacy project/release APIs are owner-scoped/private | MVP authenticated users share the approved Solution catalog and permissions | P1 uses a separate explicitly admitted catalog; old records remain private until classified and copied with approval; see contracts/shared-solutions.md |
+| Authentication | Legacy login/session implied owner scope | Authentication establishes actor identity; no role tiers in MVP | P1 persists trusted actors separately from sessions and attributes catalog mutations; ACL/roles remain deferred |
 | Authorship | Uploader/owner may be confused with change author | Portal actor, uploader, ELMA publisher/author and responsible person are different evidence | Store/display separately; unknown stays unknown |
 | Top navigation | Projects/Releases/Flows/Storybook/Developer Workspace exist as destinations | Solutions is home; Learn is secondary | Demote/hide subsystem destinations from normal path |
 | Three-area model | #30 frames Learn / Code & lint / Review as product entries | Keep capabilities, not equal destinations | Code and Review become contextual |
@@ -22,7 +22,7 @@ Authority target: SOLUTION_FIRST_PRODUCT_PLAN.md.
 | Virtual state | Engine can compute effective state | Virtual state is not automatically deployable | No Send to TEST without proven candidate path |
 | Delivery | Bridge foundation may tempt early pipeline UI | TEST is a later contextual phase | P6 only; no pipeline builder/PROD |
 | Comments | Some Storybook review paths use unauthenticated signatures | Product comments belong to authenticated actors | Move product review writes to shared actor model |
-| Legacy private data | Existing records may contain private content | Shared catalog must not expose them by default | Inventory/classify/migrate explicitly |
+| Legacy private data | Existing records may contain private content | Shared catalog must not expose them by default | P1 never reads legacy roots through shared routes; inventory/classify/approve a new copy explicitly |
 | Public/Vercel | Earlier work treated public portal as milestone | Internal Solution-first product is priority | No new Vercel work without owner assignment |
 | Git/GitHub | Engineering uses issues/PRs | Git is implementation ledger, not user model | No PR/branch/commit language in normal UI |
 | VK/agent | #19 has rich orchestration states | Agent advances same Solution/Change/Review/Delivery contracts | Keep bot execution state separate |
