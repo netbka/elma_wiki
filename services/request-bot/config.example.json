@@ -1,0 +1,30 @@
+{
+  "projects": {
+    "wiki": { "repository": "netbka/elma_wiki", "taskKind": "wiki_code", "baseRef": "main" },
+    "elma": { "repository": "netbka/elma365", "taskKind": "elma_config", "targetRef": "operator-registered-dev2", "environment": "test" }
+  },
+  "bindings": [
+    { "actor": "replace-with-verified-vk-user-id", "chat": "replace-with-allowed-chat-id", "projects": ["wiki", "elma"] }
+  ],
+  "workers": [
+    { "id": "agent-1", "tokenEnv": "REQUEST_AGENT_KEY", "kinds": ["triage", "implement"], "projects": ["wiki", "elma"] },
+    { "id": "publisher-1", "tokenEnv": "REQUEST_PUBLISHER_KEY", "kinds": ["publish"], "projects": ["wiki", "elma"] }
+  ],
+  "ingressTokenEnv": "REQUEST_INGRESS_KEY",
+  "operatorTokenEnv": "REQUEST_OPERATOR_KEY",
+  "vk": {
+    "mode": "dispatcher",
+    "botId": "replace-with-bot-id",
+    "apiBase": "https://teams.example.invalid/bot/v1",
+    "tokenEnv": "REQUEST_VK_TOKEN"
+  },
+  "github": {
+    "tokenEnv": "REQUEST_GITHUB_TOKEN",
+    "botLogin": "replace-with-github-app-bot-login",
+    "webhookSecretEnv": "REQUEST_GITHUB_WEBHOOK_SECRET"
+  },
+  "leaseMs": 120000,
+  "maxRunMs": 1800000,
+  "maxJobs": 20,
+  "maxActive": 10
+}

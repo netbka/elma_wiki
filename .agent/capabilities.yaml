@@ -18,6 +18,10 @@ classification:
     tooling: "Storybook, agent docs, build/test tooling"
     content: "public/product/documentation wording"
 capabilities:
+  request-bot:
+    owners: ["services/request-bot/", ".github/workflows/request-bot.yml"]
+    routes: ["docs/contracts/request-bot.md", "services/request-bot/README.md", "docs/plans/vk-teams-agent-delivery.md"]
+    boundaries: ["domain", "storage", "security", "connection", "tooling", "ops"]
   analyst-releases:
     owners: ["lib/releases.mjs", "web/releases/", "web/releases.html", "test/releases.test.mjs"]
     routes: ["docs/contracts/analyst-releases.md", "docs/workflows/analyst-release.md", "docs/plans/analyst-release-investigation.md"]

@@ -26,6 +26,7 @@ Last repository verification: 2026-10-07.
   hashes invalidate stale evidence. Without a profile no external SDK is resolved,
   and TypeScript PASS does not mean ELMA compiler PASS. The SDK is never downloaded
   by the application.
+- Request-bot coordination and bounded worker slice (issue #19): standalone disabled-by-default Node service in services/request-bot; durable SQLite requests/inbox/outbox/jobs, private clarification, revision-bound approval, independent agent/publisher roles, leases and recovery, VK dispatcher/dedicated-polling adapter and safe GitHub issue/status projection. A data-only Responses worker now generates scoped wiki_code file changes; private SHA-256 artifacts and a separately credentialed publisher produce a draft PR with an independently checked receipt. File-backed SQLite/HTTP/provider-double tests only; no live model/bot/GitHub transport or Dev2 evidence. PR_READY is not passing CI or task completion. See contracts/request-bot.md and services/request-bot/WORKER.md.
 
 ## Designed, not yet proven as runtime
 - Source ELMA connection/export into immutable snapshots.
@@ -35,6 +36,7 @@ Last repository verification: 2026-10-07.
 - Storybook coverage of existing public/auth/project viewer renderers; workflow catalog has explicit exclusions for these surfaces.
 - Build, live ELMA connections, deployment candidates and read-back for the
   browser workspace (Slice B not started).
+- Full request-to-Dev2 loop: general tool-using executor/build sandbox, CI observation/repair, live model and bot connections, delivery integration, genuine browser evidence, acceptance/merge and operational hardening remain beyond the bounded issue #19 worker slice.
 
 ## Safety
 - No PROD deployment capability is verified.

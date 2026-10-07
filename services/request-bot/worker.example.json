@@ -1,0 +1,25 @@
+{
+  "installation": "operator-selected-coordinator-instance",
+  "role": "agent",
+  "coordinator": "http://127.0.0.1:43174",
+  "tokenEnv": "REQUEST_AGENT_KEY",
+  "githubTokenEnv": "REQUEST_AGENT_GITHUB_READ_TOKEN",
+  "provider": {
+    "model": "replace-with-approved-structured-output-model",
+    "tokenEnv": "REQUEST_MODEL_API_KEY",
+    "maxOutputTokens": 4096,
+    "maxCallsPerDay": 20
+  },
+  "maxJobMs": 300000,
+  "projects": {
+    "wiki": {
+      "repository": "netbka/elma_wiki",
+      "baseRef": "main",
+      "taskKind": "wiki_code",
+      "contextFiles": ["AGENTS.md", ".agent/capabilities.yaml", "docs/PUBLIC_DEPLOYMENT.md"],
+      "editableFiles": ["web/public.js", "test/public-site.test.mjs"],
+      "publishEnabled": false,
+      "allowPublicCode": false
+    }
+  }
+}

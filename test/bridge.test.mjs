@@ -37,6 +37,15 @@ async function approvedRelease(projects, releases, owner = 'alice') {
 }
 const confirmation = attempt => `DEPLOY ${attempt.solutionCode} ${attempt.sha256.slice(0, 12)}`;
 
+async function waitForWorker(bridges, bridgeId) {
+  const deadline = Date.now() + 5000;
+  while (Date.now() < deadline) {
+    if ((await bridges.get(bridgeId, 'alice')).online) return;
+    await new Promise(resolve => setTimeout(resolve, 25));
+  }
+  assert.fail('worker did not report online within 5 seconds');
+}
+
 // An in-process stand-in for the operator worker: it owns the "Target" state the way the real worker owns
 // the ELMA host, and it only ever talks to the store through the worker-side API (authenticate/poll/
 // artifact/complete), so the test exercises the same seams as the HTTP routes.
@@ -82,7 +91,7 @@ test('bridge: token issued once and stored hashed; delivery runs end to end thro
   await assert.rejects(delivery.prepare(release.id, 'alice', { revision: release.revision, connectionId: connection.id }), /Target недоступен/);
   const worker = fakeWorker(bridges, token, { inventory: await inventoryOf(await fixture(false)) });
   t.after(() => worker.stop());
-  await new Promise(resolve => setTimeout(resolve, 150));
+  await waitForWorker(bridges, bridge.id);
   assert.equal((await bridges.get(bridge.id, 'alice')).online, true);
   probed = await delivery.connections.probe(connection.id, 'alice');
   assert.equal(probed.probe.ok, true); assert.equal(probed.probe.identity.host, 'test.example.invalid');
@@ -105,7 +114,7 @@ test('bridge: slow import returns deploying and finishes in the background; unap
   const { bridge, token } = await bridges.create('alice', { name: 'Медленный мост' });
   const connection = await delivery.connections.create('alice', { name: 'TEST через мост', role: 'target', environment: 'test', adapter: 'bridge', adapterOptions: { bridgeId: bridge.id } });
   let worker = fakeWorker(bridges, token, { inventory: await inventoryOf(await fixture(false)), delayMs: 300, importApplies: false });
-  await new Promise(resolve => setTimeout(resolve, 150));
+  await waitForWorker(bridges, bridge.id);
   const release = await approvedRelease(projects, releases);
   let attempt = await delivery.prepare(release.id, 'alice', { revision: release.revision, connectionId: connection.id });
   attempt = await delivery.confirm(release.id, attempt.id, 'alice', { idempotencyKey: 'slow', confirmation: confirmation(attempt) });
@@ -143,7 +152,7 @@ test('bridge: owner isolation, PROD identity refusal and timeouts without a work
   // A worker that is actually pointed at a protected host is refused by identity, whatever the connection says.
   const worker = fakeWorker(bridges, token, { host: 'prod.example.invalid', inventory: await inventoryOf(await fixture(false)) });
   t.after(() => worker.stop());
-  await new Promise(resolve => setTimeout(resolve, 150));
+  await waitForWorker(bridges, bridge.id);
   const connection = await delivery.connections.probe((await delivery.connections.create('alice', { name: 'Якобы TEST', role: 'target', environment: 'test', adapter: 'bridge', adapterOptions: { bridgeId: bridge.id } })).id, 'alice');
   assert.equal(connection.probe.protectedHost, true);
   const release = await approvedRelease(projects, releases);
