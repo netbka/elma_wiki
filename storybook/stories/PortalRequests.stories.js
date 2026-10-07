@@ -1,0 +1,16 @@
+import { mountRequests } from '../../web/requests/render.js';
+import { requestFixture } from '../../web/requests/fixtures.js';
+export default { id: 'portal-requests', title: 'Исполнение/Задания портала', parameters: { layout: 'fullscreen' } };
+const story = state => ({ render: () => mountRequests(requestFixture(state), Object.fromEntries(['refresh', 'create', 'reply', 'approve', 'cancel'].map(k => [k, async () => { throw Error('Учебный пример: выберите следующее состояние в Storybook.'); }])) ) });
+export const Empty = story('empty');
+export const Loading = story('loading');
+export const Unconfigured = story('unconfigured');
+export const LoadError = story('error');
+export const WaitingForWorker = story('TRIAGING');
+export const Clarification = story('WAITING_USER');
+export const Approval = story('AWAITING_APPROVAL');
+export const Queued = story('QUEUED');
+export const Implementing = story('IMPLEMENTING');
+export const Result = story('PR_READY');
+export const Blocked = story('BLOCKED');
+export const Cancelled = story('CANCELLED');
