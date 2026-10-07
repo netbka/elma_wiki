@@ -8,9 +8,12 @@ import 'monaco-editor/esm/vs/editor/contrib/find/browser/findController.js';
 import 'monaco-editor/esm/vs/editor/contrib/gotoSymbol/browser/goToCommands.js';
 
 self.MonacoEnvironment = {getWorkerUrl:(_,label) => label === 'typescript' || label === 'javascript' ? '/assets/ts.worker.js' : '/assets/editor.worker.js'};
-const $ = id => document.getElementById(id), [,,projectId,objectId] = location.pathname.split('/');
-const prefix = '/api/projects/' + encodeURIComponent(projectId) + '/workspace/' + encodeURIComponent(objectId);
-$('back').href='/p/'+encodeURIComponent(projectId)+'/#/object/'+encodeURIComponent(objectId);
+const $ = id => document.getElementById(id), parts = location.pathname.split('/'), [,,projectId,objectId] = parts;
+const contextual = parts[1] === 'solutions';
+const prefix = contextual ? `/api/solutions/${parts[2]}/artifacts/${parts[4]}/objects/${parts[5]}/workspace`
+  : '/api/projects/' + encodeURIComponent(projectId) + '/workspace/' + encodeURIComponent(objectId);
+$('back').href = contextual ? '/solutions?' + new URLSearchParams({ id: parts[2], view: 'solution' }) : '/p/'+encodeURIComponent(projectId)+'/#/object/'+encodeURIComponent(objectId);
+if (contextual) $('back').textContent = '← Решение';
 let state, remote, selected, editor, diff, originalModel, modifiedModel, typesModels=[], models={}, timer, saving, dirty=false, frozen=false, generation=0, showingDiff=false;
 const buttons=['save','check','checkpoint','changes','restore'];
 const busy = value => buttons.forEach(id => $(id).disabled=value || frozen);

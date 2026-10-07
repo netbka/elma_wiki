@@ -26,7 +26,7 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
   };
   const check = (form, label) => { const wrap = el('label', undefined, 'managed-check'), input = el('input'); input.type = 'checkbox'; wrap.append(input, el('span', label)); form.append(wrap); return input; };
   const technical = (parent, label, data) => { const details = el('details'), code = el('pre', JSON.stringify(data, null, 2)); details.append(el('summary', label), code); parent.append(details); };
-  const controls = () => root.querySelectorAll('button,input,select');
+  const controls = () => root.querySelectorAll('button,input,select,textarea');
   const lock = () => controls().forEach(node => { node.disabled = busy || blocked || node.dataset.unavailable === 'true'; });
   const run = async operation => {
     if (busy || blocked) return;
@@ -106,6 +106,7 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
       for (const row of state.current) { const tr = el('tr'); tr.append(el('td', row.code), el('td', row.team), el('td', row.interventionId ? 'Принятое изменение' : 'Принятая версия')); table.append(tr); }
       const scroll = el('div', undefined, 'managed-table'); scroll.tabIndex = 0; scroll.setAttribute('role', 'region'); scroll.setAttribute('aria-label', 'Рабочее состояние объектов'); scroll.append(table); current.append(scroll);
       history.append(el('h2', 'Принятые изменения'), el('p', `Изменений: ${state.changes.length} · Обновлений версии: ${state.reconciliations.length}`));
+      for (const row of state.reviewedChanges || []) history.append(link(row.kind === 'change' ? row.options.taskRef : 'Обновление версии', workspaceUrl(state.id, 'review', row.artifactId)));
       const events = { created: 'Добавлено решение', 'change-accepted': 'Принято изменение', 'baseline-accepted': 'Принята новая версия', archived: 'Перемещено в архив', reopened: 'Работа возобновлена' };
       const list = el('ol'); state.history.forEach(row => list.append(el('li', events[row.type] || row.type))); history.append(list);
       const artifacts = el('details'); artifacts.append(el('summary', 'Исходные файлы и технические данные'), el('p', summary.source),
@@ -177,6 +178,10 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
     const full = review.kind === 'reconciliation', form = el('form'), boundaryKeys = new Set(), resolutions = {};
     content.append(el('h2', full ? 'Рассмотреть обновление версии' : 'Рассмотреть изменение'),
       el('p', full ? `После принятия это станет текущей версией. Заявленная ответственность: ${review.options.baselineOwner}.` : `Ответственная команда: ${review.options.team} · ${review.options.taskRef}.`));
+    if (review.uploadedBy) content.append(el('p', `Загрузил: ${review.uploadedBy.login}`));
+    if (review.acceptedAt) content.append(el('p', `Принято: ${dateLabel(review.acceptedAt)} · ${review.acceptedDecision?.actor?.login || 'Автор решения не зафиксирован'}`, 'managed-accepted'));
+    if (review.stale) content.append(el('p', 'Это прежнее рассмотрение. Комментарии и исходные ссылки сохранены; новые решения здесь недоступны.', 'managed-note'),
+      link(review.supersededBy ? 'Открыть актуальное изменение' : 'Обновить состояние', workspaceUrl(state.id, review.supersededBy ? 'review' : null, review.supersededBy), true));
     const gate = el('p', '', 'managed-note'); gate.setAttribute('role', 'status');
     const submit = el('button', full ? 'Принять версию' : 'Принять изменение'); submit.type = 'submit';
     const update = () => { gate.textContent = reviewGate(review, [...boundaryKeys], resolutions); submit.disabled = !!gate.textContent; submit.dataset.unavailable = String(submit.disabled); };
@@ -184,26 +189,87 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
       const card = el('section', undefined, 'managed-card'); card.append(el('h3', componentName(row.key)), el('p', row.conflict ? 'Конфликт с изменением другой команды' : labels[row.classification] || row.classification));
       if (row.previousTeam || row.team) card.append(el('p', 'Текущая ответственность: ' + (row.previousTeam || row.team)));
       if (row.removed) card.append(el('p', 'Объект отсутствует в новом полном снимке. Выбор снимка удалит его из рабочего состояния.'));
-      if (!full && row.boundaryCrossing) {
+      if (!full && row.boundaryCrossing && !review.acceptedAt && !review.stale) {
         const choice = check(card, 'Изменение принятого объекта проверено'); choice.onchange = () => { choice.checked ? boundaryKeys.add(row.key) : boundaryKeys.delete(row.key); update(); };
       }
-      if (full && row.classification === 'conflict') {
+      if (full && row.classification === 'conflict' && !review.acceptedAt && !review.stale) {
         const label = el('label', 'Какую версию сохранить'), choice = el('select'); choice.id = 'managed-choice-' + ++sequence; label.htmlFor = choice.id;
         for (const [value, caption] of [['', 'Выберите решение'], ['keep-working', 'Сохранить наше изменение'], ['take-snapshot', 'Взять версию из полного снимка']]) { const option = el('option', caption); option.value = value; choice.append(option); }
         choice.onchange = () => { resolutions[row.key] = choice.value; update(); }; card.append(label, choice);
+      }
+      if (full && row.classification === 'conflict' && review.acceptedAt) card.append(el('p', review.acceptedDecision?.resolutions?.[row.key] === 'keep-working' ? 'Сохранена принятая версия' : review.acceptedDecision?.resolutions?.[row.key] === 'take-snapshot' ? 'Принята версия из экспорта' : 'Решение по конфликту не зафиксировано'));
+      const context = review.contexts?.find(item => item.key === row.key);
+      if (context && actions.context) {
+        const target = el('div', undefined, 'change-context'), show = button('Было и стало', async () => {
+          if (busy) return; show.disabled = true; target.replaceChildren(el('p', 'Загружаем исходные данные…'));
+          try {
+            const results = await Promise.allSettled([context.beforeArtifactId, context.afterArtifactId].map(id => id ? actions.context(id, context.objectRef) : Promise.resolve(null)));
+            target.replaceChildren();
+            results.forEach((result, index) => {
+              const panel = el('section'); panel.append(el('h4', index ? 'Стало' : 'Было'));
+              if (result.status === 'rejected') panel.append(el('p', result.reason.message));
+              else if (!result.value) panel.append(el('p', index ? 'Отсутствует в полном экспорте' : 'Новый объект'));
+              else {
+                const data = result.value; panel.append(el('p', data.source, 'managed-muted'));
+                technical(panel, 'Исходные данные объекта', data.content || 'Предпросмотр недоступен: неизвестные данные или превышен лимит');
+                if (index && data.editable && state.status === 'active') panel.append(link('Открыть код объекта', data.editorUrl));
+                panel.append(el('p', data.limitation, 'managed-muted'));
+              }
+              target.append(panel);
+            });
+          } catch (e) { target.replaceChildren(el('p', e.message)); }
+          finally { show.disabled = false; }
+        }, card); show.className = 'secondary'; card.append(target);
       }
       technical(card, 'Идентичность и доказательства сравнения', row); form.append(card);
     }
     if (!review.rows.length) form.append(el('p', 'Изменений распознанных объектов нет. Проверьте полноту исходного снимка перед принятием.'));
     if (review.ambiguities.length) technical(form, 'Нераспознанные части', review.ambiguities);
     form.append(link('Скачать исходный файл', `${api}/${state.id}/artifacts/${review.artifactId}/original`));
-    const confirm = check(form, full ? 'Принимаю версию и выбранные решения; установка в ELMA не выполняется' : 'Принимаю рассмотренное изменение'); confirm.required = true;
-    form.append(gate, submit); update();
+    if (!review.acceptedAt && !review.stale) {
+      const confirm = check(form, full ? 'Принимаю версию и выбранные решения; установка в ELMA не выполняется' : 'Принимаю рассмотренное изменение'); confirm.required = true;
+      form.append(gate, submit); update();
+      if (review.discussion?.blocking) submit.hidden = true;
+    }
     form.onsubmit = event => { event.preventDefault(); if (reviewGate(review, [...boundaryKeys], resolutions) || !form.reportValidity()) return;
       run(() => actions.accept(review.artifactId, { expectedRevision: review.revision, reviewedDigest: review.artifactDigest,
+        ...(review.discussion ? { expectedDiscussionRevision: review.discussion.version } : {}),
         ...(full ? { resolutions } : { reviewedBoundaryKeys: [...boundaryKeys] }) }));
     };
-    content.append(form, link('Загрузить другую версию', workspaceUrl(state.id, 'full'))); return root;
+    content.append(form);
+    if (review.discussion) {
+      const discussion = el('section', undefined, 'change-discussion'); discussion.append(el('h2', 'Комментарии и замечания'));
+      const anchorLabels = { current: 'Объект совпадает', stale: 'Объект изменился; исходная ссылка сохранена', removed: 'Объект удалён из полного экспорта', ambiguous: 'Связь с объектом неоднозначна' };
+      const editable = !review.stale && state.status === 'active';
+      const entry = (parent, label, type, parentId) => {
+        const f = el('form'), caption = el('label', label), text = el('textarea'); text.id = 'change-comment-' + ++sequence; text.required = true; text.maxLength = 4000; caption.htmlFor = text.id; f.append(caption, text);
+        let key;
+        if (!parentId) { key = el('select'); key.setAttribute('aria-label', 'К чему относится комментарий'); const all = el('option', 'К изменению'); all.value = ''; key.append(all);
+          review.rows.forEach(row => { const option = el('option', componentName(row.key)); option.value = row.key; key.append(option); }); f.append(key); }
+        const send = async kind => { await actions.comment(review.artifactId, { expectedRevision: state.revision,
+          expectedDiscussionRevision: review.discussion.version, type: kind, text: text.value,
+          ...(parentId ? { parentId } : key?.value ? { componentKey: key.value } : {}) }); };
+        const submit = el('button', type === 'comment' ? 'Комментарий' : type === 'reply' ? 'Ответить' : type === 'resolve' ? 'Замечание устранено' : 'Открыть замечание', 'secondary'); submit.type = 'submit'; f.append(submit);
+        f.onsubmit = event => { event.preventDefault(); if (f.reportValidity()) run(() => send(type)); };
+        if (type === 'comment') button('Нужны изменения', () => { if (f.reportValidity()) run(() => send('reject')); }, f).className = 'secondary';
+        parent.append(f);
+      };
+      if (!review.discussion.findings.length) discussion.append(el('p', 'Комментариев пока нет.'));
+      for (const finding of review.discussion.findings) {
+        const card = el('article', undefined, 'managed-card'); card.append(el('h3', finding.type === 'reject' ? finding.status === 'open' ? 'Нужны изменения' : 'Замечание устранено' : 'Комментарий'),
+          el('p', `${finding.actor?.login || finding.author} · ${dateLabel(finding.createdAt)}`, 'managed-muted'), el('p', finding.text, 'change-text'));
+        if (finding.anchor?.key) card.append(el('p', `${componentName(finding.anchor.key)} · ${anchorLabels[finding.anchorStatus]}`, 'managed-muted'));
+        for (const reply of finding.replies) card.append(el('p', `${reply.actor?.login || reply.author}: ${reply.text}`, 'change-text'));
+        if (finding.resolution) card.append(el('p', `${finding.resolution.actor?.login || finding.resolution.author}: ${finding.resolution.text}`, 'change-text'));
+        if (editable) { const d = el('details'); d.append(el('summary', 'Ответить или изменить статус')); entry(d, 'Ответ', 'reply', finding.id);
+          if (finding.type === 'reject') entry(d, 'Что исправлено или что ещё нужно изменить', finding.status === 'open' ? 'resolve' : 'reopen', finding.id); card.append(d); }
+        discussion.append(card);
+      }
+      if (editable) entry(discussion, 'Комментарий к изменению', 'comment');
+      content.append(discussion);
+      if (editable) content.append(link('Добавить исправление', workspaceUrl(state.id, full ? 'full' : 'change', review.artifactId), !!(review.acceptedAt || review.discussion.blocking)));
+    }
+    content.append(link('Загрузить другую версию', workspaceUrl(state.id, 'full'))); return root;
   }
   content.append(el('p', 'Сравнение недоступно. Вернитесь к обзору и выберите актуальное действие.'), link('К обзору', workspaceUrl(state?.id), true));
   return root;

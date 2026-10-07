@@ -77,6 +77,23 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
       }
       if (await auth.route(req, res, url)) return;
       const session = auth.session(req);
+      const solutionObject = /^\/api\/solutions\/([^/]+)\/artifacts\/([^/]+)\/objects\/([a-f0-9]{64})(?:\/workspace(?:\/(save|check|checkpoint|restore))?)?$/.exec(pathname);
+      if (solutionObject) {
+        const [, id, artifactId, ref, action] = solutionObject;
+        if (!session) return send(res, 404, { error: 'Объект не найден' });
+        const context = await solutions.context(id, artifactId, ref);
+        if (!pathname.includes('/workspace')) return req.method === 'GET' ? send(res, 200, context) : send(res, 405, { error: 'Только чтение' });
+        if (!context.editable) return send(res, 422, { error: 'Для объекта редактор не поддерживается' });
+        const editor = workspaceStore(solutions.uploads, { actor: session.user, action });
+        if (req.method === 'GET' && !action) return send(res, 200, await editor.read(context.projectId, SOLUTION_CATALOG, context.objectId));
+        if (req.method !== 'POST' || !action) return send(res, 405, { error: 'Метод не поддерживается' });
+        if (req.headers['content-type']?.split(';')[0] !== 'application/json') return send(res, 415, { error: 'Требуется JSON' });
+        const input = JSON.parse((await body(req, 600 * 1024)).toString('utf8'));
+        const allowed = ['revision', ...(action === 'save' ? ['files'] : action === 'checkpoint' ? ['label'] : action === 'restore' ? ['checkpoint'] : [])];
+        if (!input || typeof input !== 'object' || Array.isArray(input) || Object.keys(input).some(key => !allowed.includes(key))) return send(res, 400, { error: 'Некорректное изменение кода' });
+        return send(res, 200, await solutions.managed.withActive(id, SOLUTION_CATALOG,
+          () => editor[action](context.projectId, SOLUTION_CATALOG, context.objectId, input)));
+      }
       if (pathname === '/api/solutions/uploads') {
         if (!session) return send(res, 401, { error: 'Войдите в сервис' });
         if (req.method !== 'POST') return send(res, 405, { error: 'Метод не поддерживается' });
@@ -88,7 +105,7 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
         try { return send(res, 201, await solutions.uploads.create(SOLUTION_CATALOG, await body(req, limits.upload), url.searchParams.get('filename') || 'configuration.e365', session.user)); }
         finally { uploading = false; }
       }
-      const solutionMatch = /^\/api\/solutions(?:\/([^/]+)(?:\/(prepare|archive)|\/artifacts\/([^/]+)\/(preview|accept|original|visual))?)?$/.exec(pathname);
+      const solutionMatch = /^\/api\/solutions(?:\/([^/]+)(?:\/(prepare|archive)|\/artifacts\/([^/]+)\/(preview|review|discussion|accept|original|visual))?)?$/.exec(pathname);
       if (solutionMatch) {
         const [, id, operation, artifactId, artifactAction] = solutionMatch, action = operation || artifactAction;
         if (!session) return send(res, id ? 404 : 401, { error: id ? 'Решение не найдено' : 'Войдите в сервис' });
@@ -101,20 +118,22 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
           return send(res, 200, await store.list(SOLUTION_CATALOG, { archived: archived === 'true' }));
         }
         if (req.method === 'GET' && action === 'preview') return send(res, 200, await store.preview(id, SOLUTION_CATALOG, artifactId));
+        if (req.method === 'GET' && action === 'review') return send(res, 200, await store.review(id, SOLUTION_CATALOG, artifactId));
         if (req.method === 'GET' && action === 'visual') return send(res, 200, await snapshotVisual(await store.original(id, SOLUTION_CATALOG, artifactId), artifactId));
         if (req.method === 'GET' && action === 'original') {
           const bytes = await store.original(id, SOLUTION_CATALOG, artifactId);
           res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Disposition': 'attachment; filename="solution.e365"', 'Cache-Control': 'no-store' });
           return res.end(bytes);
         }
-        if (req.method !== 'POST' || (id && !['prepare', 'archive', 'accept'].includes(action))) return send(res, 405, { error: 'Метод не поддерживается' });
+        if (req.method !== 'POST' || (id && !['prepare', 'archive', 'accept', 'discussion'].includes(action))) return send(res, 405, { error: 'Метод не поддерживается' });
         if (req.headers['content-type']?.split(';')[0] !== 'application/json') return send(res, 415, { error: 'Требуется JSON' });
         const input = JSON.parse((await body(req, 256 * 1024)).toString('utf8'));
         if (!id) {
           if (input?.sharedConfirmed !== true) return send(res, 400, { error: 'Подтвердите общее решение' });
           delete input.sharedConfirmed;
         }
-        const result = !id ? await store.create(SOLUTION_CATALOG, input, session.user) : action === 'prepare' ? await store.prepare(id, SOLUTION_CATALOG, input, session.user)
+        const result = !id ? await store.create(SOLUTION_CATALOG, input, session.user) : action === 'discussion' ? await store.comment(id, SOLUTION_CATALOG, artifactId, input, session.user)
+          : action === 'prepare' ? await store.prepare(id, SOLUTION_CATALOG, input, session.user)
           : action === 'accept' ? await store.accept(id, SOLUTION_CATALOG, artifactId, input, session.user) : await store.setArchived(id, SOLUTION_CATALOG, input, session.user);
         return send(res, !id || action === 'prepare' ? 201 : 200, result);
       }
@@ -315,6 +334,14 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
       }
       if (pathname.startsWith('/api/')) return send(res,404,{error:'API не найден'});
       const editorMatch = /^\/workspace\/([^/]+)\/([^/]+)$/.exec(pathname);
+      const solutionCode = /^\/solutions\/([^/]+)\/code\/([^/]+)\/([a-f0-9]{64})$/.exec(pathname);
+      if (solutionCode) {
+        if (!session) return send(res, 404, { error: 'Объект не найден' });
+        const context = await solutions.context(...solutionCode.slice(1));
+        if (!context.editable) return send(res, 422, { error: 'Для объекта редактор не поддерживается' });
+        if (!['GET', 'HEAD'].includes(req.method)) return send(res, 405, { error: 'Только чтение' });
+        return serve(req, res, path.join(project, 'web'), '/workspace.html');
+      }
       if (editorMatch) {
         if (!session || !await projects.get(editorMatch[1],session.user.id)) return send(res,404,{error:'Проект не найден'});
         if (req.method !== 'GET' && req.method !== 'HEAD') return send(res,405,{error:'Только чтение'});

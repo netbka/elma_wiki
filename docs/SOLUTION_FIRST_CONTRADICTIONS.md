@@ -15,13 +15,13 @@ Authority target: SOLUTION_FIRST_PRODUCT_PLAN.md.
 | Three-area model | #30 frames Learn / Code & lint / Review as product entries | Keep capabilities, not equal destinations | Code and Review become contextual |
 | Storybook | Engineering Storybook and solution review were conflated | Storybook is engineering infrastructure; user sees Preview/Review | Shared renderer, no Storybook vocabulary in product UI |
 | Release entry | #11 starts from packages/releases | Delivery is contextual to accepted Solution state | Reuse domain, change entry/navigation |
-| Code workspace | Browser editor exists as distinct capability | Code belongs to supported object/change | Keep editor core; remove global Code home |
+| Code workspace | Browser editor exists as distinct capability | Code belongs to supported object/change | P4 links the existing editor from checksum-bound Change context, preserves immutable exports and attributes shared working-copy mutations |
 | Manual upload | Every .e365 becomes isolated project | Files are inputs to Solution lifecycle | Standalone inspection remains compatibility-only |
 | Partial package | File model can make each input look complete | Partial package never means deletion or baseline | Preserve explicit scope evidence internally |
 | Baseline | Engine exposes baseline as core domain object | Prefer Current/Accepted version in normal UI | Keep baseline in technical details |
 | Virtual state | Engine can compute effective state | Virtual state is not automatically deployable | No Send to TEST without proven candidate path |
 | Delivery | Bridge foundation may tempt early pipeline UI | TEST is a later contextual phase | P6 only; no pipeline builder/PROD |
-| Comments | Some Storybook review paths use unauthenticated signatures | Product comments belong to authenticated actors | Move product review writes to shared actor model |
+| Comments | Some Storybook review paths use unauthenticated signatures | Product comments belong to authenticated actors | P4 reuses review event rules in the private Solution record; trusted session actors, revision gates and persistent cross-version anchors |
 | Legacy private data | Existing records may contain private content | Shared catalog must not expose them by default | P1 never reads legacy roots through shared routes; inventory/classify/approve a new copy explicitly |
 | Public/Vercel | Earlier work treated public portal as milestone | Internal Solution-first product is priority | No new Vercel work without owner assignment |
 | Git/GitHub | Engineering uses issues/PRs | Git is implementation ledger, not user model | No PR/branch/commit language in normal UI |

@@ -26,15 +26,17 @@ const actions = {
   logout: async () => { await request('/auth/logout', {}); navigate('/login'); },
   upload: file => request((shared ? '/api/solutions/uploads?sharedConfirmed=true&filename=' : '/api/projects?filename=') + encodeURIComponent(file.name), file, true),
   create: async input => { const state = await request(api, input); navigate(href(state.id)); },
-  prepare: async input => { const review = await request(`${api}/${id}/prepare`, input); navigate(href(id, 'review', review.artifactId)); },
+  prepare: async input => { const review = await request(`${api}/${id}/prepare`, { ...input, ...(shared && artifact && ['change', 'full'].includes(view) ? { supersedesArtifactId: artifact } : {}) }); navigate(href(id, 'review', review.artifactId)); },
   accept: async (artifactId, input) => { await request(`${api}/${id}/artifacts/${artifactId}/accept`, input); navigate(href(id)); },
-  archive: async input => { await request(`${api}/${id}/archive`, input); navigate(href(id)); }
+  archive: async input => { await request(`${api}/${id}/archive`, input); navigate(href(id)); },
+  comment: async (artifactId, input) => { await request(`${api}/${id}/artifacts/${artifactId}/discussion`, input); navigate(href(id, 'review', artifactId)); },
+  context: (artifactId, ref) => request(`${api}/${id}/artifacts/${artifactId}/objects/${ref}`)
 };
 root.replaceChildren(mountManagedWorkspace({ ...config, view, loading: true }));
 let workspace;
 try {
   workspace = id ? await request(`${api}/${encodeURIComponent(id)}`) : null;
-  const review = id && artifact && view === 'review' ? await request(`${api}/${encodeURIComponent(id)}/artifacts/${encodeURIComponent(artifact)}/preview`) : null;
+  const review = id && artifact && view === 'review' ? await request(`${api}/${encodeURIComponent(id)}/artifacts/${encodeURIComponent(artifact)}/${shared ? 'review' : 'preview'}`) : null;
   const rows = !id && view !== 'create' ? await request(api + (view === 'archived' ? '?archived=true' : '')) : [];
   root.replaceChildren(mountManagedWorkspace({ ...config, workspace, view, review, rows }, actions));
   document.title = (workspace?.name || (view === 'create' ? 'Добавить решение' : 'Решения')) + ' · E365';
