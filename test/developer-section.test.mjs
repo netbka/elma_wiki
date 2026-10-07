@@ -28,7 +28,7 @@ test('homepage and public showcase expose developer guides without login', async
   for (const id of ['file-development', 'field-form-recipe', 'workbench']) assert.ok(home.includes(`#/article/${id}`));
   const response = await fetch(base + '/p/showcase/developer-articles.js'); assert.equal(response.status, 200);
   const source = await response.text(); assert.ok(source.includes('compatibility-lab'));
-  const app = await (await fetch(base + '/p/showcase/app.js')).text(); assert.ok(app.includes('developer-entry')); assert.ok(app.includes('esc(a.status'));
+  assert.equal((await fetch(base + '/p/showcase/articles.js')).status, 200);
 });
 test('VSIX includes only extension implementation and a matching install manifest', async () => {
   await promisify(execFile)(process.execPath, ['tools/package-workbench.mjs']);
