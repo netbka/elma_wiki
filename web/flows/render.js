@@ -23,21 +23,23 @@ export function mountFlow({ flow, initial, reviewMount } = {}) {
   const reset = el('button', 'Начать заново'); reset.type = 'button'; reset.onclick = () => { session = startFlow(flow); draw(); };
   const reviewHost = el('section', undefined, 'flow-review');
   root.append(heading, map, stage, branches, notes, reset, history, reviewHost);
-  function draw() {
+  function draw(focusStage = false) {
     map.replaceChildren();
     for (const state of flow.states) { const row = el('li', state.title); row.dataset.state = state.id; if (state.id === session.current) row.setAttribute('aria-current', 'step'); map.append(row); }
     const state = flow.states.find(state => state.id === session.current);
     stage.replaceChildren(el('p', `Кто действует: ${state.actor}`, 'flow-badge'), el('h2', state.title), el('p', state.explanation));
+    const stageHeading = stage.querySelector('h2'); stageHeading.tabIndex = -1;
     if (flow.id === 'approval') stage.append(el('p', `Версия документа: ${session.version}. Согласована версия: ${session.approvedVersion ?? 'нет'}.`));
     if (flow.id === 'correspondence') stage.append(el('p', `Поле входящего: ${session.topic || 'пусто'}.`));
     if (flow.id === 'workspace') stage.append(el('p', `Рабочая ревизия: ${session.workspaceRevision}. Проверка: ${session.workspaceCheck || 'требуется'}.`));
     if (state.evidence) stage.append(el('p', `Доказательство / ожидаемая запись: ${state.evidence}`, 'flow-evidence'));
     const actions = el('div', undefined, 'flow-actions');
-    state.actions.forEach(action => { const button = el('button', action.label); button.type = 'button'; button.dataset.action = action.id; button.onclick = () => { session = transition(flow, session, action.id); draw(); }; actions.append(button); });
+    state.actions.forEach(action => { const button = el('button', action.label); button.type = 'button'; button.dataset.action = action.id; button.onclick = () => { session = transition(flow, session, action.id); draw(true); }; actions.append(button); });
     if (!state.actions.length) actions.append(el('p', 'Сценарий завершён. Проверьте результат и оставьте рецензию.'));
     stage.append(actions);
     log.replaceChildren(); session.history.forEach(event => log.append(el('li', event.action)));
     reviewHost.dataset.step = session.current;
+    if (focusStage) stageHeading.focus({ preventScroll: true });
   }
   draw();
   if (reviewMount) reviewMount(reviewHost, flow, () => session.current);
@@ -50,8 +52,11 @@ export function mountCatalog(options = {}) {
   overview.append(el('p', 'ELMA · единая картина для аналитика и бизнеса', 'flow-badge'), el('h1', 'Как работает система'), el('p', 'Потребность → исследование → рецензия → изменение → проверенный результат. Выберите сценарий и пройдите основную и ошибочную ветки.'), el('p', 'Wiki хранит карту и доказательства. ELMA исполняет бизнес-процессы. Статус каждого сценария показывает, что реализовано, а что ещё требует проверки.'));
   const nav = el('nav'); nav.setAttribute('aria-label', 'Сценарии системы');
   const content = el('div');
+  // Retain each mounted journey, including its unsaved review, while exploring the map.
+  const journeys = new Map();
   const show = flow => {
-    content.replaceChildren(mountFlow({ flow, ...options }));
+    if (!journeys.has(flow.id)) journeys.set(flow.id, mountFlow({ flow, ...options }));
+    content.replaceChildren(journeys.get(flow.id));
     nav.querySelectorAll('button').forEach(button => { if (button.dataset.flow === flow.id) button.setAttribute('aria-current', 'true'); else button.removeAttribute('aria-current'); });
   };
   for (const flow of flows) { const button = el('button', flow.title); button.type = 'button'; button.dataset.flow = flow.id; button.onclick = () => show(flow); nav.append(button); }

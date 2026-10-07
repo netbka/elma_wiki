@@ -4,6 +4,7 @@ const phases = { intent: '1 · Цель пользователя', rules: '2 · 
 const severities = { should: 'Желательно', blocker: 'Блокирует', must: 'Обязательно', nit: 'Небольшое замечание' };
 const categories = { behavior: 'Поведение', data: 'Данные', rights: 'Права доступа', copy: 'Объяснение', accessibility: 'Доступность', other: 'Другое' };
 const statuses = { pending: 'Ожидает решения', rejected: 'Требует исправлений', approved: 'Принято для этой версии' };
+const eventLabels = { comment: 'Комментарий', reject: 'Отклонение', approve: 'Принятие', reply: 'Ответ', resolve: 'Закрытие', reopen: 'Повторное открытие' };
 export function mountReview(host, flow, currentStep) {
   let summary, busy = false, stale = false;
   const heading = el('h2', 'Рецензия сценария'), state = el('p', 'Загружаем рецензии…'); state.className = 'review-status'; state.setAttribute('role', 'status');
@@ -28,7 +29,7 @@ export function mountReview(host, flow, currentStep) {
   };
   function setBusy(value) {
     busy = value;
-    host.querySelectorAll('button').forEach(button => { button.disabled = value || (stale && button !== reload); });
+    host.querySelectorAll('button').forEach(button => { button.disabled = value || (stale && button !== reload) || (!summary && button !== refresh && button !== reload); });
   }
   async function save(type, extra = {}) {
     if (busy || stale || !summary) return;
@@ -65,7 +66,7 @@ export function mountReview(host, flow, currentStep) {
     }
     if (!summary.findings.length) comments.append(el('p', 'Замечаний этой версии пока нет.'));
     events.replaceChildren();
-    for (const event of [...summary.history || [], ...summary.events]) events.append(el('p', `${event.createdAt} · ${event.revision.slice(0, 12)} · ${event.author} · ${event.type}: ${event.text}`));
+    for (const event of [...summary.history || [], ...summary.events]) events.append(el('p', `${event.createdAt} · ${event.revision.slice(0, 12)} · ${event.author} · ${eventLabels[event.type] || event.type}: ${event.text}`));
     // Old decisions stay visible, but never accept the current revision.
     if (summary.previousRevisions.length) events.prepend(el('p', 'Предыдущие версии имеют отдельные решения. Текущая версия требует новой рецензии.'));
   }
