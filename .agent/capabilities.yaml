@@ -27,8 +27,8 @@ capabilities:
     routes: ["README.md", "testing/workflows/vk-login.json", "testing/workflows/email-login.json"]
     boundaries: ["security", "ui"]
   public-site:
-    owners: ["web/index.html", "web/service.css", "web/service.js", "web/public.js", "web/public.css", "lib/public-site.mjs", "tools/build-public.mjs", "vercel.json"]
-    routes: ["docs/PUBLIC_DEPLOYMENT.md", "docs/INDEX.md"]
+    owners: ["web/index.html", "web/service.css", "web/service.js", "web/public.js", "web/public.css", "web/public-article-sources.mjs", "lib/public-site.mjs", "tools/build-public.mjs", "vercel.json"]
+    routes: ["docs/PUBLIC_DEPLOYMENT.md", "docs/INDEX.md", "docs/workflows/public-article-sources.md"]
     boundaries: ["ui", "content"]
   projects:
     owners: ["lib/projects.mjs", "lib/store.mjs", "server.mjs", "web/dashboard.html"]
