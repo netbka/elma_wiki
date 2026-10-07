@@ -3,6 +3,7 @@
 Last repository verification: 2026-10-07.
 
 ## Implemented
+- Request-bot coordination/transport slice (issue #19): standalone disabled-by-default Node service in services/request-bot; durable SQLite requests/inbox/outbox/jobs, private clarification, revision-bound approval, worker/publisher role separation, bounded leases and recovery, VK dispatcher/dedicated-polling adapter, GitHub safe issue/status projection and verified PR receipt. Focused SQLite/HTTP/provider-double tests only. No actual LLM executor/publisher or live bot/Dev2 integration is proven; PR_READY is not task completion. See contracts/request-bot.md.
 - Immutable project snapshot storage foundation: isolated upload snapshots, trusted Source-reference append methods, pinned original bytes/parser revisions/provenance, owner-scoped snapshot reads and stale-safe selection. Legacy reparse pins its prior index; releases capture the selected snapshot. Synthetic evidence only; no Source adapter or selector UI. See contracts/project-snapshots.md.
 - Delivery foundation (AR-04 part 1): owner-scoped Target connection references without credentials, attempt lifecycle `prepared -> deploying -> deployed-unverified -> verified | verification-failed` with `failed`/`unknown-outcome`/`blocked`, server-side PROD refusal (environment and probed identity), explicit confirmation, idempotent single dispatch, drift/stale-approval blocking, restart reconciliation and read-back verification by file hash; «Доставка на Target» section on /releases with eight Storybook states and a browser check. Synthetic adapter only, disabled on a hosted service by default; no live Target. See contracts/target-deployment.md.
 - Owner-only offline analyst releases at /releases: explicitly pinned DEV/baseline originals, complete inventory comparison and structural field impact, durable decisions, revision conflicts, unchanged-original candidate and exact private handoff. Local acceptance never authorizes import; ELMA, dependency and target checks remain Not run. Workspace edits are excluded. See contracts/analyst-releases.md.
@@ -25,6 +26,7 @@ Last repository verification: 2026-10-07.
   by the application.
 
 ## Designed, not yet proven as runtime
+- Full request-to-Dev2 loop: isolated coding agent, artifact store/trusted publisher and CI iteration, bot connection, delivery integration, real browser evidence, acceptance/merge and hardened operations remain beyond the issue #19 coordinator slice.
 - Source ELMA connection/export into immutable snapshots.
 - Separate Target ELMA connection with a real adapter/bridge (the reference model and lifecycle exist; the live path does not).
 - Snapshot/workspace/target comparisons.
