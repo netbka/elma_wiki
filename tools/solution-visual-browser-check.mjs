@@ -40,6 +40,30 @@ try {
   assert.equal(await page.locator('.visual-form label').filter({hasText:'Комментарий'}).getByRole('textbox').isDisabled(),true);
   await page.locator('.visual-form').getByRole('button',{name:'Посмотреть переход: Повторное рассмотрение'}).click();
   await page.getByRole('heading',{name:'Согласование',exact:true}).waitFor();
+  await page.getByRole('button',{name:'Проверить путь по экспорту',exact:true}).click();
+  await page.getByLabel(/^Документ/).fill('Учебный договор');
+  await page.getByRole('button',{name:'Проверить переход: Согласовать',exact:true}).click();
+  await page.locator('.visual-form').getByRole('heading',{name:'Готово',exact:true}).waitFor();
+  await page.locator('svg [data-node=review]').click();
+  assert.equal(await page.getByLabel(/^Документ/).inputValue(),'Учебный договор','local fixture values survive branch exploration');
+  await page.getByRole('button',{name:'Проверить переход: Вернуть',exact:true}).click();
+  await page.getByRole('button',{name:'Проверить переход: Повторное рассмотрение',exact:true}).click();
+  await page.getByText('По экспорту требуется: Комментарий. Введённые значения сохранены.',{exact:true}).waitFor();
+  await fs.mkdir('qa',{recursive:true});await page.screenshot({path:'qa/solution-visual-missing-comment.png',fullPage:true});
+  await page.getByLabel(/^Комментарий ·/).fill('Исправьте срок договора');
+  await page.getByRole('button',{name:'Проверить переход: Повторное рассмотрение',exact:true}).click();
+  await page.getByRole('heading',{name:'Согласование',exact:true}).waitFor();
+  await page.getByRole('button',{name:'Завершить проверку пути',exact:true}).click();
+  assert.equal(await page.getByLabel(/^Документ/).isDisabled(),true);
+  await page.getByText('Комментарий к выбранному шагу: review',{exact:true}).waitFor();
+  await page.getByLabel('Комментарий к изменению',{exact:true}).fill('Проверка Wiki: возврат требует комментарий; native ELMA не наблюдалась.');
+  await page.getByRole('button',{name:'Комментарий',exact:true}).click();
+  await page.getByText('Шаг: review',{exact:true}).waitFor();
+  const discussed=await (await context.request.get(`${base}/api/solutions/${state.id}/artifacts/${review.artifactId}/review`)).json();
+  assert.equal(discussed.discussion.findings[0].sourceAnchor.nodeId,'review');
+  assert.equal(discussed.discussion.findings[0].actor.provider,'local');
+  await page.getByText('Посмотреть процесс и форму',{exact:true}).click();await page.locator('.solution-visual svg').waitFor();
+  await page.locator('svg [data-node=review]').click();
   await fs.mkdir('qa',{recursive:true});await page.screenshot({path:'qa/solution-visual-desktop.png',fullPage:true});
   await page.setViewportSize({width:390,height:844});
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
@@ -47,6 +71,15 @@ try {
   await page.evaluate(()=>{document.documentElement.style.zoom='2';});
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
   assert.deepEqual(errors,[]);
+  for(const state of ['happy','return','missing-comment']){
+    await page.evaluate(async state=>{
+      const {mountSnapshotVisual}=await import('/visual/render.js');const {visualFixture}=await import('/visual/fixtures.js');
+      document.querySelector('#managed-root').replaceChildren(mountSnapshotVisual(visualFixture(state)));
+    },state);
+    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),state);
+    if(state==='missing-comment')await page.getByText('По экспорту требуется: Комментарий. Введённые значения сохранены.',{exact:true}).waitFor();
+    await page.screenshot({path:`qa/solution-visual-story-${state}.png`,fullPage:true});
+  }
   await page.evaluate(async()=>{
     const {mountSnapshotVisual}=await import('/visual/render.js');
     const {visualFixture}=await import('/visual/fixtures.js');
@@ -66,8 +99,8 @@ try {
   });
   assert.equal(await page.getByText('Область процесса не поддерживается: Согласующий',{exact:true}).count(),1,
     'a lane with invalid geometry stays visible as unsupported source evidence');
-  await fs.writeFile('qa/solution-visual-browser-evidence.json',JSON.stringify({synthetic:true,api:true,sourceGeometry:true,explicitForm:true,branches:'view-only',keyboard:true,mobile:true,zoom:true,importedActionsExecuted:false,nativeObservation:false}));
-  console.log('Solution visual: actual shared artifact API, geometry, explicit form, view-only branches, inert controls, XSS, keyboard, mobile and zoom passed.');
+  await fs.writeFile('qa/solution-visual-browser-evidence.json',JSON.stringify({synthetic:true,api:true,sourceGeometry:true,explicitForm:true,branches:'view-only and bounded Wiki simulation',happy:true,returnWithComment:true,missingComment:true,attributedStepFinding:true,keyboard:true,mobile:true,zoom:true,importedActionsExecuted:false,nativeObservation:false}));
+  console.log('Solution visual: shared artifact API, geometry, explicit form, happy/return/missing-comment Wiki checks, attributed step discussion, inert controls, XSS, keyboard, mobile and zoom passed.');
 } finally {
   await browser?.close();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));
   assert.equal(path.dirname(directory),os.tmpdir());await fs.rm(directory,{recursive:true,force:true});
