@@ -8,7 +8,25 @@ async function init() {
   if (location.pathname === '/login') {
     const session = await request('/api/session');
     $('local-login-card').classList.toggle('hidden',!session.localEnabled);
-    $('email-setup').classList.toggle('hidden',session.emailConfigured);
+    $('email-login-card').classList.toggle('hidden',!session.emailConfigured);
+    $('vk-login-card').classList.toggle('hidden',!session.vkConfigured);
+    $('auth-setup').classList.toggle('hidden',session.emailConfigured || session.vkConfigured || session.localEnabled);
+    if (session.vkBotUrl) { $('vk-bot-link').href=session.vkBotUrl; $('vk-bot-link').classList.remove('hidden'); }
+    $('vk-request').onsubmit = async event => {
+      event.preventDefault(); $('send-vk').disabled=true; status('Отправляем код в VK Teams…');
+      try {
+        const result=await request('/auth/vk/request',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({login:$('vk-login').value})});
+        status(result.message); $('vk-key').focus();
+        let seconds=60;
+        const timer=setInterval(()=>{ seconds--; $('send-vk').textContent=seconds>0 ? `Повторно через ${seconds} с` : 'Получить код в VK Teams'; if(seconds<=0) {clearInterval(timer);$('send-vk').disabled=false;} },1000);
+      } catch(e) {status(e.message);$('send-vk').disabled=false;}
+    };
+    $('vk-verify').onsubmit = async event => {
+      event.preventDefault(); if(!$('vk-login').reportValidity()) return;
+      $('verify-vk').disabled=true; status('Проверяем код…');
+      try {await request('/auth/vk/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({login:$('vk-login').value,key:$('vk-key').value})});location.href='/dashboard';}
+      catch(e) {status(e.message);$('verify-vk').disabled=false;}
+    };
     $('send-key').disabled = $('verify-key').disabled = !session.emailConfigured;
     $('email-request').onsubmit = async event => {
       event.preventDefault(); $('send-key').disabled = true;

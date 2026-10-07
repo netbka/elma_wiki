@@ -18,6 +18,10 @@ classification:
     tooling: "Storybook, agent docs, build/test tooling"
     content: "public/product/documentation wording"
 capabilities:
+  authentication:
+    owners: ["lib/auth.mjs", "lib/vk-teams.mjs", "lib/email.mjs", "lib/service-config.mjs", "server.mjs", "web/login.html", "web/service.js"]
+    routes: ["README.md", "testing/workflows/vk-login.json", "testing/workflows/email-login.json"]
+    boundaries: ["security", "ui"]
   public-site:
     owners: ["web/index.html", "web/service.css", "web/service.js", "web/public.js", "web/public.css", "lib/public-site.mjs", "tools/build-public.mjs", "vercel.json"]
     routes: ["docs/PUBLIC_DEPLOYMENT.md", "docs/INDEX.md"]

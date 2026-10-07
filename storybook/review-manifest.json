@@ -345,6 +345,33 @@
         "restored"
       ],
       "exclusionReason": "tools/workspace-browser-check.mjs проверяет настоящий Monaco UI и API. Storybook описывает целый workflow, не копируя разметку редактора."
+    },
+    "vk-authentication": {
+      "entry": "/login",
+      "actions": [
+        "open-bot",
+        "request-code",
+        "verify-code",
+        "resend-code"
+      ],
+      "renderer": [
+        "web/login.html",
+        "web/service.js"
+      ],
+      "storyIds": [],
+      "requiredVisibleStates": [
+        "ready",
+        "unconfigured",
+        "sending",
+        "sent-with-resend-cooldown",
+        "verifying",
+        "invalid-or-expired-code",
+        "delivery-failed",
+        "rate-limited",
+        "authenticated"
+      ],
+      "workflow": "testing/workflows/vk-login.json",
+      "exclusionReason": "Production login renderer пока не интегрирован в stories. tools/vk-auth-browser-check.mjs проверяет настоящий UI с синтетической доставкой; копии разметки в Storybook нет."
     }
   }
 }
