@@ -1,6 +1,6 @@
 # Solution-first execution plan
 
-Status: execution plan for PR #53 / issue #52.
+Status: current execution plan from merged PR #53 / issue #52. P0-P5 implementation is authorized; final usability/owner acceptance remains P7 / #38.
 Date: 2026-10-07.
 Product contract: SOLUTION_FIRST_PRODUCT_PLAN.md.
 
