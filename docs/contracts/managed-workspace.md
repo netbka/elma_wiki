@@ -1,8 +1,8 @@
 # Baseline-first managed workspace engine
 
-Authority: #33; architecture: #34; ownership: #31. Implementation checkpoints in draft PR #32.
+Product authority: #52 / the Solution-first plan; underlying engine architecture: #34; declared responsibility: #31. #33 and PR #32 retain the engine's initial evidence.
 
-`lib/managed-workspace.mjs` implements an immutable, serializable domain reducer and an adapter over the existing `parseProject` parser. `lib/managed-workspace-store.mjs` adds private owner-scoped persistence and association with existing snapshots. `server.mjs` exposes the authenticated HTTP lifecycle below. `/workspaces` and its shared Storybook renderer implement the [managed journey](../workflows/managed-workspace.md); candidate creation is not wired. The existing isolated upload viewer, script editor and release/deployment contracts remain operationally unchanged.
+`lib/managed-workspace.mjs` implements an immutable, serializable domain reducer and an adapter over the existing `parseProject` parser. `lib/managed-workspace-store.mjs` adds private persistence and association with existing snapshots. The shared `/solutions` catalog uses this same engine through its separately admitted storage root; the owner-scoped HTTP lifecycle below remains legacy compatibility. See [shared Solutions](shared-solutions.md) and the [current journey](../workflows/solutions.md). Candidate composition is not wired; supported contextual code remains an independent working copy.
 
 ## Implemented behavior
 
@@ -12,7 +12,13 @@ Call `parseManagedArtifact(privateBytes, {id, scope})` with explicit `full` or `
 
 Identity uses the exact service/namespace/code tuple from a unique structural manifest entity. Manifest array indices, generated parser IDs, filenames and display names do not establish identity. Missing or duplicate keys remain ambiguous. Component fingerprints cover raw entity bytes, original manifest record metadata, side scripts and declared resource bytes. Entity path movement and manifest reordering alone do not change identity. Resource references come from the original manifest because the parser's sanitized entity projection intentionally strips them.
 
-This checkpoint supports **entity-level evidence**. It does not establish independent process-node/condition identity, field-level ownership or contractual liability. A modified field/script currently marks its containing entity changed. Fingerprints are conservative byte evidence, including metadata/history noise, rather than a claim of semantic runtime equivalence. A code/namespace rename appears as a new component and an old component absent from a later full snapshot; there is no guessed rename matching.
+Whole-component fingerprints remain conservative byte evidence, including metadata/history noise, rather than semantic runtime equivalence. A code/namespace rename appears as a new component and an old component absent from a later full snapshot; there is no guessed rename matching. Unsupported components retain object-level responsibility.
+
+For captured native `processor` entity JSON, `lib/process-elements.mjs` additionally indexes unique nodes (`process.items`), transitions, lanes and context variables (`context` or `context.fields`). Native IDs or dictionary keys identify process parts; variable codes identify variables. Display names and array positions never establish identity. The bounded projection stores canonical part hashes and source pointers, preserving all remaining source, manifest metadata and side/resource evidence in a residual hash. Missing complete process collections, duplicate/missing IDs, unknown shapes, exceeded limits and older records lacking the projection remain explicit uncertainty. Conditions nested in a node/transition are attributed to that part; no independent condition identity is invented.
+
+The original full declaration attributes existing parts to its team. A partial process export containing an added node/variables retains the team of unchanged parts and attributes only additions/edits/removals to the declared change team. Editing an existing baseline part requires boundary review; changing another team's intervened part conflicts. Removing a part inside a supplied complete entity differs from absence of the entire entity in a partial archive, which never deletes it. Exact restoration and later full incorporation retain the established per-part declarations and immutable history. Legacy missing evidence remains unknown rather than retroactively inferring native authors.
+
+Precision can narrow the partial boundary/conflict gate only when all relevant entity projections are complete and residual evidence agrees. Otherwise the conservative whole-object gate remains. Full reconciliation uses the same three-way classifier for explanatory part rows and still requires a whole-file version choice if raw component evidence diverges, even for disjoint part edits. There is no generated or merged process file. The private review UI shows part-level responsibility and offers a text report from already authorized evidence; this is a manual team declaration, not ELMA authorship, contractual liability or a deployment package.
 
 Partial changes overlay only present, proven components. Missing components stay in the current working state; absence never requests deletion. An additive intervention retains untouched baseline ownership. A baseline modification requires explicit review of every boundary key. Different teams changing an already intervened component conflict; identical component evidence does not. Same-team continuation is sequential. Restoring exact baseline content restores baseline attribution while keeping intervention history.
 
@@ -72,9 +78,9 @@ State/list responses expose `baselineAcceptedAt`; only full baseline creation/ac
 - The shared UI provides explicit scope/Source confirmations; uncoached first use and independent product review remain separate gates. Storage receives a trusted owner, not a browser identity assertion.
 - Package-level metadata/dependency reconciliation and finer component adapters where stable identity is proven. An entity projection does not represent a deployable complete package. Partial deletion needs an explicit proven tombstone contract; it is absent here.
 - Candidate handoff must use #11's exact artifact/review contract and cannot construct an archive from this projection.
-- The bounded #35/#36/#40 managed lifecycle UI and shared states are wired. Managed code/release association and #37/#39/#41/#38 integration/consistency/independent review/owner acceptance remain open.
+- Shared Solution UI, attributed Change discussion, contextual supported code and captured process/form preview are wired. Live candidate/delivery integration, independent human usability and final owner acceptance remain separate gates.
 
-No live ELMA Source/Target connection, package generation, publication or deployment is implemented or tested in this checkpoint.
+This engine does not generate or publish a deployable package. Separate delivery/bridge capabilities and their live evidence are documented in [target deployment](target-deployment.md).
 
 ## Evidence
 

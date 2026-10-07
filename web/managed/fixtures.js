@@ -29,10 +29,21 @@ export function managedFixture(mode = 'overview') {
   if (mode === 'conflict') review.rows[0].classification = 'conflict';
   if (mode === 'overlap') review.rows[0].conflict = true;
   if (mode === 'ambiguous') review.ambiguities = [{ reason: 'unknown', source: 'synthetic/unknown.json' }];
+  if (mode.startsWith('elements-')) {
+    const conflict = mode === 'elements-conflict', boundary = ['elements-boundary','elements-unknown'].includes(mode);
+    review.kind = conflict ? 'reconciliation' : 'change';
+    if (conflict) review.options = { baselineOwner: 'Korus' };
+    review.rows = [{ key: JSON.stringify(['processor','synthetic','approval']), classification: conflict ? 'conflict' : 'component-modified', boundaryCrossing: boundary,
+      elements: { complete: mode !== 'elements-unknown', residualChanged: mode === 'elements-unknown', ambiguities: [], rows: [
+        { id: '["node","y"]', kind: 'node', code: 'y', name: 'Проверить договор', team: 'Korus', classification: boundary ? 'element-modified' : 'unchanged', boundaryCrossing: boundary },
+        { id: '["node","x"]', kind: 'node', code: 'x', name: 'Дополнительное согласование', team: conflict ? 'Внутренняя команда' : null, classification: conflict ? 'conflict' : 'element-added', conflict },
+        ...['comment','returnReason'].map(code => ({ id: JSON.stringify(['variable',code]), kind: 'variable', code, name: code, team: conflict ? 'Внутренняя команда' : null, classification: conflict ? 'known-change-incorporated' : 'element-added' }))
+      ] } }];
+  }
   if (mode === 'archived') { workspace.status = 'archived'; workspace.history.push({ type: 'archived' }); }
   if (mode === 'pending') workspace.pending = [{ artifactId: review.artifactId, kind: review.kind, revision: 1, stale: false, options: review.options }];
   const model = { synthetic: true, shared: true, home: '/solutions', api: '/api/solutions', view: 'overview', workspace };
-  if (['review', 'conflict', 'overlap', 'ambiguous'].includes(mode) || mode.startsWith('review-')) Object.assign(model, { view: 'review', review });
+  if (['review', 'conflict', 'overlap', 'ambiguous'].includes(mode) || mode.startsWith('review-') || mode.startsWith('elements-')) Object.assign(model, { view: 'review', review });
   if (['create', 'empty', 'list', 'loading', 'load-error'].includes(mode)) {
     delete model.workspace; model.view = mode === 'create' ? 'create' : 'list';
     model.rows = mode === 'list' ? [{ ...workspace, baselineSnapshot: base.snapshot, changedComponents: 1, pendingCount: 2, current: undefined, pending: undefined }] : [];

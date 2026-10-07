@@ -151,6 +151,53 @@ try {
   await page.unroute('**/api/solutions'); await page.getByRole('link', { name: 'Повторить загрузку', exact: true }).click();
   await page.getByRole('heading', { name: 'Решений пока нет' }).waitFor(); evidence.recovery = true;
 
+  // The real captured process API and the production renderer, with an explicit
+  // whole-file choice after identifying an exact cross-team element conflict.
+  const processRaw = { process: { items: { y: { id: 'y', name: 'Проверить договор', condition: 'baseline' } }, transitions: {}, lanes: {} }, context: [] };
+  const processArchive = raw => zip([['package.json', { code: 'synthetic_process', type: 'SOLUTION' }],
+    ['processor/manifest.json', { entities: [{ code: 'approval', namespace: 'synthetic', kind: 'PROCESS', path: 'approval.json' }] }], ['processor/approval.json', raw]]);
+  const jsonPost = async (route, data) => { const response = await context.request.post(base + route, { headers: { 'X-Elma-Wiki-Request': '1' }, data }); assert.ok(response.ok(), await response.text()); return response.json(); };
+  const processSnapshot = async (raw, scope) => {
+    const response = await context.request.post(base + '/api/solutions/uploads?sharedConfirmed=true', { headers: { 'X-Elma-Wiki-Request': '1', 'Content-Type': 'application/octet-stream' }, data: await processArchive(raw) });
+    assert.equal(response.status(), 201); const project = await response.json();
+    return { projectId: project.id, snapshotId: project.currentSnapshotId, scope, scopeConfirmed: true };
+  };
+  let processState = await jsonPost('/api/solutions', { name: 'Учебный процесс', baselineOwner: 'Korus', snapshot: await processSnapshot(processRaw, 'full'), sharedConfirmed: true });
+  const processRoute = '/api/solutions/' + processState.id;
+  const prepareProcess = async (raw, kind, team = 'Internal') => {
+    const review = await jsonPost(processRoute + '/prepare', { kind, snapshot: await processSnapshot(raw, kind === 'change' ? 'partial' : 'full'), expectedRevision: processState.revision,
+      sameSourceConfirmed: true, ...(kind === 'change' ? { team, taskRef: 'TASK-31' } : { baselineOwner: team }) });
+    await page.goto(base + '/solutions?' + new URLSearchParams({ id: processState.id, view: 'review', artifact: review.artifactId }));
+    await page.getByRole('heading', { name: 'Ответственность частей процесса', exact: true }).waitFor(); return review;
+  };
+  const additions = structuredClone(processRaw); additions.process.items.x = { id: 'x', name: 'Дополнительное согласование' };
+  additions.context.push({ code: 'one', type: 'STRING' }, { code: 'two', type: 'BOOLEAN' });
+  await prepareProcess(additions, 'change'); assert.equal(await page.getByLabel('Изменение принятого объекта проверено', { exact: true }).count(), 0);
+  const downloadPromise = page.waitForEvent('download'); await page.getByRole('button', { name: 'Скачать отчёт об ответственности', exact: true }).click();
+  const download = await downloadPromise, report = await fs.readFile(await download.path(), 'utf8'); assert.match(report, /Korus/); assert.match(report, /Internal/);
+  assert.match(report, /авторы публикаций ELMA.*не установлены/);
+  await page.getByLabel('Принимаю рассмотренное изменение', { exact: true }).check(); await page.getByRole('button', { name: 'Принять изменение', exact: true }).click();
+  await page.getByRole('heading', { name: 'Что требует внимания', exact: true }).waitFor();
+  processState = await (await context.request.get(base + processRoute)).json();
+  assert.equal(processState.current[0].responsibility.elements.find(part => part.code === 'y').team, 'Korus');
+  assert.equal(processState.current[0].responsibility.elements.find(part => part.code === 'x').team, 'Internal');
+  await page.getByRole('link', { name: 'Решение', exact: true }).click(); await page.getByText('Internal: 3 · Korus: 1', { exact: true }).waitFor();
+  const boundary = structuredClone(additions); boundary.process.items.y.condition = 'reviewed edit';
+  await prepareProcess(boundary, 'change'); assert.equal(await page.getByRole('button', { name: 'Принять изменение', exact: true }).isDisabled(), true);
+  await page.getByLabel('Изменение принятого объекта проверено', { exact: true }).check();
+  await page.getByLabel('Принимаю рассмотренное изменение', { exact: true }).check(); await page.getByRole('button', { name: 'Принять изменение', exact: true }).click();
+  await page.getByRole('heading', { name: 'Что требует внимания', exact: true }).waitFor(); processState = await (await context.request.get(base + processRoute)).json();
+  const overlap = structuredClone(boundary); overlap.process.items.x.name = 'Korus изменил шаг';
+  await prepareProcess(overlap, 'change', 'Korus');
+  assert.equal(await page.getByRole('button', { name: 'Принять изменение', exact: true }).isDisabled(), true); await page.getByText(/конфликт команд/).waitFor();
+  await page.screenshot({ path: 'qa/managed-elements-overlap.png', fullPage: true });
+  await prepareProcess(overlap, 'reconciliation', 'Korus'); assert.equal(await page.getByRole('button', { name: 'Принять версию', exact: true }).isDisabled(), true);
+  await page.getByLabel('Какую версию сохранить', { exact: true }).selectOption('keep-working');
+  await page.getByLabel('Принимаю версию и выбранные решения; установка в ELMA не выполняется', { exact: true }).check();
+  await page.getByRole('button', { name: 'Принять версию', exact: true }).click(); await page.getByRole('heading', { name: 'Что требует внимания', exact: true }).waitFor();
+  processState = await (await context.request.get(base + processRoute)).json(); assert.equal(processState.current[0].responsibility.elements.find(part => part.code === 'x').team, 'Internal');
+  evidence.elementResponsibility = true;
+
   const storyRoot = path.resolve('storybook/storybook-static'), types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml' };
   stories = http.createServer(async (req, res) => {
     try {
@@ -160,12 +207,13 @@ try {
     } catch { res.writeHead(404); res.end(); }
   });
   await new Promise(resolve => stories.listen(0, '127.0.0.1', resolve));
-  for (const mode of ['empty','list','create','overview','pending','change','review','conflict','overlap','ambiguous','stale','archived','loading','load-error','changes','solution','no-source','needs-fixes','pending-conflict','review-comment','review-findings','review-resolved','review-accepted','review-stale-anchor','review-removed-anchor','review-ambiguous-anchor']) {
+  for (const mode of ['empty','list','create','overview','pending','change','review','conflict','overlap','ambiguous','stale','archived','loading','load-error','changes','solution','no-source','needs-fixes','pending-conflict','review-comment','review-findings','review-resolved','review-accepted','review-stale-anchor','review-removed-anchor','review-ambiguous-anchor','elements-added','elements-boundary','elements-conflict','elements-unknown']) {
     await page.goto(`http://127.0.0.1:${stories.address().port}/iframe.html?id=managed-workspace--${mode}&viewMode=story`);
     await page.locator('.managed-shell h1').waitFor();
     if (['review','conflict','overlap','ambiguous'].includes(mode)) assert.equal(await page.getByRole('button', { name: mode === 'conflict' ? 'Принять версию' : 'Принять изменение', exact: true }).isDisabled(), true, mode);
     if (mode === 'conflict') { await page.getByLabel('Какую версию сохранить', { exact: true }).selectOption('keep-working'); assert.equal(await page.getByRole('button', { name: 'Принять версию', exact: true }).isDisabled(), false); }
-    if (!mode.startsWith('review-') && !['create','change','review','conflict','overlap','ambiguous','archived','loading'].includes(mode)) assert.equal(await page.locator('.managed-content a.button').count(), 1, 'one primary action: ' + mode);
+    if (!mode.startsWith('review-') && !mode.startsWith('elements-') && !['create','change','review','conflict','overlap','ambiguous','archived','loading'].includes(mode)) assert.equal(await page.locator('.managed-content a.button').count(), 1, 'one primary action: ' + mode);
+    if (mode.startsWith('elements-')) { await page.setViewportSize({ width: 390, height: 844 }); await page.getByRole('heading', { name: 'Ответственность частей процесса', exact: true }).waitFor(); }
     if (mode.startsWith('review-')) {
       await page.setViewportSize({ width: 390, height: 844 });
       if (!['review-comment','review-resolved'].includes(mode)) assert.equal(await page.getByRole('button', { name: 'Принять изменение', exact: true }).isVisible().catch(() => false), false);
@@ -174,7 +222,7 @@ try {
     await page.screenshot({ path: `qa/managed-story-${mode}.png`, fullPage: true }); evidence.states.push(mode);
   }
   assert.deepEqual(errors, []);
-  console.log('Solution: synthetic Change discussion/correction/acceptance, contextual editor, boundary/conflict decisions, archive/reopen, keyboard, responsive, stale/retry and all 26 shared Storybook states passed.');
+  console.log('Solution: synthetic Change discussion/correction/acceptance, contextual editor, element responsibility/report, boundary/conflict decisions, archive/reopen, keyboard, responsive, stale/retry and all 30 shared Storybook states passed.');
 } finally {
   await fs.mkdir('qa', { recursive: true }); await fs.writeFile('qa/managed-browser-evidence.json', JSON.stringify(evidence, null, 2));
   await browser?.close(); await new Promise(resolve => server.close(resolve));
