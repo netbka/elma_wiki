@@ -24,7 +24,7 @@ export function mountRequests(model = {}, actions = {}) {
   const refresh = (parent = root, primary = false) => { const b = button(parent, 'Обновить состояние', () => actions.refresh(), !primary); b.dataset.refresh = 'true'; return b; };
   if (model.synthetic) root.append(el('p', 'Учебный пример. Задания и результаты синтетические.', 'request-note'));
   if (model.loading) return root;
-  if (model.unconfigured) { root.append(el('h2', 'Исполнитель ещё не подключён'), el('p', 'Задания пока нельзя отправить. Вернитесь к решению; данные не потеряны.')); const a = el('a', 'Вернуться к решениям', 'button'); a.href = '/workspaces'; root.append(a); return root; }
+  if (model.unconfigured) { root.append(el('h2', 'Исполнитель ещё не подключён'), el('p', 'Задания пока нельзя отправить. Вернитесь к решению; данные не потеряны.')); const a = el('a', 'Вернуться к решениям', 'button'); a.href = '/solutions'; root.append(a); return root; }
   if (model.error && !model.projects?.length) { refresh(); return root; }
   const records = model.requests || [], selected = model.selected || records[0];
   const columns = el('div', undefined, 'request-columns'), list = el('nav'), detail = el('section'); list.setAttribute('aria-label', 'Мои задания');

@@ -27,7 +27,7 @@
   "rules": [
     "One button opens the dedicated Wiki bot; no login or code fields",
     "Private event sender owns the signed link; groups and foreign domains ignored",
-    "Reusable signed link and session last seven days; owner stays vk-scoped",
+    "Reusable signed link and session last seven days; trusted VK actor persists and opens Solutions",
     "Explicit single poller; private durable cursor advances after successful reply"
   ]
 }

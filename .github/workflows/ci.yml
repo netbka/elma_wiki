@@ -18,7 +18,9 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build:editor
-      - run: npm test
+      - name: Unit and contract tests
+        timeout-minutes: 5
+        run: npm test
       - run: npm run verify
       - run: node tools/check-flow-catalog.mjs
       - run: npm ci --prefix storybook

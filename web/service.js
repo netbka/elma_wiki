@@ -6,10 +6,10 @@ const request = async (url,options={}) => {
   const value = await response.json(); if (!response.ok) throw Error(value.error || 'Запрос не завершён'); return value;
 };
 async function init() {
-  if (location.pathname === '/' && (await request('/api/session')).user) { location.replace('/workspaces'); return; }
+  if (location.pathname === '/' && (await request('/api/session')).user) { location.replace('/solutions'); return; }
   if (location.pathname === '/login') {
     const session = await request('/api/session');
-    if (session.user) { location.replace('/workspaces'); return; }
+    if (session.user) { location.replace('/solutions'); return; }
     renderLogin($('bot-login'), { vkBotUrl: session.vkBotUrl, expired: new URLSearchParams(location.search).has('expired') });
   }
   if (location.pathname !== '/dashboard') return;

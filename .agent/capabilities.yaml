@@ -27,8 +27,8 @@ capabilities:
     routes: ["docs/contracts/managed-workspace.md", "docs/contracts/project-snapshots.md"]
     boundaries: ["domain", "parser", "storage", "security"]
   managed-workspace-ui:
-    owners: ["web/managed/", "web/workspaces.html", "storybook/stories/ManagedWorkspace.stories.js", "test/managed-workspace-view.test.mjs", "tools/managed-workspace-browser-check.mjs"]
-    routes: ["docs/PRODUCT_DIRECTION.md", "docs/workflows/managed-workspace.md", "docs/contracts/managed-workspace.md", "docs/STORYBOOK.md"]
+    owners: ["web/managed/", "web/solutions.html", "web/workspaces.html", "storybook/stories/ManagedWorkspace.stories.js", "test/managed-workspace-view.test.mjs", "tools/managed-workspace-browser-check.mjs"]
+    routes: ["docs/SOLUTION_FIRST_PRODUCT_PLAN.md", "docs/workflows/solutions.md", "docs/contracts/shared-solutions.md", "docs/contracts/managed-workspace.md", "docs/STORYBOOK.md"]
     boundaries: ["ui", "domain", "security", "tooling"]
   request-bot:
     owners: ["services/request-bot/", "lib/request-coordinator.mjs", "web/requests/", "web/requests.html", "storybook/stories/PortalRequests.stories.js", ".github/workflows/request-bot.yml"]

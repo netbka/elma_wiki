@@ -119,6 +119,12 @@ test('shared admission never exposes legacy private uploads or workspaces, and c
 test('anonymous, cross-origin and unconfirmed catalog writes fail before data access', async t => {
   const { request, post, login, upload, create } = await setup(t);
   const a = await login('alice@example.org');
+  const home = await request('/', a.cookie, { redirect: 'manual' });
+  assert.equal(home.status, 302); assert.equal(home.headers.get('location'), '/solutions');
+  const shell = await request('/solutions', a.cookie); assert.equal(shell.status, 200);
+  assert.match(await shell.text(), /Решения/);
+  const anonymousShell = await request('/solutions', null, { redirect: 'manual' });
+  assert.equal(anonymousShell.status, 302); assert.equal(anonymousShell.headers.get('location'), '/login');
   const shared = await upload(a.cookie, [['shared', 1]]), state = await json(await create(a.cookie, shared), 201);
   await json(await request(endpoint, null), 401);
   for (const suffix of ['', '/prepare', '/archive', '/artifacts/' + state.baselineId + '/original'])

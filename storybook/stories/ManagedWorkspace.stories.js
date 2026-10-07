@@ -6,7 +6,7 @@ function story(mode) {
     navigate: () => { root.querySelector('[role=status]').textContent = 'Учебная навигация: выберите нужное состояние в меню Storybook.'; } });
   return root;
 }
-export default { id: 'managed-workspace', title: 'Рабочее пространство/Жизненный цикл', parameters: { layout: 'fullscreen' } };
+export default { id: 'managed-workspace', title: 'Решение/Изменение и рассмотрение', parameters: { layout: 'fullscreen' } };
 export const Empty = { render: () => story('empty') };
 export const List = { render: () => story('list') };
 export const Create = { render: () => story('create') };
@@ -21,3 +21,8 @@ export const Stale = { render: () => story('stale') };
 export const Archived = { render: () => story('archived') };
 export const Loading = { render: () => story('loading') };
 export const LoadError = { render: () => story('load-error') };
+export const Changes = { render: () => story('changes') };
+export const Solution = { render: () => story('solution') };
+export const NoSource = { render: () => story('no-source') };
+export const NeedsFixes = { render: () => story('needs-fixes') };
+export const PendingConflict = { render: () => story('pending-conflict') };

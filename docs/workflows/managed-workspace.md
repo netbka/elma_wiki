@@ -1,5 +1,7 @@
 # Managed workspace journey
 
+Historical #48 implementation evidence. Current product/UI authority is [the Solution-first journey](solutions.md) under #52. The private API remains a compatibility capability; its earlier user-facing terms below are superseded.
+
 Authority: #33 and docs/PRODUCT_DIRECTION.md. This implements the bounded #35/#36/#40 lifecycle surface over #32's domain/storage/API. It does not close the product epic or substitute for #37/#41 independent review and #38 owner acceptance.
 
 ## Entry and orientation

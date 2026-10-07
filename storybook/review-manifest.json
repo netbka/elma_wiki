@@ -525,7 +525,7 @@
       ]
     },
     "managed-workspace": {
-      "entry": "/workspaces",
+      "entry": "/solutions",
       "kind": "implemented",
       "actions": [
         "create",
@@ -555,7 +555,12 @@
         "managed-workspace--stale",
         "managed-workspace--archived",
         "managed-workspace--loading",
-        "managed-workspace--load-error"
+        "managed-workspace--load-error",
+        "managed-workspace--changes",
+        "managed-workspace--solution",
+        "managed-workspace--no-source",
+        "managed-workspace--needs-fixes",
+        "managed-workspace--pending-conflict"
       ],
       "requiredVisibleStates": [
         "empty",
@@ -571,10 +576,15 @@
         "stale",
         "archived",
         "loading",
-        "load-error"
+        "load-error",
+        "changes",
+        "solution",
+        "no-source",
+        "needs-fixes",
+        "pending-conflict"
       ],
       "sources": [
-        "docs/workflows/managed-workspace.md",
+        "docs/workflows/solutions.md",
         "docs/contracts/managed-workspace.md",
         "test/managed-workspace-api.test.mjs",
         "tools/managed-workspace-browser-check.mjs"
