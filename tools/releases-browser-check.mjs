@@ -1,0 +1,97 @@
+import { chromium } from 'playwright';
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import os from 'node:os';
+import crypto from 'node:crypto';
+import { createServer } from '../server.mjs';
+import { projectStore } from '../lib/projects.mjs';
+import { zip } from '../test/fixture.mjs';
+import { readArchive } from '../lib/e365.mjs';
+const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'elma-release-browser-'));
+const server = createServer({ directory, allowLocal: true, sendEmail: undefined, sendVk: undefined });
+let browser;
+try {
+  const fixture = (required, extra = []) => zip([
+    ['package.json', { code: 'synthetic_release', type: 'SOLUTION' }],
+    ['widgets/manifest.json', { entities: [{ code: 'form', namespace: 'example.records', kind: 'WIDGET', path: 'form.json' }] }],
+    ['widgets/form.json', { descriptor: { fields: [{ code: 'title', type: 'STRING', required }] } }],
+    ['note.txt', '<script>globalThis.releaseXss=true</script>'], ...extra
+  ]);
+  const projects = projectStore(directory), baseline = await projects.create('local', await fixture(false), 'previous.e365'), bytes = await fixture(true), source = await projects.create('local', bytes, 'new.e365');
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  browser = await chromium.launch({ headless: true, ...(process.env.BROWSER_CHANNEL ? { channel: process.env.BROWSER_CHANNEL } : {}) });
+  const context = await browser.newContext(), page = await context.newPage(), errors = [];
+  page.on('pageerror', e => errors.push(e.message));
+  await page.goto(base + '/login'); await page.getByRole('button', { name: 'Войти локально', exact: true }).click();
+  await page.waitForURL('**/dashboard'); await page.goto(base + '/releases');
+  await page.getByLabel('Название релиза', { exact: true }).fill('Рецензия учебного договора');
+  await page.getByLabel('Деловая цель', { exact: true }).fill('Проверить обязательность заголовка');
+  await page.getByLabel('Новый пакет DEV', { exact: true }).selectOption(source.id);
+  await page.getByLabel('Предыдущий пакет DEV — базовая версия', { exact: true }).selectOption(baseline.id);
+  await page.getByLabel('Назначение передачи (непроверенная компания или ответственный)', { exact: true }).fill('Учебный оператор TEST');
+  await page.getByRole('button', { name: 'Начать рецензию', exact: true }).click();
+  await page.getByRole('heading', { name: 'Рецензия учебного договора', exact: true }).waitFor();
+  assert.equal(await page.getByRole('button', { name: 'Подготовить неизменяемый кандидат', exact: true }).isDisabled(), true);
+  assert.match(await page.locator('.release-shell').textContent(), /Обязательность поля/);
+  const staleTab = await page.context().newPage(); await staleTab.goto(page.url());
+  await staleTab.getByRole('heading', { name: 'Рецензия учебного договора', exact: true }).waitFor();
+  const card = page.locator('article').filter({ hasText: 'widgets/form.json' });
+  await page.getByLabel('Примечания для оператора', { exact: true }).fill('Черновик примечания сохраняется при решении по файлу');
+  await card.getByLabel('Причина решения — widgets/form.json', { exact: true }).fill('Проверено назначение обязательного поля');
+  await card.getByRole('button', { name: 'Отклонить изменение', exact: true }).click();
+  await page.getByText('Отклонено: Проверено назначение обязательного поля', { exact: true }).waitFor();
+  assert.equal(await page.getByLabel('Примечания для оператора', { exact: true }).inputValue(), 'Черновик примечания сохраняется при решении по файлу');
+  await page.reload(); await page.getByText('Отклонено: Проверено назначение обязательного поля', { exact: true }).waitFor();
+  await staleTab.getByLabel('Причина решения — widgets/form.json', { exact: true }).fill('Черновик в старой вкладке');
+  await staleTab.getByRole('button', { name: 'Принять изменение', exact: true }).click();
+  await staleTab.getByRole('alert').filter({ hasText: /другой вкладке/ }).waitFor();
+  assert.equal(await staleTab.getByLabel('Причина решения — widgets/form.json', { exact: true }).inputValue(), 'Черновик в старой вкладке');
+  await staleTab.close();
+  await card.getByRole('button', { name: 'Принять изменение', exact: true }).click();
+  await page.getByText('Принято: Проверено назначение обязательного поля', { exact: true }).waitFor();
+  await page.getByLabel('Ограничения: неполное покрытие, отсутствие базы, неизвестное влияние', { exact: true }).fill('note.txt сохранён; изменение обязательности проверено. Target не проверен.');
+  await page.getByRole('button', { name: 'Сохранить условия (снимает принятие кандидата)', exact: true }).click();
+  await page.getByRole('heading', { name: 'Блокирующие замечания: 0', exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Подготовить неизменяемый кандидат', exact: true }).click();
+  await page.getByRole('status').filter({ hasText: 'Кандидат подготовлен' }).waitFor();
+  await page.getByLabel('Объяснение принятия кандидата', { exact: true }).fill('Принимаю неизменённый пакет только для передачи');
+  await page.getByRole('button', { name: 'Принять кандидат для передачи', exact: true }).click();
+  await page.getByRole('status').filter({ hasText: 'Принят для локальной передачи' }).waitFor();
+  const downloadPromise = page.waitForEvent('download'); await page.getByRole('button', { name: 'Скачать приватный пакет передачи', exact: true }).click();
+  const download = await downloadPromise, bundle = await readArchive(await fs.readFile(await download.path()));
+  assert.deepEqual(bundle.get('candidate.e365'), bytes);
+  const manifest = JSON.parse(bundle.get('manifest.json')); assert.equal(manifest.artifact.sha256, crypto.createHash('sha256').update(bytes).digest('hex')); assert.equal(manifest.verified, false);
+  await page.getByRole('status').filter({ hasText: 'Пакет передачи выдан' }).waitFor();
+  await page.getByLabel('Назначение передачи (непроверенная компания или ответственный)', { exact: true }).fill('Другой учебный оператор');
+  await page.getByRole('button', { name: 'Сохранить условия (снимает принятие кандидата)', exact: true }).click();
+  await page.getByRole('status').filter({ hasText: /Рецензия/ }).waitFor();
+  assert.equal(await page.getByRole('button', { name: 'Скачать приватный пакет передачи', exact: true }).isDisabled(), true);
+  const preview = page.locator('article').filter({ hasText: 'widgets/form.json' }); await preview.locator('summary').click(); await preview.getByRole('button', { name: 'Показать После', exact: true }).click();
+  await preview.locator('pre').filter({ hasText: /required/ }).waitFor();
+  const large = await projects.create('local', await fixture(false, Array.from({ length: 25 }, (_, n) => [`extra/${String(n).padStart(2, '0')}.txt`, '<script>globalThis.releaseXss=true</script>'])), 'many-files.e365');
+  const largeRelease = await page.evaluate(async input => {
+    const response = await fetch('/api/releases', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Elma-Wiki-Request': '1' }, body: JSON.stringify(input) });
+    if (!response.ok) throw Error('Large fixture creation failed'); return response.json();
+  }, { title: 'Много изменений', intent: 'Проверить полную область рецензии', targetIntent: 'Учебный оператор', sourceProjectId: large.id, baselineProjectId: baseline.id });
+  await page.goto(base + '/releases?id=' + largeRelease.id); await page.locator('article').first().waitFor();
+  assert.equal(await page.locator('article').count(), 20);
+  await page.getByLabel('Причина решения — extra/00.txt', { exact: true }).fill('Несохранённая заметка первой страницы');
+  await page.getByRole('button', { name: 'Показать следующие 20 изменений', exact: true }).click();
+  await page.getByText('Показано 25 из 25. Все файлы остаются в области рецензии.', { exact: true }).waitFor();
+  assert.equal(await page.locator('article').count(), 25);
+  assert.equal(await page.getByLabel('Причина решения — extra/00.txt', { exact: true }).inputValue(), 'Несохранённая заметка первой страницы');
+  const malicious = page.locator('article').filter({ hasText: 'extra/00.txt' }); await malicious.locator('summary').click(); await malicious.getByRole('button', { name: 'Показать После', exact: true }).click();
+  await malicious.locator('pre').filter({ hasText: '<script>globalThis.releaseXss=true</script>' }).waitFor();
+  assert.equal(await page.evaluate(() => globalThis.releaseXss), undefined);
+  await page.setViewportSize({ width: 390, height: 844 }); assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+  await page.keyboard.press('Tab'); assert.notEqual(await page.evaluate(() => document.activeElement.tagName), 'BODY');
+  assert.deepEqual(errors, []);
+  console.log('Analyst release browser: baseline, required-field review, reject/resume, stale draft, candidate, exact private bundle, invalidation, preview and mobile passed.');
+} finally {
+  await browser?.close();
+  if (server.listening) await new Promise(resolve => server.close(resolve));
+  assert.equal(path.dirname(directory), path.resolve(os.tmpdir())); assert.ok(path.basename(directory).startsWith('elma-release-browser-'));
+  await fs.rm(directory, { recursive: true, force: true });
+}

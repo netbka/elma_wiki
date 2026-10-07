@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { createServer } from '../server.mjs';
-const base = 'http://127.0.0.1:6006';
+const base = process.env.STORYBOOK_URL || 'http://127.0.0.1:6006';
 const browser = await chromium.launch({ headless: true, ...(process.env.BROWSER_CHANNEL ? { channel: process.env.BROWSER_CHANNEL } : {}) });
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
 const errors = []; page.on('pageerror', error => errors.push(error.message));
@@ -13,6 +13,7 @@ try {
   const index = await (await fetch(base + '/index.json')).json();
   for (const entry of Object.values(index.entries).filter(entry => entry.type === 'story')) {
     await page.goto(`${base}/iframe.html?id=${entry.id}&viewMode=story`);
+    if (entry.id.startsWith('release--')) { await page.locator('.release-shell h1').waitFor(); continue; }
     await page.locator('.flow-stage h2').waitFor();
     await page.locator('.review-status').filter({ hasText: /версия/ }).waitFor();
   }

@@ -34,5 +34,8 @@ for (const flow of flows) {
 }
 for (const [capability, entry] of Object.entries(manifest.capabilities)) {
   assert.ok(entry.storyIds.length || entry.exclusionReason, `Unexplained coverage gap: ${capability}`);
+  for (const id of entry.storyIds) assert.ok(ids.has(id), `Story not found: ${capability}/${id}`);
+  for (const source of entry.sources || []) await fs.access(new URL(source, root));
+  for (const renderer of entry.renderer || []) await fs.access(new URL(renderer, root));
 }
 console.log(`Catalog: ${flows.length} complete journeys, ${ids.size} stories; sources, states, branches and coverage valid.`);

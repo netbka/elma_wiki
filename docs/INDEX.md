@@ -14,6 +14,8 @@ Routing, not an always-read checklist.
 | Analyst release implementation sequence (proposed) | [plans/analyst-release-workspace.md](plans/analyst-release-workspace.md) |
 | Analyst release audit method and scenarios | [audits/analyst-release-audit-brief.md](audits/analyst-release-audit-brief.md) |
 | Manual .e365 projects | E365_FILE_PROJECTS.md |
+| Offline analyst release review and handoff | [workflows/analyst-release.md](workflows/analyst-release.md), [contracts/analyst-releases.md](contracts/analyst-releases.md) |
+| Analyst release investigation and support matrix | [plans/analyst-release-investigation.md](plans/analyst-release-investigation.md) |
 | Developer workflow (PR #7) | DEVELOPER_VALUE_WORKFLOW.md |
 | Browser coding workspace (PR #8, PR #12) | WEB_DEVELOPER_WORKSPACE.md |
 | Offline compiler profile / per-project SDK | COMPILER_PROFILE.md |

@@ -18,6 +18,10 @@ classification:
     tooling: "Storybook, agent docs, build/test tooling"
     content: "public/product/documentation wording"
 capabilities:
+  analyst-releases:
+    owners: ["lib/releases.mjs", "web/releases/", "web/releases.html", "test/releases.test.mjs"]
+    routes: ["docs/contracts/analyst-releases.md", "docs/workflows/analyst-release.md", "docs/plans/analyst-release-investigation.md"]
+    boundaries: ["ui", "domain", "storage", "security", "tooling"]
   authentication:
     owners: ["lib/auth.mjs", "lib/vk-teams.mjs", "lib/email.mjs", "lib/service-config.mjs", "server.mjs", "web/login.html", "web/service.js"]
     routes: ["README.md", "testing/workflows/vk-login.json", "testing/workflows/email-login.json"]
