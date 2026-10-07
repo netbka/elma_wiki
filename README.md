@@ -137,7 +137,15 @@ Production-настройка требует HTTPS-адрес и оба OAuth-п
 
 Карта текущей документации и предложений: [docs/INDEX.md](docs/INDEX.md). [STATE.md](docs/STATE.md) отделяет реализованный viewer от будущего Developer Workspace и Source/Target gateway; [ROADMAP.md](docs/ROADMAP.md) перечисляет этапы и критерии проверки.
 
-Следуйте [AGENTS.md](AGENTS.md). Viewer доступен только для чтения; изменение делается в отдельной приватной папке полного экспорта. Начните с пути объекта и его происхождения, прочитайте отчёт, учитывайте зависимые модули и сохраняйте непонятые части.
+Следуйте [AGENTS.md](AGENTS.md). Viewer доступен для чтения; для распознанного WIDGET со строковыми descriptor-скриптами или sidecar `.client.ts/.server.ts` доступна ссылка **Открыть редактор скриптов**. Экспериментальный browser workspace хранит отдельную рабочую копию, не меняя оригинал, descriptor, runtime или history пакета. Начните с пути объекта и его происхождения, прочитайте отчёт, учитывайте зависимые модули и сохраняйте непонятые части.
+
+Редактор использует локальные Monaco и TypeScript workers: autocomplete полей descriptor и объявленных server-функций, hover, inline diagnostics, Problems, отдельное предупреждение lint для динамического кода, точное сравнение с оригиналом, autosave, ручное сохранение и checkpoints/restore. Сборка editor assets выполняется перед `npm start`/`npm run dev` и внутри Docker; для запуска через `node server.mjs` сначала выполните `npm run build:editor`. Никаких CDN-запросов нет.
+
+Типы ограничены поддержанными primitive-полями descriptor. Это не полная ELMA SDK: неизвестные типы остаются unknown, внешние Namespace/Global/Application API и зависимости не разрешаются. В браузере неаннотированный RPC return остаётся unknown; серверная проверка TypeScript отдельно анализирует исходник каждой стороны. Скрипты не исполняются. **ELMA compiler, build и deploy не подключены**: успешный TypeScript check не доказывает пригодность пакета к импорту. Для platform compiler нужен отдельный проверенный adapter и явно выбранный host с соответствующим offline cache, как в runbook.
+
+Workspace scoped по owner/project/object. Запись требует ожидаемую revision: конфликт вкладок возвращает 409 и сохраняет локальный текст для сравнения. Любое изменение или restore снимает Check. Сохраняются последние 10 autosave-состояний и до 20 именованных checkpoints. Ограничение каждого скрипта — 256 КБ, поддержанного JSON descriptor — 256 КБ. Check ограничен одним worker на процесс, 15 секундами и 192 МБ heap. Это дополнение к single-process модели хранилища.
+
+API редактора: `GET /api/projects/:id/workspace/:objectId`; `POST` к `/save`, `/check`, `/checkpoint`, `/restore` под этим путём. Все mutations требуют JSON, сессию владельца и существующие same-origin/header protections. Save принимает `{revision,files}`, Check — `{revision}`, Checkpoint — `{revision,label}`, Restore — `{revision,checkpoint}` (id либо `original`). Операции принимают только существующие client.ts/server.ts; generated и неизвестные части не редактируются. Исходники и история находятся только в `.local/projects/<id>/workspaces/<derived-id>/state.json`.
 
 Скриптовый цикл: `.client.ts/.server.ts` → совместимый компилятор → согласованные `descriptor/runtime/history` → проверки → импорт в проверочную компанию → повторный экспорт и проверка формы. Подтверждён конкретный сценарий платформы 2026.7.23 и elma365pm 1.19.0 для установленного решения; обновление авторского экземпляра сопровождалось collision. Структурные рецепты и перенос в production требуют самостоятельного испытания.
 
@@ -159,6 +167,7 @@ npm test
 npm run verify
 npx playwright install chromium
 npm run test:browser
+npm run test:workspace:browser
 ```
 
 Можно задать `BROWSER_CHANNEL=chrome`, чтобы использовать установленный Chrome. Тесты используют только синтетические данные и временные приватные каталоги. CI выполняет тесты и проверку публичных артефактов на Ubuntu и Windows.

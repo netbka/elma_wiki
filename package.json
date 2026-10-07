@@ -7,6 +7,9 @@
     "node": ">=22"
   },
   "scripts": {
+    "build:editor": "node tools/build-editor.mjs",
+    "prestart": "npm run build:editor",
+    "predev": "npm run build:editor",
     "start": "node server.mjs",
     "dev": "node --watch server.mjs",
     "setup": "node tools/setup.mjs",
@@ -14,9 +17,13 @@
     "import": "node tools/import.mjs",
     "test": "node --test test/*.test.mjs",
     "verify": "node verify.mjs",
-    "test:browser": "node tools/browser-check.mjs"
+    "test:browser": "node tools/browser-check.mjs",
+    "test:workspace:browser": "npm run build:editor && node tools/workspace-browser-check.mjs"
   },
   "dependencies": {
+    "esbuild": "^0.25.12",
+    "monaco-editor": "^0.55.1",
+    "typescript": "^5.9.3",
     "yauzl": "^3.2.0"
   },
   "devDependencies": {

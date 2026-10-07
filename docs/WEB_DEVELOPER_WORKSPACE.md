@@ -2,7 +2,7 @@
 
 Date: 2026-10-07.
 
-Status: proposed implementation contract. The browser editor, compiler integration and bridge described here are not shipped. See [STATE.md](STATE.md) for current behavior and [INDEX.md](INDEX.md) for the relationship between proposals.
+Status: implementation contract with an experimental local browser editor. Monaco, limited descriptor-derived types/RPC completion, TypeScript checks, lint, autosave, exact diff and checkpoints/restore are implemented. Verified ELMA compiler, full object-specific SDK and bridge remain unavailable; Slice A is not complete. See [STATE.md](STATE.md) for current behavior and [INDEX.md](INDEX.md) for the relationship between proposals.
 
 ## Product decision
 
