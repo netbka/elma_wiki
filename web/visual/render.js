@@ -53,6 +53,7 @@ export function mountSnapshotVisual(model={},actions={}) {
       g.append(shape,label);g.onclick=()=>select(node);g.onkeydown=e=>{if(['Enter',' '].includes(e.key)){e.preventDefault();select(node);}};diagram.append(g);
     }
     layout.append(diagram,panel);content.append(layout);
+    for(const lane of process.lanes.filter(l=>!l.supported))content.append(el('p','Область процесса не поддерживается: '+(lane.name||lane.id)),source(lane.pointer));
     for(const edge of process.edges.filter(e=>!e.supported))content.append(el('p','Переход не поддерживается: '+(edge.name||edge.id)),source(edge.pointer));
     for(const issue of process.issues)content.append(el('p',issue.reason),source(issue.pointer));
     if(process.nodes.length)select(process.nodes[0]);

@@ -59,6 +59,13 @@ try {
   assert.equal(await page.locator('.visual-form input').count(),0,'duplicate node identity cannot select the first form');
   assert.equal(await page.locator('.visual-form button:enabled').count(),0,'ambiguous branches cannot be followed');
   await page.screenshot({path:'qa/solution-visual-duplicate.png',fullPage:true});
+  await page.evaluate(async()=>{
+    const {mountSnapshotVisual}=await import('/visual/render.js');
+    const {visualFixture}=await import('/visual/fixtures.js');
+    document.querySelector('#managed-root').replaceChildren(mountSnapshotVisual(visualFixture('unknown')));
+  });
+  assert.equal(await page.getByText('Область процесса не поддерживается: Согласующий',{exact:true}).count(),1,
+    'a lane with invalid geometry stays visible as unsupported source evidence');
   await fs.writeFile('qa/solution-visual-browser-evidence.json',JSON.stringify({synthetic:true,api:true,sourceGeometry:true,explicitForm:true,branches:'view-only',keyboard:true,mobile:true,zoom:true,importedActionsExecuted:false,nativeObservation:false}));
   console.log('Solution visual: actual shared artifact API, geometry, explicit form, view-only branches, inert controls, XSS, keyboard, mobile and zoom passed.');
 } finally {

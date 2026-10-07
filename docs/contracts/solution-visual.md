@@ -19,3 +19,6 @@ including the first. Source pointers remain distinct and each occurrence has
 an ambiguity explanation. Duplicate nodes cannot select a form or follow a
 transition by choosing the first match. A sixth Storybook state and browser
 regression exercise this ambiguous review state with the production renderer.
+Unsupported lanes also retain a visible label and source pointer when invalid
+geometry prevents drawing them. The existing unknown Storybook fixture includes
+this case; omission from SVG never means omission from the evidence view.
