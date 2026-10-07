@@ -7,6 +7,8 @@ import { promisify } from 'node:util';
 import { execFile } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { configuration,saveConfiguration,inspectConfiguration } from '../lib/service-config.mjs';
+import { createServer } from '../server.mjs';
+import { checkHealth } from '../lib/healthcheck.mjs';
 const sentinel='SYNTHETIC_SECRET_NEVER_REAL';
 async function workspace(t) {
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'e365-setup-test-'));
@@ -40,4 +42,13 @@ test('all private env variants are ignored by Git, example stays trackable',asyn
   assert.deepEqual(stdout.trim().split(/\r?\n/),['.env','.env.production','.env.staging','credentials.env']);
   const ignore=await fs.readFile(new URL('../.gitignore',import.meta.url),'utf8');assert.ok(ignore.includes('!.env.example'));
   const dockerIgnore=await fs.readFile(new URL('../.dockerignore',import.meta.url),'utf8');assert.ok(dockerIgnore.includes('.env.*'));
+});
+test('container healthcheck sends the configured HTTPS Host to the loopback backend',async t=>{
+  const root=await workspace(t),server=createServer({directory:root,baseUrl:'https://wiki.example.org',allowLocal:false,clientId:'',clientSecret:''});
+  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  try {
+    const port=server.address().port;
+    assert.equal(await checkHealth({port,host:'wiki.example.org'}),true);
+    assert.equal(await checkHealth({port,host:'other.example.org'}),false);
+  } finally {await new Promise(resolve=>server.close(resolve));}
 });
