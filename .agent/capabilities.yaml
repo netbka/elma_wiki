@@ -75,8 +75,8 @@ capabilities:
     routes: ["docs/STORYBOOK.md", "docs/EXPERIENCE_REVIEW.md"]
     boundaries: ["tooling", "ui", "domain", "storage"]
   agent-system:
-    owners: ["AGENTS.md", ".agent/capabilities.yaml", "docs/INDEX.md"]
-    routes: ["AGENTS.md", "docs/INDEX.md"]
+    owners: ["AGENTS.md", ".agent/capabilities.yaml", "docs/INDEX.md", "docs/PRODUCT_DIRECTION.md", ".github/pull_request_template.md"]
+    routes: ["AGENTS.md", "docs/PRODUCT_DIRECTION.md", "docs/INDEX.md"]
     boundaries: ["tooling"]
   operations:
     owners: ["deploy/", "compose.yaml", "Dockerfile"]
