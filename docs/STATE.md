@@ -3,6 +3,7 @@
 Last repository verification: 2026-10-07.
 
 ## Implemented
+- Delivery foundation (AR-04 part 1): owner-scoped Target connection references without credentials, attempt lifecycle `prepared -> deploying -> deployed-unverified -> verified | verification-failed` with `failed`/`unknown-outcome`/`blocked`, server-side PROD refusal (environment and probed identity), explicit confirmation, idempotent single dispatch, drift/stale-approval blocking, restart reconciliation and read-back verification by file hash. Synthetic adapter only, disabled on a hosted service by default; no UI; no live Target. See contracts/target-deployment.md.
 - Owner-only offline analyst releases at /releases: explicitly pinned DEV/baseline originals, complete inventory comparison and structural field impact, durable decisions, revision conflicts, unchanged-original candidate and exact private handoff. Local acceptance never authorizes import; ELMA, dependency and target checks remain Not run. Workspace edits are excluded. See contracts/analyst-releases.md.
 - Node service with identity/auth (e-mail code login; GitHub OAuth removed) and isolated user projects.
 - Manual .e365 upload/project parsing and structural viewer.
@@ -24,9 +25,9 @@ Last repository verification: 2026-10-07.
 
 ## Designed, not yet proven as runtime
 - Source ELMA connection/export into immutable snapshots.
-- Separate Target ELMA connection.
+- Separate Target ELMA connection with a real adapter/bridge (the reference model and lifecycle exist; the live path does not).
 - Snapshot/workspace/target comparisons.
-- Deployment candidate lifecycle and Target read-back verification.
+- Delivery UI on the release page and live Target read-back evidence.
 - Storybook coverage of existing public/auth/project viewer renderers; workflow catalog has explicit exclusions for these surfaces.
 - Build, live ELMA connections, deployment candidates and read-back for the
   browser workspace (Slice B not started).
