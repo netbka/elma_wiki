@@ -18,7 +18,10 @@ try {
     ['widgets/form.json', { descriptor: { fields: [{ code: 'title', type: 'STRING', required }] } }],
     ['note.txt', '<script>globalThis.releaseXss=true</script>'], ...extra
   ]);
-  const projects = projectStore(directory), baseline = await projects.create('local', await fixture(false), 'previous.e365'), bytes = await fixture(true), source = await projects.create('local', bytes, 'new.e365');
+  const projects = projectStore(directory), baseline = await projects.create('local', await fixture(false), 'previous.e365'), bytes = await fixture(true);
+  const sourceRef = { connectionId: 'synthetic-dev', solutionRef: 'synthetic_release' };
+  const source = await projects.createSource('local', bytes, sourceRef, 'new.e365');
+  const newer = await projects.appendSource(source.id, 'local', await fixture(false), sourceRef, source.id);
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   const base = `http://127.0.0.1:${server.address().port}`;
   browser = await chromium.launch({ headless: true, ...(process.env.BROWSER_CHANNEL ? { channel: process.env.BROWSER_CHANNEL } : {}) });
@@ -29,14 +32,49 @@ try {
   await page.getByLabel('Название релиза', { exact: true }).fill('Рецензия учебного договора');
   await page.getByLabel('Деловая цель', { exact: true }).fill('Проверить обязательность заголовка');
   await page.getByLabel('Новый пакет DEV', { exact: true }).selectOption(source.id);
+  const sourceSnapshot = page.getByLabel('Снимок — Новый пакет DEV', { exact: true });
+  await sourceSnapshot.locator(`option[value="${source.id}"]`).waitFor({ state: 'attached' });
+  await sourceSnapshot.selectOption(source.id);
+  await page.route(`**/api/projects/${baseline.id}/snapshots`, route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'Учебная ошибка загрузки' }) }));
   await page.getByLabel('Предыдущий пакет DEV — базовая версия', { exact: true }).selectOption(baseline.id);
+  await page.getByText(/Снимки не получены: Учебная ошибка загрузки/).waitFor();
+  assert.equal(await page.getByRole('button', { name: 'Начать рецензию', exact: true }).isDisabled(), true);
+  await page.unroute(`**/api/projects/${baseline.id}/snapshots`);
+  await page.getByRole('button', { name: 'Повторить загрузку снимков — Предыдущий пакет DEV — базовая версия', exact: true }).click();
+  await page.getByLabel('Снимок — Предыдущий пакет DEV — базовая версия', { exact: true }).locator(`option[value="${baseline.id}"]`).waitFor({ state: 'attached' });
+  const newest = await projects.appendSource(source.id, 'local', await fixture(false), sourceRef, newer.id);
   await page.getByLabel('Назначение передачи (непроверенная компания или ответственный)', { exact: true }).fill('Учебный оператор TEST');
   await page.getByRole('button', { name: 'Начать рецензию', exact: true }).click();
   await page.getByRole('heading', { name: 'Рецензия учебного договора', exact: true }).waitFor();
+  assert.equal((await projects.get(source.id, 'local')).currentSnapshotId, newest.id);
+  await page.getByText(new RegExp('Снимок: ' + source.id)).waitFor();
+  // Without the synthetic adapter only the operator bridge is offered: no training stand, no token issued yet.
   const unavailableDelivery = page.getByRole('region', { name: 'Доставка и проверка результата', exact: true });
-  await unavailableDelivery.getByText('Доставка в ELMA пока недоступна. Используйте приватный пакет передачи.', { exact: true }).waitFor();
+  await unavailableDelivery.getByText('Сначала завершите рецензию и примите неизменяемый кандидат.', { exact: true }).waitFor();
+  await unavailableDelivery.getByRole('heading', { name: 'Мосты оператора: 0', exact: true }).waitFor();
   assert.equal(await unavailableDelivery.getByRole('button', { name: 'Добавить учебный стенд', exact: true }).count(), 0);
-  assert.equal(await unavailableDelivery.getByRole('button', { name: 'Подготовить учебную доставку', exact: true }).count(), 0);
+  assert.equal(await unavailableDelivery.getByRole('button', { name: 'Добавить подключение Target', exact: true }).isDisabled(), true);
+  assert.equal(await unavailableDelivery.getByRole('button', { name: 'Подготовить учебную доставку', exact: true }).isDisabled(), true);
+  // Bridge registration from the UI: the token is shown once, a Target connection can reference the bridge,
+  // and without a running worker the probe is honest about it.
+  await unavailableDelivery.getByLabel('Название моста', { exact: true }).fill('Оператор');
+  await unavailableDelivery.getByRole('button', { name: 'Выдать токен моста', exact: true }).click();
+  await unavailableDelivery.getByRole('heading', { name: 'Мосты оператора: 1', exact: true }).waitFor();
+  assert.match(await unavailableDelivery.locator('.release-token code').textContent(), /^wb_[A-Za-z0-9_-]{20,}$/);
+  await unavailableDelivery.getByLabel('Название подключения Target', { exact: true }).fill('TEST через мост');
+  await unavailableDelivery.getByRole('button', { name: 'Добавить подключение Target', exact: true }).click();
+  await unavailableDelivery.getByRole('heading', { name: 'TEST через мост', exact: true }).waitFor();
+  assert.equal(await unavailableDelivery.locator('.release-token').count(), 0, 'the token is not shown again after the next action');
+  await unavailableDelivery.getByRole('button', { name: 'Проверить подключение — TEST через мост', exact: true }).click();
+  await unavailableDelivery.getByText(/TEST · bridge \(Оператор\) · Личность не проверена/).waitFor();
+  await unavailableDelivery.getByLabel('Подключение Target для доставки', { exact: true }).selectOption({ label: 'TEST через мост' });
+  await unavailableDelivery.getByText(/Target ещё не проверен/).waitFor();
+  assert.equal(await unavailableDelivery.getByRole('button', { name: 'Подготовить доставку на Target', exact: true }).isDisabled(), true, 'no accepted candidate yet');
+  await unavailableDelivery.getByRole('button', { name: 'Удалить мост — Оператор', exact: true }).click();
+  await unavailableDelivery.getByRole('heading', { name: 'Мосты оператора: 0', exact: true }).waitFor();
+  await unavailableDelivery.getByText(/TEST · bridge \(мост удалён\)/).waitFor();
+  await unavailableDelivery.getByRole('button', { name: 'Удалить подключение — TEST через мост', exact: true }).click();
+  await unavailableDelivery.getByRole('heading', { name: 'TEST через мост', exact: true }).waitFor({ state: 'detached' });
   assert.equal(await page.getByRole('button', { name: 'Подготовить неизменяемый кандидат', exact: true }).isDisabled(), true);
   assert.match(await page.locator('.release-shell').textContent(), /Обязательность поля/);
   const staleTab = await page.context().newPage(); await staleTab.goto(page.url());
@@ -113,8 +151,22 @@ try {
   assert.equal(await optionalCard.getByText('Обязательность поля', { exact: true }).count(), 0);
   assert.equal(await page.getByRole('button', { name: 'Подготовить неизменяемый кандидат', exact: true }).isDisabled(), true);
   assert.match(await page.locator('.release-shell').textContent(), /Неизвестный сервис/);
+  await page.goto(base + '/releases');
+  let releaseOld;
+  const oldResponse = new Promise(resolve => { releaseOld = resolve; });
+  await page.route(`**/api/projects/${source.id}/snapshots`, async route => { const response = await route.fetch(); await oldResponse; await route.fulfill({ response }); });
+  await page.getByLabel('Новый пакет DEV', { exact: true }).selectOption(source.id);
+  await page.getByLabel('Новый пакет DEV', { exact: true }).selectOption(baseline.id);
+  const picker = page.getByLabel('Снимок — Новый пакет DEV', { exact: true });
+  await picker.locator(`option[value="${baseline.id}"]`).waitFor({ state: 'attached' });
+  const lateResponse = page.waitForResponse(r => r.url().endsWith(`/api/projects/${source.id}/snapshots`));
+  releaseOld(); await (await lateResponse).finished();
+  await page.unroute(`**/api/projects/${source.id}/snapshots`);
+  assert.equal(await picker.inputValue(), baseline.id);
+  assert.equal(await picker.locator(`option[value="${source.id}"]`).count(), 0);
+  await page.setViewportSize({ width: 390, height: 844 }); assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
   assert.deepEqual(errors, []);
-  console.log('Analyst release browser: baseline, required/optional-field and native-permission review, parser blocker, reject/resume, stale draft, candidate, exact private bundle, invalidation, preview and mobile passed.');
+  console.log('Analyst release browser: baseline, required/optional-field and native-permission review, parser blocker, reject/resume, stale draft, candidate, exact private bundle, bridge token/connection panel, invalidation, preview and mobile passed.');
 } finally {
   await browser?.close();
   if (server.listening) await new Promise(resolve => server.close(resolve));

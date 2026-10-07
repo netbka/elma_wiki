@@ -42,3 +42,17 @@ export const Blocked = { render: () => story('blocked') };
 export const Candidate = { render: () => story('candidate') };
 export const Prepared = { render: () => story('prepared') };
 export const HandedOff = { render: () => story('handed-off') };
+function creation(failed = false) {
+  const project = { id: 'synthetic-project', filename: 'Учебные снимки DEV.e365', createdAt: '2026-10-07T09:00:00Z' };
+  const root = mountRelease({ projects: [project], loadSnapshots: async () => {
+    if (failed) throw Error('Учебная ошибка загрузки; повторите позже');
+    return { currentSnapshotId: 'new', snapshots: [
+      { id: 'old', createdAt: '2026-10-06T09:00:00Z', checksum: 'b'.repeat(64), coverage: 'structural', source: null },
+      { id: 'new', createdAt: project.createdAt, checksum: 'a'.repeat(64), coverage: 'structural', source: { connectionId: 'synthetic-dev' } }
+    ] };
+  }, create: async () => { throw Error('Учебный пример: релиз не сохраняется'); } });
+  const picker = root.querySelector('select'); picker.value = project.id; picker.dispatchEvent(new Event('change'));
+  return root;
+}
+export const SnapshotSelection = { render: () => creation() };
+export const SnapshotLoadError = { render: () => creation(true) };

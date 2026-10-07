@@ -8,6 +8,8 @@ One upload remains one owner-scoped project. `/releases` explicitly selects a ne
 
 The association is owner-only. A target-intent label is an instruction to a future operator, not an authenticated connection or target identity. All release, preview, decision and bundle routes authorize the owner server-side. No shared team membership or independent reviewer approval is implied.
 
+The release creation UI explicitly picks project and immutable snapshot for both source and optional baseline. Different snapshots of one project are allowed. It displays timestamp, full archive hash, coverage and manual-upload or non-secret Source reference; none proves a live Source connection. Loading failures block creation until retry, and late responses for a previous project cannot replace the current choice. Selection never changes the project's current snapshot or workspace. `POST /api/releases` accepts optional `sourceSnapshotId` and `baselineSnapshotId`, verifies membership and ownership, and atomically captures the chosen snapshot's original bytes and pinned parser documents. A missing/foreign/corrupt snapshot fails rather than falling back to the current snapshot. Legacy API callers without snapshot IDs retain their previous current-project capture behavior; existing releases remain unchanged.
+
 ## Comparison and review
 
 Compare the entire expanded inventory by path and SHA-256, including opaque/unindexed files, additions and removals. Hide no metadata or history noise. The selected previous DEV is a review baseline, not a target read-back or a common three-way ancestor. Without a baseline, show all new files and require an explicit limitation statement; do not claim no conflicts.

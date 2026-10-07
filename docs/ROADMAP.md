@@ -3,9 +3,9 @@
 Coordination only. Work starts from the owner request or assigned issue.
 
 ## OPEN
-- Source/Target E2E phase 2 snapshot storage is implemented: immutable import records, owner-scoped APIs and current selection. Next: authorize named Source references through an approved adapter/bridge, then wire import/selection UI. No live Source load is proven.
+- Source/Target E2E phase 2 snapshot storage and explicit snapshot selection for release inputs are implemented. Next: authorize named Source references through an approved adapter/bridge, then wire import and project-viewer selection UI. No live Source load is proven.
 - Analyst release offline milestone is implemented for review: explicit upload/baseline pinning, owner-only resumable decisions and unchanged-original candidate/handoff. See contracts/analyst-releases.md. Optional edited candidates and production gates remain open.
-- AR-04 delivery: lifecycle, guards, read-back verification and the `/releases` delivery UI are implemented against a synthetic Target (contracts/target-deployment.md). Open: owner designates the non-production Target and the bridge that keeps `elma365pm`/tokens outside the Wiki process; then the first real adapter and the live evidence gate G2.
+- AR-04 delivery: lifecycle, guards, read-back verification and the `/releases` delivery UI are implemented against a synthetic Target (contracts/target-deployment.md). The operator bridge adapter (`elma-dev bridge`; tokens and `elma365pm` stay on the operator machine) is implemented and exercised read-only against dev2. Open: owner designates the non-production Target and a candidate for the first live deploy; then the live evidence gate G2.
 - Source -> Workspace -> Target E2E implementation - plans/source-target-e2e.md.
 - Extend workflow Storybook to existing public/auth/viewer renderers and authenticated remote collaboration when assigned.
 - Analyst release workspace - [proposed PR sequence](plans/analyst-release-workspace.md) and [audit brief](audits/analyst-release-audit-brief.md). Extends the existing E2E. Offline review/handoff and synthetic delivery UI are implemented; real TEST delivery, optional edited candidates and production gates remain open. No-edit review/handoff precedes TEST delivery and optional edits.
