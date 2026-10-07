@@ -25,7 +25,7 @@ export function commandPortal(core, owner, input) {
   bindings(core, owner);
   if (!input || typeof input !== 'object' || Array.isArray(input) ||
       Object.keys(input).some(k => !['operationId', 'action', 'requestId', 'revision', 'project', 'text'].includes(k))) throw new Fault('invalid_command', 400);
-  if (!/^[A-Za-z0-9_-]{16,100}$/.test(input.operationId || '') ||
+  if (typeof input.operationId !== 'string' || !/^[A-Za-z0-9_-]{16,100}$/.test(input.operationId) ||
       !['create', 'reply', 'approve', 'cancel'].includes(input.action)) throw new Fault('invalid_command', 400);
   const key = 'portal:' + digest(JSON.stringify([owner, input.operationId]));
   const hash = digest(JSON.stringify(input));
