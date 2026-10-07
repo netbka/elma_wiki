@@ -2,7 +2,7 @@
 
 Authority: #33; architecture: #34; ownership: #31. Implementation checkpoints in draft PR #32.
 
-`lib/managed-workspace.mjs` implements an immutable, serializable domain reducer and an adapter over the existing `parseProject` parser. `lib/managed-workspace-store.mjs` adds private owner-scoped persistence and association with existing snapshots. `server.mjs` exposes the authenticated HTTP lifecycle below. Production workspace UI, Storybook and candidate creation are not wired yet. The existing isolated upload viewer, script editor and release/deployment contracts remain operationally unchanged.
+`lib/managed-workspace.mjs` implements an immutable, serializable domain reducer and an adapter over the existing `parseProject` parser. `lib/managed-workspace-store.mjs` adds private owner-scoped persistence and association with existing snapshots. `server.mjs` exposes the authenticated HTTP lifecycle below. `/workspaces` and its shared Storybook renderer implement the [managed journey](../workflows/managed-workspace.md); candidate creation is not wired. The existing isolated upload viewer, script editor and release/deployment contracts remain operationally unchanged.
 
 ## Implemented behavior
 
@@ -65,12 +65,14 @@ All routes start with `/api/managed-workspaces`. Authentication supplies the own
 
 The collection URL has no trailing slash. Snapshot inputs are explicit `{projectId, snapshotId, scope: "full" | "partial", scopeConfirmed: true}`. Preparation also requires `sameSourceConfirmed: true`; neither assertion is inferred from a filename, manifest or successful parse. Unknown input fields, forged owner/Source data and mixed operation decisions are rejected. Review must be repeated after a revision conflict; no last-write-wins fallback exists. There is no automatic project migration, Source network call, candidate composition or deployment endpoint in this API.
 
+State/list responses expose `baselineAcceptedAt`; only full baseline creation/acceptance updates it. Legacy reconciled records without this field return null instead of an invented timestamp. List rows also include `changedComponents` (current components carrying an intervention) and `pendingCount` (including stale proposals). These are metadata summaries, not conflict or checksum verification.
+
 ## Remaining integration gates
 
-- Explicit scope/Source confirmation UX over the authenticated routes. Storage receives a trusted owner, not a browser identity assertion.
+- The shared UI provides explicit scope/Source confirmations; uncoached first use and independent product review remain separate gates. Storage receives a trusted owner, not a browser identity assertion.
 - Package-level metadata/dependency reconciliation and finer component adapters where stable identity is proven. An entity projection does not represent a deployable complete package. Partial deletion needs an explicit proven tombstone contract; it is absent here.
 - Candidate handoff must use #11's exact artifact/review contract and cannot construct an archive from this projection.
-- #35 production workspace UI and #36/#40 shared renderer/Storybook states, followed by #37/#39/#41/#38 integration and owner acceptance gates.
+- The bounded #35/#36/#40 managed lifecycle UI and shared states are wired. Managed code/release association and #37/#39/#41/#38 integration/consistency/independent review/owner acceptance remain open.
 
 No live ELMA Source/Target connection, package generation, publication or deployment is implemented or tested in this checkpoint.
 

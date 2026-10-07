@@ -523,6 +523,62 @@
         "lib/releases.mjs",
         "docs/contracts/analyst-releases.md"
       ]
+    },
+    "managed-workspace": {
+      "entry": "/workspaces",
+      "kind": "implemented",
+      "actions": [
+        "create",
+        "prepare",
+        "review",
+        "accept",
+        "reconcile",
+        "archive",
+        "reopen",
+        "retry"
+      ],
+      "renderer": [
+        "web/managed/render.js",
+        "web/managed/model.js"
+      ],
+      "storyIds": [
+        "managed-workspace--empty",
+        "managed-workspace--list",
+        "managed-workspace--create",
+        "managed-workspace--overview",
+        "managed-workspace--pending",
+        "managed-workspace--change",
+        "managed-workspace--review",
+        "managed-workspace--conflict",
+        "managed-workspace--overlap",
+        "managed-workspace--ambiguous",
+        "managed-workspace--stale",
+        "managed-workspace--archived",
+        "managed-workspace--loading",
+        "managed-workspace--load-error"
+      ],
+      "requiredVisibleStates": [
+        "empty",
+        "list",
+        "create",
+        "overview",
+        "pending",
+        "change",
+        "review",
+        "conflict",
+        "overlap",
+        "ambiguous",
+        "stale",
+        "archived",
+        "loading",
+        "load-error"
+      ],
+      "sources": [
+        "docs/workflows/managed-workspace.md",
+        "docs/contracts/managed-workspace.md",
+        "test/managed-workspace-api.test.mjs",
+        "tools/managed-workspace-browser-check.mjs"
+      ]
     }
   }
 }

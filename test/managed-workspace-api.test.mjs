@@ -60,6 +60,8 @@ test('HTTP lifecycle pins a full baseline, reviews changes/conflicts, restores p
   let state = await json(await post('', creation(baseline.ref)), 201), id = '/' + state.id;
   assert.equal((await json(await request()))[0].id, state.id);
   assert.equal(state.revision, 0);
+  const initialAcceptedAt = state.baselineAcceptedAt;
+  assert.equal(initialAcceptedAt, state.createdAt);
   const local = await upload([['a', 'ours'], ['x', 'added']], 'partial');
   const preview = await json(await post(id + '/prepare', change(local.ref)), 201);
   const artifact = id + '/artifacts/' + preview.artifactId;
@@ -71,6 +73,7 @@ test('HTTP lifecycle pins a full baseline, reviews changes/conflicts, restores p
   state = await json(await post(artifact + '/accept', { ...decisions(preview),
     reviewedBoundaryKeys: preview.rows.filter(row => row.boundaryCrossing).map(row => row.key) }));
   assert.equal(state.current.length, 3);
+  assert.equal(state.baselineAcceptedAt, initialAcceptedAt);
   assert.equal(state.current.find(row => row.code === 'b').team, 'Vendor');
   await json(await post(artifact + '/accept', decisions(preview)), 404);
   const next = await upload([['a', 'vendor'], ['b', 'untouched'], ['x', 'added']], 'full');
@@ -81,6 +84,8 @@ test('HTTP lifecycle pins a full baseline, reviews changes/conflicts, restores p
   const conflict = reconciliation.rows.find(row => row.classification === 'conflict');
   state = await json(await post(review + '/accept', { ...decisions(reconciliation), resolutions: { [conflict.key]: 'keep-working' } }));
   assert.equal(state.baselineId, reconciliation.artifactId);
+  assert.equal(state.baselineAcceptedAt, state.updatedAt);
+  const refreshedAcceptedAt = state.baselineAcceptedAt;
   assert.equal(state.current.find(row => row.code === 'a').team, 'Internal');
   assert.equal(state.current.find(row => row.code === 'x').team, 'Vendor');
   state = await json(await post(id + '/archive', { archived: true, expectedRevision: state.revision }));
@@ -88,6 +93,7 @@ test('HTTP lifecycle pins a full baseline, reviews changes/conflicts, restores p
   assert.equal((await json(await request('?archived=true')))[0].id, state.id);
   await json(await post(id + '/prepare', change(local.ref, state.revision)), 409);
   state = await json(await post(id + '/archive', { archived: false, expectedRevision: state.revision }));
+  assert.equal(state.baselineAcceptedAt, refreshedAcceptedAt);
   await projects.reparse(baseline.project.id, 'local');
   await projects.delete(baseline.project.id, 'local');
   await restart();
