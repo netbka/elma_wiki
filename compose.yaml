@@ -2,16 +2,27 @@ services:
   wiki:
     build: .
     restart: unless-stopped
-    ports:
-      - "127.0.0.1:43171:43171"
+    init: true
     environment:
       HOST: 0.0.0.0
       PORT: 43171
-      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-https://wiki.example.com}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:?Set PUBLIC_BASE_URL in private env file}
       DISABLE_LOCAL_LOGIN: "1"
-      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
-      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:?Set GITHUB_CLIENT_ID in private env file}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:?Set GITHUB_CLIENT_SECRET in private env file}
+    ports:
+      - "127.0.0.1:43171:43171"
     volumes:
       - wiki-data:/app/.local
+    healthcheck:
+      test: ["CMD", "node", "lib/healthcheck.mjs"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
 volumes:
   wiki-data:

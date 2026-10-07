@@ -1,6 +1,7 @@
 .git
 .local
 .env
+.env.*
 *.env
 node_modules
 qa

@@ -5,7 +5,15 @@ npm start
 # http://127.0.0.1:43171
 
 # Каждый аргумент создаёт отдельный проект владельца local
-npm run import -- ./solution.e365</code></pre></section><section><h2>GitHub OAuth App</h2><p>Создайте OAuth App в GitHub Settings → Developer settings → OAuth Apps. Homepage URL — ваш HTTPS адрес. Authorization callback URL — https://wiki.example.org/auth/github/callback. В локальной разработке можно зарегистрировать отдельное приложение с callback http://127.0.0.1:43171/auth/github/callback.</p><p>Скопируйте .env.example в .env и задайте GITHUB_CLIENT_ID и GITHUB_CLIENT_SECRET. Секрет остаётся на сервере и не попадает в Git. Используется только scope read:user; токен после получения профиля не хранится в сессии.</p></section><section><h2>Развёртывание</h2><pre><code>docker build -t e365-wiki .
+npm run import -- ./solution.e365</code></pre></section><section><h2>Настройка без передачи секретов в чат</h2><pre><code>npm run setup
+npm run doctor
+# После настройки перезапустите npm start
+
+# Для внешнего HTTPS-сервиса, когда выбран адрес:
+npm run setup -- --production
+npm run doctor -- --production
+docker compose --env-file .env.production config --quiet
+docker compose --env-file .env.production up -d --build</code></pre><p>Команда setup показывает Homepage URL и callback для регистрации GitHub OAuth App. Client Secret вводится скрыто в вашем терминале и сохраняется только в приватном файле настройки. Существующий файл не перезаписывается. Для локальной работы без GitHub оставьте Client ID пустым.</p><p>doctor проверяет параметры и доступность локального хранилища, не печатая значения, секреты или содержимое проектов. Настоящий OAuth-вход и внешний HTTPS проверяются отдельно.</p><p>Compose хранит проекты в volume, отключает локальный вход и слушает только loopback хоста. Reverse proxy должен передавать Host, совпадающий с PUBLIC_BASE_URL. Перед обновлением резервируйте volume. Для остановки используйте docker compose down без удаления volume.</p></section><section><h2>GitHub OAuth App</h2><p>Создайте OAuth App в GitHub Settings → Developer settings → OAuth Apps. Homepage URL — ваш HTTPS адрес. Authorization callback URL — https://wiki.example.org/auth/github/callback. В локальной разработке можно зарегистрировать отдельное приложение с callback http://127.0.0.1:43171/auth/github/callback.</p><p>Скопируйте .env.example в .env и задайте GITHUB_CLIENT_ID и GITHUB_CLIENT_SECRET. Секрет остаётся на сервере и не попадает в Git. Используется только scope read:user; токен после получения профиля не хранится в сессии.</p></section><section><h2>Развёртывание</h2><pre><code>docker build -t e365-wiki .
 docker run -d --name e365-wiki   --env-file .env.production   -p 127.0.0.1:43171:43171   -v e365-projects:/app/.local e365-wiki
 
 # .env.production, вне Git:
