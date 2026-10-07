@@ -11,6 +11,7 @@ Last repository verification: 2026-10-07.
 - Owner-only offline analyst releases at /releases: explicitly pinned DEV/baseline originals, complete inventory comparison and structural field impact, durable decisions, revision conflicts, unchanged-original candidate and exact private handoff. Local acceptance never authorizes import; ELMA, dependency and target checks remain Not run. Workspace edits are excluded. See contracts/analyst-releases.md.
 - Node service with identity/auth (e-mail code login; GitHub OAuth removed) and isolated user projects.
 - Manual .e365 upload/project parsing and structural viewer.
+- Public article sources (TRUST-01, #27): every public article page lists its declared `sources` as repository-file or allow-listed documentation links, repeats the article status verbatim next to them and says explicitly that a reference is not an ELMA verification. Malformed or unsafe references render as text with the reason; shared production/Storybook renderer. See workflows/public-article-sources.md.
 - Synthetic showcase/fixtures.
 - E365 workbench tooling exists for file-oriented work.
 - Local workflow Storybook and shared /flows system map: investigation, review, upload, proposed Source/Target and synthetic ELMA examples.

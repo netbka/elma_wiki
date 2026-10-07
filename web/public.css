@@ -7,3 +7,12 @@ main{overflow-wrap:anywhere}
 .article nav{display:block}
 .article nav ul{padding-left:24px}
 .article nav li{margin:8px 0}
+.sources{margin-top:40px;padding-top:24px;border-top:1px solid var(--line)}
+.sources-note,.sources-empty,.sources-warning{color:var(--muted);font-size:14px}
+.sources-note .badge{vertical-align:middle}
+.sources-list{list-style:none;padding:0;margin:16px 0 0;display:grid;gap:10px}
+.source{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline;border-left:3px solid transparent;padding-left:12px}
+.source-kind{color:var(--muted);font-size:13px}
+.source-invalid{border-left-color:#d69634}
+.source-invalid code{overflow-wrap:anywhere}
+.sources-warning{margin-top:16px}

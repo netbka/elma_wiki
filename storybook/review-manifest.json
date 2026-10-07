@@ -29,6 +29,32 @@
         "lib/public-site.mjs"
       ]
     },
+    "public-article-sources": {
+      "entry": "/articles/:id/#article-sources",
+      "kind": "implemented",
+      "actions": [
+        "open-source",
+        "read-status"
+      ],
+      "renderer": [
+        "web/public-article-sources.mjs"
+      ],
+      "storyIds": [
+        "public-article-sources--listed",
+        "public-article-sources--empty",
+        "public-article-sources--invalid"
+      ],
+      "requiredVisibleStates": [
+        "listed",
+        "empty",
+        "invalid"
+      ],
+      "sources": [
+        "docs/workflows/public-article-sources.md",
+        "test/public-article-sources.test.mjs",
+        "lib/public-site.mjs"
+      ]
+    },
     "delivery-ui": {
       "kind": "implemented",
       "renderer": [
