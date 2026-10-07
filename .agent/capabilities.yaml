@@ -59,9 +59,9 @@ capabilities:
     routes: ["docs/contracts/target-deployment.md"]
     boundaries: ["domain", "ops"]
   storybook-system:
-    owners: ["storybook/", "testing/workflows/"]
-    routes: ["docs/STORYBOOK.md"]
-    boundaries: ["tooling", "ui"]
+    owners: ["storybook/", "web/flows/", "web/flows.html", "lib/flow-reviews.mjs", "testing/workflows/"]
+    routes: ["docs/STORYBOOK.md", "docs/EXPERIENCE_REVIEW.md"]
+    boundaries: ["tooling", "ui", "domain", "storage"]
   agent-system:
     owners: ["AGENTS.md", ".agent/capabilities.yaml", "docs/INDEX.md"]
     routes: ["AGENTS.md", "docs/INDEX.md"]

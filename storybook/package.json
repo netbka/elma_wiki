@@ -1,0 +1,15 @@
+{
+  "name": "elma-workflow-storybook",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22.12" },
+  "scripts": {
+    "dev": "storybook dev -c .storybook -p 6006 --host 127.0.0.1 --no-open --disable-telemetry --ci",
+    "build": "storybook build -c .storybook -o storybook-static --disable-telemetry"
+  },
+  "devDependencies": {
+    "@storybook/html-vite": "10.6.1",
+    "storybook": "10.6.1",
+    "vite": "8.3.2"
+  }
+}

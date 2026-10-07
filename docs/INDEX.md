@@ -18,6 +18,8 @@ Routing, not an always-read checklist.
 | Source import workflow | workflows/source-import.md |
 | Target procedure | runbooks/target-deployment.md |
 | Storybook authority | STORYBOOK.md |
+| Business investigation and review | EXPERIENCE_REVIEW.md |
+| Storybook investigation evidence | plans/workflow-storybook-investigation.md |
 | E2E implementation package | plans/source-target-e2e.md |
 
 Product Constitution/Principles are intentionally pending a separate ELMA-specific rewrite. Never copy Dyk product semantics as temporary authority.
