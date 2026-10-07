@@ -69,6 +69,7 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
         if (!input || typeof input !== 'object' || Array.isArray(input)) return send(res,400,{error:'Некорректный запрос'});
         return send(res,201,await releases.create(session.user.id,input));
       }
+      if (pathname === '/api/connections/adapters') { if (!session) return send(res,401,{error:'Войдите в сервис'}); return send(res,200,{ adapters: delivery.adapterNames }); }
       const connectionMatch = /^\/api\/connections(?:\/([^/]+)(?:\/(probe))?)?$/.exec(pathname);
       if (connectionMatch) {
         const [,id,action] = connectionMatch;

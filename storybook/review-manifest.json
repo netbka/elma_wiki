@@ -410,6 +410,47 @@
         "lib/releases.mjs",
         "docs/contracts/analyst-releases.md"
       ]
+    },
+    "target-delivery": {
+      "entry": "/releases",
+      "kind": "implemented",
+      "actions": [
+        "create-connection",
+        "probe",
+        "remove-connection",
+        "prepare",
+        "confirm",
+        "verify"
+      ],
+      "renderer": [
+        "web/releases/delivery.js",
+        "web/releases/render.js",
+        "web/releases/model.js"
+      ],
+      "storyIds": [
+        "delivery--no-adapter",
+        "delivery--ready-to-prepare",
+        "delivery--protected-target",
+        "delivery--prepared",
+        "delivery--deployed-unverified",
+        "delivery--unknown-outcome",
+        "delivery--verified",
+        "delivery--verification-failed"
+      ],
+      "requiredVisibleStates": [
+        "no-adapter",
+        "ready-to-prepare",
+        "protected-target",
+        "prepared",
+        "deployed-unverified",
+        "unknown-outcome",
+        "verified",
+        "verification-failed"
+      ],
+      "sources": [
+        "lib/delivery.mjs",
+        "docs/contracts/target-deployment.md"
+      ]
     }
   }
 }
