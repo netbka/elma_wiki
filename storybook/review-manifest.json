@@ -637,6 +637,37 @@
         "tools/requests-browser-check.mjs",
         "test/request-coordinator.test.mjs"
       ]
+    },
+    "solution-visual": {
+      "entry": "/solutions?view=review",
+      "kind": "implemented",
+      "actions": [
+        "select-process",
+        "select-node",
+        "view-transition"
+      ],
+      "renderer": [
+        "web/visual/render.js"
+      ],
+      "storyIds": [
+        "solution-visual--source",
+        "solution-visual--unknown",
+        "solution-visual--empty",
+        "solution-visual--loading",
+        "solution-visual--error"
+      ],
+      "requiredVisibleStates": [
+        "source",
+        "unknown",
+        "empty",
+        "loading",
+        "error"
+      ],
+      "sources": [
+        "docs/contracts/solution-visual.md",
+        "test/solution-visual.test.mjs",
+        "tools/solution-visual-browser-check.mjs"
+      ]
     }
   }
 }

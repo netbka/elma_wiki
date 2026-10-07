@@ -1,4 +1,5 @@
 import { componentName, dateLabel, labels, reviewGate, workspaceSummary, workspaceUrl as buildUrl, solutionNextAction } from './model.js';
+import { mountSnapshotVisual } from '../visual/render.js';
 const el = (tag, text, className) => { const node = document.createElement(tag); if (text !== undefined) node.textContent = text; if (className) node.className = className; return node; };
 let sequence = 0;
 export function mountManagedWorkspace(model = {}, actions = {}) {
@@ -162,6 +163,17 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
   }
 
   if (view === 'review' && review) {
+    if (actions.visual) {
+      const details=el('details'), target=el('div');
+      details.append(el('summary','Посмотреть процесс и форму'),target); content.append(details);
+      let loaded=false;
+      const load=async()=>{
+        target.replaceChildren(mountSnapshotVisual({loading:true}));
+        try { target.replaceChildren(mountSnapshotVisual(await actions.visual(review.artifactId), {selectAnchor:actions.selectAnchor})); loaded=true; }
+        catch(e){target.replaceChildren(mountSnapshotVisual({error:e.message},{retry:load}));}
+      };
+      details.ontoggle=()=>{if(details.open&&!loaded)load();};
+    }
     const full = review.kind === 'reconciliation', form = el('form'), boundaryKeys = new Set(), resolutions = {};
     content.append(el('h2', full ? 'Рассмотреть обновление версии' : 'Рассмотреть изменение'),
       el('p', full ? `После принятия это станет текущей версией. Заявленная ответственность: ${review.options.baselineOwner}.` : `Ответственная команда: ${review.options.team} · ${review.options.taskRef}.`));
