@@ -20,24 +20,26 @@ export function mountFlow({ flow, initial, reviewMount } = {}) {
   branches.append(routes);
   const history = el('details'); history.append(el('summary', 'История прохождения'));
   const log = el('ol'); history.append(log);
-  const reset = el('button', 'Начать заново'); reset.type = 'button'; reset.onclick = () => { session = startFlow(flow); draw(); };
+  const reset = el('button', 'Начать заново'); reset.type = 'button'; reset.onclick = () => { session = startFlow(flow); draw(true); };
   const reviewHost = el('section', undefined, 'flow-review');
   root.append(heading, map, stage, branches, notes, reset, history, reviewHost);
-  function draw() {
+  function draw(focusStep = false) {
     map.replaceChildren();
     for (const state of flow.states) { const row = el('li', state.title); row.dataset.state = state.id; if (state.id === session.current) row.setAttribute('aria-current', 'step'); map.append(row); }
     const state = flow.states.find(state => state.id === session.current);
-    stage.replaceChildren(el('p', `Кто действует: ${state.actor}`, 'flow-badge'), el('h2', state.title), el('p', state.explanation));
+    const stepHeading = el('h2', state.title); stepHeading.tabIndex = -1;
+    stage.replaceChildren(el('p', `Кто действует: ${state.actor}`, 'flow-badge'), stepHeading, el('p', state.explanation));
     if (flow.id === 'approval') stage.append(el('p', `Версия документа: ${session.version}. Согласована версия: ${session.approvedVersion ?? 'нет'}.`));
     if (flow.id === 'correspondence') stage.append(el('p', `Поле входящего: ${session.topic || 'пусто'}.`));
     if (flow.id === 'workspace') stage.append(el('p', `Рабочая ревизия: ${session.workspaceRevision}. Проверка: ${session.workspaceCheck || 'требуется'}.`));
     if (state.evidence) stage.append(el('p', `Доказательство / ожидаемая запись: ${state.evidence}`, 'flow-evidence'));
     const actions = el('div', undefined, 'flow-actions');
-    state.actions.forEach(action => { const button = el('button', action.label); button.type = 'button'; button.dataset.action = action.id; button.onclick = () => { session = transition(flow, session, action.id); draw(); }; actions.append(button); });
+    state.actions.forEach(action => { const button = el('button', action.label); button.type = 'button'; button.dataset.action = action.id; button.onclick = () => { session = transition(flow, session, action.id); draw(true); }; actions.append(button); });
     if (!state.actions.length) actions.append(el('p', 'Сценарий завершён. Проверьте результат и оставьте рецензию.'));
     stage.append(actions);
     log.replaceChildren(); session.history.forEach(event => log.append(el('li', event.action)));
     reviewHost.dataset.step = session.current;
+    if (focusStep) stepHeading.focus();
   }
   draw();
   if (reviewMount) reviewMount(reviewHost, flow, () => session.current);
