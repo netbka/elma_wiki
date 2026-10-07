@@ -1,6 +1,8 @@
 # Collaborative ownership for E365 changes
 
-Tracks: #31
+Tracks: #31, within the baseline-first lifecycle in #33/#34.
+
+The workflow below describes ownership semantics. Managed workspaces must start from an explicitly full snapshot; partial packages are Changes within that workspace. Later full snapshots use Reconciliation. This authority supersedes any earlier interpretation that an arbitrary package can become a managed workspace. The first engine checkpoint and its remaining integration gates are documented in [managed-workspace.md](managed-workspace.md).
 
 ## Purpose
 

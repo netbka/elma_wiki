@@ -20,6 +20,7 @@ Routing, not an always-read checklist.
 | Browser coding workspace (PR #8, PR #12) | WEB_DEVELOPER_WORKSPACE.md |
 | Offline compiler profile / per-project SDK | COMPILER_PROFILE.md |
 | Snapshot/storage | contracts/project-snapshots.md |
+| Baseline-first domain engine (not yet wired to UI/storage) | [contracts/managed-workspace.md](contracts/managed-workspace.md) |
 | Source/Target boundary | contracts/source-target-connections.md |
 | Developer code workspace | contracts/developer-workspace.md |
 | Deployment/verification | contracts/target-deployment.md |
