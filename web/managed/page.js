@@ -2,7 +2,10 @@ import { mountManagedWorkspace } from './render.js';
 import { workspaceUrl } from './model.js';
 const root = document.getElementById('managed-root'), query = new URLSearchParams(location.search);
 const id = query.get('id'), view = query.get('view') || (id ? 'overview' : 'list'), artifact = query.get('artifact');
-const api = '/api/managed-workspaces';
+const shared = location.pathname === '/solutions', home = shared ? '/solutions' : '/workspaces';
+const api = shared ? '/api/solutions' : '/api/managed-workspaces';
+const href = (id, view, artifact) => workspaceUrl(id, view, artifact, home);
+const config = { shared, home, api };
 async function request(url, input, upload) {
   let response;
   try {
@@ -20,21 +23,21 @@ async function request(url, input, upload) {
 const navigate = href => { location.href = href; };
 const actions = {
   logout: async () => { await request('/auth/logout', {}); navigate('/login'); },
-  upload: file => request('/api/projects?filename=' + encodeURIComponent(file.name), file, true),
-  create: async input => { const state = await request(api, input); navigate(workspaceUrl(state.id)); },
-  prepare: async input => { const review = await request(`${api}/${id}/prepare`, input); navigate(workspaceUrl(id, 'review', review.artifactId)); },
-  accept: async (artifactId, input) => { await request(`${api}/${id}/artifacts/${artifactId}/accept`, input); navigate(workspaceUrl(id)); },
-  archive: async input => { await request(`${api}/${id}/archive`, input); navigate(workspaceUrl(id)); }
+  upload: file => request((shared ? '/api/solutions/uploads?sharedConfirmed=true&filename=' : '/api/projects?filename=') + encodeURIComponent(file.name), file, true),
+  create: async input => { const state = await request(api, input); navigate(href(state.id)); },
+  prepare: async input => { const review = await request(`${api}/${id}/prepare`, input); navigate(href(id, 'review', review.artifactId)); },
+  accept: async (artifactId, input) => { await request(`${api}/${id}/artifacts/${artifactId}/accept`, input); navigate(href(id)); },
+  archive: async input => { await request(`${api}/${id}/archive`, input); navigate(href(id)); }
 };
-root.replaceChildren(mountManagedWorkspace({ view, loading: true }));
+root.replaceChildren(mountManagedWorkspace({ ...config, view, loading: true }));
 let workspace;
 try {
   workspace = id ? await request(`${api}/${encodeURIComponent(id)}`) : null;
   const review = id && artifact && view === 'review' ? await request(`${api}/${encodeURIComponent(id)}/artifacts/${encodeURIComponent(artifact)}/preview`) : null;
   const rows = !id && view !== 'create' ? await request(api + (view === 'archived' ? '?archived=true' : '')) : [];
-  root.replaceChildren(mountManagedWorkspace({ workspace, view, review, rows }, actions));
-  document.title = (workspace?.name || (view === 'create' ? 'Создать пространство' : 'Рабочие пространства')) + ' · E365 Wiki';
+  root.replaceChildren(mountManagedWorkspace({ ...config, workspace, view, review, rows }, actions));
+  document.title = (workspace?.name || (view === 'create' ? 'Добавить решение' : 'Решения')) + ' · E365';
   root.querySelector('h1')?.focus({ preventScroll: true });
 } catch (error) {
-  root.replaceChildren(mountManagedWorkspace({ workspace, view, error: error.message, stale: error.status === 409 }, actions));
+  root.replaceChildren(mountManagedWorkspace({ ...config, workspace, view, error: error.message, stale: error.status === 409 }, actions));
 }

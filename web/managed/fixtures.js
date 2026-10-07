@@ -16,13 +16,18 @@ export function managedFixture(mode = 'overview') {
   if (mode === 'ambiguous') review.ambiguities = [{ reason: 'unknown', source: 'synthetic/unknown.json' }];
   if (mode === 'archived') { workspace.status = 'archived'; workspace.history.push({ type: 'archived' }); }
   if (mode === 'pending') workspace.pending = [{ artifactId: review.artifactId, kind: review.kind, revision: 1, stale: false, options: review.options }];
-  const model = { synthetic: true, view: 'overview', workspace };
+  const model = { synthetic: true, shared: true, home: '/solutions', api: '/api/solutions', view: 'overview', workspace };
   if (['review', 'conflict', 'overlap', 'ambiguous'].includes(mode)) Object.assign(model, { view: 'review', review });
   if (['create', 'empty', 'list', 'loading', 'load-error'].includes(mode)) {
     delete model.workspace; model.view = mode === 'create' ? 'create' : 'list';
     model.rows = mode === 'list' ? [{ ...workspace, baselineSnapshot: base.snapshot, changedComponents: 1, pendingCount: 2, current: undefined, pending: undefined }] : [];
   }
   if (mode === 'change') model.view = 'change';
+  if (mode === 'changes') model.view = 'changes';
+  if (mode === 'solution') model.view = 'solution';
+  if (mode === 'no-source') workspace.baselineId = null;
+  if (mode === 'needs-fixes') workspace.pending = [{ artifactId: review.artifactId, kind: 'change', revision: 1, stale: false, decision: 'needs-changes', options: review.options }];
+  if (mode === 'pending-conflict') workspace.pending = [{ artifactId: review.artifactId, kind: 'reconciliation', revision: 1, stale: false, attention: { conflicts: 1, unknown: 0 }, options: { baselineOwner: 'Команда внедрения' } }];
   if (mode === 'loading') model.loading = true;
   if (mode === 'load-error') model.error = 'Сервис временно недоступен. Сохранённые пространства не изменены.';
   if (mode === 'stale') { model.view = 'review'; model.stale = true; model.error = 'База изменилась в другой вкладке.'; }

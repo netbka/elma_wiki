@@ -62,7 +62,7 @@ test('clicking a bot link signs in directly for a week and preserves VK project 
   // createServer's default origin remains its configured origin, even on an ephemeral test port.
   const link = vkLoginLinks({ secret: env.VK_BOT_AUTH_TOKEN, baseUrl: 'http://127.0.0.1:43171', domain: env.PORTAL_EMAIL_DOMAIN, now: () => clock }).issue('person@example.org');
   const click = () => fetch(base + new URL(link).pathname + new URL(link).search, { redirect: 'manual' });
-  const response = await click(); assert.equal(response.status, 303); assert.equal(response.headers.get('location'), '/workspaces');
+  const response = await click(); assert.equal(response.status, 303); assert.equal(response.headers.get('location'), '/solutions');
   assert.match(response.headers.get('set-cookie'), /Max-Age=604800/);
   const cookie = response.headers.get('set-cookie').split(';')[0];
   const session = await (await fetch(base + '/api/session', { headers: { cookie } })).json();

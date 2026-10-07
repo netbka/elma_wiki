@@ -22,7 +22,7 @@ try {
   assert.equal(await page.locator('main a').count(), 1);
   const link = vkLoginLinks({ secret: sendVk.linkSecret, domain: sendVk.domain, baseUrl: 'http://127.0.0.1:43171' }).issue('person@example.org');
   await page.goto(base + new URL(link).pathname + new URL(link).search);
-  await page.waitForURL('**/workspaces'); await page.getByRole('heading', { name: 'Рабочие пространства', exact: true }).waitFor();
+  await page.waitForURL('**/solutions'); await page.getByRole('heading', { name: 'Решения', exact: true }).waitFor();
   await page.getByRole('button', { name: 'Выйти', exact: true }).click(); await page.waitForURL(base + '/login');
   await page.goto(base + '/auth/vk/link?token=invalid');
   await page.waitForURL('**/login?expired=1');

@@ -7,11 +7,11 @@ Authority target: SOLUTION_FIRST_PRODUCT_PLAN.md.
 | Area | Existing rule / evidence | Solution-first decision | Migration / action |
 | --- | --- | --- | --- |
 | Primary object | Older file-project flow: one uploaded .e365 creates a private project | User-facing primary object is Solution | Keep file-project primitives only as storage/legacy inspection where needed |
-| Workspace term | #33 and managed-workspace contracts use Workspace | Workspace stays internal; UI says Solution | Rename user-facing navigation/copy, not domain objects blindly |
+| Workspace term | #33 and managed-workspace contracts use Workspace | Workspace stays internal; UI says Solution | P2 reuses the renderer/engine with Solution copy; /workspaces remains private compatibility |
 | Visibility | Legacy project/release APIs are owner-scoped/private | MVP authenticated users share the approved Solution catalog and permissions | P1 uses a separate explicitly admitted catalog; old records remain private until classified and copied with approval; see contracts/shared-solutions.md |
 | Authentication | Legacy login/session implied owner scope | Authentication establishes actor identity; no role tiers in MVP | P1 persists trusted actors separately from sessions and attributes catalog mutations; ACL/roles remain deferred |
 | Authorship | Uploader/owner may be confused with change author | Portal actor, uploader, ELMA publisher/author and responsible person are different evidence | Store/display separately; unknown stays unknown |
-| Top navigation | Projects/Releases/Flows/Storybook/Developer Workspace exist as destinations | Solutions is home; Learn is secondary | Demote/hide subsystem destinations from normal path |
+| Top navigation | Projects/Releases/Flows/Storybook/Developer Workspace existed as destinations | Solutions is home; Learn is secondary | P2 enters /solutions with Overview / Changes / Solution; compatibility files are disclosed and Delivery remains contextual/deferred |
 | Three-area model | #30 frames Learn / Code & lint / Review as product entries | Keep capabilities, not equal destinations | Code and Review become contextual |
 | Storybook | Engineering Storybook and solution review were conflated | Storybook is engineering infrastructure; user sees Preview/Review | Shared renderer, no Storybook vocabulary in product UI |
 | Release entry | #11 starts from packages/releases | Delivery is contextual to accepted Solution state | Reuse domain, change entry/navigation |

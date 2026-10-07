@@ -25,6 +25,7 @@ Routing, not an always-read checklist.
 | Offline compiler profile / per-project SDK | COMPILER_PROFILE.md |
 | Snapshot/storage | contracts/project-snapshots.md |
 | Shared authenticated Solution catalog and persistent actors | [contracts/shared-solutions.md](contracts/shared-solutions.md) |
+| Current Solution UI and deterministic next action | [workflows/solutions.md](workflows/solutions.md) |
 | Portal-origin requests and shared worker queue, without VK | [contracts/portal-requests.md](contracts/portal-requests.md) |
 | Baseline-first engine, private storage and HTTP API | [contracts/managed-workspace.md](contracts/managed-workspace.md) |
 | Managed workspace UI and shared Storybook lifecycle | [workflows/managed-workspace.md](workflows/managed-workspace.md) |

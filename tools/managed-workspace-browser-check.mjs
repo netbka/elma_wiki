@@ -24,50 +24,54 @@ try {
   page.on('pageerror', error => errors.push(error.message));
   await fs.mkdir('qa', { recursive: true });
   const auth = await context.request.post(base + '/auth/local', { headers: { 'X-Elma-Wiki-Request': '1' } }); assert.equal(auth.status(), 200);
-  await page.goto(base + '/workspaces');
-  await page.getByRole('heading', { name: 'Пока нет активных пространств' }).waitFor();
-  await page.getByRole('link', { name: 'Создать из полного снимка' }).focus();
+  await page.goto(base + '/solutions');
+  await page.getByRole('heading', { name: 'Решений пока нет' }).waitFor();
+  assert.equal(await page.locator('.managed-content a.button').count(), 1);
+  await page.getByRole('link', { name: 'Добавить решение', exact: true }).focus();
   await page.keyboard.press('Enter');
-  await page.getByRole('heading', { name: 'Создать рабочее пространство', exact: true }).waitFor();
-  await page.getByLabel('Название пространства', { exact: true }).fill('Учебные договоры');
-  await page.getByLabel('Ответственный за базу', { exact: true }).fill('Поставщик');
+  await page.getByRole('heading', { name: 'Добавить решение', exact: true }).waitFor();
+  await page.getByLabel('Название решения', { exact: true }).fill('Учебные договоры');
+  await page.getByLabel('Кто отвечает за исходную версию', { exact: true }).fill('Поставщик');
   const baseBytes = await archive([['contract', 'base'], ['untouched', 'base']]);
   const upload = async (bytes, full = false) => {
     await page.getByLabel('Файл .e365', { exact: true }).setInputFiles({ name: 'synthetic.e365', mimeType: 'application/octet-stream', buffer: bytes });
-    await page.getByLabel(full ? 'Подтверждаю: это полный снимок решения' : 'Подтверждаю: это частичный пакет изменений', { exact: true }).check();
+    await page.getByLabel(full ? 'Это полный экспорт решения' : 'Это частичный экспорт изменений', { exact: true }).check();
+    await page.getByLabel('Файл доступен всем пользователям сервиса', { exact: true }).check();
   };
   await upload(baseBytes, true);
-  await page.getByRole('button', { name: 'Создать пространство', exact: true }).click();
+  await page.getByRole('button', { name: 'Добавить решение', exact: true }).click();
   await page.getByRole('heading', { name: 'Что требует внимания' }).waitFor();
   const workspaceUrl = page.url(), id = new URL(workspaceUrl).searchParams.get('id'); assert.ok(id);
   const prepareChange = async bytes => {
-    await page.goto(workspaceUrl); await page.getByRole('link', { name: 'Загрузить изменение', exact: true }).click();
-    await page.getByLabel('Команда изменения', { exact: true }).fill('Внутренняя команда');
-    await page.getByLabel('Задача или ссылка на задачу', { exact: true }).fill('SYNTHETIC-1');
+    await page.goto(workspaceUrl); await page.getByRole('link', { name: 'Добавить изменение', exact: true }).click();
+    await page.getByLabel('Ответственная команда', { exact: true }).fill('Внутренняя команда');
+    await page.getByLabel('Что изменили', { exact: true }).fill('SYNTHETIC-1');
     await upload(bytes);
-    await page.getByLabel('Подтверждаю: снимок относится к тому же источнику и решению, что и пространство', { exact: true }).check();
-    await page.getByRole('button', { name: 'Сохранить и сравнить', exact: true }).click();
-    await page.getByRole('heading', { name: 'Рассмотреть частичное изменение', exact: true }).waitFor();
+    await page.getByLabel('Экспорт относится к этому решению и тому же источнику ELMA', { exact: true }).check();
+    await page.getByRole('button', { name: 'Сохранить и рассмотреть', exact: true }).click();
+    await page.getByRole('heading', { name: 'Рассмотреть изменение', exact: true }).waitFor();
   };
   await prepareChange(await archive([['contract', 'ours'], ['added', 'ours']]));
   assert.equal(await page.getByRole('button', { name: 'Принять изменение', exact: true }).isDisabled(), true);
-  await page.getByLabel('Проверено изменение объекта исходной базы', { exact: true }).focus(); await page.keyboard.press('Space');
-  await page.getByLabel('Подтверждаю принятие рассмотренного изменения', { exact: true }).check();
+  await page.getByLabel('Изменение принятого объекта проверено', { exact: true }).focus(); await page.keyboard.press('Space');
+  await page.getByLabel('Принимаю рассмотренное изменение', { exact: true }).check();
   await page.getByRole('button', { name: 'Принять изменение', exact: true }).focus(); await page.keyboard.press('Enter');
-  await page.getByRole('heading', { name: 'Рабочее состояние · 3 объектов', exact: true }).waitFor(); evidence.keyboard = true;
+  await page.getByRole('heading', { name: 'Что требует внимания', exact: true }).waitFor(); evidence.keyboard = true;
   assert.equal(await page.evaluate(() => document.activeElement?.tagName), 'H1', 'focus returns to workspace context after acceptance');
-  await page.getByRole('link', { name: 'Обновить полный снимок', exact: true }).click();
+  await page.getByRole('link', { name: 'Решение', exact: true }).click();
+  await page.getByRole('heading', { name: 'Текущее состояние · 3 объектов', exact: true }).waitFor();
+  await page.getByRole('link', { name: 'Обновить версию', exact: true }).click();
   await upload(await archive([['contract', 'vendor'], ['untouched', 'base'], ['added', 'ours']]), true);
-  await page.getByLabel('Подтверждаю: снимок относится к тому же источнику и решению, что и пространство', { exact: true }).check();
-  await page.getByRole('button', { name: 'Сохранить и сравнить', exact: true }).click();
-  await page.getByRole('heading', { name: 'Рассмотреть новый полный снимок', exact: true }).waitFor();
-  assert.equal(await page.getByRole('button', { name: 'Принять новую базу', exact: true }).isDisabled(), true);
+  await page.getByLabel('Экспорт относится к этому решению и тому же источнику ELMA', { exact: true }).check();
+  await page.getByRole('button', { name: 'Сохранить и рассмотреть', exact: true }).click();
+  await page.getByRole('heading', { name: 'Рассмотреть обновление версии', exact: true }).waitFor();
+  assert.equal(await page.getByRole('button', { name: 'Принять версию', exact: true }).isDisabled(), true);
   await page.screenshot({ path: 'qa/managed-conflict-desktop.png', fullPage: true });
   await page.getByLabel('Какую версию сохранить', { exact: true }).selectOption('keep-working');
-  await page.getByLabel('Подтверждаю новую базу и выбранные решения; это не установка в ELMA', { exact: true }).check();
-  await page.getByRole('button', { name: 'Принять новую базу', exact: true }).click();
+  await page.getByLabel('Принимаю версию и выбранные решения; установка в ELMA не выполняется', { exact: true }).check();
+  await page.getByRole('button', { name: 'Принять версию', exact: true }).click();
   await page.getByRole('heading', { name: 'Что требует внимания' }).waitFor();
-  let state = await (await context.request.get(`${base}/api/managed-workspaces/${id}`)).json();
+  let state = await (await context.request.get(`${base}/api/solutions/${id}`)).json();
   assert.equal(state.reconciliations.length, 1); assert.equal(state.current.find(row => row.code === 'untouched').team, 'Поставщик');
   assert.equal(state.current.find(row => row.code === 'contract').team, 'Внутренняя команда');
   assert.equal(state.current.find(row => row.code === 'added').team, 'Поставщик');
@@ -79,27 +83,28 @@ try {
     evidence.viewports.push(size);
   }
   await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.getByText('Архивировать решение', { exact: true }).click();
   await page.getByLabel('Убрать из активных; сохранить снимки, изменения и историю', { exact: true }).check();
   await page.getByRole('button', { name: 'В архив', exact: true }).click();
   await page.getByRole('button', { name: 'Возобновить работу', exact: true }).waitFor();
-  await page.getByRole('link', { name: 'Активные', exact: true }).click();
-  await page.getByRole('heading', { name: 'Пока нет активных пространств' }).waitFor();
+  await page.locator('.managed-nav').getByRole('link', { name: 'Решения', exact: true }).click();
+  await page.getByRole('heading', { name: 'Решений пока нет' }).waitFor();
   await page.getByRole('link', { name: 'Архив', exact: true }).click(); await page.getByRole('link', { name: 'Открыть архив', exact: true }).click();
   await page.getByLabel('Возобновить работу с сохранённой базой и историей', { exact: true }).check();
   await page.getByRole('button', { name: 'Возобновить работу', exact: true }).click();
-  await page.getByRole('link', { name: 'Загрузить изменение', exact: true }).waitFor(); evidence.lifecycle = true;
+  await page.getByRole('link', { name: 'Добавить изменение', exact: true }).waitFor(); evidence.lifecycle = true;
   await prepareChange(await archive([['second', 'pending']]));
-  const staleUrl = page.url(), originalState = await (await context.request.get(`${base}/api/managed-workspaces/${id}`)).json();
-  await context.request.post(`${base}/api/managed-workspaces/${id}/archive`, { headers: { 'X-Elma-Wiki-Request': '1' }, data: { archived: true, expectedRevision: originalState.revision } });
-  await page.getByLabel('Подтверждаю принятие рассмотренного изменения', { exact: true }).check();
+  const staleUrl = page.url(), originalState = await (await context.request.get(`${base}/api/solutions/${id}`)).json();
+  await context.request.post(`${base}/api/solutions/${id}/archive`, { headers: { 'X-Elma-Wiki-Request': '1' }, data: { archived: true, expectedRevision: originalState.revision } });
+  await page.getByLabel('Принимаю рассмотренное изменение', { exact: true }).check();
   await page.getByRole('button', { name: 'Принять изменение', exact: true }).click();
   await page.getByRole('link', { name: 'Обновить состояние', exact: true }).waitFor();
   assert.equal(await page.getByRole('button', { name: 'Принять изменение', exact: true }).isDisabled(), true); evidence.stale = true;
   await page.goto(staleUrl); await page.getByRole('link', { name: 'Обновить состояние', exact: true }).waitFor();
-  await page.route('**/api/managed-workspaces', route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'Учебный сбой загрузки' }) }));
-  await page.goto(base + '/workspaces'); await page.getByRole('link', { name: 'Повторить загрузку', exact: true }).waitFor();
-  await page.unroute('**/api/managed-workspaces'); await page.getByRole('link', { name: 'Повторить загрузку', exact: true }).click();
-  await page.getByRole('heading', { name: 'Пока нет активных пространств' }).waitFor(); evidence.recovery = true;
+  await page.route('**/api/solutions', route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'Учебный сбой загрузки' }) }));
+  await page.goto(base + '/solutions'); await page.getByRole('link', { name: 'Повторить загрузку', exact: true }).waitFor();
+  await page.unroute('**/api/solutions'); await page.getByRole('link', { name: 'Повторить загрузку', exact: true }).click();
+  await page.getByRole('heading', { name: 'Решений пока нет' }).waitFor(); evidence.recovery = true;
 
   const storyRoot = path.resolve('storybook/storybook-static'), types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml' };
   stories = http.createServer(async (req, res) => {
@@ -110,16 +115,17 @@ try {
     } catch { res.writeHead(404); res.end(); }
   });
   await new Promise(resolve => stories.listen(0, '127.0.0.1', resolve));
-  for (const mode of ['empty','list','create','overview','pending','change','review','conflict','overlap','ambiguous','stale','archived','loading','load-error']) {
+  for (const mode of ['empty','list','create','overview','pending','change','review','conflict','overlap','ambiguous','stale','archived','loading','load-error','changes','solution','no-source','needs-fixes','pending-conflict']) {
     await page.goto(`http://127.0.0.1:${stories.address().port}/iframe.html?id=managed-workspace--${mode}&viewMode=story`);
     await page.locator('.managed-shell h1').waitFor();
     if (['review','conflict','overlap','ambiguous'].includes(mode)) assert.equal(await page.locator('button[type=submit]').isDisabled(), true, mode);
-    if (mode === 'conflict') { await page.getByLabel('Какую версию сохранить', { exact: true }).selectOption('keep-working'); assert.equal(await page.getByRole('button', { name: 'Принять новую базу', exact: true }).isDisabled(), false); }
+    if (mode === 'conflict') { await page.getByLabel('Какую версию сохранить', { exact: true }).selectOption('keep-working'); assert.equal(await page.getByRole('button', { name: 'Принять версию', exact: true }).isDisabled(), false); }
+    if (!['create','change','review','conflict','overlap','ambiguous','archived','loading'].includes(mode)) assert.equal(await page.locator('.managed-content a.button').count(), 1, 'one primary action: ' + mode);
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), mode);
     await page.screenshot({ path: `qa/managed-story-${mode}.png`, fullPage: true }); evidence.states.push(mode);
   }
   assert.deepEqual(errors, []);
-  console.log('Managed workspace: synthetic browser lifecycle, boundary/conflict decisions, archive/reopen, keyboard, responsive, stale/retry and all 14 shared Storybook states passed.');
+  console.log('Solution: synthetic browser lifecycle, boundary/conflict decisions, archive/reopen, keyboard, responsive, stale/retry, one next action and all 19 shared Storybook states passed.');
 } finally {
   await fs.mkdir('qa', { recursive: true }); await fs.writeFile('qa/managed-browser-evidence.json', JSON.stringify(evidence, null, 2));
   await browser?.close(); await new Promise(resolve => server.close(resolve));
