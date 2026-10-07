@@ -29,3 +29,17 @@ jobs:
         run: npm run test:releases:browser
       - if: runner.os == 'Linux'
         run: npm run test:delivery:browser
+      - if: runner.os == 'Linux'
+        run: npm run test:public:browser
+      - if: runner.os == 'Linux'
+        run: node tools/public-field-guide-visual-check.mjs
+      - name: Retain synthetic public visual evidence
+        if: always() && runner.os == 'Linux'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: public-visual-evidence
+          path: |
+            qa/public-*.png
+            qa/public-field-guide-visual-evidence.json
+          retention-days: 7
+          if-no-files-found: error
