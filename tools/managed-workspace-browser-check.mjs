@@ -52,12 +52,57 @@ try {
     await page.getByRole('heading', { name: 'Рассмотреть изменение', exact: true }).waitFor();
   };
   await prepareChange(await archive([['contract', 'ours'], ['added', 'ours']]));
+  const firstReviewUrl = page.url();
+  const contract = page.locator('section.managed-card').filter({ has: page.getByRole('heading', { name: 'contract', exact: true }) });
+  await contract.getByRole('button', { name: 'Было и стало', exact: true }).click();
+  await contract.getByRole('link', { name: 'Открыть код объекта', exact: true }).waitFor();
+  await contract.getByText('Стало', { exact: true }).waitFor();
+  const editorUrl = await contract.getByRole('link', { name: 'Открыть код объекта', exact: true }).getAttribute('href');
+  const editor = await context.newPage(); editor.on('pageerror', error => errors.push(error.message));
+  await editor.goto(base + editorUrl); await editor.waitForFunction(() => window.__workspace);
+  assert.equal(await editor.locator('#back').textContent(), '← Решение');
+  await editor.evaluate(() => window.__workspace.setValue('client.ts', 'const reviewed: number = 1;'));
+  await editor.evaluate(() => window.__workspace.save());
+  assert.equal(await editor.evaluate(() => window.__workspace.getState().audit.at(-1).actor.provider), 'local');
+  await editor.locator('#check').click(); await editor.waitForFunction(() => window.__workspace.getState().check?.typescript === 'passed');
+  await editor.close();
+  // Empty text cannot submit; uploaded strings stay inert in the production renderer.
+  await page.getByRole('button', { name: 'Нужны изменения', exact: true }).click();
+  assert.equal(await page.getByRole('heading', { name: 'Нужны изменения', exact: true }).count(), 0);
+  const anchorKey = JSON.stringify(['widgets', 'synthetic.records', 'contract']);
+  await page.getByLabel('К чему относится комментарий').selectOption(anchorKey);
+  await page.getByLabel('Комментарий к изменению', { exact: true }).fill('Нужна причина возврата <img src=x onerror=alert(1)>');
+  await page.getByRole('button', { name: 'Нужны изменения', exact: true }).click();
+  await page.getByRole('heading', { name: 'Нужны изменения', exact: true }).waitFor();
+  assert.equal(await page.getByRole('button', { name: 'Принять изменение', exact: true }).isVisible(), false);
+  assert.equal(await page.locator('.change-discussion img').count(), 0);
+  await page.screenshot({ path: 'qa/managed-review-findings.png', fullPage: true });
+  await page.getByRole('link', { name: 'Добавить исправление', exact: true }).click();
+  await page.getByLabel('Ответственная команда', { exact: true }).fill('Внутренняя команда');
+  await page.getByLabel('Что изменили', { exact: true }).fill('SYNTHETIC-1');
+  await upload(await archive([['contract', 'corrected'], ['added', 'ours']]));
+  await page.getByLabel('Экспорт относится к этому решению и тому же источнику ELMA', { exact: true }).check();
+  await page.getByRole('button', { name: 'Сохранить и рассмотреть', exact: true }).click();
+  await page.getByText(/Объект изменился; исходная ссылка сохранена/).waitFor();
+  const correctedReviewUrl = page.url();
+  await page.getByText('Ответить или изменить статус', { exact: true }).click();
+  await page.getByLabel('Что исправлено или что ещё нужно изменить', { exact: true }).fill('Причина добавлена в исправленный экспорт.');
+  await page.getByRole('button', { name: 'Замечание устранено', exact: true }).click();
+  await page.getByRole('heading', { name: 'Замечание устранено', exact: true }).waitFor();
+  await page.goto(firstReviewUrl);
+  await page.getByRole('link', { name: 'Открыть актуальное изменение', exact: true }).waitFor();
+  assert.equal(await page.getByLabel('Комментарий к изменению', { exact: true }).count(), 0);
+  await page.goto(correctedReviewUrl);
   assert.equal(await page.getByRole('button', { name: 'Принять изменение', exact: true }).isDisabled(), true);
   await page.getByLabel('Изменение принятого объекта проверено', { exact: true }).focus(); await page.keyboard.press('Space');
   await page.getByLabel('Принимаю рассмотренное изменение', { exact: true }).check();
   await page.getByRole('button', { name: 'Принять изменение', exact: true }).focus(); await page.keyboard.press('Enter');
   await page.getByRole('heading', { name: 'Что требует внимания', exact: true }).waitFor(); evidence.keyboard = true;
   assert.equal(await page.evaluate(() => document.activeElement?.tagName), 'H1', 'focus returns to workspace context after acceptance');
+  await page.goto(correctedReviewUrl); await page.locator('.managed-accepted').waitFor();
+  assert.equal(await page.getByRole('button', { name: 'Принять изменение', exact: true }).count(), 0);
+  await page.screenshot({ path: 'qa/managed-review-accepted.png', fullPage: true });
+  await page.goto(workspaceUrl);
   await page.getByRole('link', { name: 'Решение', exact: true }).click();
   await page.getByRole('heading', { name: 'Текущее состояние · 3 объектов', exact: true }).waitFor();
   await page.getByRole('link', { name: 'Обновить версию', exact: true }).click();
@@ -115,17 +160,21 @@ try {
     } catch { res.writeHead(404); res.end(); }
   });
   await new Promise(resolve => stories.listen(0, '127.0.0.1', resolve));
-  for (const mode of ['empty','list','create','overview','pending','change','review','conflict','overlap','ambiguous','stale','archived','loading','load-error','changes','solution','no-source','needs-fixes','pending-conflict']) {
+  for (const mode of ['empty','list','create','overview','pending','change','review','conflict','overlap','ambiguous','stale','archived','loading','load-error','changes','solution','no-source','needs-fixes','pending-conflict','review-comment','review-findings','review-resolved','review-accepted','review-stale-anchor','review-removed-anchor','review-ambiguous-anchor']) {
     await page.goto(`http://127.0.0.1:${stories.address().port}/iframe.html?id=managed-workspace--${mode}&viewMode=story`);
     await page.locator('.managed-shell h1').waitFor();
-    if (['review','conflict','overlap','ambiguous'].includes(mode)) assert.equal(await page.locator('button[type=submit]').isDisabled(), true, mode);
+    if (['review','conflict','overlap','ambiguous'].includes(mode)) assert.equal(await page.getByRole('button', { name: mode === 'conflict' ? 'Принять версию' : 'Принять изменение', exact: true }).isDisabled(), true, mode);
     if (mode === 'conflict') { await page.getByLabel('Какую версию сохранить', { exact: true }).selectOption('keep-working'); assert.equal(await page.getByRole('button', { name: 'Принять версию', exact: true }).isDisabled(), false); }
-    if (!['create','change','review','conflict','overlap','ambiguous','archived','loading'].includes(mode)) assert.equal(await page.locator('.managed-content a.button').count(), 1, 'one primary action: ' + mode);
+    if (!mode.startsWith('review-') && !['create','change','review','conflict','overlap','ambiguous','archived','loading'].includes(mode)) assert.equal(await page.locator('.managed-content a.button').count(), 1, 'one primary action: ' + mode);
+    if (mode.startsWith('review-')) {
+      await page.setViewportSize({ width: 390, height: 844 });
+      if (!['review-comment','review-resolved'].includes(mode)) assert.equal(await page.getByRole('button', { name: 'Принять изменение', exact: true }).isVisible().catch(() => false), false);
+    }
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), mode);
     await page.screenshot({ path: `qa/managed-story-${mode}.png`, fullPage: true }); evidence.states.push(mode);
   }
   assert.deepEqual(errors, []);
-  console.log('Solution: synthetic browser lifecycle, boundary/conflict decisions, archive/reopen, keyboard, responsive, stale/retry, one next action and all 19 shared Storybook states passed.');
+  console.log('Solution: synthetic Change discussion/correction/acceptance, contextual editor, boundary/conflict decisions, archive/reopen, keyboard, responsive, stale/retry and all 26 shared Storybook states passed.');
 } finally {
   await fs.mkdir('qa', { recursive: true }); await fs.writeFile('qa/managed-browser-evidence.json', JSON.stringify(evidence, null, 2));
   await browser?.close(); await new Promise(resolve => server.close(resolve));

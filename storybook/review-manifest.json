@@ -560,7 +560,14 @@
         "managed-workspace--solution",
         "managed-workspace--no-source",
         "managed-workspace--needs-fixes",
-        "managed-workspace--pending-conflict"
+        "managed-workspace--pending-conflict",
+        "managed-workspace--review-comment",
+        "managed-workspace--review-findings",
+        "managed-workspace--review-resolved",
+        "managed-workspace--review-accepted",
+        "managed-workspace--review-stale-anchor",
+        "managed-workspace--review-removed-anchor",
+        "managed-workspace--review-ambiguous-anchor"
       ],
       "requiredVisibleStates": [
         "empty",
@@ -581,7 +588,14 @@
         "solution",
         "no-source",
         "needs-fixes",
-        "pending-conflict"
+        "pending-conflict",
+        "review-comment",
+        "review-findings",
+        "review-resolved",
+        "review-accepted",
+        "review-stale-anchor",
+        "review-removed-anchor",
+        "review-ambiguous-anchor"
       ],
       "sources": [
         "docs/workflows/solutions.md",

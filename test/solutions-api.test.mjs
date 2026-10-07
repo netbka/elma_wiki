@@ -45,9 +45,11 @@ async function setup(t) {
   };
   const upload = async (cookie, entries, route = endpoint + '/uploads?sharedConfirmed=true') => json(await request(route, cookie, { method: 'POST',
     headers: { 'X-Elma-Wiki-Request': '1', 'Content-Type': 'application/octet-stream' }, body: await archive(entries) }), 201);
+  const uploadBytes = async (cookie, bytes) => json(await request(endpoint + '/uploads?sharedConfirmed=true', cookie, { method: 'POST',
+    headers: { 'X-Elma-Wiki-Request': '1', 'Content-Type': 'application/octet-stream' }, body: bytes }), 201);
   const ref = (project, scope) => ({ projectId: project.id, snapshotId: project.currentSnapshotId, scope, scopeConfirmed: true });
   const create = (cookie, project) => post(endpoint, cookie, { name: 'Synthetic Solution', baselineOwner: 'Vendor', snapshot: ref(project, 'full'), sharedConfirmed: true });
-  return { directory, request, post, login, upload, ref, create, restart: async () => { await close(); await start(); } };
+  return { directory, request, post, login, upload, uploadBytes, ref, create, restart: async () => { await close(); await start(); } };
 }
 
 test('two trusted VK actors share admitted Solutions and retain distinct upload, acceptance and archive authors after restart', async t => {
@@ -134,4 +136,164 @@ test('anonymous, cross-origin and unconfirmed catalog writes fail before data ac
   await json(await post(endpoint, a.cookie, {}, { 'X-Elma-Wiki-Request': '' }), 403);
   await json(await post(endpoint + '/uploads', null, {}), 401);
   await json(await request(endpoint + '/uploads', a.cookie, { method: 'POST', headers: { 'X-Elma-Wiki-Request': '1', 'Content-Type': 'application/octet-stream' }, body: await archive([['shared', 1]]) }), 400);
+});
+
+test('attributed findings survive explicit corrections and block stale or unresolved acceptance', async t => {
+  const { request, post, login, upload, ref, create, restart } = await setup(t);
+  let a = await login('alice@example.org'), b = await login('bob@example.org');
+  let state = await json(await create(a.cookie, await upload(a.cookie, [['base', 1]])), 201);
+  const route = endpoint + '/' + state.id;
+  const prepare = async (entries, extra = {}) => json(await post(route + '/prepare', b.cookie, { kind: 'change',
+    snapshot: ref(await upload(b.cookie, entries), 'partial'), expectedRevision: state.revision,
+    team: 'Internal', taskRef: 'SYNTHETIC-REVIEW', sameSourceConfirmed: true, ...extra }), 201);
+  let review = await prepare([['base', 2]]), aid = review.artifactId;
+  const pathFor = id => route + '/artifacts/' + id;
+  const get = id => request(pathFor(id) + '/review', a.cookie).then(json);
+  const event = (id, version, type, text, extra = {}, cookie = a.cookie) => post(pathFor(id) + '/discussion', cookie,
+    { expectedRevision: state.revision, expectedDiscussionRevision: version, type, text, ...extra });
+  const key = review.rows[0].key;
+  for (const forged of [{ actor: b.user }, { author: 'forged' }])
+    await json(await event(aid, 0, 'comment', 'Comment', forged), 400);
+  await json(await event(aid, 0, 'approve', 'Forged acceptance'), 400);
+  await json(await event(aid, 0, 'comment', 'Unrelated key', { componentKey: 'not-an-object' }), 404);
+  let discussion = await json(await event(aid, 0, 'comment', '<script>inert</script>', { componentKey: key }));
+  assert.deepEqual(discussion.findings[0].actor, a.user);
+  discussion = await json(await event(aid, 1, 'reject', 'Return path needs a reason', { componentKey: key }, b.cookie));
+  const finding = discussion.findings[1], originalAnchor = finding.anchor;
+  assert.equal(discussion.blocking, 1); assert.deepEqual(finding.actor, b.user);
+  const accept = (id, proof, version) => post(pathFor(id) + '/accept', a.cookie, { expectedRevision: state.revision,
+    reviewedDigest: proof.artifactDigest, reviewedBoundaryKeys: [key], ...(version !== undefined ? { expectedDiscussionRevision: version } : {}) });
+  await json(await accept(aid, review), 409);
+  await json(await accept(aid, review, 1), 409);
+  await json(await accept(aid, review, 2), 409);
+  assert.equal((await json(await request(route, a.cookie))).pending[0].decision, 'needs-changes');
+  const original = Buffer.from(await (await request(pathFor(aid) + '/original', a.cookie)).arrayBuffer());
+  review = await prepare([['base', 3]], { supersedesArtifactId: aid });
+  const corrected = review.artifactId;
+  const old = await get(aid); assert.equal(old.stale, true); assert.equal(old.supersededBy, corrected);
+  await json(await event(aid, 2, 'reply', 'Old page cannot rebind'), 409);
+  let current = await get(corrected);
+  assert.equal(current.discussion.changeId, aid); assert.equal(current.discussion.findings[1].anchorStatus, 'stale');
+  assert.deepEqual(current.discussion.findings[1].anchor, originalAnchor);
+  await json(await accept(corrected, current, 2), 409);
+  discussion = await json(await event(corrected, 2, 'reply', 'Corrected in this export', { parentId: finding.id }));
+  discussion = await json(await event(corrected, 3, 'resolve', 'Reason is present', { parentId: finding.id }, b.cookie));
+  assert.equal(discussion.blocking, 0); assert.deepEqual(discussion.events.at(-1).anchor, originalAnchor);
+  state = await json(await accept(corrected, current, 4));
+  current = await get(corrected); assert.ok(current.acceptedAt); assert.deepEqual(current.acceptedDecision.actor, a.user);
+  assert.equal(current.discussion.events.at(-1).type, 'approve');
+  const acceptedState = { revision: state.revision, current: state.current, artifacts: state.artifacts };
+  discussion = await json(await event(corrected, 5, 'reopen', 'New evidence needs another correction', { parentId: finding.id }, b.cookie));
+  state = await json(await request(route, a.cookie));
+  assert.equal(state.openFindings.length, 1); assert.equal(state.openFindings[0].artifactId, corrected);
+  assert.deepEqual({ revision: state.revision, current: state.current, artifacts: state.artifacts }, acceptedState);
+  assert.deepEqual(Buffer.from(await (await request(pathFor(aid) + '/original', b.cookie)).arrayBuffer()), original);
+  await restart(); a = await login('alice@example.org'); b = await login('bob@example.org');
+  assert.deepEqual((await get(corrected)).discussion, discussion);
+  const next = await prepare([['base', 4]], { supersedesArtifactId: corrected });
+  assert.equal((await get(corrected)).supersededBy, next.artifactId);
+  await json(await event(corrected, 6, 'reply', 'Historical accepted page'), 409);
+});
+
+test('finding anchors remain exact, removed, stale or ambiguous without choosing a duplicate identity', async t => {
+  const { request, post, login, upload, uploadBytes, ref, create } = await setup(t);
+  const a = await login('alice@example.org');
+  const state = await json(await create(a.cookie, await upload(a.cookie, [['base', 1], ['watched', 1]])), 201);
+  const route = endpoint + '/' + state.id, key = JSON.stringify(['widgets', 'synthetic.records', 'watched']);
+  const prepare = async (project, scope, previous) => json(await post(route + '/prepare', a.cookie, {
+    kind: scope === 'full' ? 'reconciliation' : 'change', snapshot: ref(project, scope), expectedRevision: state.revision,
+    ...(scope === 'full' ? { baselineOwner: 'Vendor' } : { team: 'Internal', taskRef: 'SYNTHETIC' }),
+    sameSourceConfirmed: true, ...(previous ? { supersedesArtifactId: previous } : {}) }), 201);
+  let review = await prepare(await upload(a.cookie, [['base', 1], ['watched', 2]]), 'full');
+  await json(await post(route + '/artifacts/' + review.artifactId + '/discussion', a.cookie,
+    { expectedRevision: 0, expectedDiscussionRevision: 0, type: 'reject', text: 'Inspect this field', componentKey: key }));
+  const check = async (project, status) => {
+    review = await prepare(project, 'full', review.artifactId);
+    const detail = await json(await request(route + '/artifacts/' + review.artifactId + '/review', a.cookie));
+    assert.equal(detail.discussion.findings[0].anchorStatus, status);
+    assert.equal(detail.discussion.blocking, 1); return detail.discussion.findings[0].anchor;
+  };
+  const anchor = await check(await upload(a.cookie, [['base', 1]]), 'removed');
+  assert.deepEqual(await check(await upload(a.cookie, [['base', 1], ['watched', 2]]), 'current'), anchor);
+  assert.deepEqual(await check(await upload(a.cookie, [['base', 1], ['watched', 3]]), 'stale'), anchor);
+  const duplicate = await zip([
+    ['package.json', { code: 'synthetic_solution', type: 'SOLUTION' }],
+    ['widgets/manifest.json', { entities: ['one', 'two'].map(code => ({ code: 'watched', namespace: 'synthetic.records', kind: 'WIDGET', path: code })) }],
+    ['widgets/one', { descriptor: { fields: [], clientScripts: 'const value = 2;' } }],
+    ['widgets/two', { descriptor: { fields: [], clientScripts: 'const value = 3;' } }]
+  ]);
+  assert.deepEqual(await check(await uploadBytes(a.cookie, duplicate), 'ambiguous'), anchor);
+  const partial = await prepare(await upload(a.cookie, [['watched', 2]]), 'partial');
+  await json(await post(route + '/artifacts/' + partial.artifactId + '/discussion', a.cookie,
+    { expectedRevision: 0, expectedDiscussionRevision: 0, type: 'comment', text: 'Partial absence is not deletion', componentKey: key }));
+  const replaced = await prepare(await upload(a.cookie, [['other', 1]]), 'partial', partial.artifactId);
+  const detail = await json(await request(route + '/artifacts/' + replaced.artifactId + '/review', a.cookie));
+  assert.equal(detail.discussion.findings[0].anchorStatus, 'stale');
+});
+
+test('contextual supported code is shared, attributed and revision guarded while original artifacts stay immutable', async t => {
+  const { request, post, login, upload, ref, create } = await setup(t);
+  const a = await login('alice@example.org'), b = await login('bob@example.org');
+  let state = await json(await create(a.cookie, await upload(a.cookie, [['base', 1]])), 201);
+  const route = endpoint + '/' + state.id;
+  const prepared = await json(await post(route + '/prepare', a.cookie, { kind: 'change',
+    snapshot: ref(await upload(a.cookie, [['base', 2]]), 'partial'), expectedRevision: 0,
+    team: 'Internal', taskRef: 'SYNTHETIC-CODE', sameSourceConfirmed: true }), 201);
+  const review = await json(await request(route + '/artifacts/' + prepared.artifactId + '/review', b.cookie));
+  const context = review.contexts[0]; assert.equal(context.beforeArtifactId, state.baselineId);
+  const object = route + '/artifacts/' + context.afterArtifactId + '/objects/' + context.objectRef;
+  const source = await json(await request(object, b.cookie));
+  assert.equal(source.editable, true); assert.match(source.content, /value = 2/);
+  assert.equal((await request(object, null)).status, 404);
+  assert.equal((await request(source.editorUrl, null)).status, 404);
+  assert.equal((await request(source.editorUrl, b.cookie)).status, 200);
+  assert.equal((await request(route + '/artifacts/' + state.baselineId + '/objects/' + '0'.repeat(64), b.cookie)).status, 404);
+  const originalUrl = route + '/artifacts/' + prepared.artifactId + '/original';
+  const bytes = Buffer.from(await (await request(originalUrl, a.cookie)).arrayBuffer());
+  let editor = await json(await request(object + '/workspace', b.cookie));
+  const files = { ...editor.files, 'client.ts': 'globalThis.SYNTHETIC_EXECUTED = true; const n: number = 3;' };
+  await json(await post(object + '/workspace/save', b.cookie, { revision: editor.revision, files, actor: a.user }), 400);
+  const concurrent = await Promise.all([
+    post(object + '/workspace/save', b.cookie, { revision: editor.revision, files }),
+    post(object + '/workspace/save', a.cookie, { revision: editor.revision, files: { ...files, 'client.ts': 'const n: number = "invalid";' } })
+  ]);
+  assert.deepEqual(concurrent.map(row => row.status).sort(), [200, 409]);
+  editor = await json(await request(object + '/workspace', b.cookie));
+  assert.deepEqual(editor.audit[0].actor, concurrent[0].status === 200 ? b.user : a.user);
+  editor = await json(await post(object + '/workspace/checkpoint', a.cookie, { revision: editor.revision, label: 'Before review' }));
+  assert.deepEqual(editor.audit.at(-1).actor, a.user);
+  editor = await json(await post(object + '/workspace/check', b.cookie, { revision: editor.revision }));
+  assert.equal(editor.check.typescript, 'failed'); assert.deepEqual(editor.audit.at(-1).actor, b.user);
+  assert.equal(globalThis.SYNTHETIC_EXECUTED, undefined);
+  assert.deepEqual(Buffer.from(await (await request(originalUrl, b.cookie)).arrayBuffer()), bytes);
+  state = await json(await post(route + '/archive', a.cookie, { archived: true, expectedRevision: state.revision }));
+  await json(await post(object + '/workspace/save', b.cookie, { revision: editor.revision, files: editor.original }), 409);
+  assert.equal((await request(object + '/workspace', b.cookie)).status, 200);
+  await json(await post(object + '/workspace/restore', b.cookie, { revision: editor.revision, checkpoint: 'original' }, { Origin: 'https://foreign.invalid' }), 403);
+});
+
+test('discussion writes are atomic and older pending records retain conservative review compatibility', async t => {
+  const { directory, request, post, login, upload, ref, create } = await setup(t);
+  const a = await login('alice@example.org');
+  const state = await json(await create(a.cookie, await upload(a.cookie, [['base', 1]])), 201), route = endpoint + '/' + state.id;
+  const prepared = await json(await post(route + '/prepare', a.cookie, { kind: 'change',
+    snapshot: ref(await upload(a.cookie, [['added', 2]]), 'partial'), expectedRevision: 0,
+    team: 'Internal', taskRef: 'SYNTHETIC', sameSourceConfirmed: true }), 201);
+  const file = path.join(directory, 'shared-solutions', 'managed-workspaces', state.id, 'workspace.json');
+  const before = await fs.readFile(file, 'utf8'), rename = fs.rename;
+  const mock = t.mock.method(fs, 'rename', async (source, destination) => {
+    if (destination === file) throw Object.assign(Error('Synthetic disk failure'), { code: 'EIO' });
+    return rename(source, destination);
+  });
+  await json(await post(route + '/artifacts/' + prepared.artifactId + '/discussion', a.cookie,
+    { expectedRevision: 0, expectedDiscussionRevision: 0, type: 'reject', text: 'Must not partly persist' }), 400);
+  mock.mock.restore(); assert.equal(await fs.readFile(file, 'utf8'), before);
+  const record = JSON.parse(before); delete record.pending[0].review; delete record.pending[0].contexts; delete record.pending[0].changeId;
+  await fs.writeFile(file, JSON.stringify(record));
+  let review = await json(await request(route + '/artifacts/' + prepared.artifactId + '/review', a.cookie));
+  assert.equal(review.rows.length, 1); assert.equal(review.discussion.version, 0);
+  await json(await post(route + '/archive', a.cookie, { archived: true, expectedRevision: 0 }));
+  review = await json(await request(route + '/artifacts/' + prepared.artifactId + '/review', a.cookie));
+  assert.equal(review.stale, true); assert.equal(review.artifactDigest, null);
+  assert.equal(review.ambiguities[0].reason, 'historical-comparison-unavailable');
 });

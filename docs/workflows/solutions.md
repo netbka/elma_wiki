@@ -25,7 +25,7 @@ Preparation saves conflict/unknown counts as overview hints. Acceptance still re
 
 Nineteen shared `managed-workspace--*` stories cover the current tabs and empty/source/pending/needs-fixes/conflict/unknown/loading/error/stale/archive states. ViewModel tests verify attention priority and gates; catalog/API/storage/auth tests preserve identity/privacy and lifecycle.
 
-`npm run test:managed:browser` exercises shared creation, partial boundary review, full conflict choice, archive/reopen, stale rejection, fetch recovery, keyboard focus, one recommended action and 1920/800/390 reflow. It retains synthetic screenshots and `qa/managed-browser-evidence.json`. Build Storybook first; CI supplies Chromium when unavailable locally. VK browser verification checks the new entry.
+`npm run test:managed:browser` exercises shared creation, attributed Change findings, explicit correction, retained stale anchors, resolution, acceptance history, contextual editor save/check, partial boundary review, full conflict choice, archive/reopen, stale rejection, fetch recovery, keyboard focus and 1920/800/390 reflow. It retains synthetic screenshots and `qa/managed-browser-evidence.json`. The 26 shared states include comments, findings, resolved/accepted review and stale/removed/ambiguous anchors. Build the editor and Storybook first; CI supplies Chromium when unavailable locally. VK browser verification checks the entry.
 
 Automated evidence does not establish uncoached comprehension. #59/#38 require human review/owner acceptance. No live Source, TEST delivery, native runtime equivalence or production deployment is claimed.
 

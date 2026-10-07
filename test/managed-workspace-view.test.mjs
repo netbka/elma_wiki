@@ -42,6 +42,11 @@ test('one next action prioritizes blockers, fresh review and stale recovery over
   assert.equal(solutionNextAction(pending).state, 'stale');
   assert.equal(solutionNextAction(pending).view, 'change');
   assert.equal(solutionNextAction(managedFixture('needs-fixes').workspace).state, 'needs-fixes');
+  assert.equal(solutionNextAction(managedFixture('needs-fixes').workspace).artifact, 'synthetic-review');
+  const reopened = managedFixture().workspace;
+  reopened.openFindings = [{ artifactId: 'accepted-review', text: 'New evidence' }];
+  assert.equal(solutionNextAction(reopened).artifact, 'accepted-review');
+  assert.equal(solutionNextAction(reopened).view, 'review');
   assert.equal(solutionNextAction(managedFixture().workspace).view, 'solution');
   assert.equal(solutionNextAction(ready, { error: 'offline' }).label, 'Обновить состояние');
   ready.delivery = { supported: true, state: 'deployed-unverified' };
@@ -49,4 +54,12 @@ test('one next action prioritizes blockers, fresh review and stale recovery over
   ready.delivery.state = 'verified'; assert.equal(solutionNextAction(ready).state, 'verified');
   ready.delivery.supported = false; assert.equal(solutionNextAction(ready).state, 'ready');
   assert.equal(workspaceUrl('a&b', 'review', 'x/y', '/solutions'), '/solutions?id=a%26b&view=review&artifact=x%2Fy');
+});
+test('unresolved findings block acceptance independently of object boundaries and anchor freshness', () => {
+  for (const mode of ['review-findings','review-stale-anchor','review-removed-anchor','review-ambiguous-anchor']) {
+    const review = managedFixture(mode).review;
+    assert.match(reviewGate(review, review.rows.map(row => row.key)), /замечания/);
+  }
+  const resolved = managedFixture('review-resolved').review;
+  assert.equal(reviewGate(resolved, resolved.rows.map(row => row.key)), '');
 });

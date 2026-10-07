@@ -22,10 +22,11 @@ const sha = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
 async function setup(t, options = {}) {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'e365-bridge-test-'));
   t.after(async () => { assert.ok(path.basename(directory).startsWith('e365-bridge-test-')); await fs.rm(directory, { recursive: true, force: true }); });
-  const projects = projectStore(directory), bridges = bridgeStore(directory, { onlineMs: 5000, healthTimeoutMs: 500 });
+  const { bridgeHealthTimeoutMs = 500, ...deliveryOptions } = options;
+  const projects = projectStore(directory), bridges = bridgeStore(directory, { onlineMs: 5000, healthTimeoutMs: bridgeHealthTimeoutMs });
   let delivery;
   const releases = releaseStore(directory, projects, { deliverySummary: (id, owner) => delivery.summary(id, owner) });
-  delivery = deliveryStore(directory, releases, { adapters: { bridge: (opts, connection) => bridges.adapter(opts, connection) }, protectedHosts: ['prod.example.invalid'], timeoutMs: 2000, ...options });
+  delivery = deliveryStore(directory, releases, { adapters: { bridge: (opts, connection) => bridges.adapter(opts, connection) }, protectedHosts: ['prod.example.invalid'], timeoutMs: 2000, ...deliveryOptions });
   return { directory, projects, releases, delivery, bridges };
 }
 async function approvedRelease(projects, releases, owner = 'alice') {
@@ -121,7 +122,9 @@ async function waitForAttempt(delivery, releaseId, attemptId, expectedState) {
 }
 
 test('bridge: slow import returns deploying and finishes in the background; unapplied import never verifies; worker errors fail the attempt', async t => {
-  const { projects, releases, delivery, bridges } = await setup(t, { confirmGraceMs: 100 });
+  // This worker delays health/read-back too; allow disk/scheduler margin while
+  // retaining the short confirmation grace that proves background completion.
+  const { projects, releases, delivery, bridges } = await setup(t, { confirmGraceMs: 100, bridgeHealthTimeoutMs: 3000, timeoutMs: 8000 });
   const { bridge, token } = await bridges.create('alice', { name: 'Медленный мост' });
   const connection = await delivery.connections.create('alice', { name: 'TEST через мост', role: 'target', environment: 'test', adapter: 'bridge', adapterOptions: { bridgeId: bridge.id } });
   let worker = fakeWorker(bridges, token, { inventory: await inventoryOf(await fixture(false)), delayMs: 300, importApplies: false });

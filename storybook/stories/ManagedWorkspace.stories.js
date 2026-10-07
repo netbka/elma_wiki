@@ -2,7 +2,9 @@ import { mountManagedWorkspace } from '../../web/managed/render.js';
 import { managedFixture } from '../../web/managed/fixtures.js';
 function story(mode) {
   const explain = async () => { throw Error('Учебный пример: данные не сохраняются. Для следующего состояния выберите другую story.'); };
-  const root = mountManagedWorkspace(managedFixture(mode), { upload: explain, create: explain, prepare: explain, accept: explain, archive: explain,
+  const root = mountManagedWorkspace(managedFixture(mode), { upload: explain, create: explain, prepare: explain, accept: explain, archive: explain, comment: explain,
+    context: async id => ({ source: 'widgets/synthetic-contract.json', content: JSON.stringify({ descriptor: { clientScripts: id === 'synthetic-before' ? 'const value = 1;' : 'const value = 2;' } }, null, 2), editable: false,
+      limitation: 'Синтетический исходный файл. Код не выполняется.' }),
     navigate: () => { root.querySelector('[role=status]').textContent = 'Учебная навигация: выберите нужное состояние в меню Storybook.'; } });
   return root;
 }
@@ -26,3 +28,10 @@ export const Solution = { render: () => story('solution') };
 export const NoSource = { render: () => story('no-source') };
 export const NeedsFixes = { render: () => story('needs-fixes') };
 export const PendingConflict = { render: () => story('pending-conflict') };
+export const ReviewComment = { render: () => story('review-comment') };
+export const ReviewFindings = { render: () => story('review-findings') };
+export const ReviewResolved = { render: () => story('review-resolved') };
+export const ReviewAccepted = { render: () => story('review-accepted') };
+export const ReviewStaleAnchor = { render: () => story('review-stale-anchor') };
+export const ReviewRemovedAnchor = { render: () => story('review-removed-anchor') };
+export const ReviewAmbiguousAnchor = { render: () => story('review-ambiguous-anchor') };

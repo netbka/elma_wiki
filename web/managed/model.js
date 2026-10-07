@@ -16,6 +16,7 @@ export function workspaceSummary(state) {
 }
 export function reviewGate(review, boundaryKeys = [], resolutions = {}) {
   if (!review || review.stale) return 'Сравнение устарело. Обновите решение и подготовьте новое сравнение.';
+  if (review.discussion?.blocking) return 'Есть замечания, требующие изменений. Устраните их перед принятием.';
   if (review.ambiguities.length) return 'Часть содержимого не распознана. Принятие заблокировано; проверьте исходный файл.';
   if (review.kind === 'change' && review.rows.some(row => row.conflict)) return 'Другая команда уже изменила этот объект. Сначала согласуйте изменения через новый полный снимок.';
   if (review.kind === 'change' && review.rows.some(row => row.boundaryCrossing && !boundaryKeys.includes(row.key))) return 'Подтвердите каждое изменение объекта исходной базы.';
@@ -39,9 +40,10 @@ export function solutionNextAction(state, { error, stale, view } = {}) {
     summary: problem ? problem.attention.conflicts ? 'В изменении есть конфликт. Выберите версию при рассмотрении.' : 'Часть изменения не распознана. Проверьте исходные данные.'
       : fixes ? 'Для изменения запрошены исправления.' : `${pending.length} изменений ожидают рассмотрения.`,
     label: fixes && !problem ? 'Добавить исправление' : 'Рассмотреть изменение',
-    view: fixes && !problem ? fresh.kind === 'change' ? 'change' : 'full' : 'review', artifact: fixes && !problem ? undefined : fresh.artifactId
+    view: fixes && !problem ? fresh.kind === 'change' ? 'change' : 'full' : 'review', artifact: fresh.artifactId
   };
   if (pending.length) return { state: 'stale', summary: 'Сравнение устарело после обновления решения.', label: 'Сравнить заново', view: pending[0].kind === 'change' ? 'change' : 'full' };
+  if (state.openFindings?.length) return { state: 'needs-fixes', summary: 'Есть замечания к принятому изменению.', label: 'Рассмотреть замечания', view: 'review', artifact: state.openFindings[0].artifactId };
   // Delivery states are projected only when the existing delivery capability is supplied.
   if (state.delivery?.supported && state.delivery.state === 'deployed-unverified') return { state: 'test-awaiting-verification', summary: 'Версия отправлена в TEST. Результат ещё не проверен.', label: 'Проверить TEST', view: 'delivery' };
   if (state.delivery?.supported && state.delivery.state === 'verified') return { state: 'verified', summary: 'TEST проверен. Работа завершена.', label: 'Открыть решение', view: 'solution' };
