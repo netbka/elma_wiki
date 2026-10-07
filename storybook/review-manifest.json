@@ -392,6 +392,7 @@
       ],
       "storyIds": [
         "release--review",
+        "release--impact-review",
         "release--missing-baseline",
         "release--blocked",
         "release--candidate",
@@ -400,6 +401,7 @@
       ],
       "requiredVisibleStates": [
         "review",
+        "impact-review",
         "missing-baseline",
         "blocked",
         "candidate",
