@@ -8,6 +8,7 @@ Routing, not an always-read checklist.
 | Capability routing | ../.agent/capabilities.yaml |
 | Current implemented truth | STATE.md |
 | Public Vercel site / internal Docker | PUBLIC_DEPLOYMENT.md |
+| Developer portal audit, UX research, and build recommendations (proposal; not runtime status) | [ELMA_PORTAL_AUDIT_AND_BUILD_BRIEF.md](ELMA_PORTAL_AUDIT_AND_BUILD_BRIEF.md) |
 | Open coordination | ROADMAP.md |
 | Source -> Workspace -> Target architecture | SOURCE_TARGET_GATEWAY_AND_ENGINEERING_SYSTEM.md |
 | Analyst release implementation sequence (proposed) | [plans/analyst-release-workspace.md](plans/analyst-release-workspace.md) |
