@@ -63,7 +63,7 @@ capabilities:
     routes: ["docs/contracts/target-deployment.md", "docs/runbooks/target-deployment.md"]
     boundaries: ["ui", "domain", "connection", "security", "ops", "tooling"]
   verification:
-    owners: ["lib/delivery.mjs", "test/delivery.test.mjs"]
+    owners: ["lib/delivery.mjs", "test/delivery.test.mjs", "test/delivery-model.test.mjs", "tools/delivery-browser-check.mjs"]
     routes: ["docs/contracts/target-deployment.md"]
     boundaries: ["domain", "ops"]
   storybook-system:
