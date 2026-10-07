@@ -69,3 +69,12 @@ test('sidecar TypeScript wins over descriptor source; opaque projects remain uns
   await assert.rejects(workspaces.read(p.id,'other','object-0'),/Проект не найден/);
   const opaque=await projects.create('local',await zip([['package.json',{code:'paid'}],['data','opaque']]));await assert.rejects(workspaces.read(opaque.id,'local','object-0'),e=>e.status===422);
 });
+test('native lowercase widget manifest kind supports editing without changing provenance or the original',async t=>{
+  const {projects,workspaces}=await setup(t);
+  const bytes=await zip([['package.json',{code:'fixture',serverVersion:'2026.7.23'}],['widgets/manifest.json',{entities:[{kind:'widget',code:'form',namespace:'fixture',path:'entities/fixture/form'}]}],['widgets/entities/fixture/form',{descriptor:{fields:[],clientScripts:'const n: number = 1;',serverScripts:''}}]]);
+  const p=await projects.create('local',bytes),data=await projects.read(p.id,'local');
+  assert.equal(data.entities[0].kind,'widget');
+  const initial=await workspaces.read(p.id,'local','object-0');
+  const saved=await workspaces.save(p.id,'local','object-0',{revision:initial.revision,files:{...initial.files,'client.ts':'const n: number = 2;'}});
+  assert.equal(saved.revision,1);assert.deepEqual(await projects.original(p.id,'local'),bytes);
+});
