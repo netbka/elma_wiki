@@ -1,9 +1,11 @@
 import fs from 'node:fs/promises';
-import { importConfig } from '../lib/store.mjs';
-const args = process.argv.slice(2), position = args.indexOf('--server');
-const environment = position >= 0 ? args.splice(position, 2)[1] : 'local';
-if (!args.length || !environment) { console.error('npm run import -- --server local путь/решение.e365 [ещё.e365]'); process.exitCode = 1; }
-else for (const file of args) {
-  try { const result = await importConfig(await fs.readFile(file), environment); console.log(JSON.stringify(result)); }
-  catch (error) { console.error(`Разбор не завершён: ${error.code ? 'файл недоступен' : error.message}`); process.exitCode = 1; break; }
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { projectStore } from '../lib/projects.mjs';
+const store = projectStore(fileURLToPath(new URL('../.local',import.meta.url)));
+const files = process.argv.slice(2);
+if (!files.length) { console.error('npm run import -- ./solution.e365 [./another.e365]'); process.exitCode=1; }
+for (const file of files) {
+  try { const p = await store.create('local',await fs.readFile(file),path.basename(file)); console.log(JSON.stringify({id:p.id,coverage:p.coverage,entities:p.entities})); }
+  catch(e) { console.error(e.code ? 'Файл недоступен' : e.message); process.exitCode=1; break; }
 }

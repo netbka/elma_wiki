@@ -2,11 +2,11 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { readData, importConfig, saveImport } from './lib/store.mjs';
-import { limits, serverKey } from './lib/e365.mjs';
+import { readData } from './lib/store.mjs';
+import { limits } from './lib/e365.mjs';
 import { createAuth } from './lib/auth.mjs';
 import { portalStore } from './lib/portals.mjs';
-import { githubClient } from './lib/github.mjs';
+import { projectStore } from './lib/projects.mjs';
 import { demoData } from './lib/demo.mjs';
 
 const project = path.dirname(fileURLToPath(import.meta.url));
@@ -28,8 +28,8 @@ function serve(req, res, directory, pathname) {
 export function createServer({ directory = path.join(project, '.local'), baseUrl = process.env.PUBLIC_BASE_URL || `http://127.0.0.1:${process.env.PORT || 43171}`,
   clientId = process.env.GITHUB_CLIENT_ID, clientSecret = process.env.GITHUB_CLIENT_SECRET,
   allowLocal = process.env.DISABLE_LOCAL_LOGIN !== '1' && ['127.0.0.1', 'localhost'].includes(new URL(baseUrl).hostname) && (!process.env.HOST || process.env.HOST === '127.0.0.1'), fetchImpl = fetch } = {}) {
-  const base = new URL(baseUrl), auth = createAuth({ baseUrl, clientId, clientSecret, allowLocal, fetchImpl }), portals = portalStore(directory), demo = demoData();
-  let importing = false;
+  const base = new URL(baseUrl), auth = createAuth({ baseUrl, clientId, clientSecret, allowLocal, fetchImpl }), portals = portalStore(directory), projects = projectStore(directory), oldDemo = demoData(), sample = oldDemo.servers.showcase, demo = {entities:sample.entities,solution:sample.solutions[0],coverage:'structural',parserVersion:'2.0.0',inventory:[],provenance:{},synthetic:true};
+  let uploading = false;
   return http.createServer(async (req, res) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'no-referrer');
@@ -50,51 +50,50 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
       const session = auth.session(req);
       if (pathname === '/api/session' && req.method === 'GET') return send(res, 200, { user: session?.user || null, githubConfigured: auth.configured, localEnabled: allowLocal });
       if (pathname === '/healthz' && req.method === 'GET') return send(res, 200, { ok: true });
-      if (pathname === '/api/portals') {
-        if (!session) return send(res, 401, { error: 'Войдите в сервис' });
+      if (pathname === '/api/projects') {
+        if (!session) return send(res,401,{error:'Войдите в сервис'});
         if (req.method === 'GET') {
-          const rows = await portals.list(session.user.id);
-          if (session.user.provider === 'local') rows.unshift({ id: 'local', name: 'Локальный импорт CLI', createdAt: null });
-          return send(res, 200, rows);
+          const legacy = (await portals.list(session.user.id)).map(p => ({...p,legacy:true,filename:p.name,coverage:'legacy',entities:null}));
+          if (session.user.provider === 'local' && fs.existsSync(path.join(directory,'data.json'))) legacy.push({id:'local',filename:'Прежний локальный портал',legacy:true,coverage:'legacy'});
+          return send(res,200,[...await projects.list(session.user.id),...legacy]);
         }
-        if (req.method === 'POST') { const value = JSON.parse((await body(req, 4096)).toString()); return send(res, 201, await portals.create(session.user.id, value.name)); }
-        return send(res, 405, { error: 'Метод не поддерживается' });
+        if (req.method === 'POST') {
+          if (req.headers['content-type']?.split(';')[0] !== 'application/octet-stream') return send(res,415,{error:'Загрузите файл .e365'});
+          if (uploading) return send(res,409,{error:'Дождитесь завершения текущей загрузки'});
+          uploading = true;
+          try { return send(res,201,await projects.create(session.user.id,await body(req,limits.upload),url.searchParams.get('filename') || 'configuration.e365')); }
+          finally { uploading = false; }
+        }
+        return send(res,405,{error:'Метод не поддерживается'});
       }
-      if (pathname === '/api/github/inspect' && req.method === 'POST') {
-        if (!session) return send(res, 401, { error: 'Войдите через GitHub' });
-        const value = JSON.parse((await body(req, 4096)).toString());
-        return send(res, 200, await githubClient(session.token, fetchImpl).list(value.repo));
+      const projectMatch = /^\/api\/projects\/([^/]+)(?:\/(data|report|original|preview|reparse|diagnostic-summary))?$/.exec(pathname);
+      if (projectMatch) {
+        const [,id,action] = projectMatch;
+        if (!session || !await projects.get(id,session.user.id)) return send(res,404,{error:'Проект не найден'});
+        const owner = session.user.id;
+        if (req.method === 'DELETE' && !action) { await projects.delete(id,owner); return send(res,200,{ok:true}); }
+        if (req.method === 'POST' && action === 'reparse') return send(res,200,await projects.reparse(id,owner));
+        if (req.method !== 'GET') return send(res,405,{error:'Метод не поддерживается'});
+        if (action === 'data' || action === 'report') return send(res,200,await projects.read(id,owner,action));
+        if (action === 'preview') return send(res,200,await projects.preview(id,owner,url.searchParams.get('path')));
+        if (action === 'diagnostic-summary') { const report = await projects.read(id,owner,'report'); return send(res,200,{parserVersion:report.parserVersion,status:report.status,counts:report.counts,files:report.files,indexedEntities:report.indexedEntities}); }
+        if (action === 'original') { const bytes = await projects.original(id,owner); res.writeHead(200,{'Content-Type':'application/octet-stream','Content-Disposition':'attachment; filename="original.e365"','Cache-Control':'no-store'}); return res.end(bytes); }
+        return send(res,404,{error:'Страница не найдена'});
       }
-      const githubMatch = /^\/api\/portals\/([0-9a-f-]{36})\/github$/.exec(pathname);
-      if (githubMatch && req.method === 'POST') {
-        if (!session || !await portals.get(githubMatch[1], session.user.id)) return send(res, 404, { error: 'Портал не найден' });
-        if (importing) return send(res, 409, { error: 'Дождитесь текущего разбора' });
-        const value = JSON.parse((await body(req, 4096)).toString()), environment = serverKey(value.server || 'local');
-        importing = true;
-        try { return send(res, 200, await saveImport(() => githubClient(session.token, fetchImpl).import(value.repo, value.path, environment), environment, portals.dataFile(githubMatch[1]))); }
-        finally { importing = false; }
-      }
+      if (pathname.startsWith('/api/')) return send(res,404,{error:'API не найден'});
       const portalMatch = /^\/p\/([^/]+)(\/.*)?$/.exec(pathname);
       if (portalMatch) {
         const [, id, requested = '/'] = portalMatch;
         if (!portalMatch[2]) { res.writeHead(302, { Location: `/p/${encodeURIComponent(id)}/` }); return res.end(); }
         const showcase = id === 'showcase', local = id === 'local' && session?.user.provider === 'local';
-        if (!showcase && !local && (!session || !await portals.get(id, session.user.id))) return send(res, 404, { error: 'Портал не найден или недоступен' });
-        const dataFile = local ? path.join(directory, 'data.json') : showcase ? null : portals.dataFile(id);
-        if (requested === '/api/import') {
-          if (showcase) return send(res, 403, { error: 'Демонстрация доступна только для чтения' });
-          if (req.method !== 'POST') return send(res, 405, { error: 'Используйте POST' });
-          if (req.headers['content-type']?.split(';')[0] !== 'application/octet-stream') return send(res, 415, { error: 'Ожидается бинарный .e365' });
-          if (importing) return send(res, 409, { error: 'Дождитесь текущего разбора' });
-          const environment = serverKey(url.searchParams.get('server') || 'local');
-          importing = true;
-          try { return send(res, 200, await importConfig(await body(req, limits.upload), environment, dataFile)); }
-          finally { importing = false; }
-        }
-        if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, { error: 'Только чтение' });
+        const current = session && await projects.get(id,session.user.id), legacy = session && await portals.get(id,session.user.id);
+        if (!showcase && !current && !legacy && !local) return send(res,404,{error:'Проект не найден'});
+        if (req.method !== 'GET' && req.method !== 'HEAD') return send(res,405,{error:'Только чтение'});
         if (requested === '/data.json') {
-          if (req.method === 'HEAD') { res.writeHead(200); return res.end(); }
-          return send(res, 200, showcase ? demo : await readData(dataFile));
+          if (showcase) return send(res,200,demo);
+          if (current) return send(res,200,await projects.read(id,session.user.id));
+          const old = await readData(local ? path.join(directory,'data.json') : portals.dataFile(id));
+          return send(res,200,{legacy:true,coverage:'legacy',entities:Object.values(old.servers || {}).flatMap(s => s.entities),solution:{},inventory:[],provenance:{}});
         }
         return serve(req, res, path.join(project, 'dist'), requested);
       }
