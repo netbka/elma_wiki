@@ -92,7 +92,8 @@ test('bridge: token issued once and stored hashed; delivery runs end to end thro
   assert.equal(attempt.state, 'deployed-unverified', JSON.stringify(attempt.evidence.operation)); assert.equal(attempt.evidence.operation.nativeResult, 'import: exit 0');
   attempt = await delivery.verify(release.id, attempt.id, 'alice');
   assert.equal(attempt.state, 'verified'); assert.equal(attempt.evidence.comparison.different.length, 0);
-  assert.deepEqual(worker.state().log, ['health', 'health', 'inspect', 'health', 'inspect', 'deploy', 'readBack']);
+  // probe ×2, prepare (health + inspect), confirm (health + inspect + deploy), verify (health, read-back, health again).
+  assert.deepEqual(worker.state().log, ['health', 'health', 'inspect', 'health', 'inspect', 'deploy', 'health', 'readBack', 'health']);
   // Artifact and job files do not linger after completion.
   const jobs = await fs.readdir(path.join(directory, 'delivery', 'bridges', bridge.id, 'jobs'));
   assert.ok(jobs.every(name => name.endsWith('.json')), 'artifact removed once the job finished');

@@ -9,7 +9,7 @@ import { projectStore } from '../lib/projects.mjs';
 import { zip } from '../test/fixture.mjs';
 import { readArchive } from '../lib/e365.mjs';
 const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'elma-release-browser-'));
-const server = createServer({ directory, allowLocal: true, sendEmail: undefined, sendVk: undefined, syntheticDelivery: true, protectedTargetHosts: ['prod.example.invalid'] });
+const server = createServer({ directory, allowLocal: true, sendEmail: undefined, sendVk: undefined });
 let browser;
 try {
   const fixture = (required, extra = []) => zip([
@@ -33,11 +33,38 @@ try {
   await page.getByLabel('Назначение передачи (непроверенная компания или ответственный)', { exact: true }).fill('Учебный оператор TEST');
   await page.getByRole('button', { name: 'Начать рецензию', exact: true }).click();
   await page.getByRole('heading', { name: 'Рецензия учебного договора', exact: true }).waitFor();
+  // Without the synthetic adapter only the operator bridge is offered: no training stand, no token issued yet.
+  const unavailableDelivery = page.getByRole('region', { name: 'Доставка и проверка результата', exact: true });
+  await unavailableDelivery.getByText('Сначала завершите рецензию и примите неизменяемый кандидат.', { exact: true }).waitFor();
+  await unavailableDelivery.getByRole('heading', { name: 'Мосты оператора: 0', exact: true }).waitFor();
+  assert.equal(await unavailableDelivery.getByRole('button', { name: 'Добавить учебный стенд', exact: true }).count(), 0);
+  assert.equal(await unavailableDelivery.getByRole('button', { name: 'Добавить подключение Target', exact: true }).isDisabled(), true);
+  assert.equal(await unavailableDelivery.getByRole('button', { name: 'Подготовить учебную доставку', exact: true }).isDisabled(), true);
+  // Bridge registration from the UI: the token is shown once, a Target connection can reference the bridge,
+  // and without a running worker the probe is honest about it.
+  await unavailableDelivery.getByLabel('Название моста', { exact: true }).fill('Оператор');
+  await unavailableDelivery.getByRole('button', { name: 'Выдать токен моста', exact: true }).click();
+  await unavailableDelivery.getByRole('heading', { name: 'Мосты оператора: 1', exact: true }).waitFor();
+  assert.match(await unavailableDelivery.locator('.release-token code').textContent(), /^wb_[A-Za-z0-9_-]{20,}$/);
+  await unavailableDelivery.getByLabel('Название подключения Target', { exact: true }).fill('TEST через мост');
+  await unavailableDelivery.getByRole('button', { name: 'Добавить подключение Target', exact: true }).click();
+  await unavailableDelivery.getByRole('heading', { name: 'TEST через мост', exact: true }).waitFor();
+  assert.equal(await unavailableDelivery.locator('.release-token').count(), 0, 'the token is not shown again after the next action');
+  await unavailableDelivery.getByRole('button', { name: 'Проверить подключение — TEST через мост', exact: true }).click();
+  await unavailableDelivery.getByText(/TEST · bridge \(Оператор\) · Личность не проверена/).waitFor();
+  await unavailableDelivery.getByLabel('Подключение Target для доставки', { exact: true }).selectOption({ label: 'TEST через мост' });
+  await unavailableDelivery.getByText(/Target ещё не проверен/).waitFor();
+  assert.equal(await unavailableDelivery.getByRole('button', { name: 'Подготовить доставку на Target', exact: true }).isDisabled(), true, 'no accepted candidate yet');
+  await unavailableDelivery.getByRole('button', { name: 'Удалить мост — Оператор', exact: true }).click();
+  await unavailableDelivery.getByRole('heading', { name: 'Мосты оператора: 0', exact: true }).waitFor();
+  await unavailableDelivery.getByText(/TEST · bridge \(мост удалён\)/).waitFor();
+  await unavailableDelivery.getByRole('button', { name: 'Удалить подключение — TEST через мост', exact: true }).click();
+  await unavailableDelivery.getByRole('heading', { name: 'TEST через мост', exact: true }).waitFor({ state: 'detached' });
   assert.equal(await page.getByRole('button', { name: 'Подготовить неизменяемый кандидат', exact: true }).isDisabled(), true);
   assert.match(await page.locator('.release-shell').textContent(), /Обязательность поля/);
   const staleTab = await page.context().newPage(); await staleTab.goto(page.url());
   await staleTab.getByRole('heading', { name: 'Рецензия учебного договора', exact: true }).waitFor();
-  const card = page.locator('article.release-change').filter({ hasText: 'widgets/form.json' });
+  const card = page.locator('article').filter({ hasText: 'widgets/form.json' });
   await page.getByLabel('Примечания для оператора', { exact: true }).fill('Черновик примечания сохраняется при решении по файлу');
   await card.getByLabel('Причина решения — widgets/form.json', { exact: true }).fill('Проверено назначение обязательного поля');
   await card.getByRole('button', { name: 'Отклонить изменение', exact: true }).click();
@@ -64,65 +91,25 @@ try {
   assert.deepEqual(bundle.get('candidate.e365'), bytes);
   const manifest = JSON.parse(bundle.get('manifest.json')); assert.equal(manifest.artifact.sha256, crypto.createHash('sha256').update(bytes).digest('hex')); assert.equal(manifest.verified, false);
   await page.getByRole('status').filter({ hasText: 'Пакет передачи выдан' }).waitFor();
-  // Delivery: synthetic Target, explicit confirmation, read-back verification; a "successful" unapplied import is reported truthfully.
-  const delivery = page.locator('.release-delivery');
-  const pickTarget = async text => { const select = delivery.getByLabel('Подключение Target для доставки', { exact: true }); await select.waitFor(); await select.selectOption(await select.evaluate((node, needle) => [...node.options].find(o => o.textContent.includes(needle)).value, text)); };
-  const confirmationFor = async () => (await delivery.getByLabel(/Подтверждение доставки: введите/).evaluate(node => node.labels[0].textContent)).replace('Подтверждение доставки: введите ', '');
-  await delivery.getByLabel('Название подключения', { exact: true }).fill('TEST учебный');
-  await delivery.getByLabel('Учебный сценарий синтетического адаптера', { exact: true }).selectOption('unapplied');
-  await delivery.getByRole('button', { name: 'Добавить подключение Target', exact: true }).click();
-  await delivery.getByRole('button', { name: 'Проверить подключение — TEST учебный', exact: true }).click();
-  await delivery.getByText(/test\.example\.invalid · версия 2025\.10\.97/).waitFor();
-  await pickTarget('TEST учебный');
-  await delivery.getByRole('button', { name: 'Подготовить доставку', exact: true }).click();
-  await delivery.getByRole('heading', { name: /TEST учебный · Подготовлена/ }).waitFor();
-  const expectedConfirmation = await confirmationFor();
-  await delivery.getByLabel(/Подтверждение доставки: введите/).fill('DEPLOY wrong');
-  await delivery.getByRole('button', { name: 'Подтвердить доставку на Target', exact: true }).click();
-  await page.getByRole('alert').filter({ hasText: /Подтверждение должно повторить/ }).waitFor();
-  await delivery.getByLabel(/Подтверждение доставки: введите/).fill(expectedConfirmation);
-  await delivery.getByRole('button', { name: 'Подтвердить доставку на Target', exact: true }).click();
-  await delivery.getByRole('heading', { name: /TEST учебный · Доставлено, не проверено/ }).waitFor();
-  assert.match(await page.locator('.release-checks').textContent(), /Доставлено, не проверено: Не выполнялось/);
-  await delivery.getByRole('button', { name: 'Выполнить read-back и сравнить', exact: true }).click();
-  await delivery.getByRole('heading', { name: /TEST учебный · Read-back не совпал/ }).waitFor();
-  await delivery.getByText(/Расхождение: отсутствуют \d+, отличаются \d+/).waitFor();
-  await delivery.locator('details').filter({ hasText: 'Журнал попытки' }).first().locator('summary').click(); await delivery.getByText(/импорт не применён/).waitFor();
-  assert.match(await page.locator('.release-checks').textContent(), /Read-back не совпал: Не пройдено/);
-  // Second attempt against a target that applies the import: verified only after read-back matches.
-  await delivery.getByLabel('Название подключения', { exact: true }).fill('TEST применяющий');
-  await delivery.getByLabel('Учебный сценарий синтетического адаптера', { exact: true }).selectOption('apply');
-  await delivery.getByRole('button', { name: 'Добавить подключение Target', exact: true }).click();
-  await delivery.getByRole('button', { name: 'Проверить подключение — TEST применяющий', exact: true }).waitFor();
-  await pickTarget('TEST применяющий');
-  await delivery.getByRole('button', { name: 'Подготовить доставку', exact: true }).click();
-  await delivery.getByRole('heading', { name: /TEST применяющий · Подготовлена/ }).waitFor();
-  await delivery.getByLabel(/Подтверждение доставки: введите/).fill(await confirmationFor());
-  await delivery.getByRole('button', { name: 'Подтвердить доставку на Target', exact: true }).click();
-  await delivery.getByRole('button', { name: 'Выполнить read-back и сравнить', exact: true }).click();
-  await delivery.getByRole('heading', { name: /TEST применяющий · Проверено read-back/ }).waitFor();
-  assert.match(await page.locator('.release-checks').textContent(), /Проверено read-back: Пройдено/);
-  assert.equal(await delivery.getByRole('heading', { name: /· (Подготовлена|Доставлено, не проверено|Выполняется)$/ }).count(), 0);
-  assert.equal(await delivery.getByRole('heading', { name: /Попытки доставки: 2/ }).count(), 1);
   await page.getByLabel('Назначение передачи (непроверенная компания или ответственный)', { exact: true }).fill('Другой учебный оператор');
   await page.getByRole('button', { name: 'Сохранить условия (снимает принятие кандидата)', exact: true }).click();
   await page.getByRole('status').filter({ hasText: /Рецензия/ }).waitFor();
   assert.equal(await page.getByRole('button', { name: 'Скачать приватный пакет передачи', exact: true }).isDisabled(), true);
-  const preview = page.locator('article.release-change').filter({ hasText: 'widgets/form.json' }); await preview.locator('summary').click(); await preview.getByRole('button', { name: 'Показать После', exact: true }).click();
+  const preview = page.locator('article').filter({ hasText: 'widgets/form.json' }); await preview.locator('summary').click(); await preview.getByRole('button', { name: 'Показать После', exact: true }).click();
   await preview.locator('pre').filter({ hasText: /required/ }).waitFor();
   const large = await projects.create('local', await fixture(false, Array.from({ length: 25 }, (_, n) => [`extra/${String(n).padStart(2, '0')}.txt`, '<script>globalThis.releaseXss=true</script>'])), 'many-files.e365');
   const largeRelease = await page.evaluate(async input => {
     const response = await fetch('/api/releases', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Elma-Wiki-Request': '1' }, body: JSON.stringify(input) });
     if (!response.ok) throw Error('Large fixture creation failed'); return response.json();
   }, { title: 'Много изменений', intent: 'Проверить полную область рецензии', targetIntent: 'Учебный оператор', sourceProjectId: large.id, baselineProjectId: baseline.id });
-  await page.goto(base + '/releases?id=' + largeRelease.id); await page.locator('article.release-change').first().waitFor();
-  assert.equal(await page.locator('article.release-change').count(), 20);
+  await page.goto(base + '/releases?id=' + largeRelease.id); await page.locator('article').first().waitFor();
+  assert.equal(await page.locator('article').count(), 20);
   await page.getByLabel('Причина решения — extra/00.txt', { exact: true }).fill('Несохранённая заметка первой страницы');
   await page.getByRole('button', { name: 'Показать следующие 20 изменений', exact: true }).click();
   await page.getByText('Показано 25 из 25. Все файлы остаются в области рецензии.', { exact: true }).waitFor();
-  assert.equal(await page.locator('article.release-change').count(), 25);
+  assert.equal(await page.locator('article').count(), 25);
   assert.equal(await page.getByLabel('Причина решения — extra/00.txt', { exact: true }).inputValue(), 'Несохранённая заметка первой страницы');
-  const malicious = page.locator('article.release-change').filter({ hasText: 'extra/00.txt' }); await malicious.locator('summary').click(); await malicious.getByRole('button', { name: 'Показать После', exact: true }).click();
+  const malicious = page.locator('article').filter({ hasText: 'extra/00.txt' }); await malicious.locator('summary').click(); await malicious.getByRole('button', { name: 'Показать После', exact: true }).click();
   await malicious.locator('pre').filter({ hasText: '<script>globalThis.releaseXss=true</script>' }).waitFor();
   assert.equal(await page.evaluate(() => globalThis.releaseXss), undefined);
   await page.setViewportSize({ width: 390, height: 844 }); assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
@@ -150,7 +137,7 @@ try {
   assert.equal(await page.getByRole('button', { name: 'Подготовить неизменяемый кандидат', exact: true }).isDisabled(), true);
   assert.match(await page.locator('.release-shell').textContent(), /Неизвестный сервис/);
   assert.deepEqual(errors, []);
-  console.log('Analyst release browser: baseline, required/optional-field and native-permission review, parser blocker, reject/resume, stale draft, candidate, exact private bundle, synthetic delivery (unapplied import never verified, applied import verified by read-back), invalidation, preview and mobile passed.');
+  console.log('Analyst release browser: baseline, required/optional-field and native-permission review, parser blocker, reject/resume, stale draft, candidate, exact private bundle, bridge token/connection panel, invalidation, preview and mobile passed.');
 } finally {
   await browser?.close();
   if (server.listening) await new Promise(resolve => server.close(resolve));

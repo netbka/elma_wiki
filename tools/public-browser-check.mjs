@@ -1,6 +1,7 @@
 import { chromium } from 'playwright';
 import fs from 'node:fs/promises';
 import assert from 'node:assert/strict';
+import { FIELD_GUIDE_PATH, FIELD_GUIDE_TITLE } from '../web/public-field-guide.mjs';
 import { articles } from '../dist/articles.js';
 import { buildPublicSite } from './build-public.mjs';
 import { createStaticPreview } from './public-preview.mjs';
@@ -24,6 +25,21 @@ try {
     assert.equal(await page.locator('a[href="/dashboard"],a[href="/login"],input[type=file]').count(), 0);
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     await page.screenshot({ path: `qa/public-landing-${width}.png`, fullPage: true });
+    const lookup = page.locator('a.task').filter({ has: page.getByRole('heading', { name: 'Найти поле', exact: true }) });
+    assert.equal(await lookup.getAttribute('href'), FIELD_GUIDE_PATH);
+    await lookup.click();
+    await page.getByRole('heading', { name: FIELD_GUIDE_TITLE, exact: true }).waitFor();
+    assert.equal(await page.locator('[data-field-guide-result="ready"]').count(), 1);
+    for (const name of ['Посмотреть JSON выбранного поля', 'Проверить ответ']) {
+      const summary = page.locator('summary').filter({ hasText: name });
+      await summary.focus(); await summary.press('Enter');
+      assert.ok(await summary.locator('..').getAttribute('open') !== null);
+    }
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    await page.screenshot({ path: `qa/public-field-guide-${width}.png`, fullPage: true });
+    await page.goto(base + '/');
+    await page.getByRole('link', { name: 'Пройти учебный пример', exact: true }).click();
+    assert.equal(new URL(page.url()).pathname, FIELD_GUIDE_PATH);
   }
   for (const article of articles) {
     await page.goto(base + '/articles/' + article.id + '/');
@@ -48,7 +64,7 @@ try {
   assert.deepEqual(errors, []); assert.deepEqual(failed, []);
   assert.ok(requests.every(r => r.url.startsWith(base) && !['fetch', 'xhr', 'websocket'].includes(r.type)), 'Static site must not call a backend');
   for (const route of ['/api/session', '/auth/github', '/login', '/dashboard', '/server.mjs', '/.env', '/extensions/e365-workbench/']) assert.equal((await fetch(base + route)).status, 404, route);
-  console.log(`Public: landing, guide, ${articles.length} articles, 6 examples, mobile, clipboard and keyboard passed; no backend requests.`);
+  console.log(`Public: landing, field-lookup journey, guide, ${articles.length} articles, 6 examples, mobile, clipboard and keyboard passed; no backend requests.`);
 } finally {
   if (browser) await browser.close();
   await new Promise(resolve => server.close(resolve));

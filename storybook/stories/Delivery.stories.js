@@ -1,42 +1,47 @@
 import { mountRelease } from '../../web/releases/render.js';
 import { releaseView } from '../../web/releases/model.js';
-const sha = ch => ch.repeat(64);
-const metadata = required => ({ projectId: '10000000-0000-4000-8000-000000000001', checksum: sha(required ? 'a' : 'b'), filename: required ? 'new-dev.e365' : 'previous-dev.e365', importedAt: '2026-10-07T09:00:00Z', parserVersion: '2.0.0', code: 'example_solution', coverage: 'structural', inventory: [{ path: 'widgets/form.json', sha256: sha(required ? 'a' : 'b'), size: 180 }], report: { status: 'structural', diagnostics: [] }, entities: [{ archivePath: 'widgets/form.json', name: 'Учебная форма договора', fields: [{ code: 'title', required, type: 'STRING' }] }] });
-const approvedRelease = () => ({ id: 'synthetic-release', synthetic: true, title: 'Уточнение формы договора', intent: 'Заголовок должен быть заполнен перед отправкой.', targetIntent: 'Учебный TEST', createdAt: '2026-10-07T09:00:00Z', source: metadata(true), baseline: metadata(false), revision: 3, reviews: { 'widgets/form.json': { decision: 'accepted', reason: 'Проверено обязательное поле', actor: 'Учебный аналитик' } }, history: [], limitations: '', notes: '', candidate: { id: 'synthetic-candidate', sha256: sha('a'), deployable: false }, approval: { revision: 3, actor: 'Учебный аналитик', reason: 'Только локальная передача' } });
-const connection = (extra = {}) => ({ id: 'synthetic-connection', name: 'TEST (учебный)', role: 'target', environment: 'test', adapter: 'synthetic', adapterOptions: { scenario: 'apply' }, createdAt: '2026-10-07T09:30:00Z', probe: { at: '2026-10-07T09:31:00Z', ok: true, identity: { host: 'test.example.invalid', version: '2025.10.97' }, protectedHost: false }, ...extra });
-function attempt(state) {
-  const base = { id: 'synthetic-attempt', releaseId: 'synthetic-release', releaseRevision: 3, candidateId: 'synthetic-candidate', sha256: sha('a'), solutionCode: 'example_solution', connection: { id: 'synthetic-connection', name: 'TEST (учебный)', environment: 'test', adapter: 'synthetic' }, targetIdentity: { host: 'test.example.invalid', version: '2025.10.97' }, createdAt: '2026-10-07T09:40:00Z', state, idempotencyKey: null,
-    evidence: { candidateInventoryHash: sha('c'), preDeploy: { at: '2026-10-07T09:40:00Z', version: 1, inventoryHash: sha('d'), files: 3 }, operation: null, readBack: null, comparison: null, rollbackReference: null }, history: [{ at: '2026-10-07T09:40:00Z', state: 'prepared', note: 'Личность Target и состояние решения до доставки зафиксированы' }] };
-  if (state === 'prepared') return base;
-  base.evidence.rollbackReference = { kind: 'previous-target-state', inventoryHash: sha('d'), version: 1, note: 'Ссылка на состояние до доставки; восстановление данных/экземпляров процессов не гарантируется' };
-  base.history.push({ at: '2026-10-07T09:41:00Z', state: 'deploying', note: 'Подтверждено владельцем; операция передана адаптеру' });
-  if (state === 'unknown-outcome') { base.evidence.operation = { startedAt: '2026-10-07T09:41:00Z', finishedAt: '2026-10-07T09:43:00Z', result: 'timeout', error: 'Нет ответа в отведённое время' }; base.history.push({ at: '2026-10-07T09:43:00Z', state, note: 'Результат неизвестен: выполните read-back прежде чем повторять' }); return base; }
-  base.evidence.operation = { startedAt: '2026-10-07T09:41:00Z', finishedAt: '2026-10-07T09:41:20Z', result: 'returned', operationId: 'synthetic-operation', nativeResult: state === 'verification-failed' ? 'exit 0 (no history change: import skipped)' : 'exit 0' };
-  base.history.push({ at: '2026-10-07T09:41:20Z', state: 'deployed-unverified', note: 'Операция завершилась без ошибки. Это не подтверждение результата — требуется read-back.' });
-  if (state === 'deployed-unverified') return base;
-  const match = state === 'verified';
-  base.evidence.readBack = { at: '2026-10-07T09:42:00Z', version: match ? 2 : 1, inventoryHash: match ? sha('c') : sha('d'), files: 3 };
-  base.evidence.comparison = match ? { match: true, compared: 1, missing: [], different: [], volatile: ['package.json', 'widgets/manifest.json'] } : { match: false, compared: 1, missing: [], different: ['widgets/form.json'], volatile: ['package.json', 'widgets/manifest.json'] };
-  base.history.push({ at: '2026-10-07T09:42:00Z', state, note: match ? 'Read-back совпал: 1 файлов, служебные файлы (2) не сравнивались' : 'Target не изменился после операции: импорт не применён' });
-  return base;
-}
-const refuse = async () => { throw Error('Синтетический сценарий: действия не выполняются. Настоящая доставка доступна только в приватном сервисе с настроенным адаптером.'); };
-const bridge = (extra = {}) => ({ id: 'synthetic-bridge', name: 'Рабочее место оператора', createdAt: '2026-10-07T09:20:00Z', lastSeen: '2026-10-07T09:44:00Z', online: true, identity: { host: 'test.example.invalid', version: 'elma365pm 1.19.0 / ELMA 2025.5' }, worker: 'elma-dev bridge @ operator-pc → test', ...extra });
-function story({ adapters = ['synthetic'], connections = [connection()], attempts = [], bridges = [] } = {}) {
-  const record = approvedRelease();
+
+const fixture = state => {
+  const snapshot = { filename: 'synthetic.e365', importedAt: '2026-10-07T12:00:00Z', checksum: 'a'.repeat(64), code: 'example', coverage: 'structural', projectId: 'synthetic-project', inventory: [{ path: 'widgets/form.json', sha256: 'a'.repeat(64), size: 10 }], report: { diagnostics: [] }, entities: [] };
+  const record = { id: 'synthetic-release', synthetic: true, title: 'Учебная доставка релиза', intent: 'Проверить результат операции отдельно от сообщения об успехе.', targetIntent: 'Учебный TEST', source: snapshot, baseline: snapshot, revision: 4, reviews: {}, limitations: '', notes: '', candidate: { id: 'candidate', sha256: 'a'.repeat(64) }, approval: { revision: 4, actor: 'Учебный аналитик', reason: 'Локальная передача' }, history: [] };
+  const connection = { id: 'synthetic-connection', name: 'Учебный TEST', role: 'target', environment: 'test', adapter: 'synthetic', probe: { ok: true, protectedHost: state === 'protected-target', identity: { host: state === 'protected-target' ? 'prod.example.invalid' : 'test.example.invalid', version: 'synthetic' } } };
+  const absent = ['unavailable', 'ready', 'load-error', 'protected-target'].includes(state);
+  const attempt = absent ? null : { id: 'synthetic-attempt', state: state === 'stale' ? 'verified' : state, solutionCode: 'example', releaseRevision: state === 'stale' ? 3 : 4, candidateId: 'candidate', sha256: 'a'.repeat(64), connection, targetIdentity: connection.probe.identity,
+    history: [{ state: state === 'stale' ? 'verified' : state, at: '2026-10-07T12:00:00Z', note: 'Учебное состояние, не доказательство работы ELMA' }],
+    evidence: { operation: ['verified', 'deployed-unverified', 'verification-failed', 'stale'].includes(state) ? { nativeResult: 'Учебная операция сообщила об успехе' } : null, comparison: ['verified', 'verification-failed', 'stale'].includes(state) ? { policy: 'exact-solution-inventory-v1', match: state !== 'verification-failed', compared: 1, volatile: [], missing: [], different: state === 'verification-failed' ? ['widgets/form.json'] : [], unexpected: state === 'verification-failed' ? ['permissionsSettings/extra.json'] : [] } : null } };
+  const delivery = { attempts: attempt ? 1 : 0, latest: attempt && { ...attempt, connectionName: connection.name, adapter: 'synthetic' } };
+  return { release: releaseView(record, delivery), data: { capabilities: { mode: state === 'unavailable' ? 'unavailable' : 'synthetic', liveDelivery: false }, connections: [connection], attempts: attempt ? [attempt] : [] } };
+};
+// Operator bridge states: the service never connects to ELMA; a worker next to elma365pm polls for jobs.
+const bridgeFixture = state => {
+  const base = fixture(state === 'bridge-deploying' ? 'deploying' : 'ready');
+  const bridge = { id: 'synthetic-bridge', name: 'Рабочее место оператора', createdAt: '2026-10-07T11:00:00Z', lastSeen: state === 'bridge-offline' ? null : '2026-10-07T12:01:00Z', online: state !== 'bridge-offline', identity: state === 'bridge-offline' ? null : { host: 'test.example.invalid', version: 'elma365pm 1.19.0 / ELMA 2025.5' }, worker: state === 'bridge-offline' ? null : 'elma-dev bridge @ operator-pc → test' };
+  const connection = { id: 'bridge-connection', name: 'TEST через мост', role: 'target', environment: 'test', adapter: 'bridge', adapterOptions: { bridgeId: bridge.id }, probe: state === 'bridge-offline' ? { ok: false, protectedHost: false, identity: null } : { ok: true, protectedHost: false, identity: bridge.identity } };
+  const attempts = base.data.attempts.map(attempt => ({ ...attempt, connection, targetIdentity: bridge.identity, history: [{ state: 'prepared', at: '2026-10-07T12:00:00Z', note: 'Личность Target и состояние решения до доставки зафиксированы' }, { state: 'deploying', at: '2026-10-07T12:01:00Z', note: 'Подтверждено владельцем; операция передана адаптеру' }] }));
   const latest = attempts.at(-1) || null;
-  const release = releaseView(record, { attempts: attempts.length, latest: latest && { id: latest.id, state: latest.state, connectionName: latest.connection.name, at: latest.history.at(-1).at } });
-  return mountRelease({ release, change: refuse, preview: refuse, download: refuse, open: refuse, delivery: { connections, attempts, adapters, bridges, api: { createConnection: refuse, probe: refuse, removeConnection: refuse, createBridge: refuse, removeBridge: refuse, prepare: refuse, confirm: refuse, verify: refuse } } });
+  return { release: releaseView(base.release, { attempts: attempts.length, latest: latest && { ...latest, connectionName: connection.name, adapter: 'bridge' } }), data: { capabilities: { mode: 'bridge', liveDelivery: false, bridge: true, adapters: ['bridge'] }, connections: [connection], attempts, bridges: state === 'bridge-no-bridge' ? [] : [bridge] } };
+};
+function story(state) {
+  const { release, data } = state.startsWith('bridge-') ? bridgeFixture(state) : fixture(state);
+  const unavailable = async () => { throw Error('Учебное состояние Storybook: выберите другую story. Здесь операции не запускаются.'); };
+  return mountRelease({ release, open: unavailable, change: unavailable, preview: unavailable, download: unavailable,
+    deliveryClient: { load: async () => { if (state === 'load-error') throw Error('Учебная ошибка загрузки состояния'); return data; }, act: unavailable, refresh: async () => release, createConnection: unavailable, probeConnection: unavailable, removeConnection: unavailable, createBridge: unavailable, removeBridge: unavailable } });
 }
-export default { id: 'delivery', title: 'Аналитик/Доставка на Target', parameters: { layout: 'fullscreen' } };
-export const NoAdapter = { render: () => story({ adapters: [], connections: [] }) };
-export const ReadyToPrepare = { render: () => story() };
-export const ProtectedTarget = { render: () => story({ connections: [connection({ name: 'TEST', probe: { at: '2026-10-07T09:31:00Z', ok: true, identity: { host: 'prod.example.invalid', version: '2025.10.97' }, protectedHost: true } })] }) };
-export const Prepared = { render: () => story({ attempts: [attempt('prepared')] }) };
-export const DeployedUnverified = { render: () => story({ attempts: [attempt('deployed-unverified')] }) };
-export const UnknownOutcome = { render: () => story({ attempts: [attempt('unknown-outcome')] }) };
-export const Verified = { render: () => story({ attempts: [attempt('verified')] }) };
-export const VerificationFailed = { render: () => story({ attempts: [attempt('verification-failed')] }) };
-// Operator bridge: the service itself never connects to ELMA; the worker next to elma365pm polls for jobs.
-export const BridgeOffline = { render: () => story({ adapters: ['bridge'], bridges: [bridge({ lastSeen: null, online: false, identity: null, worker: null })], connections: [connection({ adapter: 'bridge', adapterOptions: { bridgeId: 'synthetic-bridge' }, name: 'TEST через мост', probe: { at: '2026-10-07T09:31:00Z', ok: false, identity: null, protectedHost: false } })] }) };
-export const BridgeDeploying = { render: () => story({ adapters: ['bridge'], bridges: [bridge()], connections: [connection({ adapter: 'bridge', adapterOptions: { bridgeId: 'synthetic-bridge' }, name: 'TEST через мост' })], attempts: [{ ...attempt('deployed-unverified'), state: 'deploying', connection: { id: 'synthetic-connection', name: 'TEST через мост', environment: 'test', adapter: 'bridge' }, evidence: { ...attempt('prepared').evidence, rollbackReference: attempt('deployed-unverified').evidence.rollbackReference }, history: attempt('deployed-unverified').history.slice(0, 2) }] }) };
+export default { id: 'delivery', title: 'Аналитик/Доставка', parameters: { layout: 'fullscreen' } };
+export const Unavailable = { render: () => story('unavailable') };
+export const Ready = { render: () => story('ready') };
+export const Prepared = { render: () => story('prepared') };
+export const Deploying = { render: () => story('deploying') };
+export const Unverified = { render: () => story('deployed-unverified') };
+export const Verified = { render: () => story('verified') };
+export const Mismatch = { render: () => story('verification-failed') };
+export const Unknown = { render: () => story('unknown-outcome') };
+export const Failed = { render: () => story('failed') };
+export const Blocked = { render: () => story('blocked') };
+export const Cancelled = { render: () => story('cancelled') };
+export const Stale = { render: () => story('stale') };
+export const LoadError = { render: () => story('load-error') };
+export const ProtectedTarget = { render: () => story('protected-target') };
+export const BridgeNoBridge = { render: () => story('bridge-no-bridge') };
+export const BridgeOffline = { render: () => story('bridge-offline') };
+export const BridgeDeploying = { render: () => story('bridge-deploying') };

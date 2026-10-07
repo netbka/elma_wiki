@@ -51,7 +51,9 @@ test('one complete delivery: prepare, confirm, deployed-unverified, read-back, v
   assert.equal((await releases.get(release.id, 'alice')).checks.find(c => c.id === 'target').result, 'not-run', 'a returned operation is not verification');
   assert.deepEqual(attempt.evidence.rollbackReference.inventoryHash, attempt.evidence.preDeploy.inventoryHash);
   attempt = await delivery.verify(release.id, attempt.id, 'alice');
-  assert.equal(attempt.state, 'verified'); assert.equal(attempt.evidence.comparison.match, true); assert.deepEqual(attempt.evidence.comparison.volatile.sort(), ['package.json', 'widgets/manifest.json']);
+  assert.equal(attempt.state, 'verified'); assert.equal(attempt.evidence.comparison.match, true); assert.deepEqual(attempt.evidence.comparison.volatile, []);
+  assert.equal(attempt.evidence.comparison.policy, 'exact-solution-inventory-v1');
+  assert.deepEqual(attempt.evidence.readBack.targetIdentity, attempt.targetIdentity);
   assert.equal(attempt.evidence.readBack.inventoryHash, attempt.evidence.candidateInventoryHash);
   assert.equal(calls.length, 1);
   const view = await releases.get(release.id, 'alice');
@@ -153,12 +155,13 @@ test('connections store references only, deny credentials and stay owner-scoped'
   assert.equal((await delivery.connections.list('alice')).length, 0);
 });
 
-test('compareReadBack treats manifest/package files as volatile and requires at least one compared file', () => {
-  const expected = [{ path: 'package.json', sha256: 'a' }, { path: 'widgets/manifest.json', sha256: 'b' }, { path: 'widgets/form.json', sha256: 'c' }];
-  assert.equal(compareReadBack(expected, [{ path: 'package.json', sha256: 'zz' }, { path: 'widgets/manifest.json', sha256: 'yy' }, { path: 'widgets/form.json', sha256: 'c' }]).match, true);
-  assert.deepEqual(compareReadBack(expected, [{ path: 'widgets/form.json', sha256: 'd' }]).different, ['widgets/form.json']);
-  assert.deepEqual(compareReadBack(expected, []).missing, ['widgets/form.json']);
-  assert.equal(compareReadBack(expected.slice(0, 2), []).match, false);
+test('read-back compares package and manifest hashes, without filename exclusions', () => {
+  const row = (path, value) => ({ path, sha256: value.repeat(64) });
+  const expected = [row('package.json', 'a'), row('widgets/manifest.json', 'b'), row('widgets/form.json', 'c')];
+  assert.equal(compareReadBack(expected, expected).match, true);
+  assert.equal(compareReadBack(expected, [row('package.json', 'd'), row('widgets/manifest.json', 'e'), expected[2]]).match, false);
+  assert.deepEqual(compareReadBack(expected, []).missing, ['package.json', 'widgets/form.json', 'widgets/manifest.json']);
+  assert.equal(compareReadBack(expected, [...expected, row('permissionsSettings/stale.json', 'f')]).match, false);
 });
 
 test('API: synthetic adapter is disabled unless enabled, routes require session, service header and owner', async t => {
@@ -189,4 +192,126 @@ test('API: synthetic adapter is disabled unless enabled, routes require session,
     assert.equal((await request(`/api/releases/${crypto.randomUUID()}/delivery`, {}, cookie)).status, 404);
     assert.equal((await request(`/api/connections/${created.body.id}`, { method: 'DELETE' }, cookie)).status, 200);
   });
+});
+
+test('whole-scope read-back rejects changed metadata, unexpected files and duplicate paths', async t => {
+  for (const mode of ['metadata', 'unexpected', 'duplicate']) await t.test(mode, async t => {
+    const { projects, releases, delivery } = await setup(t, { adapters: { synthetic: () => {
+      const adapter = syntheticAdapter();
+      return { ...adapter, async readBack(code) {
+        const result = await adapter.readBack(code);
+        if (mode === 'metadata') result.inventory.find(row => row.path === 'package.json').sha256 = 'f'.repeat(64);
+        if (mode === 'unexpected') result.inventory.push({ path: 'permissionsSettings/stale.json', sha256: 'd'.repeat(64) });
+        if (mode === 'duplicate') result.inventory.push({ ...result.inventory[0] });
+        return result;
+      } };
+    } } });
+    const release = await approvedRelease(projects, releases);
+    const connection = await delivery.connections.create('alice', target());
+    let attempt = await delivery.prepare(release.id, 'alice', { revision: release.revision, connectionId: connection.id });
+    attempt = await delivery.confirm(release.id, attempt.id, 'alice', { idempotencyKey: mode, confirmation: confirmation(attempt) });
+    if (mode === 'duplicate') {
+      await assert.rejects(delivery.verify(release.id, attempt.id, 'alice'), { statusCode: 502 });
+      attempt = await delivery.get(release.id, attempt.id, 'alice');
+      assert.equal(attempt.evidence.readBack, null);
+      assert.ok(attempt.evidence.verificationError);
+    } else {
+      attempt = await delivery.verify(release.id, attempt.id, 'alice');
+      assert.equal(attempt.evidence.comparison.match, false);
+      if (mode === 'metadata') assert.deepEqual(attempt.evidence.comparison.different, ['package.json']);
+      else assert.deepEqual(attempt.evidence.comparison.unexpected, ['permissionsSettings/stale.json']);
+    }
+    assert.equal(attempt.state, 'verification-failed');
+    assert.equal((await releases.get(release.id, 'alice')).checks.find(c => c.id === 'target').result, 'fail');
+  });
+});
+
+test('a matching inventory from a changed Target cannot verify before or during read-back', async t => {
+  for (const duringReadBack of [false, true]) await t.test(String(duringReadBack), async t => {
+    let host = 'test.example.invalid', readCount = 0, changeOnRead = false;
+    const { projects, releases, delivery } = await setup(t, { adapters: { synthetic: () => {
+      const adapter = syntheticAdapter();
+      return { ...adapter, async health() { return { ok: true, identity: { host, version: '2025.10.97', company: 'synthetic' } }; },
+        async readBack(code) { readCount++; if (changeOnRead) host = 'another.example.invalid'; return adapter.readBack(code); } };
+    } } });
+    const release = await approvedRelease(projects, releases);
+    const connection = await delivery.connections.create('alice', target());
+    let attempt = await delivery.prepare(release.id, 'alice', { revision: release.revision, connectionId: connection.id });
+    attempt = await delivery.confirm(release.id, attempt.id, 'alice', { idempotencyKey: 'identity', confirmation: confirmation(attempt) });
+    if (duringReadBack) changeOnRead = true; else host = 'another.example.invalid';
+    await assert.rejects(delivery.verify(release.id, attempt.id, 'alice'), { statusCode: 409 });
+    assert.equal(readCount, duringReadBack ? 1 : 0);
+    assert.equal((await delivery.get(release.id, attempt.id, 'alice')).state, 'verification-failed');
+  });
+});
+
+test('unhealthy Target at confirmation blocks dispatch even when the identity is unchanged', async t => {
+  let healthy = true;
+  const operations = [];
+  const { projects, releases, delivery } = await setup(t, { adapters: { synthetic: () => {
+    const adapter = syntheticAdapter({ calls: operations });
+    return { ...adapter, async health() { return { ...await adapter.health(), ok: healthy }; } };
+  } } });
+  const release = await approvedRelease(projects, releases);
+  const connection = await delivery.connections.create('alice', target());
+  const attempt = await delivery.prepare(release.id, 'alice', { revision: release.revision, connectionId: connection.id });
+  healthy = false;
+  await assert.rejects(delivery.confirm(release.id, attempt.id, 'alice', { idempotencyKey: 'health', confirmation: confirmation(attempt) }), { statusCode: 503 });
+  assert.equal(operations.length, 0);
+  assert.equal((await delivery.get(release.id, attempt.id, 'alice')).state, 'blocked');
+});
+
+test('identity object key order does not cause a false change', async t => {
+  let reorder = false;
+  const { projects, releases, delivery } = await setup(t, { adapters: { synthetic: () => {
+    const adapter = syntheticAdapter();
+    return { ...adapter, async health() {
+      const health = await adapter.health();
+      if (reorder) health.identity = { company: health.identity.company, version: health.identity.version, host: health.identity.host };
+      return health;
+    } };
+  } } });
+  const release = await approvedRelease(projects, releases);
+  const connection = await delivery.connections.create('alice', target());
+  let attempt = await delivery.prepare(release.id, 'alice', { revision: release.revision, connectionId: connection.id });
+  reorder = true;
+  attempt = await delivery.confirm(release.id, attempt.id, 'alice', { idempotencyKey: 'reorder', confirmation: confirmation(attempt) });
+  assert.equal((await delivery.verify(release.id, attempt.id, 'alice')).state, 'verified');
+});
+
+test('release changes during read-back invalidate evidence before it can become verified', async t => {
+  let onRead = async () => {};
+  const { projects, releases, delivery } = await setup(t, { adapters: { synthetic: () => {
+    const adapter = syntheticAdapter();
+    return { ...adapter, async readBack(code) { const result = await adapter.readBack(code); await onRead(); return result; } };
+  } } });
+  const release = await approvedRelease(projects, releases);
+  const connection = await delivery.connections.create('alice', target());
+  let attempt = await delivery.prepare(release.id, 'alice', { revision: release.revision, connectionId: connection.id });
+  attempt = await delivery.confirm(release.id, attempt.id, 'alice', { idempotencyKey: 'stale-read', confirmation: confirmation(attempt) });
+  onRead = () => releases.change(release.id, 'alice', { ...details, revision: release.revision, action: 'details', notes: 'changed during read-back', limitations: '' });
+  await assert.rejects(delivery.verify(release.id, attempt.id, 'alice'));
+  const result = await delivery.get(release.id, attempt.id, 'alice');
+  assert.equal(result.state, 'verification-failed');
+  assert.equal(result.evidence.comparison, null);
+});
+
+test('legacy verified records lose their pass until checked against the current policy', async t => {
+  const { directory, projects, releases, delivery } = await setup(t);
+  const release = await approvedRelease(projects, releases);
+  const connection = await delivery.connections.create('alice', target());
+  let attempt = await delivery.prepare(release.id, 'alice', { revision: release.revision, connectionId: connection.id });
+  attempt = await delivery.confirm(release.id, attempt.id, 'alice', { idempotencyKey: 'legacy', confirmation: confirmation(attempt) });
+  attempt = await delivery.verify(release.id, attempt.id, 'alice');
+  assert.equal(attempt.state, 'verified');
+  const file = path.join(directory, 'delivery', 'attempts', release.id, attempt.id + '.json');
+  const record = JSON.parse(await fs.readFile(file, 'utf8'));
+  delete record.evidence.comparison.policy;
+  await fs.writeFile(file, JSON.stringify(record));
+  const invalidated = await delivery.get(release.id, attempt.id, 'alice');
+  assert.equal(invalidated.state, 'verification-failed');
+  assert.equal(invalidated.evidence.operation.operationId, attempt.evidence.operation.operationId);
+  assert.equal((await delivery.summary(release.id, 'alice')).latest.state, 'verification-failed');
+  assert.equal((await delivery.get(release.id, attempt.id, 'alice')).history.length, invalidated.history.length);
+  assert.equal((await delivery.verify(release.id, attempt.id, 'alice')).state, 'verified');
 });
