@@ -6,10 +6,10 @@ export async function zip(entries) {
   const done = new Promise((resolve, reject) => { archive.outputStream.on('end', () => resolve(Buffer.concat(chunks))); archive.outputStream.on('error', reject); });
   archive.end(); return done;
 }
-export async function fixture({ code = 'example_solution', target, fieldCode = 'title', secret = 'TEST_SENTINEL_VALUE_NOT_A_REAL_SECRET', nested = true } = {}) {
+export async function fixture({ code = 'example_solution', target, fieldCode = 'title', secret = 'TEST_SENTINEL_VALUE_NOT_A_REAL_SECRET', nested = true, widgetKind = 'WIDGET' } = {}) {
   const pkg = { code, title: 'Синтетическая конфигурация', type: 'SOLUTION', ...(target ? { dependencies: { widgets: [{ code: 'provider', data: { namespace: 'example_module.records', code: target } }] } } : {}) };
   const service = [
-    ['manifest.json', { entities: [{ code: 'form', namespace: 'example_module.records', name: 'Учебная форма', kind: 'WIDGET', path: 'form.json' }] }],
+    ['manifest.json', { entities: [{ code: 'form', namespace: 'example_module.records', name: 'Учебная форма', kind: widgetKind, path: 'form.json' }] }],
     ['form.json', { dataNamespace: 'example_module', dataCode: 'records', descriptor: {
       fields: [{ code: fieldCode, type: 'STRING', view: { name: 'Заголовок' }, defaultValue: secret }],
       clientScripts: `function onOpen() { ViewContext.data.title; Server.rpc.check(); const ignored = '${secret} ViewContext.data.TEST_LITERAL'; } // function TEST_COMMENT() { Global.data.TEST_COMMENT; }`,
