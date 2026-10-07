@@ -24,6 +24,7 @@ Routing, not an always-read checklist.
 | Developer code workspace | contracts/developer-workspace.md |
 | Deployment/verification | contracts/target-deployment.md |
 | Source import workflow | workflows/source-import.md |
+| Public article sources (TRUST-01) | [workflows/public-article-sources.md](workflows/public-article-sources.md) |
 | Target procedure | runbooks/target-deployment.md |
 | Storybook authority | STORYBOOK.md |
 | Business investigation and review | EXPERIENCE_REVIEW.md |
