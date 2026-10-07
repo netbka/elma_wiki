@@ -275,8 +275,8 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
         return serve(req, res, path.join(project, 'dist'), requested);
       }
       if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, { error: 'Метод не поддерживается' });
-      if (['/dashboard','/releases'].includes(pathname) && !session) { res.writeHead(302, { Location: '/login' }); return res.end(); }
-      if (['/', '/login', '/dashboard', '/guide', '/flows','/releases'].includes(pathname)) return serve(req, res, path.join(project, 'web'), pathname === '/' ? '/index.html' : pathname + '.html');
+      if (['/dashboard','/releases','/workspaces'].includes(pathname) && !session) { res.writeHead(302, { Location: '/login' }); return res.end(); }
+      if (['/', '/login', '/dashboard', '/guide', '/flows','/releases','/workspaces'].includes(pathname)) return serve(req, res, path.join(project, 'web'), pathname === '/' ? '/index.html' : pathname + '.html');
       return serve(req, res, path.join(project, 'web'), pathname);
     } catch (error) {
       if (!res.headersSent) send(res, error.statusCode || error.status || 400, { error: error instanceof SyntaxError ? 'Некорректный JSON' : error instanceof URIError ? 'Некорректный URL' : error.code ? 'Операция хранилища недоступна' : /fetch|ENOTFOUND|ECONN/.test(error.message) ? 'Внешний сервис недоступен' : error.message });

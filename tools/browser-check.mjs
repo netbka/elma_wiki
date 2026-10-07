@@ -28,7 +28,7 @@ try {
   await page.locator('#key').fill(messages.at(-1).key);await page.screenshot({path:'qa/email-login-mobile.png',fullPage:true});
   const emailPreview=await browser.newPage({viewport:{width:680,height:900}});
   await emailPreview.setContent(loginEmail(messages.at(-1)).html);await emailPreview.screenshot({path:'qa/email-preview.png',fullPage:true});await emailPreview.close();
-  await page.locator('#verify-key').click();await page.waitForURL('**/dashboard');await page.setViewportSize({width:1440,height:1000});
+  await page.locator('#verify-key').click();await page.waitForURL('**/workspaces');await page.goto(base+'/dashboard');await page.setViewportSize({width:1440,height:1000});
   await page.locator('#file').setInputFiles({name:'synthetic.e365',mimeType:'application/octet-stream',buffer:await fixture({secret:'<script>globalThis.pwned=true</script>'})});
   await page.getByRole('button',{name:'Создать проект из файла'}).click();await page.waitForURL(/\/p\/[0-9a-f-]{36}\/$/);
   const projectURL=page.url();await page.getByRole('heading',{name:'Что нужно сделать?'}).waitFor();

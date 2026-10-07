@@ -7,6 +7,7 @@
     "node": ">=22"
   },
   "scripts": {
+    "test:managed:browser": "node tools/managed-workspace-browser-check.mjs",
     "test:delivery:browser": "node tools/delivery-browser-check.mjs",
     "test:releases:browser": "node tools/releases-browser-check.mjs",
     "storybook": "npm --prefix storybook run dev",

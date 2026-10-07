@@ -12,7 +12,7 @@ await new Promise(r => server.listen(0, '127.0.0.1', r));
 const base = `http://127.0.0.1:${server.address().port}`;
 let browser;
 try {
-  browser = await chromium.launch({ channel: process.env.BROWSER_CHANNEL || 'chrome', headless: true });
+  browser = await chromium.launch({ headless: true, ...(process.env.BROWSER_CHANNEL ? { channel: process.env.BROWSER_CHANNEL } : {}) });
   const page = await browser.newPage(); const errors = [];
   page.on('pageerror', e => errors.push(e.message));
   await page.goto(base + '/login');
@@ -22,8 +22,8 @@ try {
   assert.equal(await page.locator('main a').count(), 1);
   const link = vkLoginLinks({ secret: sendVk.linkSecret, domain: sendVk.domain, baseUrl: 'http://127.0.0.1:43171' }).issue('person@example.org');
   await page.goto(base + new URL(link).pathname + new URL(link).search);
-  await page.waitForURL('**/dashboard'); await page.locator('#projects').waitFor();
-  await page.locator('#logout').click(); await page.waitForURL(base + '/');
+  await page.waitForURL('**/workspaces'); await page.getByRole('heading', { name: 'Рабочие пространства', exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Выйти', exact: true }).click(); await page.waitForURL(base + '/login');
   await page.goto(base + '/auth/vk/link?token=invalid');
   await page.waitForURL('**/login?expired=1');
   await page.getByRole('status').filter({ hasText: 'истёк' }).waitFor();

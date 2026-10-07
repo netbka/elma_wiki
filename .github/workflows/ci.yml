@@ -23,12 +23,24 @@ jobs:
       - run: node tools/check-flow-catalog.mjs
       - run: npm ci --prefix storybook
       - run: npm run build:storybook
-      - if: runner.os == 'Linux'
-        run: npx playwright install --with-deps chromium
+      - name: Prepare browser
+        if: runner.os == 'Linux'
+        timeout-minutes: 8
+        run: |
+          if command -v google-chrome >/dev/null 2>&1; then
+            google-chrome --version
+            echo "BROWSER_CHANNEL=chrome" >> "$GITHUB_ENV"
+          else
+            npx playwright install --with-deps chromium
+          fi
       - if: runner.os == 'Linux'
         run: npm run test:releases:browser
       - if: runner.os == 'Linux'
         run: npm run test:delivery:browser
+      - if: runner.os == 'Linux'
+        run: npm run test:managed:browser
+      - if: runner.os == 'Linux'
+        run: node tools/vk-auth-browser-check.mjs
       - if: runner.os == 'Linux'
         run: npm run test:public:browser
       - if: runner.os == 'Linux'
@@ -41,5 +53,15 @@ jobs:
           path: |
             qa/public-*.png
             qa/public-field-guide-visual-evidence.json
+          retention-days: 7
+          if-no-files-found: error
+      - name: Retain synthetic managed workspace evidence
+        if: always() && runner.os == 'Linux'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: managed-workspace-evidence
+          path: |
+            qa/managed-*.png
+            qa/managed-browser-evidence.json
           retention-days: 7
           if-no-files-found: error
