@@ -40,6 +40,8 @@ jobs:
       - if: runner.os == 'Linux'
         run: npm run test:managed:browser
       - if: runner.os == 'Linux'
+        run: node tools/requests-browser-check.mjs
+      - if: runner.os == 'Linux'
         run: node tools/vk-auth-browser-check.mjs
       - if: runner.os == 'Linux'
         run: npm run test:public:browser
@@ -63,5 +65,7 @@ jobs:
           path: |
             qa/managed-*.png
             qa/managed-browser-evidence.json
+            qa/requests-*.png
+            qa/requests-browser-evidence.json
           retention-days: 7
           if-no-files-found: error

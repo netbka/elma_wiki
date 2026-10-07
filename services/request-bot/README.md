@@ -19,7 +19,8 @@ The Wiki portal can submit to this same coordinator without VK Teams. See
 [portal API and private configuration](../../docs/contracts/portal-requests.md)
 and `portal.example.json`. Portal-only mode omits `vk`; its authenticated
 session identity uses an explicit project allowlist and a separate ingress key.
-This API does not yet add a task panel to the workspace UI or start workers.
+The secondary internal `/requests` panel uses this API. It does not start
+workers or add a competing primary navigation destination.
 
 The coordinator implements transactional SQLite requests/inbox/outbox/jobs, identity bindings, clarification/revisions/approval, independent worker/publisher roles, leases/deadlines/cancellation, safe GitHub issue/status projections, signed webhook replies, VK transport and dispatcher or dedicated polling, plus startup/15-minute recovery while the process is running.
 
