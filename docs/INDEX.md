@@ -38,10 +38,11 @@ Routing, not an always-read checklist.
 | Target procedure | runbooks/target-deployment.md |
 | Storybook authority | STORYBOOK.md |
 | Business investigation and review | EXPERIENCE_REVIEW.md |
+| Enterprise interaction, state and evidence rules (#36/#39) | [ENTERPRISE_REVIEW_RULES.md](ENTERPRISE_REVIEW_RULES.md) |
 | Storybook investigation evidence | plans/workflow-storybook-investigation.md |
 | E2E implementation package | plans/source-target-e2e.md |
 | VK Teams request coordination (implemented service; no live agent or Dev2) | [contracts/request-bot.md](contracts/request-bot.md), [service runbook](../services/request-bot/README.md) |
 | VK Teams request-to-Dev2 automation (proposed) | plans/vk-teams-agent-delivery.md |
 | VK Teams user conversation (proposed) | workflows/vk-teams-agent-delivery.md |
 
-[PRODUCT_DIRECTION.md](PRODUCT_DIRECTION.md) records the owner-directed baseline-first lifecycle now. The final integrated product contract/owner acceptance remains #38, not a prerequisite for following #33 during implementation. Never copy Dyk product semantics as temporary authority.
+[SOLUTION_FIRST_PRODUCT_PLAN.md](SOLUTION_FIRST_PRODUCT_PLAN.md) is the current owner-authorized product contract. [PRODUCT_DIRECTION.md](PRODUCT_DIRECTION.md) preserves the earlier engine/lifecycle foundation. Final integrated owner acceptance remains #38 after #59 uncoached review. Dyk supplies reviewed mechanics, not Wiki product or deployment authority.
