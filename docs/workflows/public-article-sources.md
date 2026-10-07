@@ -14,7 +14,7 @@ repeated verbatim in that section, and nothing in the section upgrades it.
 
 No test dates, compatibility statements or live ELMA claims are invented. An
 article without sources gets an honest fallback ("источники не указаны"), not
-a badge.
+a new verification badge.
 
 ## Shared authority and limits
 
@@ -25,19 +25,23 @@ inside the same article shell. Storybook does not copy the production markup.
 
 Only two kinds of reference become links:
 
-- a relative path into the intentionally public part of the repository
-  (`README.md`, `docs/`, `lib/`, `web/`, `tools/`, `test/`, `examples/`,
-  `extensions/`, `storybook/`, `testing/`, `deploy/`, `dist/`, a few root
-  files), linked to the project's GitHub `blob/main` view;
-- an `https://` address on `elma365.com` or on this project's GitHub repository.
+- a file named in the module's exact `PUBLIC_FILES` allowlist, linked to this
+  project's GitHub `blob/main` view; the equivalent canonical GitHub URL is
+  also accepted. Add new public files explicitly alongside their article and
+  test. A directory name alone does not authorize private filenames inside it;
+- a canonical `https://` ELMA help-page URL on `elma365.com` or
+  `www.elma365.com`, under `/ru/help/` or `/en/help/`, ending in `.html`, with
+  an optional plain alphanumeric/underscore/hyphen fragment.
 
-Anything else is rendered as escaped text with the reason and "ссылка не
-публикуется": non-strings, empty or oversized values, whitespace or quote
-characters, absolute or drive paths, hidden segments (`.env`, `.local`, `..`),
-paths outside the public roots (`qa/`, `node_modules/`, uploads), non-https
-schemes (`javascript:`, `data:`, `http:`), credentials in the URL, and hosts
-outside the allow list. The generator does not read the filesystem at render
-time; existence of declared repository files is a test, not a runtime check.
+Rejected references produce only a generic category reason and "ссылка не
+публикуется". Their original value is never retained in the view model or
+printed, even escaped: malformed metadata can contain credentials or private
+paths. Circular objects, BigInt values and other non-strings are not serialized.
+Queries, alternate ports, encoded/normalized paths, arbitrary same-host endpoints,
+unsafe schemes, unknown hosts, absolute paths and unreviewed files are rejected.
+The generator does not fetch references or read the filesystem at render time;
+existence of declared repository files is a test, not a runtime check. Links
+point to current main and are not immutable verification evidence.
 
 ## Visible states
 
@@ -46,9 +50,9 @@ The manifest capability `public-article-sources` maps the renderer to:
 - `public-article-sources--listed`: all declared sources are valid links with
   their kind (repository file / external documentation) and the status note.
 - `public-article-sources--empty`: no declared sources; fallback text, no links.
-- `public-article-sources--invalid`: a mix of valid and rejected references;
-  rejected ones are plain text with the reason and an explicit note that this
-  does not change the article status.
+- `public-article-sources--invalid`: malformed list or rejected references;
+  valid entries remain linked, rejected values stay hidden behind category
+  reasons and an explicit note that this does not change the article status.
 
 ## Verification
 
@@ -56,9 +60,31 @@ The manifest capability `public-article-sources` maps the renderer to:
 populated, empty, malformed and unsafe input, escaping, the three states, the
 real public generator with the real article data (every published article
 must currently be in the `listed` state and every declared repository path
-must exist), and the Storybook registration. `npm run test:public` remains the
-full build and local-link gate (the contents link `#article-sources` resolves
-on every article page). `npm run test:public:browser` opens a real article,
-checks the section, its links' schemes/hosts and mobile overflow, and keeps
-the no-backend-request assertion. `npm run check:storybook` validates the
-three story IDs; `npm run build:storybook` builds the shared renderer.
+must exist), and the Storybook registration. The additional
+`test/public-article-sources-hardening.test.mjs` checks private-value suppression,
+unserializable/sparse metadata, strict destinations, input preservation and
+malformed references through the actual generator.
+
+`npm run test:public` remains the full build and local-link gate (the contents
+link `#article-sources` resolves on every article page).
+`npm run test:public:browser` opens a real article, checks the section, links and
+mobile overflow, and keeps the no-backend-request assertion.
+`npm run check:storybook` validates the three story IDs; `npm run build:storybook`
+builds the shared renderer. The existing `tools/public-field-guide-visual-check.mjs`
+checks those built stories at 1440/390, including suppression of synthetic private
+sentinels and keyboard focus on valid links. Screenshots show synthetic UI only,
+not live ELMA behavior or accessibility conformance.
+
+### Integrated acceptance, 7 October 2026
+
+PR #28 head `73d9a42` was merged locally with main `59814a4` before checks.
+The integrated tree passed all 11 source-panel/hardening/public-build tests,
+the Storybook catalog check and its 14 tests, and the Storybook production build.
+The public browser check passed the landing/field-lookup journey, 26 articles,
+6 examples, source links, mobile layout, clipboard and keyboard interactions,
+with no backend requests. The built Storybook browser check passed all six
+field-guide/source-panel states at widths 1440 and 390; rejected private
+sentinels were absent and valid source links accepted focus.
+
+This is local static/Storybook acceptance using synthetic content. No deployed
+site, private backend, bot or ELMA runtime was changed or verified by this pass.

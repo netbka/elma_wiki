@@ -73,6 +73,11 @@ try {
       for (const href of links) assert.match(href, /^https:\/\/(github\.com\/netbka\/elma_wiki\/blob\/main\/|(?:www\.)?elma365\.com\/)/);
       assert.equal(await section.locator('.badge').count(), 1, 'the only badge is the article status');
       assert.equal(await section.locator('.source-invalid').count(), state === 'invalid' ? 3 : 0);
+      assert.ok(!(await section.innerHTML()).includes('SYNTHETIC_PRIVATE_VALUE'), 'rejected values must not leak into public HTML');
+      if (links.length) {
+        await section.locator('a').first().focus();
+        assert.ok(await section.locator('a').first().evaluate(node => node === document.activeElement));
+      }
       const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
       assert.ok(scrollWidth <= width, `Horizontal overflow: sources/${state}/${width}`);
       const screenshot = `qa/public-article-sources-story-${state}-${width}.png`;

@@ -10,28 +10,28 @@ export const SOURCES_TITLE = 'Источники';
 export const REPOSITORY_URL = 'https://github.com/netbka/elma_wiki';
 const REPOSITORY_FILE_URL = REPOSITORY_URL + '/blob/main/';
 
-// Only tracked, intentionally public parts of the repository may be linked.
-// Private storage (.local, .env*, qa, node_modules, uploads) is never a source.
-const PUBLIC_ROOTS = new Set(['README.md', 'AGENTS.md', 'CLAUDE.md', 'server.mjs', 'verify.mjs', 'package.json',
-  'docs', 'lib', 'web', 'tools', 'test', 'examples', 'extensions', 'storybook', 'testing', 'deploy', 'dist']);
+// Exact reviewed files, not entire directories which could contain private paths.
+// Add new public source files alongside their article and an existence check.
+const PUBLIC_FILES = new Set([
+  'README.md', 'server.mjs', 'lib/e365.mjs', 'lib/project-parser.mjs',
+  'lib/projects.mjs', 'docs/E365_FILE_PROJECTS.md', 'examples/e365/README.md',
+  'extensions/e365-workbench/core.mjs', 'extensions/e365-workbench/extension.cjs',
+  'tools/workbench.mjs', 'tools/package-workbench.mjs', 'test/workbench.test.mjs'
+]);
 const SEGMENT = /^[A-Za-z0-9][A-Za-z0-9_.-]*$/;
-// External documentation that an article may point to. Anything else is shown
-// as text, not as a link, so a typo or an injected address cannot become a link.
 const EXTERNAL_HOSTS = new Set(['elma365.com', 'www.elma365.com', 'github.com']);
 const MAX_LENGTH = 200;
 
-const invalid = (value, reason) => ({ kind: 'invalid', label: preview(value), reason });
-function preview(value) {
-  const text = typeof value === 'string' ? value : value === undefined ? 'undefined' : JSON.stringify(value) ?? String(value);
-  return text.length > 60 ? text.slice(0, 57) + '…' : text;
-}
+// Never stringify or retain rejected values: they may contain credentials or
+// private paths. Diagnostics describe the category, not the rejected content.
+const invalid = (_value, reason) => ({ kind: 'invalid', reason });
 
 export function classifySource(value) {
   if (typeof value !== 'string') return invalid(value, 'источник должен быть строкой');
   const text = value.trim();
   if (!text) return invalid(value, 'пустое значение');
   if (text.length > MAX_LENGTH) return invalid(value, 'слишком длинное значение');
-  if (/[\s<>"'`\\]/.test(text)) return invalid(value, 'недопустимые символы');
+  if (/[\s\u0000-\u001f\u007f-\u009f<>"'`\\]/.test(text)) return invalid(value, 'недопустимые символы');
   if (text.startsWith('/') || /^[A-Za-z]:\//.test(text)) return invalid(value, 'абсолютный путь не публикуется');
   if (/^[a-z][a-z0-9+.-]*:/i.test(text)) return classifyExternal(text, value);
   return classifyRepositoryPath(text, value);
@@ -46,14 +46,25 @@ function classifyExternal(text, value) {
   if (url.hostname === 'github.com' && !url.pathname.startsWith('/netbka/elma_wiki/')) return invalid(value, 'ссылка на GitHub вне репозитория проекта');
   let pathname;
   try { pathname = decodeURI(url.pathname); } catch { return invalid(value, 'адрес содержит некорректное кодирование'); }
+  // Do not normalize traversal/encodings into an allowed destination, or publish
+  // token-bearing queries, alternate ports and arbitrary same-host endpoints.
+  if (url.href !== text || url.port || text.includes('?') || text.includes('%') ||
+      (url.hash && !/^#[A-Za-z0-9_-]+$/.test(url.hash))) return invalid(value, 'адрес вне поддержанного формата публичной ссылки');
+  if (url.hostname === 'github.com') {
+    if (url.hash || !text.startsWith(REPOSITORY_FILE_URL) || !PUBLIC_FILES.has(text.slice(REPOSITORY_FILE_URL.length))) {
+      return invalid(value, 'файл вне списка публичных источников');
+    }
+  } else if (!/^\/(ru|en)\/help\/(?:[A-Za-z0-9_-]+\/)*[A-Za-z0-9_-]+\.html$/.test(url.pathname)) {
+    return invalid(value, 'адрес вне раздела публичной документации');
+  }
   return { kind: 'external', href: url.href, label: url.hostname + pathname.replace(/\/$/, '') };
 }
 
 function classifyRepositoryPath(text, value) {
   const segments = text.split('/');
   if (segments.some(segment => !SEGMENT.test(segment))) return invalid(value, 'путь содержит скрытый или недопустимый сегмент');
-  if (!PUBLIC_ROOTS.has(segments[0])) return invalid(value, 'путь вне публичной части репозитория');
   if (segments.length === 1 && !/\./.test(segments[0])) return invalid(value, 'нужен путь к файлу, а не к каталогу');
+  if (!PUBLIC_FILES.has(text)) return invalid(value, 'путь вне публичной части репозитория');
   return { kind: 'repository', path: text, href: REPOSITORY_FILE_URL + segments.map(encodeURIComponent).join('/'), label: text };
 }
 
@@ -63,8 +74,9 @@ function classifyRepositoryPath(text, value) {
  */
 export function createArticleSourcesModel(sources, { status } = {}) {
   const statusText = typeof status === 'string' && status.trim() ? status.trim() : 'Руководство';
-  if (!Array.isArray(sources) || sources.length === 0) return { state: 'empty', status: statusText, items: [] };
-  const items = sources.map(classifySource);
+  if (sources == null || (Array.isArray(sources) && sources.length === 0)) return { state: 'empty', status: statusText, items: [] };
+  if (!Array.isArray(sources)) return { state: 'invalid', status: statusText, items: [invalid(sources, 'список источников должен быть массивом')] };
+  const items = Array.from(sources, classifySource);
   return { state: items.some(item => item.kind === 'invalid') ? 'invalid' : 'listed', status: statusText, items };
 }
 
@@ -78,11 +90,11 @@ export function renderArticleSources(model) {
   }
   const items = model.items.map(item => {
     if (item.kind === 'invalid') {
-      return `<li class="source source-invalid"><span class="source-label">Источник не распознан</span> <code>${escapeHtml(item.label)}</code> <span class="source-kind">${escapeHtml(item.reason)}; ссылка не публикуется</span></li>`;
+      return `<li class="source source-invalid"><span class="source-label">Источник не распознан</span> <span class="source-kind">${escapeHtml(item.reason)}; ссылка не публикуется</span></li>`;
     }
     return `<li class="source source-${item.kind}"><a href="${escapeHtml(item.href)}" rel="noreferrer noopener">${escapeHtml(item.label)}</a> <span class="source-kind">${KIND_LABEL[item.kind]}</span></li>`;
   }).join('');
   const warning = model.state === 'invalid'
-    ? '<p class="sources-warning">Часть источников указана некорректно и показана как текст. Это не влияет на статус статьи и не является подтверждением проверки.</p>' : '';
+    ? '<p class="sources-warning">Некорректные или непубличные значения скрыты. Автору статьи нужно исправить список источников. Это не влияет на статус статьи и не является подтверждением проверки.</p>' : '';
   return `<section class="sources" data-sources-state="${model.state}" aria-labelledby="${SOURCES_SECTION_ID}">${heading}${note}<ul class="sources-list">${items}</ul>${warning}</section>`;
 }

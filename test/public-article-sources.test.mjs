@@ -60,16 +60,17 @@ test('model states: listed, empty and invalid; status wording is preserved, neve
   const listed = createArticleSourcesModel(['README.md', 'https://elma365.com/ru/help/platform/lowcode-devops-pm.html'], { status: 'Экспериментально · импорт не испытан' });
   assert.equal(listed.state, 'listed');
   assert.equal(listed.status, 'Экспериментально · импорт не испытан');
-  for (const sources of [[], undefined, null, 'README.md', {}]) {
+  for (const sources of [[], undefined, null]) {
     const model = createArticleSourcesModel(sources, { status: undefined });
     assert.equal(model.state, 'empty'); assert.deepEqual(model.items, []); assert.equal(model.status, 'Руководство');
   }
+  for (const sources of ['README.md', {}]) assert.equal(createArticleSourcesModel(sources).state, 'invalid');
   const invalid = createArticleSourcesModel(['README.md', 'javascript:alert(1)', 7], { status: 'Структура формата' });
   assert.equal(invalid.state, 'invalid');
   assert.deepEqual(invalid.items.map(item => item.kind), ['repository', 'invalid', 'invalid']);
 });
 
-test('renderer escapes labels, links only verified references and keeps the reference/verification distinction', () => {
+test('renderer escapes labels, links only approved references and keeps the reference/verification distinction', () => {
   const html = renderArticleSources(createArticleSourcesModel(
     ['lib/e365.mjs', 'https://elma365.com/ru/help/platform/export-import-elma365.html', '<img src=x onerror=alert(1)>', 'javascript:alert(1)'],
     { status: '<b>Проверено</b> · 1 января 2099' }
@@ -77,9 +78,9 @@ test('renderer escapes labels, links only verified references and keeps the refe
   assert.equal((html.match(/<a /g) || []).length, 2, 'only the two valid references are links');
   assert.ok(html.includes(`href="${REPOSITORY_URL}/blob/main/lib/e365.mjs" rel="noreferrer noopener"`));
   assert.ok(html.includes('href="https://elma365.com/ru/help/platform/export-import-elma365.html"'));
-  assert.ok(!html.includes('<img'), 'label is escaped');
+  assert.ok(!html.includes('<img'), 'rejected source is not emitted');
   assert.ok(!/href="javascript:/.test(html));
-  assert.ok(html.includes('&lt;img src=x onerror=alert(1)&gt;'));
+  assert.ok(!html.includes('&lt;img src=x onerror=alert(1)&gt;'), 'even an escaped rejected value can contain private data');
   assert.ok(html.includes('&lt;b&gt;Проверено&lt;/b&gt; · 1 января 2099'), 'status is shown verbatim and escaped');
   assert.ok(html.includes('data-sources-state="invalid"'));
   assert.ok(html.includes('не означает, что описанное поведение проверено на ELMA365'));

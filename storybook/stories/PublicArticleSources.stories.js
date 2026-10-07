@@ -23,6 +23,6 @@ export const Listed = {
 };
 export const Empty = { ...story([], undefined), name: 'Источники не указаны' };
 export const Invalid = {
-  ...story(['lib/e365.mjs', 'javascript:alert(1)', '../../.env', 'https://evil.example/elma365.com/'], 'Структура формата'),
+  ...story(['lib/e365.mjs', '.local/SYNTHETIC_PRIVATE_VALUE', 'https://user:SYNTHETIC_PRIVATE_VALUE@elma365.com/ru/help/platform/a.html', { token: 'SYNTHETIC_PRIVATE_VALUE' }], 'Структура формата'),
   name: 'Некорректные источники'
 };
