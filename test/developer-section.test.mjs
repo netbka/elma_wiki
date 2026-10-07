@@ -10,7 +10,7 @@ import { createServer } from '../server.mjs';
 
 test('developer guides declare status and link only to existing articles', () => {
   const ids = new Set(articles.map(a => a.id));
-  assert.equal(developerArticles.length, 7);
+  assert.equal(developerArticles.length, 8);
   for (const article of developerArticles) {
     assert.ok(article.status); assert.ok(article.sources.length);
     assert.equal(new Set(article.sections.map(s => s.id)).size, article.sections.length);

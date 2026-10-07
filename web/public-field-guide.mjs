@@ -59,9 +59,9 @@ export function createFieldGuideModel(records = fieldGuideFixture()) {
     state: 'ready',
     exploration: records.filter(record => record && Array.isArray(record.document?.fields)).map((record,index) => ({
       id: 'synthetic-object-' + index, service: record.service, namespace: record.namespace, code: record.code, name: record.name, archivePath: record.sourcePath,
-      fields: record.document.fields.filter(field => field && typeof field === 'object').map((field,i) => ({
+      fields: record.document.fields.flatMap((field,i) => field && typeof field === 'object' ? [{
         code: field.code, name: field.view?.name || field.code, type: field.type, origin: 'fields', source: record.sourcePath + '#/fields/' + i
-      }))
+      }] : [])
     })),
     owner: { namespace: owner.namespace, code: owner.code, name: owner.name || owner.code },
     field: { code: field.code, name: field.view?.name || field.code, type: field.type },

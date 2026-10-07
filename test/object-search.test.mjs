@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { objectSearchModel, renderObjectResults, resolveSourceMatch, renderSourceMatch, inspectOnlyReason } from '../dist/object-search.js';
-const entity = {id:'one',name:'Requests',service:'widgets',namespace:'a',code:'form',coverage:'structural',archivePath:'widgets/form.json',fields:[{code:'title',name:'Subject',origin:'descriptor.fields',source:'widgets/form.json#/descriptor/fields/0'}],functionSources:[{name:'onOpen',side:'client',path:'widgets/form.json.client.ts'}]};
+const entity = {id:'one',name:'Requests',service:'widgets',kind:'WIDGET',namespace:'a',code:'form',coverage:'structural',archivePath:'widgets/form.json',fields:[{code:'title',name:'Subject',origin:'descriptor.fields',source:'widgets/form.json#/descriptor/fields/0'}],functionSources:[{name:'onOpen',side:'client',path:'widgets/form.json.client.ts'}]};
 test('qualified field/function hits link to their precise definition without confusing the containing object',()=>{
   const other=structuredClone(entity);other.id='two';other.namespace='b';other.fields[0].source='widgets/other.json#/fields/0';
   const rows=objectSearchModel([entity,other],'TITLE');assert.equal(rows.length,2);assert.equal(rows[0].matches[0].source,entity.fields[0].source);

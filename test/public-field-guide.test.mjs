@@ -127,3 +127,9 @@ test('Storybook registers the same renderer and all three evidence states', asyn
     .map(name => `${stories.default.id}--${name.toLowerCase()}`));
   for (const name of ['Ready', 'Unavailable', 'Ambiguous']) assert.equal(typeof stories[name].render, 'function');
 });
+
+test('interactive source pointers keep the original field position when malformed rows are skipped', () => {
+  const records=fieldGuideFixture();records[0].document.fields.unshift(null);
+  const model=createFieldGuideModel(records);assert.equal(model.pointer,'/fields/1');
+  assert.equal(model.exploration[0].fields.find(field=>field.code==='title').source,records[0].sourcePath+'#/fields/1');
+});
