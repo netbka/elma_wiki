@@ -15,7 +15,7 @@ export function compareSnapshots(source, baseline) {
       const a = beforeFields.get(code), b = afterFields.get(code);
       if (JSON.stringify(a) !== JSON.stringify(b)) fields.push({ code, before: a || null, after: b || null });
     }
-    const impact = path.startsWith('permissions/') ? 'rights' : path.startsWith('processor/') ? 'process' : fields.some(f => f.before?.required !== f.after?.required) ? 'required' : /\.(client|server)\.ts$/.test(path) ? 'script' : entity ? 'structure' : path === 'package.json' ? 'package' : 'unclassified';
+    const impact = /^(permissions|permissionsSettings)\//.test(path) ? 'rights' : path.startsWith('processor/') ? 'process' : fields.some(f => Boolean(f.before?.required) !== Boolean(f.after?.required)) ? 'required' : /\.(client|server)\.ts$/.test(path) ? 'script' : entity ? 'structure' : path === 'package.json' ? 'package' : 'unclassified';
     return [{ path, type: old ? next ? 'changed' : 'removed' : 'added', before: old || null, after: next || null, title: entity?.name || entity?.code || path, impact, fields }];
   });
 }

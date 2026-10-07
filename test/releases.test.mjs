@@ -99,6 +99,40 @@ test('comparison reports removals, opaque hashes and rights/process impact witho
   assert.equal(changes.find(r => r.path === 'opaque').type, 'removed');
   assert.equal(changes.find(r => r.path === 'processor/process').impact, 'process');
 });
+
+test('native permission files are identified for review while unsupported parsing still blocks handoff', async t => {
+  const { projects, releases } = await setup(t);
+  const fixture = role => releaseFixture(false, [
+    ['permissionsSettings/manifest.json', { entities: [{ code: 'roles', namespace: 'example.records', path: 'roles.json' }] }],
+    ['permissionsSettings/roles.json', { roles: [role] }]
+  ]);
+  const baseline = await projects.create('alice', await fixture('reader'));
+  const source = await projects.create('alice', await fixture('writer'));
+  let release = await releases.create('alice', { ...details, sourceProjectId: source.id, baselineProjectId: baseline.id });
+  assert.equal(release.changes.find(row => row.path === 'permissionsSettings/roles.json').impact, 'rights');
+  release = await acceptAll(releases, release);
+  assert.ok(release.blockers.some(reason => reason.includes('permissionsSettings')));
+  await assert.rejects(releases.change(release.id, 'alice', { revision: release.revision, action: 'freeze' }), error => error.statusCode === 409);
+});
+
+test('parsed optional field additions/removals are structural; mandatory field additions/removals change required rules', async t => {
+  const { projects, releases } = await setup(t);
+  const fixture = fields => zip([
+    ['package.json', { code: 'synthetic_release', type: 'SOLUTION' }],
+    ['widgets/manifest.json', { entities: [{ code: 'form', namespace: 'example.records', kind: 'WIDGET', path: 'form.json' }] }],
+    ['widgets/form.json', { descriptor: { fields } }]
+  ]);
+  const empty = await projects.create('alice', await fixture([]));
+  for (const required of [false, true]) {
+    const populated = await projects.create('alice', await fixture([{ code: 'note', type: 'STRING', required }]));
+    for (const [source, baseline] of [[populated, empty], [empty, populated]]) {
+      const release = await releases.create('alice', { ...details, sourceProjectId: source.id, baselineProjectId: baseline.id });
+      assert.equal(release.changes.length, 1);
+      assert.equal(release.changes[0].impact, required ? 'required' : 'structure');
+      assert.equal(release.changes[0].fields[0].code, 'note');
+    }
+  }
+});
 test('same expanded content is a no-op; different solution identity never passes the candidate gate', async t => {
   const { projects, releases } = await setup(t);
   const first = await projects.create('alice', await releaseFixture()), second = await projects.create('alice', await releaseFixture());
