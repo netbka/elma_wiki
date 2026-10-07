@@ -1,0 +1,33 @@
+{
+  "capability": "vk-authentication",
+  "entry": "/login",
+  "renderer": [
+    "web/login.html",
+    "web/service.js"
+  ],
+  "fixture": {
+    "login": "person",
+    "domain": "example.org",
+    "sender": "injected synthetic sendVk callback"
+  },
+  "states": [
+    "ready",
+    "unconfigured",
+    "sending",
+    "sent-with-resend-cooldown",
+    "verifying",
+    "invalid-or-expired-code",
+    "delivery-failed",
+    "rate-limited",
+    "authenticated"
+  ],
+  "evidence": [
+    "test/vk-auth.test.mjs",
+    "tools/vk-auth-browser-check.mjs"
+  ],
+  "rules": [
+    "Private chat delivery using existing SvoiBot auth token; no polling",
+    "10-minute single-use code, five attempts, resend cooldown",
+    "No SMTP required; provider-scoped owner; CSRF protected"
+  ]
+}

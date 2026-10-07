@@ -8,8 +8,13 @@ services:
       PORT: 43171
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:?Set PUBLIC_BASE_URL in private env file}
       DISABLE_LOCAL_LOGIN: "1"
-      EMAIL_FROM: ${EMAIL_FROM:?Укажите EMAIL_FROM в приватном env файле}
-      EMAIL_CRED_KEY: ${EMAIL_CRED_KEY:?Укажите EMAIL_CRED_KEY в приватном env файле}
+      EMAIL_FROM: ${EMAIL_FROM:-}
+      EMAIL_CRED_KEY: ${EMAIL_CRED_KEY:-}
+      VK_BOT_AUTH_TOKEN: ${VK_BOT_AUTH_TOKEN:-}
+      VK_API_BASE: ${VK_API_BASE:-}
+      PORTAL_EMAIL_DOMAIN: ${PORTAL_EMAIL_DOMAIN:-}
+      VK_BOT_AUTH_NAME: ${VK_BOT_AUTH_NAME:-}
+      VK_BOT_AUTH_ID: ${VK_BOT_AUTH_ID:-}
       SMTP_HOST: ${SMTP_HOST:-smtp.mail.ru}
       SMTP_PORT: ${SMTP_PORT:-465}
       SMTP_SSL_TLS: ${SMTP_SSL_TLS:-true}
