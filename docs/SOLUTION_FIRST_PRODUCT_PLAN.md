@@ -1,6 +1,6 @@
 # Solution-first product plan
 
-Status: proposed canonical product simplification for owner review.
+Status: current owner-authorized implementation contract; final product acceptance remains #38 / #59.
 Date: 2026-10-07.
 Coordinates: #33, #35, #38, #39, #40, #41, #47, #52.
 
