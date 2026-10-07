@@ -8,6 +8,7 @@ Coordination only. Work starts from the owner request or assigned issue.
 - Analyst release workspace - [proposed PR sequence](plans/analyst-release-workspace.md) and [audit brief](audits/analyst-release-audit-brief.md). Extends the existing E2E, not a competing pipeline. Current assignment is planning; runtime slices require assignment. No-edit review/handoff precedes TEST delivery and optional edits.
 - Create ELMA-specific Product Constitution + executable Principles as a separate product-authority task.
 - Integrate supported Developer Workspace/compiler flow with snapshot/candidate lifecycle after the Source/Target skeleton works. Refresh PR #8 integration ancestry as described in the analyst plan; a merge to a development branch is not proof of main/deployed availability.
+- VK Teams request-to-Dev2 agent delivery - plans/vk-teams-agent-delivery.md; proposed six-PR implementation plan, not a connected bot or deployment authorization. User conversation: workflows/vk-teams-agent-delivery.md.
 
 ## LATER
 - VS Code client over shared Developer Core.
