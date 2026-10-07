@@ -35,3 +35,7 @@ export const ReviewAccepted = { render: () => story('review-accepted') };
 export const ReviewStaleAnchor = { render: () => story('review-stale-anchor') };
 export const ReviewRemovedAnchor = { render: () => story('review-removed-anchor') };
 export const ReviewAmbiguousAnchor = { render: () => story('review-ambiguous-anchor') };
+export const ElementsAdded = { render: () => story('elements-added') };
+export const ElementsBoundary = { render: () => story('elements-boundary') };
+export const ElementsConflict = { render: () => story('elements-conflict') };
+export const ElementsUnknown = { render: () => story('elements-unknown') };

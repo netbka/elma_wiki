@@ -3,6 +3,35 @@ export const labels = {
   'known-change-retained': 'Наше изменение сохранится', 'known-change-incorporated': 'Наше изменение включено в снимок',
   'external-change': 'Изменение из полного снимка', conflict: 'Нужен выбор версии', ambiguous: 'Недостаточно данных'
 };
+export const elementLabels = { ...labels, 'element-added': 'Добавлен', 'element-removed': 'Удалён', 'element-modified': 'Изменён' };
+export const elementKinds = { node: 'Шаг', transition: 'Переход', variable: 'Переменная', lane: 'Дорожка' };
+export function responsibilityLabel(component) {
+  if (!component.responsibility) return component.service === 'processor' ? 'По объекту: ' + component.team + ' · части не установлены' : component.team;
+  const counts = new Map();
+  for (const part of component.responsibility.elements) { const team = part.team || 'Не установлена'; counts.set(team, (counts.get(team) || 0) + 1); }
+  return [...counts].map(([team,count]) => `${team}: ${count}`).join(' · ') || 'Распознанных частей нет';
+}
+// Download only already authorized review evidence. This report is a manual
+// responsibility declaration, not native authorship, liability or an archive.
+export function responsibilityReport(state, review) {
+  const quote = value => JSON.stringify(value ?? null);
+  const lines = [`Решение: ${quote(state.name)}`, `Изменение: ${quote(review.artifactId)}`, `Ревизия рассмотрения: ${review.revision}`,
+    `Отпечаток рассмотренных данных: ${review.artifactDigest || 'Не установлен'}`, `Команда изменения: ${quote(review.options.team || review.options.baselineOwner)}`,
+    `Загрузил: ${quote(review.uploadedBy?.login)}`, `Принято: ${quote(review.acceptedAt)}`, `Принял: ${quote(review.acceptedDecision?.actor?.login)}`,
+    'Заявленная ответственность команд; авторы публикаций ELMA и договорная ответственность не установлены.',
+    'Это частный отчёт рассмотрения. Исходные файлы сохранены отдельно; отчёт не является пакетом установки или подтверждением доставки.', ''];
+  for (const row of review.rows) {
+    lines.push(`Объект: ${quote(row.key)} · ${labels[row.classification] || row.classification}`,
+      `Граница исходной версии: ${row.boundaryCrossing ? 'требует рассмотрения' : 'не выявлена'} · конфликт: ${row.conflict || row.classification === 'conflict' ? 'да' : 'нет'}`);
+    if (row.elements) {
+      lines.push(`Части: ${row.elements.complete ? 'идентичность установлена' : 'неполные или неоднозначные данные'} · прочие данные изменились: ${row.elements.residualChanged ? 'да' : 'нет'}`);
+      for (const part of row.elements.rows) lines.push(`${elementKinds[part.kind] || part.kind} ${quote(part.code)} ${quote(part.name)} · ${elementLabels[part.classification] || part.classification} · прежняя команда: ${quote(part.team)} · граница: ${!!part.boundaryCrossing} · конфликт: ${!!part.conflict}\n  ${quote(part.pointer)} · было: ${part.beforeDigest || 'отсутствует'} · стало: ${part.afterDigest || 'отсутствует'}${part.kind === 'transition' ? '\n  Исходная связь: ' + quote(part.from) + ' -> ' + quote(part.to) + '; права, условия и контракт данных не установлены.' : ''}`);
+      for (const unknown of row.elements.ambiguities) lines.push('Не установлено: ' + quote(unknown));
+    } else lines.push('Независимая ответственность частей не установлена; сравнение на уровне объекта.');
+    lines.push('');
+  }
+  return lines.join('\n');
+}
 export function componentName(key) {
   try { const parts = JSON.parse(key); return Array.isArray(parts) ? parts.at(-1) : key; } catch { return key; }
 }

@@ -1,4 +1,4 @@
-import { componentName, dateLabel, labels, reviewGate, workspaceSummary, workspaceUrl as buildUrl, solutionNextAction } from './model.js';
+import { componentName, dateLabel, labels, elementLabels, elementKinds, responsibilityLabel, responsibilityReport, reviewGate, workspaceSummary, workspaceUrl as buildUrl, solutionNextAction } from './model.js';
 import { mountSnapshotVisual } from '../visual/render.js';
 const el = (tag, text, className) => { const node = document.createElement(tag); if (text !== undefined) node.textContent = text; if (className) node.className = className; return node; };
 let sequence = 0;
@@ -103,7 +103,7 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
       const lower = el('div', undefined, 'managed-columns'), current = el('section'), history = el('section');
       current.append(el('h2', `Текущее состояние · ${state.current.length} объектов`));
       const table = el('table'), head = el('tr'); ['Объект', 'Ответственность', 'Состояние'].forEach(label => head.append(el('th', label))); table.append(head);
-      for (const row of state.current) { const tr = el('tr'); tr.append(el('td', row.code), el('td', row.team), el('td', row.interventionId ? 'Принятое изменение' : 'Принятая версия')); table.append(tr); }
+      for (const row of state.current) { const tr = el('tr'); tr.append(el('td', row.code), el('td', responsibilityLabel(row)), el('td', row.interventionId ? 'Принятое изменение' : 'Принятая версия')); table.append(tr); }
       const scroll = el('div', undefined, 'managed-table'); scroll.tabIndex = 0; scroll.setAttribute('role', 'region'); scroll.setAttribute('aria-label', 'Рабочее состояние объектов'); scroll.append(table); current.append(scroll);
       history.append(el('h2', 'Принятые изменения'), el('p', `Изменений: ${state.changes.length} · Обновлений версии: ${state.reconciliations.length}`));
       for (const row of state.reviewedChanges || []) history.append(link(row.kind === 'change' ? row.options.taskRef : 'Обновление версии', workspaceUrl(state.id, 'review', row.artifactId)));
@@ -182,6 +182,10 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
     content.append(el('h2', full ? 'Рассмотреть обновление версии' : 'Рассмотреть изменение'),
       el('p', full ? `После принятия это станет текущей версией. Заявленная ответственность: ${review.options.baselineOwner}.` : `Ответственная команда: ${review.options.team} · ${review.options.taskRef}.`));
     if (review.uploadedBy) content.append(el('p', `Загрузил: ${review.uploadedBy.login}`));
+    button('Скачать отчёт об ответственности', () => {
+      const url = URL.createObjectURL(new Blob([responsibilityReport(state, review)], { type: 'text/plain;charset=utf-8' }));
+      const a = el('a'); a.href = url; a.download = 'responsibility-review.txt'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }).className = 'secondary';
     if (review.acceptedAt) content.append(el('p', `Принято: ${dateLabel(review.acceptedAt)} · ${review.acceptedDecision?.actor?.login || 'Автор решения не зафиксирован'}`, 'managed-accepted'));
     if (review.stale) content.append(el('p', 'Это прежнее рассмотрение. Комментарии и исходные ссылки сохранены; новые решения здесь недоступны.', 'managed-note'),
       link(review.supersededBy ? 'Открыть актуальное изменение' : 'Обновить состояние', workspaceUrl(state.id, review.supersededBy ? 'review' : null, review.supersededBy), true));
@@ -190,7 +194,19 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
     const update = () => { gate.textContent = reviewGate(review, [...boundaryKeys], resolutions); submit.disabled = !!gate.textContent; submit.dataset.unavailable = String(submit.disabled); };
     for (const row of review.rows) {
       const card = el('section', undefined, 'managed-card'); card.append(el('h3', componentName(row.key)), el('p', row.conflict ? 'Конфликт с изменением другой команды' : labels[row.classification] || row.classification));
-      if (row.previousTeam || row.team) card.append(el('p', 'Текущая ответственность: ' + (row.previousTeam || row.team)));
+      if (row.elements) {
+        card.append(el('h4', 'Ответственность частей процесса'),
+          el('p', 'Заявленная командой ответственность. Авторы публикаций ELMA и договорная ответственность не установлены.', 'managed-muted'));
+        if (!row.elements.complete || row.elements.residualChanged) card.append(el('p', 'Часть данных не установлена или изменены прочие данные. Сохраняется проверка всего объекта.', 'managed-note'));
+        const table = el('table'), head = el('tr'); ['Часть', 'Было', 'Изменение'].forEach(label => head.append(el('th', label))); table.append(head);
+        for (const part of row.elements.rows.slice(0, 100)) {
+          const tr = el('tr'); tr.append(el('td', `${elementKinds[part.kind] || part.kind}: ${part.name} (${part.code})${part.kind === 'transition' ? ' · ' + (part.from || '?') + ' → ' + (part.to || '?') : ''}`), el('td', part.team || 'Не установлена'),
+            el('td', `${elementLabels[part.classification] || part.classification}${part.boundaryCrossing ? ' · граница исходной версии' : ''}${part.conflict ? ' · конфликт команд' : ''}`)); table.append(tr);
+        }
+        const scroll = el('div', undefined, 'managed-table'); scroll.tabIndex = 0; scroll.setAttribute('role', 'region'); scroll.setAttribute('aria-label', 'Ответственность частей процесса'); scroll.append(table); card.append(scroll);
+        if (row.elements.rows.length > 100) card.append(el('p', 'Показаны первые 100 частей. Полный список — в отчёте об ответственности.'));
+        if (full && row.classification === 'conflict') card.append(el('p', 'Части помогают понять конфликт. Выбор версии применяется ко всему исходному файлу процесса; автоматического объединения нет.'));
+      } else if (row.previousTeam || row.team) card.append(el('p', 'Текущая ответственность: ' + (row.previousTeam || row.team)));
       if (row.removed) card.append(el('p', 'Объект отсутствует в новом полном снимке. Выбор снимка удалит его из рабочего состояния.'));
       if (!full && row.boundaryCrossing && !review.acceptedAt && !review.stale) {
         const choice = check(card, 'Изменение принятого объекта проверено'); choice.onchange = () => { choice.checked ? boundaryKeys.add(row.key) : boundaryKeys.delete(row.key); update(); };

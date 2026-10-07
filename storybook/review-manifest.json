@@ -567,7 +567,11 @@
         "managed-workspace--review-accepted",
         "managed-workspace--review-stale-anchor",
         "managed-workspace--review-removed-anchor",
-        "managed-workspace--review-ambiguous-anchor"
+        "managed-workspace--review-ambiguous-anchor",
+        "managed-workspace--elements-added",
+        "managed-workspace--elements-boundary",
+        "managed-workspace--elements-conflict",
+        "managed-workspace--elements-unknown"
       ],
       "requiredVisibleStates": [
         "empty",
@@ -595,7 +599,11 @@
         "review-accepted",
         "review-stale-anchor",
         "review-removed-anchor",
-        "review-ambiguous-anchor"
+        "review-ambiguous-anchor",
+        "elements-added",
+        "elements-boundary",
+        "elements-conflict",
+        "elements-unknown"
       ],
       "sources": [
         "docs/workflows/solutions.md",

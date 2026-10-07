@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { managedFixture } from '../web/managed/fixtures.js';
-import { reviewGate, workspaceSummary, componentName, workspaceUrl, solutionNextAction } from '../web/managed/model.js';
+import { reviewGate, workspaceSummary, componentName, workspaceUrl, solutionNextAction, responsibilityLabel, responsibilityReport } from '../web/managed/model.js';
 
 test('review requires explicit boundary decisions and per-conflict choices; ambiguity and cross-team overlap never become ready', () => {
   const partial = managedFixture('review').review;
@@ -62,4 +62,14 @@ test('unresolved findings block acceptance independently of object boundaries an
   }
   const resolved = managedFixture('review-resolved').review;
   assert.equal(reviewGate(resolved, resolved.rows.map(row => row.key)), '');
+});
+test('process reports expose precise boundaries and previous teams without claiming native authors or merging files', () => {
+  const { workspace, review } = managedFixture('elements-boundary'), report = responsibilityReport(workspace, review);
+  assert.match(report, /Korus/); assert.match(report, /граница: true/); assert.match(report, /авторы публикаций ELMA.*не установлены/);
+  assert.match(report, /не является пакетом установки/);
+  assert.equal(responsibilityLabel({ responsibility: { elements: [{ team: 'Korus' }, { team: 'Internal' }, { team: 'Korus' }, { team: null }] } }), 'Korus: 2 · Internal: 1 · Не установлена: 1');
+  assert.match(responsibilityLabel({ service: 'processor', team: 'Korus' }), /части не установлены/);
+  assert.equal(reviewGate(managedFixture('elements-added').review), '');
+  const conflict = managedFixture('elements-conflict').review;
+  assert.ok(reviewGate(conflict)); assert.equal(reviewGate(conflict, [], { [conflict.rows[0].key]: 'take-snapshot' }), '');
 });

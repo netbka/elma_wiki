@@ -27,7 +27,7 @@ capabilities:
     routes: ["docs/contracts/shared-solutions.md", "docs/SOLUTION_FIRST_PRODUCT_PLAN.md", "docs/SOLUTION_FIRST_CONTRADICTIONS.md"]
     boundaries: ["domain", "storage", "security"]
   managed-workspace:
-    owners: ["lib/managed-workspace.mjs", "lib/managed-workspace-store.mjs", "server.mjs", "test/managed-workspace.test.mjs", "test/managed-workspace-store.test.mjs", "test/managed-workspace-api.test.mjs"]
+    owners: ["lib/managed-workspace.mjs", "lib/process-elements.mjs", "lib/managed-workspace-store.mjs", "server.mjs", "test/managed-workspace.test.mjs", "test/process-elements.test.mjs", "test/managed-workspace-store.test.mjs", "test/managed-workspace-api.test.mjs"]
     routes: ["docs/contracts/managed-workspace.md", "docs/contracts/project-snapshots.md"]
     boundaries: ["domain", "parser", "storage", "security"]
   managed-workspace-ui:
