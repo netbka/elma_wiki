@@ -14,6 +14,8 @@ Compare the entire expanded inventory by path and SHA-256, including opaque/unin
 
 Structural object/field summaries assist review. Permissions, process content and required-field changes are labeled with their impact; none is declared cosmetic. Field summaries are not proof of complete runtime semantics. Private preview returns text through JSON, displayed using textContent rather than HTML, up to 256 KiB; hashes cover every byte. Every changed file requires acceptance with a reason. Rejection blocks candidate preparation. A decision never removes a file from the package. The UI initially renders 20 changes and can reveal the rest, retaining unsaved drafts; approval checks the entire inventory.
 
+Permission impact covers both `permissions/` and native ELMA `permissionsSettings/` paths. Identifying that impact does not extend parser support or clear an unknown-service blocker. Adding/removing an optional field is a structural change; adding/removing a required field or toggling its required flag changes mandatory-field rules. Neither classification grants edit or delivery capability.
+
 Missing/malformed/unknown/opaque parser diagnostics and unresolved solution identity block candidate preparation. Unindexed preserved content requires a limitation statement. Acknowledging limitations cannot override the hard parser blockers. Same expanded file hashes are a no-op comparison, but the exact newly selected archive is still the handoff artifact.
 
 ## Candidate and acceptance
@@ -32,4 +34,4 @@ Snapshots and decision history live in `.local/releases/<id>/` with private file
 
 ## Evidence
 
-`node --test test/releases.test.mjs` verifies pinning across reparse/delete/restart, owner isolation, stale/concurrent decisions, exact artifact hashes, audit history, parser/rejection gates and API protections. `npm run test:releases:browser` exercises the genuine authenticated UI, including rejection/resume, a stale tab that retains its draft, candidate/acceptance/download, invalidation, source preview and mobile. Six synthetic stories mount the same renderer and ViewModel as production.
+`node --test test/releases.test.mjs` verifies pinning across reparse/delete/restart, owner isolation, stale/concurrent decisions, exact artifact hashes, audit history, parser/rejection gates and API protections. Parsed-archive regressions cover native permission impact without bypassing the unknown-service gate, and optional versus mandatory field additions/removals. `npm run test:releases:browser` exercises the genuine authenticated UI, including those impact labels, rejection/resume, a stale tab that retains its draft, candidate/acceptance/download, invalidation, source preview and mobile. Seven synthetic stories mount the same renderer and ViewModel as production.

@@ -87,8 +87,30 @@ try {
   assert.equal(await page.evaluate(() => globalThis.releaseXss), undefined);
   await page.setViewportSize({ width: 390, height: 844 }); assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
   await page.keyboard.press('Tab'); assert.notEqual(await page.evaluate(() => document.activeElement.tagName), 'BODY');
+
+  const impactFixture = (fields, role) => zip([
+    ['package.json', { code: 'synthetic_release', type: 'SOLUTION' }],
+    ['widgets/manifest.json', { entities: [{ code: 'form', namespace: 'example.records', kind: 'WIDGET', path: 'form.json' }] }],
+    ['widgets/form.json', { descriptor: { fields } }],
+    ['permissionsSettings/manifest.json', { entities: [{ code: 'roles', namespace: 'example.records', path: 'roles.json' }] }],
+    ['permissionsSettings/roles.json', { roles: [role] }]
+  ]);
+  const impactBaseline = await projects.create('local', await impactFixture([], 'reader'));
+  const impactSource = await projects.create('local', await impactFixture([{ code: 'note', type: 'STRING', required: false }], 'writer'));
+  const impactRelease = await page.evaluate(async input => {
+    const response = await fetch('/api/releases', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Elma-Wiki-Request': '1' }, body: JSON.stringify(input) });
+    if (!response.ok) throw Error('Impact fixture creation failed'); return response.json();
+  }, { title: 'Поле и права', intent: 'Проверить классификацию изменений', targetIntent: 'Учебный оператор', sourceProjectId: impactSource.id, baselineProjectId: impactBaseline.id });
+  await page.goto(base + '/releases?id=' + impactRelease.id);
+  const optionalCard = page.locator('article').filter({ hasText: 'widgets/form.json' });
+  await optionalCard.getByText('widgets/form.json · Структура объекта', { exact: true }).waitFor();
+  await page.locator('article').filter({ hasText: 'permissionsSettings/roles.json' }).getByText('permissionsSettings/roles.json · Права доступа', { exact: true }).waitFor();
+  assert.ok((await optionalCard.textContent()).includes('Поле note'));
+  assert.equal(await optionalCard.getByText('Обязательность поля', { exact: true }).count(), 0);
+  assert.equal(await page.getByRole('button', { name: 'Подготовить неизменяемый кандидат', exact: true }).isDisabled(), true);
+  assert.match(await page.locator('.release-shell').textContent(), /Неизвестный сервис/);
   assert.deepEqual(errors, []);
-  console.log('Analyst release browser: baseline, required-field review, reject/resume, stale draft, candidate, exact private bundle, invalidation, preview and mobile passed.');
+  console.log('Analyst release browser: baseline, required/optional-field and native-permission review, parser blocker, reject/resume, stale draft, candidate, exact private bundle, invalidation, preview and mobile passed.');
 } finally {
   await browser?.close();
   if (server.listening) await new Promise(resolve => server.close(resolve));
