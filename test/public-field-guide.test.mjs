@@ -121,7 +121,7 @@ test('Storybook registers the same renderer and all three evidence states', asyn
   const manifest = JSON.parse(await fs.readFile(new URL('../storybook/review-manifest.json', import.meta.url), 'utf8'));
   const stories = await import('../storybook/stories/PublicFieldGuide.stories.js');
   const entry = manifest.capabilities['public-field-lookup'];
-  assert.deepEqual(entry.renderer, ['web/public-field-guide.mjs']);
+  assert.deepEqual(entry.renderer, ['web/public-field-guide.mjs', 'dist/object-search.js']);
   assert.deepEqual(entry.requiredVisibleStates, ['ready', 'unavailable', 'ambiguous']);
   assert.deepEqual(entry.storyIds, ['Ready', 'Unavailable', 'Ambiguous']
     .map(name => `${stories.default.id}--${name.toLowerCase()}`));

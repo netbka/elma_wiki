@@ -8,7 +8,7 @@ import { renderPublicFiles } from '../lib/public-site.mjs';
 const root = fileURLToPath(new URL('../', import.meta.url));
 export async function buildPublicSite() {
   const files = renderPublicFiles({ landing: await fs.readFile(path.join(root, 'web/index.html'), 'utf8'), articles, example: demoData().servers.showcase });
-  for (const [source, target] of [['web/project.css', 'project.css'], ['web/public.js', 'public.js']]) files.set(target, await fs.readFile(path.join(root, source), 'utf8'));
+  for (const [source, target] of [['web/project.css', 'project.css'], ['web/public.js', 'public.js'], ['dist/object-search.js', 'object-search.js']]) files.set(target, await fs.readFile(path.join(root, source), 'utf8'));
   files.set('project.css', files.get('project.css') + '\n' + await fs.readFile(path.join(root, 'web/public.css'), 'utf8'));
   const directory = path.resolve(root, '.public');
   if (path.dirname(directory) !== path.resolve(root) || path.basename(directory) !== '.public') throw Error('Недопустимый каталог публичной сборки');

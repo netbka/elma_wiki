@@ -10,7 +10,7 @@ test('public build publishes only static explanations and synthetic examples; ev
   const result = await buildPublicSite(), names = new Set(result.files);
   assert.ok(!names.has('stale-private.txt'));
   await assert.rejects(fs.access(new URL('../.public/stale-private.txt', import.meta.url)));
-  assert.deepEqual(result.files.filter(f => !f.endsWith('.html')).sort(), ['project.css', 'public.js']);
+  assert.deepEqual(result.files.filter(f => !f.endsWith('.html')).sort(), ['object-search.js', 'project.css', 'public.js']);
   assert.equal(result.files.filter(f => /^articles\/[^/]+\/index.html$/.test(f)).length, articles.length);
   assert.equal(result.files.filter(f => /^examples\/[^/]+\/index.html$/.test(f)).length, 6);
   const content = new Map(await Promise.all(result.files.map(async name => [name, await fs.readFile(new URL('../.public/' + name, import.meta.url), 'utf8')])));

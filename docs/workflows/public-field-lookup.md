@@ -79,3 +79,11 @@ itself a visual approval. The evidence records the tested CI commit and browser.
 Full build, browser and CI evidence must be reported separately from the
 standalone model/generator tests. This task does not establish WCAG
 conformance, deployment readiness or a live ELMA result.
+
+## Actual synthetic exploration — #30
+
+The ready lesson hydrates the same `dist/object-search.js` renderer used by the private viewer. Search and select the qualified field; Requests and Categories deliberately share `title` and retain separate source pointers. Empty/missing results stay uncertain. The selection renders escaped index evidence and never runs code, uploads files or calls a backend. Native links/details preserve the reading path without JavaScript. Storybook uses that same hydrator; five focused search/selection states also exercise field/function/empty/ambiguous evidence.
+
+Private field lookup now opens investigation guidance and exact field/function matches. Unsupported objects explain the original/source/report path. The before/current lesson distinguishes investigation, supported working-copy Check, corrected captured export, review and separate ELMA observation. Static public build remains synthetic; Vercel hosting stays deferred.
+
+`tools/first-use-browser-check.mjs` checks actual authenticated viewer source selection, retained query/focus and inert source, plus static synthetic selection, keyboard and 390px reflow. CI evidence is not uncoached understanding (#59) or live delivery (#11).
