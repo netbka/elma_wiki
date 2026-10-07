@@ -61,6 +61,24 @@ try {
       }
       evidence.push({ state, width, scrollWidth, screenshot });
     }
+    // Declared article sources share the public article shell; same built renderer as lib/public-site.mjs.
+    for (const state of ['listed', 'empty', 'invalid']) {
+      await page.goto(`${base}/iframe.html?id=public-article-sources--${state}&viewMode=story`);
+      const section = page.locator(`[data-sources-state="${state}"]`);
+      await section.waitFor();
+      await page.getByRole('heading', { name: 'Источники', exact: true }).waitFor();
+      await page.evaluate(() => document.fonts.ready);
+      const links = await section.locator('a').evaluateAll(nodes => nodes.map(node => node.getAttribute('href')));
+      assert.equal(links.length, { listed: 3, empty: 0, invalid: 1 }[state], `${state}: only valid references are links`);
+      for (const href of links) assert.match(href, /^https:\/\/(github\.com\/netbka\/elma_wiki\/blob\/main\/|(?:www\.)?elma365\.com\/)/);
+      assert.equal(await section.locator('.badge').count(), 1, 'the only badge is the article status');
+      assert.equal(await section.locator('.source-invalid').count(), state === 'invalid' ? 3 : 0);
+      const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+      assert.ok(scrollWidth <= width, `Horizontal overflow: sources/${state}/${width}`);
+      const screenshot = `qa/public-article-sources-story-${state}-${width}.png`;
+      await page.screenshot({ path: screenshot, fullPage: true });
+      evidence.push({ state: 'sources-' + state, width, scrollWidth, screenshot });
+    }
   }
   assert.deepEqual(errors, []); assert.deepEqual(failed, []); assert.deepEqual(external, []);
   await writeFile('qa/public-field-guide-visual-evidence.json', JSON.stringify({
@@ -68,7 +86,7 @@ try {
     scope: 'Built synthetic Storybook states; not live ELMA or accessibility conformance',
     evidence
   }, null, 2) + '\n');
-  console.log('Public field guide: all 3 built Storybook states passed at 1440/390; screenshots saved.');
+  console.log('Public field guide and article sources: all 6 built Storybook states passed at 1440/390; screenshots saved.');
 } finally {
   if (browser) await browser.close();
   server.closeAllConnections();

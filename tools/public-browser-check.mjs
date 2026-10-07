@@ -47,6 +47,24 @@ try {
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), article.id);
   }
   await page.goto(base + '/articles/field-form-recipe/');
+  // Declared sources: a real list with safe links, the status repeated as text, reachable from the contents.
+  const sources = page.getByRole('region', { name: 'Источники', exact: true });
+  assert.equal(await sources.getAttribute('data-sources-state'), 'listed');
+  await page.getByRole('navigation', { name: 'Содержание статьи' }).getByRole('link', { name: 'Источники', exact: true }).click();
+  assert.equal(new URL(page.url()).hash, '#article-sources');
+  const sourceLinks = await sources.locator('a').evaluateAll(nodes => nodes.map(node => ({ href: node.getAttribute('href'), rel: node.getAttribute('rel'), text: node.textContent })));
+  assert.ok(sourceLinks.length > 0);
+  for (const link of sourceLinks) {
+    assert.match(link.href, /^https:\/\/(github\.com\/netbka\/elma_wiki\/blob\/main\/|(?:www\.)?elma365\.com\/)/, link.href);
+    assert.equal(link.rel, 'noreferrer noopener');
+    assert.ok(link.text.length > 0);
+  }
+  assert.ok((await sources.textContent()).includes('не означает, что описанное поведение проверено на ELMA365'));
+  assert.equal(await sources.locator('.badge').count(), 1);
+  assert.equal(await sources.locator('.badge').textContent(), await page.locator('.article > .badge').textContent());
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+  await sources.screenshot({ path: 'qa/public-article-sources-390.png' });
+  await page.goto(base + '/articles/field-form-recipe/');
   await page.screenshot({ path: 'qa/public-article-mobile.png', fullPage: true });
   const copy = page.locator('.copy').first();
   await copy.click(); await page.getByRole('button', { name: 'Скопировано', exact: true }).waitFor();
@@ -64,7 +82,7 @@ try {
   assert.deepEqual(errors, []); assert.deepEqual(failed, []);
   assert.ok(requests.every(r => r.url.startsWith(base) && !['fetch', 'xhr', 'websocket'].includes(r.type)), 'Static site must not call a backend');
   for (const route of ['/api/session', '/auth/github', '/login', '/dashboard', '/server.mjs', '/.env', '/extensions/e365-workbench/']) assert.equal((await fetch(base + route)).status, 404, route);
-  console.log(`Public: landing, field-lookup journey, guide, ${articles.length} articles, 6 examples, mobile, clipboard and keyboard passed; no backend requests.`);
+  console.log(`Public: landing, field-lookup journey, guide, ${articles.length} articles, declared sources, 6 examples, mobile, clipboard and keyboard passed; no backend requests.`);
 } finally {
   if (browser) await browser.close();
   await new Promise(resolve => server.close(resolve));
