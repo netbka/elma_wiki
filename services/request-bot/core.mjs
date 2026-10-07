@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
+import { ciPolicy, ciSummary } from './ci.mjs';
 
 export class Fault extends Error {
   constructor(code, status = 409) { super(code); this.code = code; this.status = status; }
@@ -6,7 +7,7 @@ export class Fault extends Error {
 export const digest = value => createHash('sha256').update(value).digest('hex');
 const nonce = () => randomBytes(24).toString('hex');
 const SHA = /^[a-f0-9]{40}$/;
-const ACTIVE = ['TRIAGING', 'WAITING_USER', 'AWAITING_APPROVAL', 'QUEUED', 'IMPLEMENTING', 'PUBLISHING', 'BLOCKED'];
+const ACTIVE = ['TRIAGING', 'WAITING_USER', 'AWAITING_APPROVAL', 'QUEUED', 'IMPLEMENTING', 'PUBLISHING', 'PR_READY', 'BLOCKED'];
 export function text(value, max = 8000) {
   if (typeof value !== 'string' || !value.trim() || value.length > max || /\u0000/.test(value)) throw new Fault('invalid_text', 400);
   return value.trim();
@@ -34,7 +35,7 @@ export class Coordinator {
   }
   route(project) {
     const p = this.project(project);
-    return { repository: p.repository, baseRef: p.baseRef || 'main', taskKind: p.taskKind, targetRef: p.targetRef || null };
+    return { repository: p.repository, baseRef: p.baseRef || 'main', taskKind: p.taskKind, targetRef: p.targetRef || null, ...(p.ci ? { ci: ciPolicy(p.ci) } : {}) };
   }
   authorizedRoute(r) {
     this.binding(r.owner, r.chat, r.project);
@@ -57,7 +58,7 @@ export class Coordinator {
   enqueue(r, kind) {
     const count = this.s.get('SELECT count(*) AS n FROM jobs WHERE request_id=?', r.id).n;
     if (count >= this.maxJobs) { r.state = 'BLOCKED'; r.blocker = 'job_budget_exhausted'; return false; }
-    this.s.run('INSERT INTO jobs(request_id,revision,kind) VALUES(?,?,?)', r.id, r.revision, kind);
+    this.s.run('INSERT INTO jobs(request_id,revision,kind,iteration) VALUES(?,?,?,?)', r.id, r.revision, kind, r.iteration || 0);
     return true;
   }
   out(r, kind, payload) {
@@ -66,7 +67,7 @@ export class Coordinator {
   notify(r, detail = '') {
     // Status projections on GitHub never include the user's text or the private specification.
     const issue = r.issueNumber ? `\nGitHub: https://github.com/${r.route.repository}/issues/${r.issueNumber}` : '';
-    this.out(r, 'vk', { text: `${r.id} | ${r.state} | v${r.revision}\n${detail}${issue}` });
+    this.out(r, 'vk', { text: `${r.id} | ${r.state} | v${r.revision}\n${detail}${r.ci ? '\n' + ciSummary(r) : ''}${issue}` });
     if (r.issueNumber && !this.s.get("SELECT id FROM outbox WHERE request_id=? AND kind='github_comment' AND revision=? AND json_extract(payload,'$.state')=?", r.id, r.revision, r.state)) this.out(r, 'github_comment', { state: r.state });
   }
   action(r, action) {
@@ -93,6 +94,7 @@ export class Coordinator {
     r.messages.push({ actor, text: text(body), at: this.clock() });
     r.revision++; r.state = 'TRIAGING';
     delete r.spec; delete r.approval; delete r.patch; delete r.blocker;
+    r.iteration = 0; delete r.ci; delete r.repairFrom;
     // Old PRs remain traceable; no destructive close or overwrite on a new iteration.
     if (r.pr) { r.previousPrs = [...(r.previousPrs || []), r.pr]; delete r.pr; }
     this.s.run("UPDATE jobs SET status='cancelled' WHERE request_id=? AND status IN ('queued','running')", r.id);
@@ -202,7 +204,7 @@ export class Coordinator {
         if (!worker.kinds.includes(j.kind) || !worker.projects.includes(r.project)) continue;
         try { this.authorizedRoute(r); }
         catch { this.s.run("UPDATE jobs SET status='failed' WHERE id=?", j.id); r.state = 'BLOCKED'; r.blocker = 'routing_or_authorization_changed'; this.s.save(r); this.audit(r, 'coordinator', r.blocker); continue; }
-        if (j.revision !== r.revision || r.state === 'CANCELLED') { this.s.run("UPDATE jobs SET status='cancelled' WHERE id=?", j.id); continue; }
+        if (j.revision !== r.revision || j.iteration !== (r.iteration || 0) || r.state === 'CANCELLED') { this.s.run("UPDATE jobs SET status='cancelled' WHERE id=?", j.id); continue; }
         // One active worker per request, enforced transactionally even with concurrent claim calls.
         if (this.s.get("SELECT id FROM jobs WHERE request_id=? AND status='running'", r.id)) continue;
         if (j.kind !== 'triage' && (r.approval?.revision !== r.revision || r.approval.specHash !== digest(JSON.stringify(r.spec)))) throw new Fault('approval_required');
@@ -211,7 +213,7 @@ export class Coordinator {
         r.state = { triage: 'TRIAGING', implement: 'IMPLEMENTING', publish: 'PUBLISHING' }[j.kind];
         this.s.save(r); this.audit(r, worker.id, `${j.kind}_claimed`);
         const p = this.project(r.project);
-        return { id: j.id, kind: j.kind, leaseToken: token, expires, revision: r.revision,
+        return { id: j.id, kind: j.kind, leaseToken: token, expires, revision: r.revision, iteration: r.iteration || 0,
           request: r, repository: p.repository, taskKind: p.taskKind, targetRef: p.targetRef || null };
       }
       return null;
@@ -222,7 +224,7 @@ export class Coordinator {
     const r = j && this.s.request(j.request_id);
     if (!j || j.worker !== worker.id || j.token !== token || !worker.kinds.includes(j.kind) || !worker.projects.includes(r.project)) throw new Fault('lease_not_found', 404);
     this.authorizedRoute(r);
-    if (j.status !== 'running' || j.expires <= this.clock() || j.deadline <= this.clock() || j.revision !== r.revision || r.state === 'CANCELLED') throw new Fault('lease_lost');
+    if (j.status !== 'running' || j.expires <= this.clock() || j.deadline <= this.clock() || j.revision !== r.revision || j.iteration !== (r.iteration || 0) || r.state === 'CANCELLED') throw new Fault('lease_lost');
     return { j, r };
   }
   heartbeat(worker, id, token) {
@@ -249,7 +251,7 @@ export class Coordinator {
           r.spec = { summary: text(result.summary, 600), criteria: strings(result.criteria, 6, 240), scope: strings(result.scope, 5, 120) };
           r.state = 'AWAITING_APPROVAL'; delete r.questions;
           const approve = this.action(r, 'approve'), cancel = this.action(r, 'cancel');
-          this.out(r, 'vk', { text: `${r.id} | v${r.revision}\n${r.spec.summary}\n${r.spec.criteria.map(x => '- ' + x).join('\n')}\nScope: ${r.spec.scope.join('; ')}\nProject: ${r.project}. Deployment is NOT approved by this action.\n/approve ${r.id} ${r.revision}\n/reply ${r.id} ...`,
+          this.out(r, 'vk', { text: `${r.id} | v${r.revision}\n${r.spec.summary}\n${r.spec.criteria.map(x => '- ' + x).join('\n')}\nScope: ${r.spec.scope.join('; ')}\nProject: ${r.project}. CI repairs within this exact specification: ${r.route.ci?.maxRepairs || 0}. Deployment is NOT approved by this action.\n/approve ${r.id} ${r.revision}\n/reply ${r.id} ...`,
             buttons: [[{ text: '\u041f\u043e\u0434\u0442\u0432\u0435\u0440\u0434\u0438\u0442\u044c', callbackData: approve }, { text: '\u041e\u0442\u043c\u0435\u043d\u0438\u0442\u044c', callbackData: cancel }]] });
         } else throw new Fault('invalid_triage_result', 400);
       } else if (j.kind === 'implement') {
@@ -264,6 +266,7 @@ export class Coordinator {
         if (verifiedPublication?.number !== result.number || verifiedPublication?.headSha !== result.headSha || verifiedPublication?.repository !== this.project(r.project).repository) throw new Fault('publication_not_verified');
         r.pr = { number: result.number, headSha: result.headSha, url: `https://github.com/${verifiedPublication.repository}/pull/${result.number}` };
         r.state = 'PR_READY';
+        delete r.ci;
         this.notify(r, `${r.pr.url}\nDev2: NOT DEPLOYED. CI/review and a separately approved delivery are still required.\n/changes ${r.id} ...`);
       } else throw new Fault('unknown_job_kind');
       this.s.run("UPDATE jobs SET status='done',result_hash=? WHERE id=?", resultHash, id);

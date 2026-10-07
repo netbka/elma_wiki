@@ -6,11 +6,17 @@ Tracking: issue #19 / PR #25. These are executable workers for the existing HTTP
 
 The agent claims a triage or approved implementation job, pins the current GitHub base commit, reads explicitly configured context files and calls the OpenAI Responses API with a strict JSON schema and **no tools**. Triage returns necessary questions or a specification. Implementation returns complete text file replacements/additions. The trusted worker validates them and stores a content-addressed private artifact; the model cannot write to the filesystem or call GitHub.
 
-The publisher claims a publish job, independently validates the artifact, owner/project/request/revision/specification binding, base commit, original blob hashes, file modes and configured editable paths. It creates a tree **on the existing base tree**, a commit, a new request/version branch and a **draft PR**. No existing branch is updated or force-pushed. The existing coordinator independently checks the PR receipt again before `PR_READY`.
+The publisher claims a publish job, independently validates the artifact, owner/project/request/revision/iteration/specification binding, base commit, original blob hashes, file modes and configured editable paths. It creates a tree **on the existing base tree**, a commit, a new request/version branch and a **draft PR**. No existing branch is updated or force-pushed. The existing coordinator independently checks the PR receipt again before `PR_READY`.
 
 This deliberately chooses a smaller initial executor than the planned full Codex CLI sandbox. There is no shell, code interpreter, build/test command, local checkout, imported customer code or model tool execution. Repository text and generated source are data, not executable modules. The agent is useful for small, bounded `wiki_code` changes; it refuses ELMA configuration/Target jobs. Larger changes or missing context must be escalated rather than invented.
 
-**PR_READY still does not mean CI passed, code is correct, a browser was tested, Dev2 changed or the business accepted the result.** Review/CI repair, an execution sandbox, live ELMA/preview delivery, genuine screenshots and acceptance/merge remain later gates. The old `npm run demo` is intentionally still a coordinator-only demo. The new end-to-end worker check is `test/worker.test.mjs`.
+**PR_READY still does not mean CI passed, code is correct, a browser was tested, Dev2 changed or the business accepted the result.** The coordinator now observes explicitly configured CI and may queue up to two separately numbered repairs under the same approved specification. Human review, an execution sandbox, live ELMA/preview delivery, genuine screenshots and acceptance/merge remain separate gates. See [CI setup and limits](README.md#ci-observation-and-bounded-repairs). The old `npm run demo` is intentionally still a coordinator-only demo. The new end-to-end worker check is `test/worker.test.mjs`.
+
+## Repair iterations
+
+An approved CI repair reuses the original base and approved specification, not a new task silently inferred from a log. The worker independently validates the previous artifact's identity/digest/iteration, overlays those changes for model context, then preserves previous edits not changed by the repair. Before publication it validates the cumulative artifact against the original base. A changed base, corrupted previous artifact, out-of-scope edit or lost lease stops the job.
+
+Iteration zero keeps `bot/<request>/vN`; repairs use `vN-fix1` and `vN-fix2`, with matching PR markers and artifact iteration bindings. Old branches/PRs are retained; there is no force-push, automatic closure or merge. Feedback contains only independently read workflow/job results and failed-step names, not raw logs. Generic failure names may be insufficient to repair code. No local execution or claim that model output passes tests is added by this loop.
 
 ## Operator configuration
 
