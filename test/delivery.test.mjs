@@ -152,6 +152,41 @@ test('connections store references only, deny credentials and stay owner-scoped'
   assert.equal((await delivery.connections.list('alice')).length, 0);
 });
 
+test('verified evidence becomes stale after conditions or the candidate change', async t => {
+  const { projects, releases, delivery } = await setup(t);
+  let release = await approvedRelease(projects, releases);
+  const connection = await delivery.connections.create('alice', target());
+  let attempt = await delivery.prepare(release.id, 'alice', { revision: release.revision, connectionId: connection.id });
+  await delivery.confirm(release.id, attempt.id, 'alice', { idempotencyKey: 'stale', confirmation: confirmation(attempt) });
+  await delivery.verify(release.id, attempt.id, 'alice');
+  assert.equal((await releases.get(release.id, 'alice')).checks.find(c => c.id === 'target').result, 'pass');
+  release = await releases.change(release.id, 'alice', { ...details, revision: release.revision, action: 'details', notes: 'Новые условия', limitations: '' });
+  assert.equal(release.checks.find(c => c.id === 'target').result, 'stale');
+  assert.equal(release.delivery.latest.state, 'verified', 'historical verification stays available without approving the new release');
+  release = await releases.change(release.id, 'alice', { revision: release.revision, action: 'freeze' });
+  release = await releases.change(release.id, 'alice', { revision: release.revision, action: 'approve', reason: 'Новые условия приняты' });
+  assert.notEqual(release.candidate.id, attempt.candidateId);
+  assert.equal(release.checks.find(c => c.id === 'target').result, 'stale');
+});
+
+test('cancelling a stale preparation releases its lock without dispatch; launched operations cannot be cancelled', async t => {
+  const { projects, releases, delivery, calls } = await setup(t);
+  let release = await approvedRelease(projects, releases);
+  const connection = await delivery.connections.create('alice', target());
+  const prepared = await delivery.prepare(release.id, 'alice', { revision: release.revision, connectionId: connection.id });
+  release = await releases.change(release.id, 'alice', { ...details, revision: release.revision, action: 'details', notes: 'Правка', limitations: '' });
+  await assert.rejects(delivery.cancel(release.id, prepared.id, 'bob'), error => error.statusCode === 404);
+  assert.equal((await delivery.cancel(release.id, prepared.id, 'alice')).state, 'cancelled');
+  assert.equal(calls.length, 0);
+  await assert.rejects(delivery.confirm(release.id, prepared.id, 'alice', { idempotencyKey: 'cancelled', confirmation: confirmation(prepared) }), error => error.statusCode === 409);
+  release = await releases.change(release.id, 'alice', { revision: release.revision, action: 'freeze' });
+  release = await releases.change(release.id, 'alice', { revision: release.revision, action: 'approve', reason: 'Новый кандидат' });
+  const next = await delivery.prepare(release.id, 'alice', { revision: release.revision, connectionId: connection.id });
+  await delivery.confirm(release.id, next.id, 'alice', { idempotencyKey: 'next', confirmation: confirmation(next) });
+  await assert.rejects(delivery.cancel(release.id, next.id, 'alice'), error => error.statusCode === 409);
+  assert.equal(calls.length, 1);
+});
+
 test('compareReadBack treats manifest/package files as volatile and requires at least one compared file', () => {
   const expected = [{ path: 'package.json', sha256: 'a' }, { path: 'widgets/manifest.json', sha256: 'b' }, { path: 'widgets/form.json', sha256: 'c' }];
   assert.equal(compareReadBack(expected, [{ path: 'package.json', sha256: 'zz' }, { path: 'widgets/manifest.json', sha256: 'yy' }, { path: 'widgets/form.json', sha256: 'c' }]).match, true);
@@ -174,12 +209,16 @@ test('API: synthetic adapter is disabled unless enabled, routes require session,
   await run(createServer({ directory, allowLocal: true }), async request => {
     const { cookie } = await request('/auth/local', { method: 'POST', body: '{}' });
     assert.equal((await request('/api/connections')).status, 401);
+    assert.equal((await request('/api/delivery/capabilities')).status, 401);
+    assert.deepEqual((await request('/api/delivery/capabilities', {}, cookie)).body, { mode: 'unavailable', liveDelivery: false });
     assert.equal((await request('/api/connections', {}, cookie)).status, 200);
     const denied = await request('/api/connections', { method: 'POST', body: JSON.stringify(target()) }, cookie);
     assert.equal(denied.status, 503); assert.match(denied.body.error, /недоступен/);
   });
   await run(createServer({ directory, allowLocal: true, syntheticDelivery: true }), async request => {
     const { cookie } = await request('/auth/local', { method: 'POST', body: '{}' });
+    assert.deepEqual((await request('/api/delivery/capabilities', {}, cookie)).body, { mode: 'synthetic', liveDelivery: false });
+    assert.equal((await request('/api/delivery/capabilities', { method: 'POST', body: '{}' }, cookie)).status, 405);
     const created = await request('/api/connections', { method: 'POST', body: JSON.stringify(target()) }, cookie);
     assert.equal(created.status, 201); assert.equal(created.body.owner, undefined);
     assert.equal((await request(`/api/connections/${created.body.id}/probe`, { method: 'POST', body: '{}' }, cookie)).body.probe.ok, true);
