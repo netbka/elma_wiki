@@ -4,7 +4,7 @@ This is the canonical agent contract for this repository. The current owner requ
 
 ## Product boundary
 
-The primary product direction is the baseline-first workspace lifecycle in [docs/PRODUCT_DIRECTION.md](docs/PRODUCT_DIRECTION.md), governed by epic #33. Read it before product, domain, UI or integration changes. It takes precedence over older file-first/release-first plans; it does not claim the rebuild is already implemented or finally accepted.
+The active product convergence target is the Solution-first contract in [docs/SOLUTION_FIRST_PRODUCT_PLAN.md](docs/SOLUTION_FIRST_PRODUCT_PLAN.md), with execution order in [docs/SOLUTION_FIRST_EXECUTION.md](docs/SOLUTION_FIRST_EXECUTION.md) and known contradictions in [docs/SOLUTION_FIRST_CONTRADICTIONS.md](docs/SOLUTION_FIRST_CONTRADICTIONS.md). Read these before product, domain, UI or integration changes. The earlier baseline-first direction remains implementation evidence to be reconciled, but must not reintroduce Workspace/file/release subsystems as competing user-facing products.
 
 Managed work starts from an explicitly full snapshot; partial packages are changes inside that workspace. Later full snapshots are reconciled before accepting the next baseline. Preserve the standalone upload/viewer for independent inspection, but do not make it the managed lifecycle.
 
