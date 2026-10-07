@@ -276,6 +276,75 @@
         "parse-report"
       ],
       "exclusionReason": "Текущий viewer проверяется tools/browser-check.mjs. Storybook показывает общий путь загрузки, но не копирует интерфейс viewer."
+    },
+    "workspace": {
+      "entry": "/flows",
+      "kind": "implemented",
+      "actions": [
+        "edit",
+        "unsupported",
+        "back",
+        "save",
+        "conflict",
+        "compare",
+        "typescript",
+        "compiler",
+        "error",
+        "fix",
+        "profile",
+        "change",
+        "checkpoint",
+        "restore"
+      ],
+      "renderer": [
+        "web/flows/render.js",
+        "web/flows/model.js"
+      ],
+      "catalog": "web/flows/catalog.js",
+      "storyIds": [
+        "workspace--journey",
+        "workspace--conflict"
+      ],
+      "requiredVisibleStates": [
+        "open",
+        "unsupported",
+        "editing",
+        "conflict",
+        "saved",
+        "failed",
+        "typescript",
+        "checked",
+        "checkpoint"
+      ],
+      "sources": [
+        "docs/COMPILER_PROFILE.md",
+        "docs/contracts/developer-workspace.md",
+        "lib/workspaces.mjs",
+        "test/workspace.test.mjs",
+        "tools/workspace-browser-check.mjs"
+      ]
+    },
+    "workspace-ui": {
+      "entry": "/workspace/:project/:object",
+      "actions": [
+        "save",
+        "check",
+        "checkpoint",
+        "restore",
+        "compare"
+      ],
+      "renderer": [
+        "web/workspace-entry.js"
+      ],
+      "storyIds": [],
+      "requiredVisibleStates": [
+        "editing",
+        "saved",
+        "conflict",
+        "checked",
+        "restored"
+      ],
+      "exclusionReason": "tools/workspace-browser-check.mjs проверяет настоящий Monaco UI и API. Storybook описывает целый workflow, не копируя разметку редактора."
     }
   }
 }

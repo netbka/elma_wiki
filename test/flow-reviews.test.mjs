@@ -48,3 +48,12 @@ test('a new finding invalidates a prior approval even when nonblocking', async t
   await store.append(finding({ type: 'approve' }));
   const result = await store.append(finding({ severity: 'should' })); assert.equal(result.status, 'pending'); assert.equal(result.blocking, 0);
 });
+test('review validation uses refreshed catalog instead of stale startup states', async t => {
+  const { file } = await setup(t);
+  let current = { id: 'new-flow', initial: 'initial', states: [{ id: 'initial' }] };
+  const store = flowReviewStore(file, { revision: 'one', getFlow: async id => id === current.id ? current : undefined });
+  assert.equal((await store.get('new-flow')).status, 'pending');
+  current = { ...current, states: [...current.states, { id: 'new-state' }] };
+  const result = await store.append(finding({ flowId: 'new-flow', revision: 'one', stepId: 'new-state' }));
+  assert.equal(result.findings[0].stepId, 'new-state');
+});

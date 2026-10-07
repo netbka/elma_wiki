@@ -30,6 +30,7 @@ export function mountFlow({ flow, initial, reviewMount } = {}) {
     stage.replaceChildren(el('p', `Кто действует: ${state.actor}`, 'flow-badge'), el('h2', state.title), el('p', state.explanation));
     if (flow.id === 'approval') stage.append(el('p', `Версия документа: ${session.version}. Согласована версия: ${session.approvedVersion ?? 'нет'}.`));
     if (flow.id === 'correspondence') stage.append(el('p', `Поле входящего: ${session.topic || 'пусто'}.`));
+    if (flow.id === 'workspace') stage.append(el('p', `Рабочая ревизия: ${session.workspaceRevision}. Проверка: ${session.workspaceCheck || 'требуется'}.`));
     if (state.evidence) stage.append(el('p', `Доказательство / ожидаемая запись: ${state.evidence}`, 'flow-evidence'));
     const actions = el('div', undefined, 'flow-actions');
     state.actions.forEach(action => { const button = el('button', action.label); button.type = 'button'; button.dataset.action = action.id; button.onclick = () => { session = transition(flow, session, action.id); draw(); }; actions.append(button); });
@@ -54,5 +55,5 @@ export function mountCatalog(options = {}) {
     nav.querySelectorAll('button').forEach(button => { if (button.dataset.flow === flow.id) button.setAttribute('aria-current', 'true'); else button.removeAttribute('aria-current'); });
   };
   for (const flow of flows) { const button = el('button', flow.title); button.type = 'button'; button.dataset.flow = flow.id; button.onclick = () => show(flow); nav.append(button); }
-  root.append(overview, nav, content); show(flows[0]); return root;
+  root.append(overview, nav, content); show(flows.find(flow => flow.id === 'upload')); return root;
 }

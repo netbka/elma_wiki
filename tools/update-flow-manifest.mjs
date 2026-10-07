@@ -3,6 +3,7 @@ import { flows } from '../web/flows/catalog.js';
 const file = new URL('../storybook/review-manifest.json', import.meta.url);
 const manifest = JSON.parse(await fs.readFile(file, 'utf8'));
 const stories = {
+  workspace: ['workspace--journey', 'workspace--conflict'],
   upload: ['system--whole-system', 'system--upload', 'system--partial'],
   investigation: ['investigation--journey', 'investigation--unknown'],
   'feature-review': ['review--journey', 'review--rejected'],
@@ -21,5 +22,6 @@ manifest.capabilities['public-site'].exclusionReason = 'Production public render
 manifest.capabilities['email-authentication'].exclusionReason = 'Production OTP renderer ещё не интегрирован в stories. tools/browser-check.mjs проверяет синтетическую доставку и настоящий login UI.';
 manifest.capabilities['project-viewer'] = { entry: '/p/:id/', actions: ['search', 'preview', 'report', 'reparse'], renderer: ['dist/app.js'], storyIds: [], requiredVisibleStates: ['objects', 'source-preview', 'parse-report'], exclusionReason: 'Текущий viewer проверяется tools/browser-check.mjs. Storybook показывает общий путь загрузки, но не копирует интерфейс viewer.' };
 manifest.version = 2;
+manifest.capabilities['workspace-ui'] = { entry: '/workspace/:project/:object', actions: ['save', 'check', 'checkpoint', 'restore', 'compare'], renderer: ['web/workspace-entry.js'], storyIds: [], requiredVisibleStates: ['editing', 'saved', 'conflict', 'checked', 'restored'], exclusionReason: 'tools/workspace-browser-check.mjs проверяет настоящий Monaco UI и API. Storybook описывает целый workflow, не копируя разметку редактора.' };
 await fs.writeFile(file, JSON.stringify(manifest, null, 2) + '\n');
 console.log('Workflow manifest updated from canonical catalog.');

@@ -1,6 +1,6 @@
 export function startFlow(flow, initial = flow.initial) {
   if (!flow.states.some(state => state.id === initial)) throw Error('Неизвестный шаг');
-  return { current: initial, version: 1, approvedVersion: null, topic: '', history: [] };
+  return { current: initial, version: 1, approvedVersion: null, topic: '', workspaceRevision: 0, workspaceCheck: null, history: [] };
 }
 export function transition(flow, session, actionId) {
   const state = flow.states.find(state => state.id === session.current);
@@ -12,5 +12,9 @@ export function transition(flow, session, actionId) {
   if (action.effect === 'new-version') { next.version++; next.approvedVersion = null; }
   if (action.effect === 'topic') next.topic = 'Проверка обращения';
   if (action.effect === 'clear-topic') next.topic = '';
+  if (action.effect === 'workspace-edit') next.workspaceCheck = null;
+  if (['workspace-save', 'workspace-restore'].includes(action.effect)) { next.workspaceRevision++; next.workspaceCheck = null; }
+  if (action.effect === 'workspace-typescript') next.workspaceCheck = 'TypeScript passed; ELMA not checked';
+  if (action.effect === 'workspace-compiler') next.workspaceCheck = 'ELMA compiler passed (offline)';
   return next;
 }

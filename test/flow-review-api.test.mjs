@@ -41,3 +41,25 @@ test('review fingerprint covers content and changes when business rules change',
   const before = await reviewRevision(directory); assert.equal(before, await reviewRevision(directory));
   await fs.writeFile(path.join(directory, 'web/flows/catalog.js'), 'new business rule'); assert.notEqual(before, await reviewRevision(directory));
 });
+test('running review API accepts new catalog states without restarting and rejects old revision', async t => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'elma-flow-hot-reload-'));
+  for (const folder of ['web/flows', 'storybook/stories', 'docs/workflows', 'lib']) await fs.mkdir(path.join(directory, folder), { recursive: true });
+  for (const file of ['docs/STORYBOOK.md', 'docs/EXPERIENCE_REVIEW.md', 'lib/flow-reviews.mjs', 'storybook/review-api.mjs']) await fs.writeFile(path.join(directory, file), 'fixture');
+  const file = path.join(directory, 'web/flows/catalog.js');
+  await fs.writeFile(path.join(directory, 'package.json'), JSON.stringify({ type: 'module' }));
+  const writeCatalog = states => fs.writeFile(file, 'export const flowById = id => id === "live" ? ' + JSON.stringify({ id: 'live', initial: 'first', states: states.map(id => ({ id })) }) + ' : undefined;');
+  await writeCatalog(['first']);
+  let middleware;
+  reviewApiPlugin(directory).configureServer({ middlewares: { use: handler => { middleware = handler; } } });
+  const server = http.createServer((req, res) => middleware(req, res, () => { res.writeHead(404); res.end(); }));
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(async () => { await new Promise(resolve => server.close(resolve)); assert.equal(path.dirname(directory), path.resolve(os.tmpdir())); assert.ok(path.basename(directory).startsWith('elma-flow-hot-reload-')); await fs.rm(directory, { recursive: true, force: true }); });
+  const url = `http://127.0.0.1:${server.address().port}/__elma/reviews?flowId=live`;
+  const original = await (await fetch(url)).json();
+  await writeCatalog(['first', 'added']);
+  const latest = await (await fetch(url)).json(); assert.notEqual(latest.revision, original.revision);
+  const payload = { flowId: 'live', stepId: 'added', revision: latest.revision, author: 'Analyst', type: 'comment', severity: 'should', phase: 'rules', category: 'behavior', text: 'Review the added state' };
+  const post = value => fetch(url, { method: 'POST', headers: { 'X-Elma-Review': '1', 'Content-Type': 'application/json' }, body: JSON.stringify(value) });
+  const result = await post(payload); assert.equal(result.status, 201); assert.equal((await result.json()).findings[0].stepId, 'added');
+  assert.equal((await post({ ...payload, revision: original.revision })).status, 409);
+});

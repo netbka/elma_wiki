@@ -3,6 +3,16 @@ import assert from 'node:assert/strict';
 import { flowById } from '../web/flows/catalog.js';
 import { startFlow, transition } from '../web/flows/model.js';
 const walk = (id, actions) => { const flow = flowById(id); return actions.reduce((session, action) => transition(flow, session, action), startFlow(flow)); };
+test('workspace separates TypeScript from offline ELMA checks and invalidates changes/restores', () => {
+  const flow = flowById('workspace');
+  let session = walk(flow.id, ['edit', 'save', 'typescript']);
+  assert.equal(session.workspaceRevision, 1); assert.equal(session.workspaceCheck, 'TypeScript passed; ELMA not checked');
+  session = transition(flow, session, 'profile'); assert.equal(session.workspaceCheck, 'ELMA compiler passed (offline)');
+  session = transition(flow, session, 'change'); assert.equal(session.workspaceCheck, null);
+  session = transition(flow, session, 'save'); assert.equal(session.workspaceRevision, 2);
+  session = transition(flow, session, 'compiler'); session = transition(flow, session, 'checkpoint'); session = transition(flow, session, 'restore');
+  assert.equal(session.workspaceRevision, 3); assert.equal(session.workspaceCheck, null);
+});
 test('approved current version skips duplicate; changed version requires new approval', () => {
   const flow = flowById('approval');
   let session = walk('approval', ['submit', 'approve']);

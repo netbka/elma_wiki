@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { flowReviewStore } from '../lib/flow-reviews.mjs';
 export async function reviewRevision(root) {
   const hash = crypto.createHash('sha256');
@@ -18,7 +19,15 @@ export async function reviewRevision(root) {
   return hash.digest('hex');
 }
 const loopback = address => ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(address);
-export function reviewApiPlugin(root, { store = flowReviewStore(path.join(root, '.local/storybook/reviews.json'), { revision: () => reviewRevision(root) }) } = {}) {
+export function reviewApiPlugin(root, options = {}) {
+  // Node's normal import cache otherwise keeps old states after Vite hot reload.
+  const getFlow = async id => {
+    const file = path.join(root, 'web/flows/catalog.js');
+    const hash = crypto.createHash('sha256').update(await fs.readFile(file)).digest('hex');
+    const catalog = await import(pathToFileURL(file).href + '?catalog=' + hash);
+    return catalog.flowById(id);
+  };
+  const store = options.store || flowReviewStore(path.join(root, '.local/storybook/reviews.json'), { revision: () => reviewRevision(root), getFlow });
   return { name: 'elma-local-reviews', configureServer(server) {
     server.middlewares.use(async (req, res, next) => {
       if (!req.url?.split('?')[0].startsWith('/__elma/reviews')) return next();
