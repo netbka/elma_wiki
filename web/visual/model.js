@@ -10,13 +10,20 @@ function geometry(raw) {
   return x !== null && y !== null && width > 0 && height > 0 ? {x,y,width,height} : null;
 }
 export function projectProcess(raw, source) {
-  const process=object(raw.process), issues=[], seen=new Set();
+  const process=object(raw.process), issues=[];
+  const identities = rows => {
+    const counts=new Map();
+    for(const [key,value] of rows){const id=text(object(value).id)||key;counts.set(id,(counts.get(id)||0)+1);}
+    return counts;
+  };
   const rows=(value,section) => {
-    if(entries(value).length>500) throw Error('Слишком много элементов для визуального обзора.');
-    return entries(value).map(([key,value]) => {
+    const input=entries(value), counts=identities(input);
+    if(input.length>500) throw Error('Слишком много элементов для визуального обзора.');
+    return input.map(([key,value]) => {
       const item=object(value), id=text(item.id) || key, position=geometry(item);
       const pointer=`${source}#/process/${section}/${escape(key)}`;
-      const duplicate=seen.has(section+':'+id); seen.add(section+':'+id);
+      const duplicate=counts.get(id)>1;
+      if(duplicate)issues.push({pointer,reason:'Неоднозначная идентичность элемента: повторяется код'});
       return {id,name:text(item.name)||text(item.type)||id,type:text(item.type),position,pointer,
         supported:!duplicate && !!position && (section==='lanes'||shapes.has(item.type)),
         ...(section==='items'?{formCode:text(object(item.settings).formCode)}:{})};
@@ -25,15 +32,18 @@ export function projectProcess(raw, source) {
   const lanes=rows(process.lanes,'lanes'), nodes=rows(process.items,'items');
   const transitions=entries(process.transitions);
   if(transitions.length>1000) throw Error('Слишком много переходов для визуального обзора.');
+  const transitionIds=identities(transitions);
   const edges=transitions.map(([key,value]) => {
     const edge=object(value), rawPoints=Array.isArray(edge.path)?edge.path:[];
     const points=rawPoints.slice(0,100).map(p=>({x:coordinate(p?.x),y:coordinate(p?.y)}));
     const sourceNode=nodes.filter(n=>n.id===edge.source), targetNode=nodes.filter(n=>n.id===edge.target);
-    return {id:text(edge.id)||key,name:text(edge.name),type:text(edge.type),source:text(edge.source),target:text(edge.target),points,
-      supported:rawPoints.length>=2 && rawPoints.length<=100 && points.every(p=>p.x!==null&&p.y!==null)
+    const id=text(edge.id)||key,pointer=`${source}#/process/transitions/${escape(key)}`,duplicate=transitionIds.get(id)>1;
+    if(duplicate)issues.push({pointer,reason:'Неоднозначная идентичность перехода: повторяется код'});
+    return {id,name:text(edge.name),type:text(edge.type),source:text(edge.source),target:text(edge.target),points,
+      supported:!duplicate && rawPoints.length>=2 && rawPoints.length<=100 && points.every(p=>p.x!==null&&p.y!==null)
         && (edge.type===undefined || ['default','error','plain'].includes(edge.type))
         && sourceNode.length===1 && targetNode.length===1 && sourceNode[0].supported && targetNode[0].supported,
-      pointer:`${source}#/process/transitions/${escape(key)}`,behavior:'unknown'};
+      pointer,behavior:'unknown'};
   });
   const forms=Array.isArray(raw.forms)?raw.forms:[];
   if(forms.length>100) throw Error('Слишком много форм для визуального обзора.');
@@ -64,6 +74,7 @@ export function projectProcess(raw, source) {
 }
 export function relatedForm(process,nodeId) {
   const nodes=process.nodes.filter(n=>n.id===nodeId);
+  if(nodes.length>1)return {status:'ambiguous'};
   if(nodes.length!==1||!nodes[0].formCode)return {status:'unknown'};
   const forms=process.forms.filter(f=>f.code===nodes[0].formCode);
   return forms.length===1?{status:'source-derived',form:forms[0]}:{status:forms.length?'ambiguous':'missing'};

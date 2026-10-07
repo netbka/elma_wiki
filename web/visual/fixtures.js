@@ -33,6 +33,10 @@ export function visualFixture(state='source') {
   if(state==='loading')return {loading:true};
   if(state==='error')return {error:'Не удалось загрузить обзор. Исходный снимок сохранён.'};
   const raw=structuredClone(visualSource);
-  if(state==='unknown'){raw.process.items.review.type='synthetic-unknown-node';raw.process.items.review.settings.formCode='missing';}
+  if(state==='unknown'){raw.process.items.review.type='synthetic-unknown-node';raw.process.items.review.settings.formCode='missing';raw.process.lanes.review.width=0;}
+  if(state==='duplicate'){
+    raw.process.items.duplicate={...raw.process.items.review,name:'Повторное согласование',x:330};
+    raw.process.transitions.duplicate={...raw.process.transitions.approve,name:'Повторяющийся переход'};
+  }
   return {synthetic:true,processes:[{name:'Учебное согласование',...projectProcess(raw,'processor/entities/synthetic/approval.json')}]};
 }

@@ -49,7 +49,7 @@ async function waitForWorker(bridges, bridgeId) {
 // An in-process stand-in for the operator worker: it owns the "Target" state the way the real worker owns
 // the ELMA host, and it only ever talks to the store through the worker-side API (authenticate/poll/
 // artifact/complete), so the test exercises the same seams as the HTTP routes.
-function fakeWorker(bridges, token, { host = 'test.example.invalid', inventory = [], delayMs = 0, importApplies = true, deployError = null } = {}) {
+function fakeWorker(bridges, token, { host = 'test.example.invalid', inventory = [], deployGate, importApplies = true, deployError = null } = {}) {
   let state = { inventory: structuredClone(inventory), version: 1, log: [] };
   let running = true;
   const loop = (async () => {
@@ -59,11 +59,11 @@ function fakeWorker(bridges, token, { host = 'test.example.invalid', inventory =
       catch { await new Promise(resolve => setTimeout(resolve, 50)); continue; }
       if (!job) continue;
       state.log.push(job.kind);
-      if (delayMs) await new Promise(resolve => setTimeout(resolve, delayMs));
       try {
         if (job.kind === 'health') await bridges.complete(bridge, job.id, { ok: true, result: { ok: true, identity: { host, version: '2025.10.97' } } });
         else if (job.kind === 'inspect' || job.kind === 'readBack') await bridges.complete(bridge, job.id, { ok: true, result: { inventory: structuredClone(state.inventory), version: state.version } });
         else if (job.kind === 'deploy') {
+          if (deployGate) await deployGate;
           const bytes = await bridges.artifact(bridge, job.id);
           if (sha(bytes) !== job.payload.sha256) throw Error('checksum mismatch');
           if (deployError) throw Error(deployError);
@@ -110,7 +110,7 @@ test('bridge: token issued once and stored hashed; delivery runs end to end thro
 });
 
 async function waitForAttempt(delivery, releaseId, attemptId, expectedState) {
-  const deadline = Date.now() + 5000;
+  const deadline = Date.now() + 20000;
   let attempt;
   do {
     attempt = await delivery.get(releaseId, attemptId, 'alice');
@@ -121,17 +121,21 @@ async function waitForAttempt(delivery, releaseId, attemptId, expectedState) {
 }
 
 test('bridge: slow import returns deploying and finishes in the background; unapplied import never verifies; worker errors fail the attempt', async t => {
-  const { projects, releases, delivery, bridges } = await setup(t, { confirmGraceMs: 100 });
+  const { projects, releases, delivery, bridges } = await setup(t, { confirmGraceMs: 100, timeoutMs: 15000 });
   const { bridge, token } = await bridges.create('alice', { name: 'Медленный мост' });
   const connection = await delivery.connections.create('alice', { name: 'TEST через мост', role: 'target', environment: 'test', adapter: 'bridge', adapterOptions: { bridgeId: bridge.id } });
-  let worker = fakeWorker(bridges, token, { inventory: await inventoryOf(await fixture(false)), delayMs: 300, importApplies: false });
-  t.after(() => worker.stop()); // Also stop the first worker if an assertion fails before replacement.
+  let allowDeploy;
+  const deployGate = new Promise(resolve => { allowDeploy = resolve; });
+  let worker = fakeWorker(bridges, token, { inventory: await inventoryOf(await fixture(false)), deployGate, importApplies: false });
+  t.after(() => { allowDeploy(); return worker.stop(); }); // Release the gate even if an assertion fails.
   await waitForWorker(bridges, bridge.id);
   const release = await approvedRelease(projects, releases);
   let attempt = await delivery.prepare(release.id, 'alice', { revision: release.revision, connectionId: connection.id });
   attempt = await delivery.confirm(release.id, attempt.id, 'alice', { idempotencyKey: 'slow', confirmation: confirmation(attempt) });
   assert.equal(attempt.state, 'deploying');
   await assert.rejects(delivery.verify(release.id, attempt.id, 'alice'), /невозможен в состоянии «deploying»/);
+  // Confirm returns while import is deliberately held, independent of runner speed.
+  allowDeploy();
   attempt = await waitForAttempt(delivery, release.id, attempt.id, 'deployed-unverified');
   assert.equal(attempt.state, 'deployed-unverified');
   attempt = await delivery.verify(release.id, attempt.id, 'alice');

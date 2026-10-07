@@ -4,6 +4,7 @@ export default {id:'solution-visual',title:'Решение/Процесс и ф�
 const story=state=>({render:()=>mountSnapshotVisual(visualFixture(state))});
 export const Source = story('source');
 export const Unknown = story('unknown');
+export const Duplicate = story('duplicate');
 export const Empty = story('empty');
 export const Loading = story('loading');
 export const Error = story('error');
