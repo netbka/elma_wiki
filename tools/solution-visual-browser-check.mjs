@@ -1,0 +1,74 @@
+import { chromium } from 'playwright';
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { createServer } from '../server.mjs';
+import { visualSource } from '../web/visual/fixtures.js';
+import { zip } from '../test/fixture.mjs';
+const directory=await fs.mkdtemp(path.join(os.tmpdir(),'solution-visual-browser-'));
+const server=createServer({directory,allowLocal:true,sendEmail:undefined,sendVk:undefined});let browser;
+try {
+  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const base='http://127.0.0.1:'+server.address().port;
+  browser=await chromium.launch({headless:true,...(process.env.BROWSER_CHANNEL?{channel:process.env.BROWSER_CHANNEL}:{})});
+  const context=await browser.newContext({viewport:{width:1440,height:1000}}),page=await context.newPage(),errors=[];
+  page.on('pageerror',e=>errors.push(e.message));
+  assert.equal((await context.request.post(base+'/auth/local',{headers:{'X-Elma-Wiki-Request':'1'}})).status(),200);
+  const raw=structuredClone(visualSource);raw.process.items.review.name='Согласовать <img src=x onerror=alert(1)>';
+  const archive=await zip([['package.json',{code:'synthetic_visual',type:'SOLUTION'}],['processor/manifest.json',{entities:[{code:'approval',namespace:'synthetic',kind:'PROCESS',path:'approval.json'}]}],['processor/approval.json',raw]]);
+  const uploaded=await context.request.post(base+'/api/solutions/uploads?sharedConfirmed=true',{headers:{'X-Elma-Wiki-Request':'1','Content-Type':'application/octet-stream'},data:archive});
+  assert.equal(uploaded.status(),201);const project=await uploaded.json();
+  const created=await context.request.post(base+'/api/solutions',{headers:{'X-Elma-Wiki-Request':'1'},data:{name:'Synthetic visual',baselineOwner:'Vendor',sharedConfirmed:true,snapshot:{projectId:project.id,snapshotId:project.currentSnapshotId,scope:'full',scopeConfirmed:true}}});
+  assert.equal(created.status(),201);const state=await created.json();
+  const next=await context.request.post(base+'/api/solutions/uploads?sharedConfirmed=true',{headers:{'X-Elma-Wiki-Request':'1','Content-Type':'application/octet-stream'},data:archive});
+  assert.equal(next.status(),201);const update=await next.json();
+  const prepared=await context.request.post(`${base}/api/solutions/${state.id}/prepare`,{headers:{'X-Elma-Wiki-Request':'1'},data:{kind:'reconciliation',expectedRevision:state.revision,baselineOwner:'Vendor',sameSourceConfirmed:true,snapshot:{projectId:update.id,snapshotId:update.currentSnapshotId,scope:'full',scopeConfirmed:true}}});
+  assert.equal(prepared.status(),201);const review=await prepared.json();
+  await page.goto(`${base}/solutions?id=${state.id}&view=review&artifact=${review.artifactId}`);
+  await page.getByText('Посмотреть процесс и форму',{exact:true}).click();
+  await page.locator('.solution-visual svg').waitFor();
+  await page.locator('svg [role=button]').filter({hasText:'Согласовать'}).focus();await page.keyboard.press('Enter');
+  await page.getByRole('heading',{name:'Согласование',exact:true}).waitFor();
+  assert.equal(await page.locator('img').count(),0);
+  assert.equal(await page.getByText('Не поддерживается: synthetic-unknown-control',{exact:true}).count(),1);
+  assert.equal(await page.getByRole('button',{name:'Согласовать',exact:true}).isDisabled(),true,'exported actions never execute');
+  await page.getByRole('button',{name:'Посмотреть переход: Согласовать',exact:true}).click();
+  await page.locator('.visual-form').getByRole('heading',{name:'Готово',exact:true}).waitFor();
+  await page.locator('svg [data-node=review]').click();
+  await page.locator('.visual-form').getByRole('button',{name:'Посмотреть переход: Вернуть',exact:true}).click();
+  await page.getByRole('heading',{name:'Причина возврата',exact:true}).waitFor();
+  assert.equal(await page.locator('.visual-form label').filter({hasText:'Комментарий'}).getByRole('textbox').isDisabled(),true);
+  await page.locator('.visual-form').getByRole('button',{name:'Посмотреть переход: Повторное рассмотрение'}).click();
+  await page.getByRole('heading',{name:'Согласование',exact:true}).waitFor();
+  await fs.mkdir('qa',{recursive:true});await page.screenshot({path:'qa/solution-visual-desktop.png',fullPage:true});
+  await page.setViewportSize({width:390,height:844});
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+  await page.screenshot({path:'qa/solution-visual-mobile.png',fullPage:true});
+  await page.evaluate(()=>{document.documentElement.style.zoom='2';});
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+  assert.deepEqual(errors,[]);
+  await page.evaluate(async()=>{
+    const {mountSnapshotVisual}=await import('/visual/render.js');
+    const {visualFixture}=await import('/visual/fixtures.js');
+    document.querySelector('#managed-root').replaceChildren(mountSnapshotVisual(visualFixture('duplicate')));
+  });
+  assert.equal(await page.getByRole('button',{name:'Согласовать · Не поддерживается',exact:true}).count(),1);
+  assert.equal(await page.getByRole('button',{name:'Повторное согласование · Не поддерживается',exact:true}).count(),1);
+  await page.getByRole('button',{name:'Согласовать · Не поддерживается',exact:true}).click();
+  assert.equal(await page.getByText('Связь неоднозначна: повторяется код узла или формы.',{exact:true}).count(),1);
+  assert.equal(await page.locator('.visual-form input').count(),0,'duplicate node identity cannot select the first form');
+  assert.equal(await page.locator('.visual-form button:enabled').count(),0,'ambiguous branches cannot be followed');
+  await page.screenshot({path:'qa/solution-visual-duplicate.png',fullPage:true});
+  await page.evaluate(async()=>{
+    const {mountSnapshotVisual}=await import('/visual/render.js');
+    const {visualFixture}=await import('/visual/fixtures.js');
+    document.querySelector('#managed-root').replaceChildren(mountSnapshotVisual(visualFixture('unknown')));
+  });
+  assert.equal(await page.getByText('Область процесса не поддерживается: Согласующий',{exact:true}).count(),1,
+    'a lane with invalid geometry stays visible as unsupported source evidence');
+  await fs.writeFile('qa/solution-visual-browser-evidence.json',JSON.stringify({synthetic:true,api:true,sourceGeometry:true,explicitForm:true,branches:'view-only',keyboard:true,mobile:true,zoom:true,importedActionsExecuted:false,nativeObservation:false}));
+  console.log('Solution visual: actual shared artifact API, geometry, explicit form, view-only branches, inert controls, XSS, keyboard, mobile and zoom passed.');
+} finally {
+  await browser?.close();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));
+  assert.equal(path.dirname(directory),os.tmpdir());await fs.rm(directory,{recursive:true,force:true});
+}

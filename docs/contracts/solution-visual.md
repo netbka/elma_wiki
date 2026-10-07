@@ -1,0 +1,24 @@
+# Visual review of a captured Solution artifact
+
+P5 first reconstruction slice: #51 / #58. This is a contextual, read-only capability inside Change review, not a top-level product destination or an ELMA runtime emulator.
+
+`GET /api/solutions/:id/artifacts/:artifactId/visual` uses the shared catalog's existing authenticated authorization and immutable original lookup. Legacy/private project IDs and artifacts from another Solution never resolve here. Every request rechecks captured bytes before parsing with `parseProject`; no new source storage or parser is introduced. Responses contain a bounded declarative projection, not imported scripts, HTML, URLs or executable actions.
+
+The first supported native process shape is `process.items/lanes/transitions`, including dictionary identities, x/y/width/height, explicit transition path points and labels. No automatic layout is inferred. Invalid or missing geometry, unknown node types, duplicate identities and unresolved edges remain explicit unsupported evidence. Graph browsing follows an explicit source/target relation only; conditions, permissions, scripts and business feasibility remain unknown.
+
+Tasks resolve forms only by the explicit `settings.formCode` -> `forms[].code` association. Missing and duplicate matches are unknown/ambiguous; names, order and similar IDs never imply a relation. Forms use descriptor/content trees. The small allowlist includes native layout containers, dynamic-form with explicit field arrays, dynamic-form-row and inert buttons. Script-dependent bindings and unknown descriptors remain visible and unsupported. Form controls are disabled read-only representations; no simulation or validation of ELMA execution is claimed.
+
+The shared `web/visual/render.js` is used by production review and Storybook. Geometry is source-derived; shapes/layout rendering is reconstructed; native observation is absent. Source details remain collapsible. The production hook is available only on the shared Solutions shell, not legacy private workspaces. Loading, error/retry, empty and unknown states use the same renderer. Bounds: 50 processes per artifact, 500 nodes/lanes, 1,000 edges, 100 points per edge, 100 forms, 2,000 tree controls, depth 20 and 100 explicit fields per control. Exceeding limits blocks projection rather than silently truncating geometry.
+
+Each selected source node carries an artifact ID, archive SHA-256, source object tuple, JSON pointer and projection fingerprint for the P4 discussion adapter. A changed artifact or changed node remains distinct evidence. This slice does not persist comments or silently migrate anchors. Durable discussion across versions, declared scenario requirements, missing-comment simulation and observed-vs-expected audit remain follow-up P4/P5 work. Native screenshot/runtime evidence requires its own separately authorized collection; reconstruction never creates it.
+
+Evidence is synthetic: source-shape projection tests, actual authenticated shared upload/capture/read API with checksum corruption rejection, and Chrome checks for source geometry, explicit form association, view-only approval/return paths, disabled actions, unknown descriptor, escaped text, keyboard, 390px reflow and 200% zoom. Five Storybook states reuse the renderer. Private export schemas were inspected locally to establish field shapes; no customer labels, IDs, fields, scripts or screenshots were copied into fixtures. Review/delivery acceptance guards remain unchanged.
+
+Duplicate node, lane and transition codes mark every occurrence unsupported,
+including the first. Source pointers remain distinct and each occurrence has
+an ambiguity explanation. Duplicate nodes cannot select a form or follow a
+transition by choosing the first match. A sixth Storybook state and browser
+regression exercise this ambiguous review state with the production renderer.
+Unsupported lanes also retain a visible label and source pointer when invalid
+geometry prevents drawing them. The existing unknown Storybook fixture includes
+this case; omission from SVG never means omission from the evidence view.
