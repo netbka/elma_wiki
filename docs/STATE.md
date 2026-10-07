@@ -3,6 +3,7 @@
 Last repository verification: 2026-10-07.
 
 ## Implemented
+- Bridge dispatch cancellation/restart safety: queued jobs require a current request grant; aborted or orphaned jobs cannot dispatch. Claimed jobs retain unknown outcomes and late results while new artifact reads are denied. Synthetic queue-race and existing delivery checks; no live ELMA result is implied.
 - Release input selection: explicitly pick immutable source/baseline snapshots, including two versions of one project, with hash/provenance and blocked/retry loading. Capture uses pinned parser documents without changing the project/workspace selection. Synthetic local evidence only.
 - Immutable project snapshot storage foundation: isolated upload snapshots, trusted Source-reference append methods, pinned original bytes/parser revisions/provenance, owner-scoped snapshot reads and stale-safe selection. Legacy reparse pins its prior index; releases capture explicit snapshots. Synthetic evidence only; no Source adapter or project-viewer selector UI. See contracts/project-snapshots.md.
 - Release delivery UI: unavailable state keeps offline handoff usable; explicitly enabled synthetic mode provides stand selection/probe, separate typed confirmation, read-back, discrepancies/history, preparation cancellation and lost-response reconciliation. Historical evidence becomes stale after candidate/condition changes. Shared production/Storybook renderer. The same panel carries the operator-bridge path: bridge tokens issued once, bridge-backed Target connections, refresh of an in-progress operation.

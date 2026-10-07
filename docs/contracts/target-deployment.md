@@ -39,6 +39,14 @@ The live path keeps the Wiki free of ELMA credentials and outbound connections: 
 - Long operations: `confirm` persists `deploying`, hands the operation to the adapter outside the per-release lock and answers within a 2 s grace period — with the final state if the operation finished, otherwise with `deploying`; the attempt is completed in the background and the UI offers «Обновить состояние доставки». Read-only calls (`inspect`, `readBack`) fail with 504 on timeout; the deploy timeout still yields `unknown-outcome`. `DELIVERY_TIMEOUT_MS` (default 20 min) bounds every adapter call.
 - Worker-side refusals independent of the Wiki: target `prod` is not accepted at all; `WIKI_BRIDGE_PROTECTED_HOSTS` refuses deploy; an artifact whose hash or package code does not match is not imported. Env on the operator machine: `WIKI_BRIDGE_URL`, `WIKI_BRIDGE_TOKEN`, optional `WIKI_BRIDGE_CA` (private CA PEM).
 
+## Bridge dispatch cancellation and restart
+
+A persisted job is not permission to dispatch. Polling and artifact reads require a live, unexpired request in the current service process. Abort fences an unclaimed job as `cancelled` and removes its candidate bytes before rejecting the waiter. An already claimed job becomes `unknown-outcome`: new artifact reads are denied, but an operator that already downloaded the artifact may still be running. A late result is retained with `lateCompletion: true`; it does not restore the expired request or verify a release.
+
+After coordinator restart, old queued jobs are cancelled and claimed jobs become unknown on their next access. They are never replayed automatically. Reconcile an uncertain deployment through the existing Target read-back path. Removing a bridge still invalidates its token and settles its callers. The store requires one coordinator per directory; this is not a distributed lease or a guarantee that an external process stopped.
+
+`node --test test/bridge-queue.test.mjs test/bridge.test.mjs test/delivery.test.mjs` checks normal dispatch, queued/claimed abort, pre-aborted input, removed bridges, restart, abort during queue/claim persistence and artifact reads, late completion and the existing delivery guards. All fixtures are synthetic; no ELMA import is performed.
+
 ## Exact read-back policy
 
 `lib/delivery-verification.mjs` owns `exact-solution-inventory-v1`. Both inventories must contain unique, non-empty relative paths and full lowercase SHA-256 digests. Invalid arrays, unsafe/duplicate paths and malformed hashes are rejected before comparison. Fingerprints sort validated rows without changing input arrays; row ordering alone is not drift.
