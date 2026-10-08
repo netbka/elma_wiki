@@ -21,3 +21,9 @@ Own explicit ELMA endpoint identities and safe execution routing.
 - health()
 
 A failed Source load creates no successful snapshot. A failed Target operation never marks a candidate verified.
+
+The read-only configuration adapter is implemented in config-source.mjs.
+Its Docker export service, trusted server configuration, inspection-bundle
+format and authenticated acquisition routes are defined in
+[configuration acquisition API](config-source-api.md). It feeds the existing
+Solution full/partial review engine and grants no Target execution capability.

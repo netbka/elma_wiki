@@ -47,6 +47,8 @@ jobs:
       - if: runner.os == 'Linux'
         run: npm run test:managed:browser
       - if: runner.os == 'Linux'
+        run: npm run test:config:browser
+      - if: runner.os == 'Linux'
         run: npm run test:handoff:browser
       - if: runner.os == 'Linux'
         run: node tools/requests-browser-check.mjs
@@ -82,6 +84,8 @@ jobs:
           path: |
             qa/managed-*.png
             qa/managed-browser-evidence.json
+            qa/config-acquisition-*.png
+            qa/config-acquisition-browser.json
             qa/requests-*.png
             qa/requests-browser-evidence.json
             qa/bug-reports-*.png

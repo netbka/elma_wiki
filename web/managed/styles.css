@@ -10,3 +10,8 @@
 @media(min-width:1700px){.managed-shell{grid-template-columns:230px minmax(0,1fr)}}
 @media(max-width:950px){.managed-shell{grid-template-columns:1fr;padding:18px;gap:16px}.managed-nav{border-right:0;border-bottom:1px solid #d7e1e7;padding:0 0 12px;flex-direction:row;flex-wrap:wrap;align-items:center}.managed-nav details{margin:0}.managed-columns{grid-template-columns:minmax(0,1fr)}.managed-content h1{font-size:26px}}
 @media(max-width:480px){.managed-shell{padding:12px}.managed-nav{gap:4px;font-size:14px}.managed-nav a{padding:7px}.managed-content h1{font-size:24px}.managed-actions{align-items:stretch;flex-direction:column}.managed-content button,.managed-content .button{max-width:100%}.managed-table th,.managed-table td{padding:7px}}
+.config-acquisition { display: grid; gap: .6rem; max-width: 100%; }
+.config-acquisition > div { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; }
+.config-acquisition label { display: block; }
+.config-acquisition input { max-width: 100%; }
+.config-acquisition button.secondary { background: transparent; color: #172c3d; border-color: #8aa0b0; }

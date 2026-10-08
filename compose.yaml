@@ -5,6 +5,8 @@ services:
     init: true
     environment:
       HOST: 0.0.0.0
+      CONFIG_SOURCE_API_URL: ${CONFIG_SOURCE_API_URL:-}
+      CONFIG_SOURCE_API_TOKEN: ${CONFIG_SOURCE_API_TOKEN:-}
       PORT: 43171
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:?Set PUBLIC_BASE_URL in private env file}
       DISABLE_LOCAL_LOGIN: "1"

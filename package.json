@@ -8,6 +8,7 @@
   },
   "scripts": {
     "test:explanations:browser": "node tools/solution-explanations-browser-check.mjs",
+    "test:config:browser": "node tools/config-acquisition-browser-check.mjs",
     "prod:update": "node tools/prod-update.mjs",
     "test:prod": "python test/prod-update.test.py",
     "agent:context": "node tools/agent-workflow.mjs",

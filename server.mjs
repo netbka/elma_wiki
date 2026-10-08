@@ -21,6 +21,7 @@ import { releaseStore } from './lib/releases.mjs';
 import { deliveryStore, syntheticAdapter } from './lib/delivery.mjs';
 import { bridgeStore } from './lib/bridge.mjs';
 import { demoData } from './lib/demo.mjs';
+import { configSourceClient, configAcquisitions } from './lib/config-source.mjs';
 
 const project = path.dirname(fileURLToPath(import.meta.url));
 const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml' };
@@ -50,10 +51,12 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
   protectedTargetHosts = (process.env.PROTECTED_TARGET_HOSTS || '').split(','),
   // A real export/import through the bridge takes minutes; the default covers a large solution.
   deliveryTimeoutMs = Number(process.env.DELIVERY_TIMEOUT_MS) || 20 * 60 * 1000,
+  configSource = configSourceClient({ url: process.env.CONFIG_SOURCE_API_URL, token: process.env.CONFIG_SOURCE_API_TOKEN }),
   requests = requestCoordinator(), bugPublisher = bugGitHub() } = {}) {
   const actors = actorStore(directory);
   const base = new URL(baseUrl), auth = createAuth({ baseUrl, allowLocal, sendEmail, sendVk, now, onLogin: actors.resolve }), portals = portalStore(directory, { sharedAccess: true }), projects = projectStore(directory, { sharedAccess: true }), oldDemo = demoData(), sample = oldDemo.servers.showcase, demo = {entities:sample.entities,solution:sample.solutions[0],coverage:'structural',parserVersion:'2.0.0',inventory:[],provenance:{},synthetic:true};
   const solutions = solutionStore(directory);
+  const acquisitions = configAcquisitions(directory, solutions.uploads, configSource);
   const managed = managedWorkspaceStore(directory, projects, { sharedAccess: true });
   const bugs = bugReportStore(directory, { github: bugPublisher, baseUrl, rejectChange: report => solutions.managed.comment(
     report.context.solutionId, SOLUTION_CATALOG, report.context.artifactId, {
@@ -87,6 +90,29 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
       }
       if (await auth.route(req, res, url)) return;
       const session = auth.session(req);
+      if (pathname.startsWith('/api/config-source/')) {
+        if (!session) return send(res, 401, { error: 'Войдите в сервис' });
+        if (pathname === '/api/config-source/servers' && req.method === 'GET') return send(res, 200, await acquisitions.servers());
+        if (pathname === '/api/config-source/acquisitions' && req.method === 'GET') return send(res, 200, await acquisitions.list());
+        const catalog = /^\/api\/config-source\/servers\/(dev|dev2)\/solutions$/.exec(pathname);
+        if (catalog && req.method === 'GET') return send(res, 200, await acquisitions.catalog(catalog[1]));
+        if (pathname === '/api/config-source/uploads' && req.method === 'POST') {
+          if (req.headers['content-type']?.split(';')[0] !== 'application/octet-stream') return send(res, 415, { error: 'Требуется файл .e365' });
+          return send(res, 201, await acquisitions.upload(await body(req, limits.upload), session.user));
+        }
+        if (pathname === '/api/config-source/exports' && req.method === 'POST') {
+          if (req.headers['content-type']?.split(';')[0] !== 'application/json') return send(res, 415, { error: 'Требуется JSON' });
+          return send(res, 202, await acquisitions.start(JSON.parse((await body(req, 4096)).toString('utf8')), session.user));
+        }
+        const acquired = /^\/api\/config-source\/acquisitions\/([a-f0-9-]{36})(\/original)?$/.exec(pathname);
+        if (acquired && req.method === 'GET') {
+          if (!acquired[2]) return send(res, 200, await acquisitions.get(acquired[1]));
+          const bytes = await acquisitions.original(acquired[1]);
+          res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Disposition': 'attachment; filename="configuration.e365"', 'Cache-Control': 'no-store' });
+          return res.end(bytes);
+        }
+        return send(res, 404, { error: 'Загрузка не найдена' });
+      }
       const bugMatch = /^\/api\/bug-reports(?:\/([^/]+)(?:\/(retry)|\/attachments\/([^/]+))?)?$/.exec(pathname);
       if (bugMatch) {
         if (!session) return send(res, 401, { error: 'Войдите в сервис' });
