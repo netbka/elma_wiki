@@ -74,6 +74,15 @@ try {
   await page.getByLabel('Комментарий к изменению', { exact: true }).fill('Нужна причина возврата <img src=x onerror=alert(1)>');
   await page.getByRole('button', { name: 'Нужны изменения', exact: true }).click();
   await page.getByRole('heading', { name: 'Нужны изменения', exact: true }).waitFor();
+  const assertFollowupSeparation = async () => {
+    const correction = await page.getByRole('link', { name: 'Добавить исправление', exact: true }).boundingBox();
+    const another = await page.getByRole('link', { name: 'Загрузить другую версию', exact: true }).boundingBox();
+    assert.ok(correction && another && (another.x >= correction.x + correction.width + 8 ||
+      another.y >= correction.y + correction.height + 8), 'correction and another-version actions remain visually separate');
+  };
+  await assertFollowupSeparation();
+  await page.setViewportSize({ width: 390, height: 844 }); await assertFollowupSeparation();
+  await page.setViewportSize({ width: 1440, height: 1000 });
   assert.equal(await page.getByRole('button', { name: 'Принять изменение', exact: true }).isVisible(), false);
   assert.equal(await page.locator('.change-discussion img').count(), 0);
   await page.screenshot({ path: 'qa/managed-review-findings.png', fullPage: true });

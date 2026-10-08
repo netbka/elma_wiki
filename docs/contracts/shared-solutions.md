@@ -30,6 +30,16 @@ The object context API resolves checksum-verified bytes only within the Solution
 
 There is no automatic exposure of old data. Before a legacy record is copied into the catalog, record its source, sensitivity, intended Solution, original uploader/native provenance and explicit admission decision. The authorized owner must classify and approve that particular record; filenames, matching solution codes, previous uploads and login do not imply consent. A classified record can then be re-uploaded through the confirmed shared route as a new immutable copy. Preserve the original private record and its evidence; never relabel the original owner's storage root or overwrite native authorship. No bulk migration or unclassified-record endpoint exists.
 
+Prepare the private classification input with `node tools/legacy-inventory.mjs <private-storage-directory>`.
+This read-only helper inventories legacy project, managed-workspace and portal
+metadata, preserves opaque owner/upload/snapshot provenance and fingerprints the
+metadata. It does not read original exports, credentials or the shared catalog.
+Malformed/unreadable records stay explicit. Output is a new private `.local`
+file; stdout contains only counts and its path. Every decision starts unreviewed
+and every record remains private. The selected local directory is not evidence
+of the deployed service's data. An owner must approve keep-private or a selected
+copy before an operational migration; the tool performs no migration.
+
 Backout disables the new catalog routes/UI and retains both private roots and actor records. Restoring a previous service revision does not move shared data into a legacy owner index or destroy either root. Back up private storage before an operational rollout. One service process owns each store; multiple writers require a shared transactional lock before deployment.
 
 ## Evidence

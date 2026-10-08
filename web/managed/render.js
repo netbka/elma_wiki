@@ -164,6 +164,7 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
   }
 
   if (view === 'review' && review) {
+    const followups = el('div', undefined, 'managed-actions');
     let selectedSource = null, showSelectedSource = () => {};
     if (actions.visual) {
       const details=el('details'), target=el('div');
@@ -300,9 +301,10 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
       }
       if (editable) entry(discussion, 'Комментарий к изменению', 'comment');
       content.append(discussion);
-      if (editable) content.append(link('Добавить исправление', workspaceUrl(state.id, full ? 'full' : 'change', review.artifactId), !!(review.acceptedAt || review.discussion.blocking)));
+      if (editable) followups.append(link('Добавить исправление', workspaceUrl(state.id, full ? 'full' : 'change', review.artifactId), !!(review.acceptedAt || review.discussion.blocking)));
     }
-    content.append(link('Загрузить другую версию', workspaceUrl(state.id, 'full'))); return root;
+    followups.append(link('Загрузить другую версию', workspaceUrl(state.id, 'full')));
+    content.append(followups); return root;
   }
   content.append(el('p', 'Сравнение недоступно. Вернитесь к обзору и выберите актуальное действие.'), link('К обзору', workspaceUrl(state?.id), true));
   return root;

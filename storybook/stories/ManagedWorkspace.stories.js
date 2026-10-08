@@ -29,7 +29,8 @@ export const NoSource = { render: () => story('no-source') };
 export const NeedsFixes = { render: () => story('needs-fixes') };
 export const PendingConflict = { render: () => story('pending-conflict') };
 export const ReviewComment = { render: () => story('review-comment') };
-export const ReviewFindings = { render: () => story('review-findings') };
+export const ReviewFindings = { render: () => story('review-findings'), parameters: { docs: { description: { story:
+  'Замечание блокирует принятие. Добавить исправление — главное следующее действие; загрузка другой версии отделена от него, в том числе на узком экране.' } } } };
 export const ReviewResolved = { render: () => story('review-resolved') };
 export const ReviewAccepted = { render: () => story('review-accepted') };
 export const ReviewStaleAnchor = { render: () => story('review-stale-anchor') };
