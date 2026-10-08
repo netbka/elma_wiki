@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { requestCoordinator } from './lib/request-coordinator.mjs';
+import { bugReportStore, bugGitHub, bugLimits } from './lib/bug-reports.mjs';
 import { readData } from './lib/store.mjs';
 import { limits } from './lib/e365.mjs';
 import { createAuth } from './lib/auth.mjs';
@@ -35,6 +36,10 @@ function serve(req, res, directory, pathname) {
   if (!file.startsWith(directory + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) return send(res, 404, { error: 'Страница не найдена' });
   res.writeHead(200, { 'Content-Type': types[path.extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-store' });
   if (req.method === 'HEAD') return res.end();
+  if (path.extname(file) === '.html') {
+    const widget = '<link rel="stylesheet" href="/feedback/styles.css"><script type="module" src="/feedback/page.js"></script>';
+    return res.end(fs.readFileSync(file, 'utf8').replace('</body>', widget + '</body>'));
+  }
   fs.createReadStream(file).on('error', () => res.destroy()).pipe(res);
 }
 export function createServer({ directory = path.join(project, '.local'), baseUrl = process.env.PUBLIC_BASE_URL || `http://127.0.0.1:${process.env.PORT || 43171}`,
@@ -45,11 +50,17 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
   protectedTargetHosts = (process.env.PROTECTED_TARGET_HOSTS || '').split(','),
   // A real export/import through the bridge takes minutes; the default covers a large solution.
   deliveryTimeoutMs = Number(process.env.DELIVERY_TIMEOUT_MS) || 20 * 60 * 1000,
-  requests = requestCoordinator() } = {}) {
+  requests = requestCoordinator(), bugPublisher = bugGitHub() } = {}) {
   const actors = actorStore(directory);
   const base = new URL(baseUrl), auth = createAuth({ baseUrl, allowLocal, sendEmail, sendVk, now, onLogin: actors.resolve }), portals = portalStore(directory, { sharedAccess: true }), projects = projectStore(directory, { sharedAccess: true }), oldDemo = demoData(), sample = oldDemo.servers.showcase, demo = {entities:sample.entities,solution:sample.solutions[0],coverage:'structural',parserVersion:'2.0.0',inventory:[],provenance:{},synthetic:true};
   const solutions = solutionStore(directory);
   const managed = managedWorkspaceStore(directory, projects, { sharedAccess: true });
+  const bugs = bugReportStore(directory, { github: bugPublisher, baseUrl, rejectChange: report => solutions.managed.comment(
+    report.context.solutionId, SOLUTION_CATALOG, report.context.artifactId, {
+      type: 'reject', text: `${report.title}\n\n${report.text.slice(0, 3000)}\n\n${base.origin}/bug-reports?id=${report.id}`,
+      expectedRevision: report.context.expectedRevision, expectedDiscussionRevision: report.context.expectedDiscussionRevision,
+      operationId: report.id
+    }, report.actor) });
   let delivery;
   const releases = releaseStore(directory, projects, { sharedAccess: true, deliverySummary: (id, owner) => delivery.summary(id, owner) });
   // The bridge adapter is always available: it only does something once an owner registers a bridge and an
@@ -62,7 +73,7 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'no-referrer');
     res.setHeader('X-Frame-Options', 'DENY');
-    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
+    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
     try {
       const localHost = `${req.socket.localAddress}:${req.socket.localPort}`, allowed = new Set([base.host]);
       if (base.protocol === 'http:' && ['127.0.0.1', 'localhost'].includes(base.hostname)) { allowed.add(localHost); allowed.add(`localhost:${req.socket.localPort}`); }
@@ -76,6 +87,23 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
       }
       if (await auth.route(req, res, url)) return;
       const session = auth.session(req);
+      const bugMatch = /^\/api\/bug-reports(?:\/([^/]+)(?:\/(retry)|\/attachments\/([^/]+))?)?$/.exec(pathname);
+      if (bugMatch) {
+        if (!session) return send(res, 401, { error: 'Войдите в сервис' });
+        const [, id, action, attachmentId] = bugMatch;
+        if (req.method === 'GET' && attachmentId) {
+          const item = await bugs.attachment(id, attachmentId, session.user);
+          res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Cache-Control': 'no-store',
+            'Content-Disposition': `attachment; filename="attachment"; filename*=UTF-8''${encodeURIComponent(item.name).replace(/'/g, '%27')}` });
+          return res.end(item.bytes);
+        }
+        if (req.method === 'GET' && !action) return send(res, 200, id ? await bugs.get(id, session.user) : bugs.config());
+        if (req.method !== 'POST' || attachmentId || id && action !== 'retry') return send(res, 405, { error: 'Метод не поддерживается' });
+        if (req.headers['content-type']?.split(';')[0] !== 'application/json') return send(res, 415, { error: 'Требуется JSON' });
+        const input = JSON.parse((await body(req, id ? 1024 : bugLimits.bodyBytes)).toString('utf8'));
+        if (id && (!input || typeof input !== 'object' || Array.isArray(input) || Object.keys(input).length)) return send(res, 400, { error: 'Некорректный повтор' });
+        return send(res, id ? 200 : 201, id ? await bugs.retry(id, session.user) : await bugs.submit(input, session.user));
+      }
       const solutionObject = /^\/api\/solutions\/([^/]+)\/artifacts\/([^/]+)\/objects\/([a-f0-9]{64})(?:\/workspace(?:\/(save|check|checkpoint|restore))?)?$/.exec(pathname);
       if (solutionObject) {
         const [, id, artifactId, ref, action] = solutionObject;
@@ -397,8 +425,8 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
       }
       if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, { error: 'Метод не поддерживается' });
       if (pathname === '/' && session) { res.writeHead(302, { Location: '/solutions' }); return res.end(); }
-      if (['/dashboard','/releases','/workspaces','/solutions','/requests'].includes(pathname) && !session) { res.writeHead(302, { Location: '/login' }); return res.end(); }
-      if (['/', '/login', '/dashboard', '/guide', '/flows','/releases','/workspaces','/solutions','/requests'].includes(pathname)) return serve(req, res, path.join(project, 'web'), pathname === '/' ? '/index.html' : pathname + '.html');
+      if (['/dashboard','/releases','/workspaces','/solutions','/requests','/bug-reports'].includes(pathname) && !session) { res.writeHead(302, { Location: '/login' }); return res.end(); }
+      if (['/', '/login', '/dashboard', '/guide', '/flows','/releases','/workspaces','/solutions','/requests','/bug-reports'].includes(pathname)) return serve(req, res, path.join(project, 'web'), pathname === '/' ? '/index.html' : pathname + '.html');
       return serve(req, res, path.join(project, 'web'), pathname);
     } catch (error) {
       if (!res.headersSent) send(res, error.statusCode || error.status || 400, { error: error instanceof SyntaxError ? 'Некорректный JSON' : error instanceof URIError ? 'Некорректный URL' : error.code ? 'Операция хранилища недоступна' : /fetch|ENOTFOUND|ECONN/.test(error.message) ? 'Внешний сервис недоступен' : error.message });
