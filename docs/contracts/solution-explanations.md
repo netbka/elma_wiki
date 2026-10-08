@@ -86,8 +86,9 @@ Oversized generation fails explicitly and asks for a narrower process/step.
 
 Customer explanations remain in authenticated runtime storage, never Git, public
 Learn content or actual Storybook stories. `web/explanations/render.js` is reused
-by production and nine `solution-explanation--*` states: ready, draft, saved,
-stale, loading, error/retry, conflict, historical/read-only and regenerated.
+by production and ten `solution-explanation--*` states: ready, draft, saved,
+stale, loading, error/retry, conflict, historical/read-only, regenerated and an
+interactive integrated Solution/process/step story.
 Fixtures and save actions are explicitly synthetic. Storybook demonstrates this
 UI; it is not a second content store.
 
@@ -98,5 +99,5 @@ partial-state resolution, checksum rejection and retained removed-step knowledge
 `npm run test:explanations:browser` checks actual UI/API generation/source
 navigation/edit/save/reload, draft preservation, replacement comparison,
 concurrency/lost-response recovery, escaped text, keyboard, 390px/200% reflow and
-the nine shared renderer states. Evidence is synthetic; live ELMA, external AI,
+the ten shared renderer states. Evidence is synthetic; live ELMA, external AI,
 deployment and independent user comprehension are not claimed.

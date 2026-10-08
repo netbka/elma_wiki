@@ -112,9 +112,20 @@ try {
     assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),name);
     if(name==='historical')assert.equal(await page.getByRole('button',{name:'Изменить объяснение',exact:true}).isDisabled(),true);
   }
+  await page.evaluate(async()=>{
+    const {mountManagedWorkspace}=await import('/managed/render.js');
+    const {explanationSolutionFixture,explanationSolutionActions}=await import('/explanations/fixtures.js');
+    document.querySelector('#managed-root').replaceChildren(mountManagedWorkspace(explanationSolutionFixture(),explanationSolutionActions()));
+  });
+  await page.getByRole('button',{name:'Посмотреть процесс: approval',exact:true}).click();
+  await page.locator('svg [data-node=review]').click();
+  await page.getByRole('button',{name:'Объяснить этот шаг',exact:true}).click();
+  await page.getByRole('button',{name:'Сохранить объяснение',exact:true}).click();
+  await page.getByText(/Объяснение сохранено:/).waitFor();
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
   assert.deepEqual(errors,[]);
-  await fs.writeFile('qa/solution-explanations-browser-evidence.json',JSON.stringify({synthetic:true,solution:true,process:true,step:true,persistence:true,sourceNavigation:true,regenerationPreservesEdits:true,concurrency:true,lostResponse:true,keyboard:true,mobile:true,zoom:true,storybookStates:9,externalAI:false,nativeObservation:false}));
-  console.log('Solution explanations: actual API/UI generation, source navigation, edit/save/reload, draft retention, conflict, lost response, keyboard, mobile/zoom and 9 shared Storybook states passed.');
+  await fs.writeFile('qa/solution-explanations-browser-evidence.json',JSON.stringify({synthetic:true,solution:true,process:true,step:true,persistence:true,sourceNavigation:true,regenerationPreservesEdits:true,concurrency:true,lostResponse:true,keyboard:true,mobile:true,zoom:true,storybookStates:10,externalAI:false,nativeObservation:false}));
+  console.log('Solution explanations: actual API/UI generation, source navigation, edit/save/reload, draft retention, conflict, lost response, keyboard, mobile/zoom and 10 shared Storybook states passed.');
 } finally {
   await browser?.close();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));
   assert.equal(path.dirname(directory),os.tmpdir());await fs.rm(directory,{recursive:true,force:true});
