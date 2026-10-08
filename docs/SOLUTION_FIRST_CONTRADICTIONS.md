@@ -17,6 +17,7 @@ Authority target: SOLUTION_FIRST_PRODUCT_PLAN.md.
 | Release entry | #11 starts from packages/releases | Delivery is contextual to accepted Solution state | Reuse domain, change entry/navigation |
 | Code workspace | Browser editor exists as distinct capability | Code belongs to supported object/change | P4 links the existing editor from checksum-bound Change context, preserves immutable exports and attributes shared working-copy mutations |
 | Manual upload | Every .e365 becomes isolated project | Files are inputs to Solution lifecycle | Standalone inspection remains compatibility-only |
+| Server configuration acquisition | Whole configuration could be flattened into one Solution or treated as complete despite paid omissions | Owner 2026-10-08 requests DEV/dev2 API and full/single upload with paid internals excluded | Read-only acquisition keeps native member packages separate, lists exclusions and feeds explicitly selected members into existing full/partial lifecycle |
 | Partial package | File model can make each input look complete | Partial package never means deletion or baseline | Preserve explicit scope evidence internally |
 | Baseline | Engine exposes baseline as core domain object | Prefer Current/Accepted version in normal UI | Keep baseline in technical details |
 | Virtual state | Engine can compute effective state | Virtual state is not automatically deployable | No Send to TEST without proven candidate path |

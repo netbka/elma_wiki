@@ -25,6 +25,15 @@ async function request(url, input, upload) {
 }
 const navigate = href => { location.href = href; };
 const actions = {
+  ...(shared ? { acquisition: {
+    upload: file => request('/api/config-source/uploads', file, true),
+    catalog: server => request('/api/config-source/servers/' + server + '/solutions'),
+    start: input => request('/api/config-source/exports', input),
+    get: id => request('/api/config-source/acquisitions/' + id),
+    list: () => request('/api/config-source/acquisitions'),
+    remember: id => { const url = new URL(location.href); url.searchParams.set('acquisition', id); history.replaceState(null, '', url); },
+    resumeUrl: id => { const url = new URL(location.href); url.searchParams.set('acquisition', id); return url.pathname + url.search; }
+  } } : {}),
   handoff: {
     create: async input => { const result = await request(handoffApi, { ...input, expectedRevision: workspace.revision }); navigate(handoffHref(result.id)); },
     change: (releaseId, input) => request(`${handoffApi}/${encodeURIComponent(releaseId)}`, input),
@@ -64,7 +73,8 @@ try {
     try { exportEvidence = await request(`${api}/${encodeURIComponent(id)}/accepted-export?expectedRevision=${workspace.revision}`); }
     catch (error) { if (![409, 422].includes(error.status)) throw error; handoffReason = 'Передача новой версии недоступна: завершите рассмотрение и примите полный экспорт, содержащий все принятые изменения.'; }
   }
-  root.replaceChildren(mountManagedWorkspace({ ...config, workspace, view, review, rows, handoff, handoffs, exportEvidence, handoffReason }, actions));
+  const acquisition = shared && query.get('acquisition') ? await request('/api/config-source/acquisitions/' + encodeURIComponent(query.get('acquisition'))) : null;
+  root.replaceChildren(mountManagedWorkspace({ ...config, workspace, view, review, rows, handoff, handoffs, exportEvidence, handoffReason, acquisition }, actions));
   document.title = (workspace?.name || (view === 'create' ? 'Добавить решение' : 'Решения')) + ' · E365';
   root.querySelector('h1')?.focus({ preventScroll: true });
 } catch (error) {

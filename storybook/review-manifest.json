@@ -13,11 +13,47 @@
     "solution-handoff": {
       "entry": "/solutions?id=:id&view=handoff",
       "kind": "implemented",
-      "actions": ["review-package", "freeze", "approve-offline-handoff", "download", "refresh-stale-state"],
-      "renderer": ["web/managed/render.js", "web/releases/render.js"],
-      "storyIds": ["solution-handoff--create", "solution-handoff--blocked", "solution-handoff--review", "solution-handoff--ready", "solution-handoff--candidate", "solution-handoff--prepared", "solution-handoff--stale", "solution-handoff--loading", "solution-handoff--load-error", "solution-handoff--lost-response"],
-      "requiredVisibleStates": ["create", "blocked", "review", "ready", "candidate", "prepared", "stale", "loading", "load-error", "lost-response"],
-      "sources": ["lib/solutions.mjs", "lib/releases.mjs", "test/solution-handoffs.test.mjs", "docs/contracts/shared-solutions.md"]
+      "actions": [
+        "review-package",
+        "freeze",
+        "approve-offline-handoff",
+        "download",
+        "refresh-stale-state"
+      ],
+      "renderer": [
+        "web/managed/render.js",
+        "web/releases/render.js"
+      ],
+      "storyIds": [
+        "solution-handoff--create",
+        "solution-handoff--blocked",
+        "solution-handoff--review",
+        "solution-handoff--ready",
+        "solution-handoff--candidate",
+        "solution-handoff--prepared",
+        "solution-handoff--stale",
+        "solution-handoff--loading",
+        "solution-handoff--load-error",
+        "solution-handoff--lost-response"
+      ],
+      "requiredVisibleStates": [
+        "create",
+        "blocked",
+        "review",
+        "ready",
+        "candidate",
+        "prepared",
+        "stale",
+        "loading",
+        "load-error",
+        "lost-response"
+      ],
+      "sources": [
+        "lib/solutions.mjs",
+        "lib/releases.mjs",
+        "test/solution-handoffs.test.mjs",
+        "docs/contracts/shared-solutions.md"
+      ]
     },
     "public-field-lookup": {
       "entry": "/learn/find-field/",
@@ -752,6 +788,40 @@
         "docs/E365_FILE_PROJECTS.md",
         "test/object-search.test.mjs",
         "tools/first-use-browser-check.mjs"
+      ]
+    },
+    "config-acquisition": {
+      "entry": "/solutions?view=create",
+      "kind": "implemented",
+      "actions": [
+        "upload",
+        "select-source",
+        "export",
+        "resume",
+        "select-solution",
+        "download"
+      ],
+      "renderer": [
+        "web/managed/acquisition.js"
+      ],
+      "storyIds": [
+        "config-acquisition--empty",
+        "config-acquisition--exporting",
+        "config-acquisition--ready",
+        "config-acquisition--failed",
+        "config-acquisition--connection-error"
+      ],
+      "requiredVisibleStates": [
+        "empty",
+        "exporting",
+        "ready",
+        "failed",
+        "connection-error"
+      ],
+      "sources": [
+        "docs/contracts/config-source-api.md",
+        "test/config-source.test.mjs",
+        "tools/config-acquisition-browser-check.mjs"
       ]
     }
   }

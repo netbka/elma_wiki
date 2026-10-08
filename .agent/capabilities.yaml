@@ -72,7 +72,7 @@ capabilities:
     boundaries: ["ui", "domain"]
   source-connections:
     owners: ["lib/", "server.mjs"]
-    routes: ["docs/contracts/source-target-connections.md", "docs/workflows/source-import.md"]
+    routes: ["docs/contracts/source-target-connections.md", "docs/workflows/source-import.md", "docs/contracts/config-source-api.md"]
     boundaries: ["connection", "security", "storage"]
   target-connections:
     owners: ["lib/delivery.mjs", "server.mjs", "test/delivery.test.mjs"]
