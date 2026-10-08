@@ -2,6 +2,13 @@
 
 Implemented scope: AR-00/01/02 and the unchanged-original handoff part of AR-03, issue #11. The release does not connect to Source or Target, build workspace changes, execute uploaded code or authorize an import.
 
+This page describes the legacy owner-private entry. The same release engine now
+also supports an explicitly shared, contextual accepted-Solution handoff, with
+trusted actor attribution and a current association guard before local mutations
+and bundle issuance. See [shared Solution handoff](shared-solutions.md#contextual-offline-candidate-and-handoff--34--11).
+This does not expose legacy releases to the shared catalog or enable Target
+delivery from the new entry.
+
 ## Immutable association
 
 One upload remains one owner-scoped project. `/releases` explicitly selects a new DEV export and an optional previous DEV export. Names never merge projects. Both originals and their parser metadata, inventory and structural summaries are pinned to the release under private runtime storage. Reparse/deletion of the original project cannot change a pinned release. A different artifact requires a new release.

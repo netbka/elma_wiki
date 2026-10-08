@@ -1,7 +1,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { managedFixture } from '../web/managed/fixtures.js';
-import { reviewGate, workspaceSummary, componentName, workspaceUrl, solutionNextAction, responsibilityLabel, responsibilityReport } from '../web/managed/model.js';
+import { reviewGate, workspaceSummary, componentName, workspaceUrl, solutionNextAction, responsibilityLabel, responsibilityReport, hasAcceptedFullExport } from '../web/managed/model.js';
+import { solutionHandoffFixture } from '../web/managed/handoff-fixtures.js';
+
+test('handoff navigation requires a matching accepted full state and stays separate from delivery evidence', () => {
+  const state = solutionHandoffFixture().workspace;
+  assert.equal(hasAcceptedFullExport(state), true);
+  state.artifacts.push({ id: 'partial-no-op', scope: 'partial' });
+  assert.equal(hasAcceptedFullExport(state), false);
+  state.artifacts.pop(); state.current[0].digest = 'different';
+  assert.equal(hasAcceptedFullExport(state), false);
+  assert.equal(hasAcceptedFullExport(managedFixture('needs-fixes').workspace), false);
+  assert.equal(solutionHandoffFixture('stale').handoff.blockers.length > 0, true);
+  assert.equal(solutionHandoffFixture('prepared').handoff.checks.find(row => row.id === 'target').result, 'not-run');
+});
 
 test('review requires explicit boundary decisions and per-conflict choices; ambiguity and cross-team overlap never become ready', () => {
   const partial = managedFixture('review').review;

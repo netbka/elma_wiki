@@ -66,6 +66,63 @@ anonymous/private isolation, explicit revision, method restrictions, restart,
 deleted uploads, corrupt archives, archived/pending state, no-op partial changes,
 matching full reconciliation and retained local conflict state.
 
+## Contextual offline candidate and handoff — #34 / #11
+
+The Solution's **Передача** view reuses `web/releases/render.js` within the
+existing Solution shell. It appears for a matching accepted full state; old
+handoffs remain accessible from the technical history even after that state
+changes. It does not add a global release area or expose Target dispatch.
+
+`/api/solutions/:id/handoffs` supports authenticated GET/list and POST/create
+with `{expectedRevision, title, intent, targetIntent}`. Creation takes a fresh
+server-owned accepted-export capture; clients cannot provide archive bytes,
+Source, actor, ownership or association evidence. Shared records use the
+existing `releaseStore` under `shared-solutions/releases`, with the fixed
+catalog principal and distinct authenticated actors. Legacy owner-private
+release roots and routes are unchanged; a shared handoff is not accessible
+through `/api/releases/:id`.
+
+`GET/POST .../handoffs/:handoffId` reads/changes the existing release lifecycle:
+review every expanded file, document comparison limits, freeze the exact
+original, then approve for offline handoff only. Existing parser/rejection,
+release-revision and candidate-hash gates still apply. POST `.../bundle` with
+`{revision}` downloads the existing candidate/evidence bundle. GET `.../preview`
+uses explicit `path` and `side` query parameters for bounded inert source text.
+All routes verify both the Solution and handoff association before parsing a
+mutation body. Every mutation attributes the trusted session actor.
+
+The persisted association binds policy, Solution/revision, accepted artifact,
+archive hash, complete inventory hash and discussion-event digest. Before
+creation, every release mutation, candidate read and bundle issuance, the store
+rechecks accepted-export eligibility under the managed queue and holds that
+guard through release persistence. Lock order is Solution then release. A
+comment can invalidate a candidate even without changing the domain revision.
+Archive/reopen, new reviews/changes, later baselines, findings and corruption
+also prevent old approvals from being used. A stale record retains its exact
+bytes/history for inspection and displays an explicit blocker; it cannot be
+mutated, approved or handed off. Prepare a new handoff after review.
+
+The browser preserves drafts on stale or lost mutation responses, disables
+further actions until refresh and reloads the stored outcome before continuing.
+Only the current freeze/approve/download action is visually dominant; the main
+action and checksum appear next to the next-action summary. No source-project
+link points to the incompatible legacy private viewer.
+
+This completes the bounded offline physical candidate association and handoff
+for an accepted full export. It does not build virtual mixed packages, validate
+native import/dependency semantics, authorize delivery or produce Verified.
+Target, compiler and dependency checks remain not-run. TEST dispatch, target
+identity/lock/drift, native expected outcomes and read-back require their owning
+delivery contract and a separately authorized environment/candidate.
+
+Tests: `test/solution-handoffs.test.mjs` covers shared identities, exact bundle,
+restart/deleted uploads, legacy isolation, request restrictions, stale revisions,
+discussion changes and Solution/release race protection.
+`npm run test:handoff:browser` exercises production UI, actual candidate download,
+stale drafts, lost approval response/recovery, archive invalidation, keyboard,
+390px reflow and 200% zoom. Ten synthetic Storybook states use these same
+production renderers.
+
 ## Explicit migration and backout
 
 There is no automatic exposure of old data. Before a legacy record is copied into the catalog, record its source, sensitivity, intended Solution, original uploader/native provenance and explicit admission decision. The authorized owner must classify and approve that particular record; filenames, matching solution codes, previous uploads and login do not imply consent. A classified record can then be re-uploaded through the confirmed shared route as a new immutable copy. Preserve the original private record and its evidence; never relabel the original owner's storage root or overwrite native authorship. No bulk migration or unclassified-record endpoint exists.

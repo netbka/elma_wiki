@@ -4,6 +4,7 @@ export const deliveryIsCurrent = (release, attempt) => !!attempt && release.appr
 export function releaseView(record, delivery = null) {
   const changes = compareSnapshots(record.source, record.baseline);
   const blockers = [];
+  if (record.associationStatus === 'stale') blockers.push('Решение или его рассмотрение изменилось: подготовьте передачу актуальной принятой версии');
   if (!record.source.code || record.baseline && record.baseline.code !== record.source.code) blockers.push('Код решения не определён или отличается от исходной версии');
   for (const [label, snapshot] of [['DEV', record.source], ['Базовая версия', record.baseline]]) {
     if (!snapshot) continue;
@@ -14,7 +15,7 @@ export function releaseView(record, delivery = null) {
   if (unreviewed.length) blockers.push(`Не приняты изменения: ${unreviewed.length}`);
   if (!record.baseline && !record.limitations) blockers.push('Нет базовой версии: укажите ограничения сравнения');
   if ([record.source, record.baseline].some(s => s?.report.diagnostics.length) && !record.limitations) blockers.push('Есть неинтерпретируемые фрагменты: укажите ограничения рецензии');
-  const approved = record.approval?.revision === record.revision;
+  const approved = record.approval?.revision === record.revision && record.associationStatus !== 'stale';
   const state = approved ? record.handoffAt ? 'handed-off' : 'prepared' : record.candidate ? 'candidate' : 'review';
   const { owner, ...publicRecord } = record;
   const latest = delivery?.latest || null;
