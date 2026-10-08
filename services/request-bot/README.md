@@ -121,7 +121,7 @@ The coordinator migrates SQLite schema 1 to **2** transactionally, preserving re
 
 On startup/every 15 minutes, expired read-only triage can be retried up to three claims. Expired code/publication work becomes `BLOCKED/worker_outcome_unknown`, not an automatic retry. Stale configuration cannot silently retarget work. The new worker's separate attempt/artifact journal and in-flight cancellation limits are documented in WORKER.md.
 
-An ambiguous send becomes `unknown`. Unknown issue creation is searched by bot author/unique marker, never re-POSTed blindly. Lookup covers 300 recent issues; absence is not proof of failure. Unknown VK sends/comments require inspection; `/status` creates a current card. Exactly-once delivery is not promised.
+An ambiguous send becomes `unknown`. Unknown issue creation is searched by bot author/unique marker, never re-POSTed blindly. Lookup covers at most 300 recent issues and checks all fetched pages for duplicate markers. Only a complete bounded listing with one valid matching issue can supply a receipt. Duplicate markers, malformed receipts or a full third page retain the unknown outcome for inspection; absence is not proof of failure. Unknown VK sends/comments require inspection; `/status` creates a current card. Exactly-once delivery is not promised.
 
 Operator-key `GET /ops/status` shows queue/outbox status without private conversation; `POST /ops/reconcile` runs recovery and configured CI observation once. Public `/healthz` returns only health and `liveDelivery:false`. There is no public arbitrary request-reader.
 

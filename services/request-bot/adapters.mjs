@@ -106,15 +106,20 @@ export class GitHubClient {
   }
   async recoverIssue(r, project) {
     // Read-only reconciliation. Absence is NOT proof a timed-out create did not happen.
+    let match = null;
     for (let page = 1; page <= 3; page++) {
       const issues = await this.call(`/repos/${project.repository}/issues?state=all&creator=${encodeURIComponent(this.botLogin)}&per_page=100&page=${page}`);
-      if (!Array.isArray(issues)) throw new Fault('invalid_issue_list', 502);
+      if (!Array.isArray(issues) || issues.length > 100) throw new Fault('invalid_issue_list', 502);
       const matches = issues.filter(x => !x.pull_request && x.user?.login === this.botLogin && x.body?.includes(issueMarker(r.id)));
-      if (matches.length > 1) throw new Fault('ambiguous_issue_receipt', 409);
-      if (matches.length === 1) return matches[0].number;
-      if (issues.length < 100) break;
+      if (matches.length > 1 || (match !== null && matches.length)) throw new Fault('ambiguous_issue_receipt', 409);
+      if (matches.length === 1) {
+        if (!Number.isSafeInteger(matches[0].number) || matches[0].number < 1) throw new Fault('invalid_issue_receipt', 502);
+        match = matches[0].number;
+      }
+      if (issues.length < 100) return match;
     }
-    return null;
+    // A full last page leaves unseen records; uniqueness has not been established.
+    throw new Fault('incomplete_issue_list', 502);
   }
   async verifyPr(r, project, result) {
     if (!Number.isSafeInteger(result?.number) || result.number < 1 || !/^[a-f0-9]{40}$/.test(result.headSha || '')) throw new Fault('invalid_pr_result', 400);
