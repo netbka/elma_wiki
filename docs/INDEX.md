@@ -26,6 +26,8 @@ Routing, not an always-read checklist.
 | Snapshot/storage | contracts/project-snapshots.md |
 | Shared authenticated Solution catalog and persistent actors | [contracts/shared-solutions.md](contracts/shared-solutions.md) |
 | Current Solution UI and deterministic next action | [workflows/solutions.md](workflows/solutions.md) |
+| Two-person uncoached acceptance and isolated synthetic test session | [workflows/uncoached-usability.md](workflows/uncoached-usability.md) |
+| Open issue evidence and outstanding acceptance gates | [audits/open-issues-2026-10-08.md](audits/open-issues-2026-10-08.md) |
 | Source geometry and read-only process/form reconstruction | [contracts/solution-visual.md](contracts/solution-visual.md) |
 | Portal-origin requests and shared worker queue, without VK | [contracts/portal-requests.md](contracts/portal-requests.md) |
 | Baseline-first engine, private storage and HTTP API | [contracts/managed-workspace.md](contracts/managed-workspace.md) |
