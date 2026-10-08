@@ -55,6 +55,8 @@ jobs:
       - if: runner.os == 'Linux'
         run: node tools/solution-visual-browser-check.mjs
       - if: runner.os == 'Linux'
+        run: npm run test:explanations:browser
+      - if: runner.os == 'Linux'
         run: node tools/vk-auth-browser-check.mjs
       - if: runner.os == 'Linux'
         run: npm run test:public:browser
@@ -86,6 +88,8 @@ jobs:
             qa/bug-reports-browser-evidence.json
             qa/solution-visual-*.png
             qa/solution-visual-browser-evidence.json
+            qa/solution-explanations-*.png
+            qa/solution-explanations-browser-evidence.json
             qa/solution-handoff-*.png
           retention-days: 7
           if-no-files-found: error

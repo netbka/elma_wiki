@@ -164,12 +164,17 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
           'Cache-Control': 'no-store', 'X-Artifact-SHA256': result.evidence.sha256, 'X-Solution-Revision': String(result.evidence.revision) });
         return res.end(result.bytes);
       }
-      const solutionMatch = /^\/api\/solutions(?:\/([^/]+)(?:\/(prepare|archive)|\/artifacts\/([^/]+)\/(preview|review|discussion|accept|original|visual))?)?$/.exec(pathname);
+      const solutionMatch = /^\/api\/solutions(?:\/([^/]+)(?:\/(prepare|archive|explanations)|\/artifacts\/([^/]+)\/(preview|review|discussion|accept|original|visual))?)?$/.exec(pathname);
       if (solutionMatch) {
         const [, id, operation, artifactId, artifactAction] = solutionMatch, action = operation || artifactAction;
         if (!session) return send(res, id ? 404 : 401, { error: id ? 'Решение не найдено' : 'Войдите в сервис' });
         const store = solutions.managed;
         if (id) await store.authorize(id, SOLUTION_CATALOG);
+        if (req.method === 'GET' && action === 'explanations') {
+          const keys = ['scope', 'artifactId', 'source', 'nodeId'];
+          if ([...url.searchParams.keys()].some(key => !keys.includes(key) || url.searchParams.getAll(key).length !== 1)) return send(res, 400, { error: 'Некорректный запрос объяснения' });
+          return send(res, 200, await store.explanation(id, SOLUTION_CATALOG, Object.fromEntries(url.searchParams)));
+        }
         if (req.method === 'GET' && !action) {
           if (id) return send(res, 200, await store.get(id, SOLUTION_CATALOG));
           const archived = url.searchParams.get('archived');
@@ -184,14 +189,14 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
           res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Disposition': 'attachment; filename="solution.e365"', 'Cache-Control': 'no-store' });
           return res.end(bytes);
         }
-        if (req.method !== 'POST' || (id && !['prepare', 'archive', 'accept', 'discussion'].includes(action))) return send(res, 405, { error: 'Метод не поддерживается' });
+        if (req.method !== 'POST' || (id && !['prepare', 'archive', 'accept', 'discussion', 'explanations'].includes(action))) return send(res, 405, { error: 'Метод не поддерживается' });
         if (req.headers['content-type']?.split(';')[0] !== 'application/json') return send(res, 415, { error: 'Требуется JSON' });
         const input = JSON.parse((await body(req, 256 * 1024)).toString('utf8'));
         if (!id) {
           if (input?.sharedConfirmed !== undefined && input.sharedConfirmed !== true) return send(res, 400, { error: 'Все решения доступны вошедшим пользователям сервиса' });
           delete input.sharedConfirmed;
         }
-        const result = !id ? await store.create(SOLUTION_CATALOG, input, session.user) : action === 'discussion' ? await store.comment(id, SOLUTION_CATALOG, artifactId, input, session.user)
+        const result = !id ? await store.create(SOLUTION_CATALOG, input, session.user) : action === 'explanations' ? await store.explanation(id, SOLUTION_CATALOG, input, session.user) : action === 'discussion' ? await store.comment(id, SOLUTION_CATALOG, artifactId, input, session.user)
           : action === 'prepare' ? await store.prepare(id, SOLUTION_CATALOG, input, session.user)
           : action === 'accept' ? await store.accept(id, SOLUTION_CATALOG, artifactId, input, session.user) : await store.setArchived(id, SOLUTION_CATALOG, input, session.user);
         return send(res, !id || action === 'prepare' ? 201 : 200, result);

@@ -18,6 +18,10 @@ classification:
     tooling: "Storybook, agent docs, build/test tooling"
     content: "public/product/documentation wording"
 capabilities:
+  solution-explanations:
+    owners: ["lib/solution-explanations.mjs", "lib/managed-workspace-store.mjs", "web/explanations/", "storybook/stories/SolutionExplanation.stories.js", "test/solution-explanations.test.mjs", "tools/solution-explanations-browser-check.mjs"]
+    routes: ["docs/contracts/solution-explanations.md", "docs/SOLUTION_FIRST_PRODUCT_PLAN.md", "docs/contracts/shared-solutions.md", "docs/STORYBOOK.md"]
+    boundaries: ["ui", "domain", "parser", "storage", "security", "tooling"]
   bug-reports:
     owners: ["lib/bug-reports.mjs", "lib/github-api.mjs", "web/feedback/", "web/bug-reports.html", "storybook/stories/BugReports.stories.js", "test/bug-reports.test.mjs", "tools/bug-reports-browser-check.mjs", "server.mjs"]
     routes: ["docs/contracts/bug-reports.md", "docs/SOLUTION_FIRST_PRODUCT_PLAN.md", "docs/contracts/shared-solutions.md"]

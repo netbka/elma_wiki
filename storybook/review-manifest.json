@@ -1,6 +1,15 @@
 {
   "version": 2,
   "capabilities": {
+    "solution-explanations": {
+      "entry": "Solution overview and contextual process/step preview",
+      "kind": "implemented",
+      "actions": ["explain", "inspect-source", "edit", "save", "compare-new-draft", "refresh-saved-state", "read-history"],
+      "renderer": ["web/explanations/render.js"],
+      "storyIds": ["solution-explanation--ready", "solution-explanation--draft", "solution-explanation--saved", "solution-explanation--stale", "solution-explanation--loading", "solution-explanation--error", "solution-explanation--conflict", "solution-explanation--historical", "solution-explanation--regenerated"],
+      "requiredVisibleStates": ["ready", "draft", "saved", "stale", "loading", "error", "conflict", "historical", "regenerated"],
+      "sources": ["docs/contracts/solution-explanations.md", "lib/solution-explanations.mjs", "test/solution-explanations.test.mjs", "tools/solution-explanations-browser-check.mjs"]
+    },
     "bug-reports": {
       "entry": "authenticated Wiki pages: side Bug icon",
       "kind": "implemented",

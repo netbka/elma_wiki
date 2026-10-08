@@ -31,6 +31,7 @@ Routing, not an always-read checklist.
 | Two-person uncoached acceptance and isolated synthetic test session | [workflows/uncoached-usability.md](workflows/uncoached-usability.md) |
 | Open issue evidence and outstanding acceptance gates | [audits/open-issues-2026-10-08.md](audits/open-issues-2026-10-08.md) |
 | Source geometry and read-only process/form reconstruction | [contracts/solution-visual.md](contracts/solution-visual.md) |
+| Explain Solution/process/step, edit/save and retain source-bound history | [contracts/solution-explanations.md](contracts/solution-explanations.md) |
 | Portal-origin requests and shared worker queue, without VK | [contracts/portal-requests.md](contracts/portal-requests.md) |
 | Baseline-first engine, private storage and HTTP API | [contracts/managed-workspace.md](contracts/managed-workspace.md) |
 | Managed workspace UI and shared Storybook lifecycle | [workflows/managed-workspace.md](workflows/managed-workspace.md) |

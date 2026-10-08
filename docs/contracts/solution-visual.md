@@ -2,6 +2,11 @@
 
 P5 first reconstruction slice: #51 / #58. This is a contextual, read-only capability inside Change review, not a top-level product destination or an ELMA runtime emulator.
 
+The same preview also opens from accepted process objects in Solution. Contextual
+process/step explanations are separate attributed documentation; generation and
+Save never execute a process or accept a Change. Their source/dependency/history
+rules are in [solution-explanations.md](solution-explanations.md).
+
 `GET /api/solutions/:id/artifacts/:artifactId/visual` uses the shared catalog's existing authenticated authorization and immutable original lookup. Legacy/private project IDs and artifacts from another Solution never resolve here. Every request rechecks captured bytes before parsing with `parseProject`; no new source storage or parser is introduced. Responses contain a bounded declarative projection, not imported scripts, HTML, URLs or executable actions.
 
 The first supported native process shape is `process.items/lanes/transitions`, including dictionary identities, x/y/width/height, explicit transition path points and labels. No automatic layout is inferred. Invalid or missing geometry, unknown node types, duplicate identities and unresolved edges remain explicit unsupported evidence. Graph browsing follows an explicit source/target relation only; conditions, permissions, scripts and business feasibility remain unknown.

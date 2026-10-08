@@ -15,6 +15,15 @@ Signed-in home and the verified VK link open `/solutions`. Empty state offers on
 5. Changes shows pending review and accepted history; Solution shows current objects. A Change contains attributed discussion/findings, before/after source context and supported contextual code. Process/form preview exposes the captured scenario catalog, bounded Wiki path checks and step-linked comments; native behavior remains unknown.
 6. Archive is a secondary disclosed action. Archived state recommends reopening and retains history/originals.
 
+To understand the accepted configuration, choose **Объяснить решение** in Overview
+or Solution. Open an accepted process from its object row, or a captured process
+in Change review, then choose **Объяснить этот процесс/шаг**. Inspect sources,
+edit the draft and **Сохранить объяснение** beside that object. New drafts are
+compared before replacement. Source changes request review; removed-step text
+remains in the Solution's saved explanation catalogue. This documentation does
+not accept a Change or establish native ELMA behavior. See the
+[explanation contract](../contracts/solution-explanations.md).
+
 ## Attention and recovery
 
 `solutionNextAction` is a pure projection: error/stale recovery and archive precede normal work; no source requests an initial export; fresh conflict/unknown evidence precedes other pending review; needs-changes requests a corrected export; otherwise review the first fresh change. Only stale proposals request a fresh comparison. Accepted state opens Solution; ready state adds a change. TEST-awaiting-verification/verified projections require a supplied supported delivery capability and are not inferred from review acceptance.

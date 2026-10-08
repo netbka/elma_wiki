@@ -1,4 +1,5 @@
 import { relatedForm, checkScenarioStep } from './model.js';
+import { mountExplanation } from '../explanations/render.js';
 const el=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n;};
 const svg=(tag,attrs={})=>{const n=document.createElementNS('http://www.w3.org/2000/svg',tag);for(const [k,v] of Object.entries(attrs))n.setAttribute(k,String(v));return n;};
 export function mountSnapshotVisual(model={},actions={}) {
@@ -34,6 +35,16 @@ export function mountSnapshotVisual(model={},actions={}) {
     tree.children.forEach(child=>displayForm(child,box,simulation,values));parent.append(box);
   };
   const catalog=el('div'), content=el('div');root.append(catalog,content);
+  const explanationPanels=new Map();
+  const explanation=(target,label,openSource)=>{
+    const key=JSON.stringify(target);
+    if(!explanationPanels.has(key)){
+      const entry={openSource};
+      entry.root=mountExplanation({target,label}, {...actions.explanations,openSource:reference=>entry.openSource(reference)});
+      explanationPanels.set(key,entry);
+    }
+    const entry=explanationPanels.get(key);entry.openSource=openSource;return entry.root;
+  };
   const show=process=>{
     content.replaceChildren(el('h3',process.name));
     let simulation=!!model.scenario, current, path=[], values=structuredClone(model.scenario?.values||{});
@@ -50,6 +61,7 @@ export function mountSnapshotVisual(model={},actions={}) {
         if(followTransition)path.push(node.name);else path=[node.name];
       }refresh();
       panel.replaceChildren(el('h3',node.name),source(node.pointer));
+      if(actions.explanations)panel.append(explanation({scope:'step',artifactId:model.artifactId,source:process.source,nodeId:node.id},'Объяснить этот шаг',openSource));
       diagram.querySelectorAll('[data-node]').forEach(n=>n.setAttribute('stroke',n.dataset.node===node.id?'#087451':'#536660'));
       const relation=relatedForm(process,node.id);
       values[node.id]??={};
@@ -67,6 +79,11 @@ export function mountSnapshotVisual(model={},actions={}) {
       if(!branches.length)panel.append(el('p','Исходящих переходов в экспорте нет.'));
       if(node.anchor){const detail=el('details');detail.append(el('summary','Источник для замечания'),el('pre',JSON.stringify(node.anchor,null,2)));panel.append(detail);actions.selectAnchor?.(node.anchor);}
     };
+    const openSource=reference=>{
+      const matches=process.nodes.filter(node=>node.id===reference.nodeId);
+      if(matches.length===1){select(matches[0]);const heading=panel.querySelector('h3');heading.tabIndex=-1;heading.focus();}
+    };
+    if(actions.explanations)content.append(explanation({scope:'process',artifactId:model.artifactId,source:process.source},'Объяснить этот процесс',openSource));
     for(const lane of process.lanes.filter(l=>l.position)){const p=lane.position;diagram.append(svg('rect',{...p,fill:'#edf3f0',stroke:'#bacbc4'}));const label=svg('text',{x:p.x+8,y:p.y+18,'font-size':14});label.textContent=lane.name;diagram.append(label);}
     for(const edge of process.edges.filter(e=>e.supported)){diagram.append(svg('polyline',{points:edge.points.map(p=>`${p.x},${p.y}`).join(' '),fill:'none',stroke:'#667c72','stroke-width':2}));const p=edge.points[Math.floor(edge.points.length/2)],label=svg('text',{x:p.x+4,y:p.y-4,'font-size':12});label.textContent=edge.name;diagram.append(label);
       const end=edge.points.at(-1),before=edge.points.at(-2),angle=Math.atan2(end.y-before.y,end.x-before.x),back={x:end.x-9*Math.cos(angle),y:end.y-9*Math.sin(angle)};
