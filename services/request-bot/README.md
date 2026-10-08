@@ -30,6 +30,8 @@ The worker implements bounded model analysis/file changes, private SHA-256 artif
 
 ## Configure an authorized coordinator pilot
 
+For the bounded #19 preparation package, use [PILOT.md](PILOT.md) and `pilot/*.example.json`. These prepare a portal-only, single-path synthetic task with separate credentials and disabled publication. Actual private bindings and execution readiness remain operator inputs.
+
 Copy `config.example.json` into a private directory outside Git; replace the placeholder identities. Keep DB/WAL/SHM and backups out of web roots and network filesystems. Protect directories/NTFS ACLs, especially on Windows. The coordinator binds to **127.0.0.1**. Remote access requires a controlled TLS reverse proxy, firewall/allowlist and rate limits, not plaintext bearer tokens.
 
 Provide the named secrets through your secret manager. Agent, publisher, ingress, operator and webhook keys must be independent random values of at least 32 characters. Configuration holds names, not secret values. Coordinator GitHub access requires its App/bot identity with issues read/write and pull requests read; optional CI observation also needs Actions read, but no contents-write or administration. The publisher uses a separate key and GitHub credential. The new agent has a dedicated **read-only** GitHub credential; it never receives the publisher key, bot token, coordinator database, Docker socket or Target credentials.

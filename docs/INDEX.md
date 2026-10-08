@@ -47,6 +47,7 @@ Routing, not an always-read checklist.
 | Storybook investigation evidence | plans/workflow-storybook-investigation.md |
 | E2E implementation package | plans/source-target-e2e.md |
 | VK Teams request coordination (implemented service; no live agent or Dev2) | [contracts/request-bot.md](contracts/request-bot.md), [service runbook](../services/request-bot/README.md) |
+| Bounded #19 provider/repository pilot preparation (disabled; private bindings unresolved) | [pilot handoff](../services/request-bot/PILOT.md) |
 | VK Teams request-to-Dev2 automation (proposed) | plans/vk-teams-agent-delivery.md |
 | VK Teams user conversation (proposed) | workflows/vk-teams-agent-delivery.md |
 
