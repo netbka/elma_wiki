@@ -49,7 +49,7 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
     const a = link(label, workspaceUrl(null, mode === 'list' ? null : mode));
     if (!state && view === mode) a.setAttribute('aria-current', 'page'); nav.append(a);
   }
-  const secondary = el('details'); secondary.append(el('summary', 'Прежние личные файлы'), link('Открыть личные файлы', '/dashboard'));
+  const secondary = el('details'); secondary.append(el('summary', 'Прежние загрузки'), link('Открыть загруженные файлы', '/dashboard'));
   nav.append(secondary); root.append(nav, content); content.append(heading, notice, error);
   if (actions.logout) button('Выйти', () => run(actions.logout), nav);
   if (synthetic) content.append(el('p', 'Учебное решение. Данные синтетические; действия не изменяют ELMA.', 'managed-note'));
@@ -58,7 +58,7 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
   if (model.error && !state && !rows.length) { content.append(link('Повторить загрузку', workspaceUrl(null, view === 'archived' ? view : null), true)); return root; }
 
   if (!state && !['create'].includes(view)) {
-    content.append(el('p', view === 'archived' ? 'История и исходные файлы сохранены.' : model.shared ? 'Решения доступны всем вошедшим пользователям сервиса.' : 'Прежние личные решения доступны только вам.'));
+    content.append(el('p', view === 'archived' ? 'История и исходные файлы сохранены.' : 'Решения доступны всем вошедшим пользователям сервиса.'));
     if (!rows.length) {
       content.append(el('h2', view === 'archived' ? 'В архиве пока пусто' : 'Решений пока нет'));
     }
@@ -157,7 +157,7 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
     const scope = check(form, partial ? 'Это частичный экспорт изменений' : 'Это полный экспорт решения'); scope.required = true;
     const sameSource = state ? check(form, 'Экспорт относится к этому решению и тому же источнику ELMA') : null;
     if (sameSource) sameSource.required = true;
-    if (model.shared) { const shared = check(form, 'Файл доступен всем пользователям сервиса'); shared.required = true; }
+    content.append(el('p', 'Загруженные файлы доступны всем вошедшим пользователям сервиса.'));
     form.append(el('p', 'Загрузка сохраняет исходный файл. Она ничего не устанавливает в ELMA.', 'managed-muted'));
     const submit = el('button', view === 'create' ? 'Добавить решение' : 'Сохранить и рассмотреть'); submit.type = 'submit'; form.append(submit);
     form.onsubmit = event => { event.preventDefault(); if (!form.reportValidity()) return;
@@ -166,9 +166,9 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
       run(async () => {
         captured ||= await actions.upload(selected);
         evidence.replaceChildren(el('span', 'Исходный файл сохранён.'));
-        if (!model.shared) evidence.append(link('Открыть личный файл', '/p/' + captured.id + '/'));
+        if (!model.shared) evidence.append(link('Открыть загруженный файл', '/p/' + captured.id + '/'));
         const snapshot = { projectId: captured.id, snapshotId: captured.currentSnapshotId, scope: partial ? 'partial' : 'full', scopeConfirmed: true };
-        if (view === 'create') await actions.create({ name: name.value, baselineOwner: owner.value, snapshot, ...(model.shared ? { sharedConfirmed: true } : {}) });
+        if (view === 'create') await actions.create({ name: name.value, baselineOwner: owner.value, snapshot });
         else await actions.prepare({ kind: partial ? 'change' : 'reconciliation', snapshot, expectedRevision: state.revision, sameSourceConfirmed: true,
           ...(partial ? { team: owner.value, taskRef: task.value } : { baselineOwner: owner.value }) });
       });

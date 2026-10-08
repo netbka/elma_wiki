@@ -26,7 +26,7 @@ For the current MVP, authentication establishes **identity, not authorization ti
 - Actor identity and ELMA-native author/publisher evidence are different facts and must never be silently conflated.
 - Anonymous access does not gain private-system mutation rights.
 
-Existing owner-scoped storage/API behavior is therefore legacy implementation behavior that conflicts with this target. Changing it requires an explicit migration and security review; do not merely bypass owner checks piecemeal.
+Owner clarification on 2026-10-08: there is no private product-content mode, including for previously uploaded configurations. All signed-in users share historical content and new Solutions. The service uses one shared-access policy for legacy project, portal, managed workspace and release stores; original ownership fields remain provenance, not visibility rules. Existing bytes and IDs are preserved in place. Separate storage roots and explicit full/partial declarations continue to protect lifecycle correctness. New uploads need no sharing checkbox. Public educational pages remain separate from authenticated configuration content; operational credentials/bridge controls retain their execution contract.
 
 Future authorization is deliberately deferred. The data model should keep stable actor IDs so permissions can be added later without rewriting authorship history.
 

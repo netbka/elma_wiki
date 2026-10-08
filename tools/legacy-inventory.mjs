@@ -7,7 +7,7 @@ const reference = source => source && ['connectionId', 'solutionRef'].every(k =>
   typeof source[k] === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$/.test(source[k]))
   ? { connectionId: source.connectionId, solutionRef: source.solutionRef } : null;
 
-// Private, read-only classification input. It grants no shared admission.
+// Read-only historical metadata inventory. It performs no runtime change.
 export async function inventoryLegacyRecords(directory) {
   const root = path.resolve(directory), stat = await fs.lstat(root);
   if (!stat.isDirectory() || stat.isSymbolicLink()) throw Error('Select an existing, non-symlink private storage directory.');
@@ -24,8 +24,7 @@ export async function inventoryLegacyRecords(directory) {
       uploadedBy: uploadedBy && typeof uploadedBy.id === 'string' ? { id: uploadedBy.id, provider: uploadedBy.provider || 'unknown' } : null,
       snapshots: snapshots.map(s => ({ id: s.id, checksum: s.checksum || null, source: reference(s.source),
         sourceStatus: reference(s.source) ? 'reference' : s.source ? 'unknown' : 'unavailable' })),
-      classification: { sensitivity: 'unknown', intendedSolution: null, decision: 'unreviewed', approvedBy: null },
-      sharedAdmission: false });
+      lifecycleAssociation: { intendedSolution: null, copied: false } });
   };
   for (const [folder, filename, kind] of [['projects', 'project.json', 'project'], ['managed-workspaces', 'workspace.json', 'managed-workspace']]) {
     const target = path.join(root, folder);
@@ -42,7 +41,7 @@ export async function inventoryLegacyRecords(directory) {
         if (id !== entry.name) throw Error('Legacy identity differs from directory.');
         record(kind, id, data.owner, metadataSha256, kind === 'project' ? data.snapshots || [{ id, checksum: data.checksum, source: data.source }] :
           (data.state.artifacts || []).map(a => ({ id: a.id, checksum: a.checksum, source: a.snapshot?.source })), data.uploadedBy || data.createdBy || null);
-      } catch { unreadableRecords.push({ kind, id: entry.name, reason: 'Metadata unavailable or invalid; keep private and inspect locally.' }); }
+      } catch { unreadableRecords.push({ kind, id: entry.name, reason: 'Metadata unavailable or invalid; inspect locally before use.' }); }
     }
   }
   try {
@@ -50,13 +49,13 @@ export async function inventoryLegacyRecords(directory) {
     if (!Array.isArray(data)) throw Error('Invalid legacy portal registry.');
     for (const row of data) {
       try { record('portal', row.id, row.owner, metadataSha256); }
-      catch { unreadableRecords.push({ kind: 'portal', id: uuid.test(row?.id) ? row.id : null, reason: 'Invalid portal identity; keep private.' }); }
+      catch { unreadableRecords.push({ kind: 'portal', id: uuid.test(row?.id) ? row.id : null, reason: 'Invalid portal identity; inspect locally before use.' }); }
     }
   } catch (e) { if (e.code !== 'ENOENT') throw e; }
   records.sort((a, b) => (a.kind + a.id).localeCompare(b.kind + b.id));
-  return { schema: 1, inventoriedAt: new Date().toISOString(), storageRoot: root, scope: 'selected-local-directory-only',
+  return { schema: 2, inventoriedAt: new Date().toISOString(), storageRoot: root, scope: 'selected-local-directory-only', contentAccessPolicy: 'shared-authenticated',
     deployedStorageVerified: false, migrationExecuted: false, records, unreadableRecords,
-    nextStep: 'Owner classifies each record and approves retention or a separate shared copy. No inferred consent or bulk admission.' };
+    nextStep: 'Verify shared authenticated access on the intended service after an authorized rollout. Preserve original bytes, IDs and provenance; do not infer full Solution scope.' };
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
@@ -65,6 +64,6 @@ if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.ar
   await fs.mkdir('.local', { recursive: true, mode: 0o700 });
   const output = path.resolve('.local', 'legacy-inventory-' + crypto.randomUUID() + '.local.json');
   await fs.writeFile(output, JSON.stringify(result, null, 2), { mode: 0o600, flag: 'wx' });
-  console.log(`${result.records.length} legacy records; ${result.unreadableRecords.length} require local inspection. All remain private.`);
-  console.log('Private classification input: ' + output);
+  console.log(`${result.records.length} legacy records; ${result.unreadableRecords.length} require local inspection. No runtime changes performed.`);
+  console.log('Local inventory: ' + output);
 }

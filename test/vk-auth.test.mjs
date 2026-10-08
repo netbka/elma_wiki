@@ -41,7 +41,7 @@ test('VK login needs no mail, binds recipient, consumes code and isolates provid
   assert.equal((await (await a.get('/api/session',again.headers.getSetCookie()[0].split(';')[0])).json()).user.id,session.user.id);
   a.advance(AUTH_TTL); assert.equal((await (await a.get('/api/session',again.headers.getSetCookie()[0].split(';')[0])).json()).user,null);
 });
-test('VK authenticated projects remain private between two verified users',async t=>{
+test('VK authenticated users share projects and original bytes with distinct upload attribution',async t=>{
   const a=await instance(t);
   async function login(user) {
     await a.post('/auth/vk/request',{login:user});
@@ -52,8 +52,11 @@ test('VK authenticated projects remain private between two verified users',async
   const uploaded=await fetch(a.base+'/api/projects?filename=synthetic.e365',{method:'POST',headers:{'Content-Type':'application/octet-stream','X-Elma-Wiki-Request':'1',cookie:first},body:await fixture()});
   assert.equal(uploaded.status,201); const project=await uploaded.json();
   assert.equal((await a.get('/api/projects/'+project.id+'/original',first)).status,200);
-  assert.equal((await a.get('/api/projects/'+project.id+'/original',second)).status,404);
-  assert.deepEqual(await (await a.get('/api/projects',second)).json(),[]);
+  const original = await a.get('/api/projects/'+project.id+'/original',second);
+  assert.equal(original.status,200);
+  assert.deepEqual(Buffer.from(await original.arrayBuffer()),await fixture());
+  assert.equal((await (await a.get('/api/projects',second)).json())[0].id,project.id);
+  assert.equal(project.uploadedBy.login,'first@example.org');
 });
 test('VK expiry, five guesses, replacement, rate limit, CSRF and safe delivery errors',async t=>{
   const a=await instance(t); await a.post('/auth/vk/request',{login:'person'}); const old=a.messages[0].key;

@@ -2,16 +2,16 @@
 
 Authority: #52 / SOLUTION_FIRST_PRODUCT_PLAN.md. P2-P3: #56. Identity/privacy: contracts/shared-solutions.md.
 
-Signed-in home and the verified VK link open `/solutions`. Empty state offers one Add solution action. A Solution stays in Overview / Changes / Solution context; Learn is secondary. Legacy private upload/workspace/release routes are compatibility capabilities. Delivery remains hidden until P6 supplies an accepted candidate through the existing delivery contract.
+Signed-in home and the verified VK link open `/solutions`. Empty state offers one Add solution action. A Solution stays in Overview / Changes / Solution context; Learn is secondary. Legacy upload/workspace/release routes shared by signed-in users are compatibility capabilities. Delivery remains hidden until P6 supplies an accepted candidate through the existing delivery contract.
 
-`web/managed/render.js` remains the single production/Storybook renderer. The controller selects the shared `/api/solutions` root or the preserved private compatibility API, without crossing storage principals. Synthetic fixtures never use customer files or contact ELMA.
+`web/managed/render.js` remains the single production/Storybook renderer. The controller selects the shared `/api/solutions` root or the shared historical-content compatibility API, without crossing storage principals. Synthetic fixtures never use customer files or contact ELMA.
 
 ## Journey
 
-1. Add solution: name it, identify responsibility for its starting version and upload a full .e365 export. Explicitly confirm full scope and shared admission. Responsibility is declared evidence, not a user role or inferred native author.
+1. Add solution: name it, identify responsibility for its starting version and upload a full .e365 export. Explicitly confirm full scope; all uploads are shared automatically. Responsibility is declared evidence, not a user role or inferred native author.
 2. Overview: current version, attention and one recommended action. Add change / Update version are subordinate when not recommended. Source/history/archiving are disclosed when needed.
-3. Add change: describe it, identify responsibility, upload a partial export and confirm scope, same Solution/Source and shared admission. Missing objects never mean deletion in a partial export.
-4. Review: examine changed objects/responsibility, confirm each relevant boundary or choose each conflict version, then Accept change. Known process parts show their previous declared team, additions, boundary edits and cross-team conflicts; download the private responsibility report when sharing this review. Unknown parts preserve whole-object review. A conflict decision still selects the whole captured process file. A full update advances the current version. Neither decision installs anything in ELMA.
+3. Add change: describe it, identify responsibility, upload a partial export and confirm scope and same Solution/Source. Missing objects never mean deletion in a partial export.
+4. Review: examine changed objects/responsibility, confirm each relevant boundary or choose each conflict version, then Accept change. Known process parts show their previous declared team, additions, boundary edits and cross-team conflicts; download the responsibility report when sharing this review. Unknown parts preserve whole-object review. A conflict decision still selects the whole captured process file. A full update advances the current version. Neither decision installs anything in ELMA.
 5. Changes shows pending review and accepted history; Solution shows current objects. A Change contains attributed discussion/findings, before/after source context and supported contextual code. Process/form preview exposes the captured scenario catalog, bounded Wiki path checks and step-linked comments; native behavior remains unknown.
 6. Archive is a secondary disclosed action. Archived state recommends reopening and retains history/originals.
 

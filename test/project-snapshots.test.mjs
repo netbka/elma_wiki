@@ -111,7 +111,7 @@ test('release pinning uses selected bytes; old workspace evidence cannot follow 
   assert.deepEqual(await fs.readFile(path.join(directory, 'releases', release.id, 'source.e365')), second);
 });
 
-test('snapshot HTTP routes enforce owner, JSON, CSRF and selection revision; Source import is not public', async t => {
+test('snapshot HTTP routes share authenticated content and enforce JSON, CSRF and selection revision', async t => {
   const { directory, projects } = await setup(t), server = createServer({ directory, allowLocal: true, sendEmail: undefined, sendVk: undefined });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   t.after(() => new Promise(resolve => server.close(resolve)));
@@ -121,8 +121,8 @@ test('snapshot HTTP routes enforce owner, JSON, CSRF and selection revision; Sou
   const bytes = await fixture(), p = await projects.createSource('local', bytes, source), foreign = await projects.create('foreign', bytes);
   const base = `/api/projects/${p.id}/snapshots`, select = `${base}/${p.id}/select`, jsonHeaders = { ...headers, cookie, 'Content-Type': 'application/json' };
   for (const route of [base, `${base}/${p.id}/original`, `${base}/${p.id}/data`]) assert.equal((await request(route)).status, 404);
-  for (const route of [`/api/projects/${foreign.id}/snapshots`, `/api/projects/${foreign.id}/snapshots/${foreign.id}/inventory`]) assert.equal((await request(route, { headers: { cookie } })).status, 404);
-  assert.equal((await request(`/api/projects/${foreign.id}/snapshots/${foreign.id}/select`, { method: 'POST', headers: jsonHeaders, body: '{}' })).status, 404);
+  for (const route of [`/api/projects/${foreign.id}/snapshots`, `/api/projects/${foreign.id}/snapshots/${foreign.id}/inventory`]) assert.equal((await request(route, { headers: { cookie } })).status, 200);
+  assert.equal((await request(`/api/projects/${foreign.id}/snapshots/${foreign.id}/select`, { method: 'POST', headers: jsonHeaders, body: '{}' })).status, 409);
   const list = await (await request(base, { headers: { cookie } })).json();
   assert.equal(list.currentSnapshotId, p.id); assert.equal(JSON.stringify(list).includes('owner'), false);
   for (const kind of ['data', 'report', 'inventory', 'original']) assert.equal((await request(`${base}/${p.id}/${kind}`, { headers: { cookie } })).status, 200);

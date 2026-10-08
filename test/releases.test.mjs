@@ -145,7 +145,7 @@ test('same expanded content is a no-op; different solution identity never passes
   assert.ok(mismatch.blockers.some(reason => reason.includes('Код решения')));
   await assert.rejects(releases.change(mismatch.id, 'alice', { revision: 1, action: 'freeze' }), /замечания/);
 });
-test('release HTTP routes enforce auth, ownership, CSRF, JSON, version binding and bundle method', async t => {
+test('release HTTP routes share authenticated records and enforce CSRF, JSON, version binding and bundle method', async t => {
   const { directory, projects, releases } = await setup(t);
   const server = createServer({ directory, allowLocal: true, sendEmail: undefined, sendVk: undefined });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
@@ -155,8 +155,11 @@ test('release HTTP routes enforce auth, ownership, CSRF, JSON, version binding a
   assert.equal((await request('/api/releases')).status, 401);
   assert.equal((await request('/releases', { redirect: 'manual' })).status, 302);
   const { release: foreign } = await createReview(projects, releases, 'foreign');
-  for (const route of [`/api/releases/${foreign.id}`, `/api/releases/${foreign.id}/preview?side=source&path=package.json`]) assert.equal((await request(route, { headers: { cookie } })).status, 404);
-  for (const action of ['change', 'bundle']) assert.equal((await request(`/api/releases/${foreign.id}/${action}`, { method: 'POST', headers: { ...headers, cookie, 'Content-Type': 'application/json' }, body: '{}' })).status, 404);
+  for (const route of [`/api/releases/${foreign.id}`, `/api/releases/${foreign.id}/preview?side=source&path=package.json`]) {
+    assert.equal((await request(route)).status,404);
+    assert.equal((await request(route, { headers: { cookie } })).status,200);
+  }
+  for (const action of ['change', 'bundle']) assert.equal((await request(`/api/releases/${foreign.id}/${action}`, { method: 'POST', headers: { ...headers, cookie, 'Content-Type': 'application/json' }, body: '{}' })).status,409);
   const { source, baseline } = await createReview(projects, releases, 'local');
   const input = { ...details, sourceProjectId: source.id, baselineProjectId: baseline.id };
   const post = body => request('/api/releases', { method: 'POST', headers: { ...headers, cookie, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
