@@ -23,6 +23,14 @@ message or connecting to VK Teams. They prove no live identity integration.
 Do not use customer files. Stop with Ctrl+C; the synthetic session is retained.
 No production service or ELMA Target is used or enabled.
 
+The session records the Git revision and whether the tested checkout has local
+changes. Start the acceptance pass from a clean committed checkout. Missing Git
+Keep that checkout unchanged while participants use it.
+metadata or a dirty checkout remains explicit and cannot produce a complete
+report. Keep each pass bound to its own session directory; a fix requires a new
+pass against the new revision. Previously created sessions without this source
+record remain useful notes but cannot establish version-bound acceptance.
+
 Give participants only their own link, the three files with their stated scope
 and the tasks below. Do not give them the observer section or repository docs.
 Start each participant at the Solutions list; the catalog is intentionally
@@ -63,3 +71,22 @@ instead of personal details in any public summary. Record an independent
 integrated visual review separately from automated checks. After both user
 passes and the visual gate, the owner walks the product and records accepted
 or deferred gaps for #38. Availability of people is not completion of a test.
+
+For each numbered task in the observation file record `outcome` (`pass`, `fail`
+or `blocked`), `coachingGiven` (boolean), and `actions` (the actual first actions
+and words). Each participant also records `performed`, `coachingGiven`, overall
+`outcome`, and the four observation arrays. Do not erase findings to obtain a
+passing report; fix material defects and repeat the affected human pass.
+The independent visual record contains `performed`, `independent`, `outcome`,
+`sourceRevision` and `materialFindings`; its reviewer must meet #41's independence
+requirement. Keep the generated source/session identifiers unchanged.
+
+```powershell
+node tools/usability-report.mjs <session-directory>
+```
+
+The read-only report omits login links, identities and observation text. Exit 1
+means missing, coached, failing, mismatched or unversioned evidence. Exit 0 means
+the observer declarations are complete enough for an owner walkthrough; it does
+not certify that the review happened, accept the product, close issues or grant
+deployment permission. Owner acceptance stays separate in #38.

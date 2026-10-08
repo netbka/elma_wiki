@@ -32,6 +32,11 @@ test('human session isolates originals, starts empty, retains distinct actors an
   assert.equal((await get('/api/solutions/' + solution.id, b)).status, 200);
   assert.deepEqual(await fs.readFile(path.join(directory, '01-full.e365')), bytes);
   const observations = JSON.parse(await fs.readFile(path.join(directory, 'observations.local.json'), 'utf8'));
+  assert.match(session.source.revision, /^[a-f0-9]{40}$/);
+  assert.equal(typeof session.source.dirty, 'boolean');
+  assert.deepEqual(observations.source, session.source);
+  assert.equal(observations.sessionStartedAt, session.startedAt);
+  assert.equal(Object.keys(observations.participants[0].tasks).length, 10);
   assert.ok(observations.participants.every(p => !p.performed && p.outcome === null));
   assert.equal(observations.ownerDecision, null); assert.equal(observations.independentVisualReview, null);
   await assert.rejects(startUsabilitySession(directory), { code: 'EEXIST' });
