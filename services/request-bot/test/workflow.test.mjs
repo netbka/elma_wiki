@@ -170,6 +170,43 @@ test('stale approval card is never sent after cancellation', async t => {
   while (await dispatchOne(f.core, a));
   assert.equal(cards.some(x => x.buttons), false);
 });
+test('issue recovery checks later pages and retains unknown outcomes for ambiguous or incomplete reads', async t => {
+  const f = setup(t), id = f.start();
+  f.core.claimOutbox(); f.advance(60001); f.core.reconcile();
+  const issue = number => ({ number, user: { login: 'delivery-bot' }, body: `<!-- request-bot:${id} -->` });
+  const full = Array.from({ length: 100 }, (_, i) => ({ number: i + 1000, user: { login: 'delivery-bot' }, body: 'Other request' }));
+  let pages, reads;
+  const gh = new GitHubClient({ token: () => 'synthetic', botLogin: 'delivery-bot' }, async (url, options) => {
+    assert.equal(options.method, 'GET');
+    const page = Number(new URL(url).searchParams.get('page')); reads.push(page);
+    return new Response(JSON.stringify(pages[page - 1]));
+  });
+  const recover = () => gh.recoverIssue(f.s.request(id), f.cfg.projects.wiki);
+  pages = [[issue(77), ...full.slice(1)], [issue(78)]]; reads = [];
+  await assert.rejects(recover(), e => e.code === 'ambiguous_issue_receipt');
+  assert.deepEqual(reads, [1, 2]);
+  await reconcileIssues(f.core, gh);
+  assert.equal(f.s.request(id).issueNumber, undefined);
+  assert.equal(f.s.get("SELECT status FROM outbox WHERE kind='github_issue'").status, 'unknown');
+  for (const first of [full, [issue(77), ...full.slice(1)]]) {
+    pages = [first, full, full]; reads = [];
+    await assert.rejects(recover(), e => e.code === 'incomplete_issue_list');
+    assert.deepEqual(reads, [1, 2, 3]);
+  }
+  pages = [[issue(0)]]; reads = [];
+  await assert.rejects(recover(), e => e.code === 'invalid_issue_receipt');
+  pages = [[...full, issue(77)]]; reads = [];
+  await assert.rejects(recover(), e => e.code === 'invalid_issue_list');
+  pages = [[issue(77), ...full.slice(1)], []]; reads = [];
+  assert.equal(await recover(), 77);
+  assert.deepEqual(reads, [1, 2]);
+  await reconcileIssues(f.core, gh);
+  assert.equal(f.s.request(id).issueNumber, 77);
+  assert.equal(f.s.get("SELECT status FROM outbox WHERE kind='github_issue'").status, 'sent');
+  pages = [full, []]; reads = [];
+  assert.equal(await recover(), null);
+});
+
 test('VK transport uses explicit base URL, bounded request, and does not leak token in errors', async () => {
   let seen;
   const vk = new VkClient({ apiBase: 'https://chat.example.test/bot/v1', token: () => 'private-token' }, async (url, options) => { seen = { url, options }; return new Response(JSON.stringify({ ok: true, msgId: '11' })); });
