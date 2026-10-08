@@ -3,11 +3,13 @@ on:
   pull_request:
     paths:
       - 'services/request-bot/**'
+      - 'lib/github-api.mjs'
       - '.github/workflows/request-bot.yml'
   push:
     branches: [main]
     paths:
       - 'services/request-bot/**'
+      - 'lib/github-api.mjs'
       - '.github/workflows/request-bot.yml'
 permissions:
   contents: read
@@ -34,7 +36,7 @@ jobs:
         run: npm run demo
       - name: Capture exact tracked contract sources
         if: always() && runner.os == 'Linux'
-        run: git archive --format=zip --output=request-bot-source.zip HEAD services/request-bot docs/contracts/request-bot.md .agent/capabilities.yaml AGENTS.md
+        run: git archive --format=zip --output=request-bot-source.zip HEAD services/request-bot lib/github-api.mjs docs/contracts/request-bot.md .agent/capabilities.yaml AGENTS.md
       - name: Retain reproducible contract source
         if: always() && runner.os == 'Linux'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

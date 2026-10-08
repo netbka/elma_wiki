@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { Fault, text } from './core.mjs';
+import { githubRequest } from '../../lib/github-api.mjs';
 
 export function secretEqual(a, b) {
   if (typeof a !== 'string' || typeof b !== 'string' || !a || !b) return false;
@@ -81,12 +82,7 @@ export class GitHubClient {
   constructor({ token, botLogin }, fetchImpl = fetch) { this.token = token; this.botLogin = botLogin; this.fetch = fetchImpl; }
   async call(path, method = 'GET', body) {
     try {
-      const response = await this.fetch(`https://api.github.com${path}`, { method, redirect: 'error', signal: AbortSignal.timeout(15000),
-        headers: { Accept: 'application/vnd.github+json', Authorization: `Bearer ${text(this.token(), 2000)}`, 'X-GitHub-Api-Version': '2022-11-28', 'User-Agent': 'elma-request-bot', ...(body ? { 'Content-Type': 'application/json' } : {}) },
-        ...(body ? { body: JSON.stringify(body) } : {}) });
-      const result = await jsonResponse(response);
-      if (!response.ok) throw new Fault('github_request_failed', 502);
-      return result;
+      return await githubRequest(path, { method, body, token: text(this.token(), 2000), fetchImpl: this.fetch });
     } catch { throw new Fault('github_request_failed', 502); }
   }
   async createIssue(r, project) {

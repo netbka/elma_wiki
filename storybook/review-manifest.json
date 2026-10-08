@@ -1,6 +1,15 @@
 {
   "version": 2,
   "capabilities": {
+    "bug-reports": {
+      "entry": "authenticated Wiki pages: side Bug icon",
+      "kind": "implemented",
+      "actions": ["report", "capture-window", "annotate", "attach", "remove", "submit", "retry-or-reconcile"],
+      "renderer": ["web/feedback/render.js"],
+      "storyIds": ["bug-reports--ready", "bug-reports--attachments", "bug-reports--limit", "bug-reports--capture-error", "bug-reports--published", "bug-reports--unknown", "bug-reports--failed", "bug-reports--unconfigured"],
+      "requiredVisibleStates": ["ready", "attachments", "limit", "capture-error", "published", "unknown", "failed", "unconfigured"],
+      "sources": ["docs/contracts/bug-reports.md", "lib/bug-reports.mjs", "test/bug-reports.test.mjs", "tools/bug-reports-browser-check.mjs"]
+    },
     "solution-handoff": {
       "entry": "/solutions?id=:id&view=handoff",
       "kind": "implemented",
