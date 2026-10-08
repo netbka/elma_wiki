@@ -2,7 +2,7 @@
 
 Status: current execution plan from merged PR #53 / issue #52. P0-P5 implementation is authorized; final usability/owner acceptance remains P7 / #38.
 Date: 2026-10-07.
-Product contract: SOLUTION_FIRST_PRODUCT_PLAN.md.
+Product contract: SOLUTION_FIRST_PRODUCT_PLAN.md. The 2026-10-08 owner clarification and merged #80 govern P1 sharing: all authenticated users share historical and new configuration content; no per-record private/shared choice is required. Deployment and final human acceptance remain separate gates.
 
 ## Goal
 
@@ -22,11 +22,11 @@ Exit: a new contributor can identify one current product truth; no current contr
 - Resolve a stable application actor from trusted VK Teams sender identity.
 - Persist actor identity separately from session state.
 - Attribute uploads, comments, findings, review decisions and audited mutations.
-- Design one explicit migration from owner-scoped storage to a shared authenticated Solution catalog.
-- Keep legacy private records private until explicitly migrated.
+- Apply the owner-approved shared-access policy centrally to the Solution catalog and historical project, portal, workspace and release content stores.
+- Preserve original bytes, IDs and uploader provenance in place; ownership fields record provenance rather than per-user content visibility. Keep operational credentials and Source/Target execution controls under their separate contracts.
 - Keep portal actor identity separate from ELMA-native author/publisher evidence.
 
-Exit: two authenticated users can see the same approved shared Solution record and their actions retain distinct authors; anonymous mutation is rejected; no role/ACL UI exists.
+Exit: two authenticated users can see the same Solution and historical configuration content, and their actions retain distinct authors; anonymous access to configuration APIs is rejected; no role/ACL or private/shared-choice UI exists. Synthetic/local #80 evidence establishes the implemented policy, while deployed two-user verification remains pending an authorized rollout under #55.
 
 ### P2 - Solution-first shell
 - Replace file/capability-first landing with Solutions.
