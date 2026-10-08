@@ -18,6 +18,13 @@ Candidate states: draft -> checked -> ready -> deploying -> deployed-unverified 
 
 ## Implemented: delivery foundation (AR-04)
 
+The delivery foundation below currently reads the legacy release store. Shared
+Solution handoffs use a separate guarded store and expose offline bundles only;
+their IDs do not resolve through `/api/releases/:id/delivery`. Contextual Target
+dispatch must reuse this engine while preserving the Solution/review association
+and operational execution controls. Do not copy a shared candidate into the
+legacy root to bypass this boundary. See the [Lane B evidence and pilot gates](../audits/lane-b-elma-evidence-2026-10-08.md).
+
 `lib/delivery.mjs` implements attempts behind the adapter interface from the [connections contract](source-target-connections.md). API: `/api/connections` (owner-scoped references, read-only `probe`), `GET/POST /api/releases/:id/delivery` with actions `prepare`, `confirm`, `verify`, `cancel`. Authenticated GET `/api/delivery/capabilities` reports `mode` (`synthetic` or `bridge`), `bridge: true` (the operator-bridge adapter is registered) and the adapter list; `liveDelivery` stays `false` until a live delivery has been verified. Every route authorizes the owner first; connections and attempts live in `.local/delivery/`, private file modes, outside Git.
 
 Attempt states: `prepared -> deploying -> deployed-unverified -> verified | verification-failed`, plus `failed` (adapter error), `unknown-outcome` (timeout or service restart during `deploying`), `blocked` (identity or target state changed after preparation), and `cancelled` (owner cancelled preparation before dispatch). Only a matching read-back produces `verified`. The release's `target` check is `pass` only for a verified attempt bound to its current revision, candidate ID/hash and acceptance. Changing conditions or the candidate makes historical evidence `stale`, including in mutation responses. Synthetic results are training evidence, not ELMA delivery.
