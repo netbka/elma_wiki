@@ -78,6 +78,75 @@ candidate into legacy storage or implement a second delivery engine.
 
 ## Concrete pilot evidence worksheet
 
+### Bounded shared-delivery implementation handoff — #91 / #11
+
+The reproduction uses an approved shared handoff created through the actual
+Solution API, then authenticated GET `/api/releases/<handoffId>/delivery`.
+Observed result: 404. This is the correct cross-root refusal, not a route to
+relax. Add a contextual `/api/solutions/:id/handoffs/:handoffId/delivery` entry
+for the existing prepare/confirm/verify/cancel operations; keep the legacy
+route's refusal. This API slice does not expose a new global product destination.
+
+Proposed edit set for a separately claimed implementation: `server.mjs`,
+`lib/solutions.mjs`, `lib/releases.mjs`, `lib/delivery.mjs`, focused shared-delivery
+tests and the two owning contracts. No file reservation or runtime change is
+made by this investigation handoff. Read #91 and check the preserved candidate
+lane before claiming those shared files. The coordinator owns merge ordering.
+
+Implementation constraints:
+
+- Use one delivery coordinator/serial queue for legacy and shared candidates.
+  A second store with an independent queue would race the same durable host
+  reservation even if it scanned the same directory.
+- Resolve shared candidates through the existing association-aware release
+  store, after checking the Solution/handoff pair. Never select a store, storage
+  principal, source bytes, actor or association from client input. Connection
+  ownership is the authenticated execution actor, not `SOLUTION_CATALOG`.
+- Keep attempt identity explicit across release roots. Identical UUIDs in
+  legacy and shared storage must not resolve to the same attempt directory.
+  Preserve legacy on-disk attempts and scan both namespaces under the single
+  queue for Target reservations, including preparations and unknown outcomes.
+- Provide a trusted guarded-candidate callback that checks the current
+  association and candidate while committing the final delivery transition.
+  Merely returning candidate bytes from `candidateArtifact` releases the
+  Solution guard before subsequent asynchronous adapter work finishes.
+- Recheck after awaited prepare probes/inspection before writing `prepared`;
+  after confirm identity/drift inspection before persisting `deploying` and
+  initiating one dispatch; after read-back and final identity probe before
+  persisting `verified`. Retain release revision/hash and discussion digest.
+  A mutation during native execution cannot undo dispatch; retain the attempt,
+  mark its evidence stale and refuse a passing current Target check.
+- Define and review queue/lock order before implementation. Existing shared
+  release operations acquire Solution then release. A final callback must not
+  reacquire `candidateArtifact` or the managed queue while already holding that
+  guard. Avoid introducing any Solution-to-delivery-queue path opposite to a
+  delivery-to-Solution path. Summary reads currently do not acquire the delivery
+  queue; preserve that property or redesign all callers together.
+- Preserve trusted actor attribution, operational connection/attempt ownership,
+  PROD refusal, idempotency, cancellation/restart semantics and unknown-outcome
+  recovery. Shared content permission never substitutes for Target confirmation.
+  Stale preparations must remain cancellable without candidate eligibility.
+
+Required synthetic regression evidence before READY_FOR_REVIEW:
+
+1. Approved shared candidate traverses the contextual API with exact original
+   bytes and exact read-back; legacy IDs, another Solution's handoff, anonymous
+   requests, forged actors/principals and foreign operational connections fail.
+2. Pause adapter calls deterministically. Mutate review/comment/finding/archive
+   during prepare and confirm: no usable preparation/dispatch. Mutate during
+   read-back: no Verified state or passing Target check. Recheck release revision
+   and candidate changes as well as comment-only discussion changes.
+3. Verify final transition persistence while a concurrent mutation is queued;
+   test guard/queue ordering without deadlock, stale preparation cancellation,
+   and stale historical evidence after a previously matching read-back.
+4. Simultaneous legacy/shared preparations and different authenticated actors
+   with Target aliases share one host reservation. Test equal UUIDs across roots,
+   restart retention and unknown-outcome recovery without redispatch.
+
+These are acceptance criteria, not tests implemented or passed by this dossier.
+UI dispatch remains a later explicit renderer/Storybook slice; native deployment
+remains gated by the worksheet below.
+
 Keep actual values and archives in private runtime evidence. Each item below
 is **not run/unbound** for a native Lane B pilot until an observation supplies
 it; the synthetic bundle is not a native selection.
