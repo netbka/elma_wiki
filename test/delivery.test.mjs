@@ -37,6 +37,68 @@ async function approvedRelease(projects, releases, owner = 'alice') {
 const target = (scenario = 'apply', extra = {}) => ({ name: 'TEST (dev2)', role: 'target', environment: 'test', adapter: 'synthetic', adapterOptions: { scenario }, ...extra });
 const confirmation = attempt => `DEPLOY ${attempt.solutionCode} ${attempt.sha256.slice(0, 12)}`;
 
+test('Target reservation spans concurrent releases, owners and connection aliases without exposing records', async t => {
+  const { projects, releases, delivery, calls } = await setup(t);
+  const alice = await approvedRelease(projects, releases, 'alice');
+  const bob = await approvedRelease(projects, releases, 'bob');
+  const a = await delivery.connections.create('alice', target());
+  const b = await delivery.connections.create('bob', target('apply', { name: 'Private alias', adapterOptions: { identity: { host: 'TEST.EXAMPLE.INVALID.' } } }));
+  const outcomes = await Promise.allSettled([
+    delivery.prepare(alice.id, 'alice', { revision: alice.revision, connectionId: a.id }),
+    delivery.prepare(bob.id, 'bob', { revision: bob.revision, connectionId: b.id })
+  ]);
+  assert.equal(outcomes[0].status, 'fulfilled');
+  assert.equal(outcomes[1].status, 'rejected');
+  assert.equal(outcomes[1].reason.statusCode, 409);
+  assert.ok(!outcomes[1].reason.message.includes(alice.id));
+  assert.ok(!outcomes[1].reason.message.includes('alice'));
+  assert.equal((await delivery.list(bob.id, 'bob')).length, 0);
+  const otherHost = await delivery.connections.create('bob', target('apply', { adapterOptions: { identity: { host: 'independent.example.invalid' } } }));
+  const independent = await delivery.prepare(bob.id, 'bob', { revision: bob.revision, connectionId: otherHost.id });
+  await delivery.cancel(bob.id, independent.id, 'bob');
+  await delivery.cancel(alice.id, outcomes[0].value.id, 'alice');
+  assert.equal((await delivery.prepare(bob.id, 'bob', { revision: bob.revision, connectionId: b.id })).state, 'prepared');
+  assert.equal(calls.length, 0);
+});
+
+test('durable Target reservation survives restart for every unresolved state; matching read-back releases it', async t => {
+  const { directory, projects, releases, delivery } = await setup(t);
+  const first = await approvedRelease(projects, releases), second = await approvedRelease(projects, releases);
+  const connection = await delivery.connections.create('alice', target());
+  let attempt = await delivery.prepare(first.id, 'alice', { revision: first.revision, connectionId: connection.id });
+  const file = path.join(directory, 'delivery', 'attempts', first.id, attempt.id + '.json');
+  const original = JSON.parse(await fs.readFile(file, 'utf8'));
+  for (const state of ['prepared', 'deploying', 'deployed-unverified', 'unknown-outcome']) {
+    await fs.writeFile(file, JSON.stringify({ ...original, state, bootId: 'previous-process' }));
+    const restarted = deliveryStore(directory, releases, { adapters: { synthetic: syntheticAdapter } });
+    await assert.rejects(restarted.prepare(second.id, 'alice', { revision: second.revision, connectionId: connection.id }), error => error.statusCode === 409);
+  }
+  await fs.writeFile(file, JSON.stringify(original));
+  attempt = await delivery.confirm(first.id, attempt.id, 'alice', { idempotencyKey: 'reservation', confirmation: confirmation(attempt) });
+  assert.equal(attempt.state, 'deployed-unverified');
+  await assert.rejects(delivery.prepare(second.id, 'alice', { revision: second.revision, connectionId: connection.id }), error => error.statusCode === 409);
+  assert.equal((await delivery.verify(first.id, attempt.id, 'alice')).state, 'verified');
+  assert.equal((await delivery.prepare(second.id, 'alice', { revision: second.revision, connectionId: connection.id })).state, 'prepared');
+});
+
+test('legacy overlapping preparations cannot dispatch before the competing reservation is resolved', async t => {
+  const { directory, projects, releases, delivery, calls } = await setup(t);
+  const first = await approvedRelease(projects, releases), second = await approvedRelease(projects, releases);
+  const connection = await delivery.connections.create('alice', target());
+  const a = await delivery.prepare(first.id, 'alice', { revision: first.revision, connectionId: connection.id });
+  // Reproduce durable preparations written by the older per-release guard.
+  const competingId = crypto.randomUUID();
+  const file = path.join(directory, 'delivery', 'attempts', second.id, competingId + '.json');
+  await fs.mkdir(path.dirname(file), { recursive: true });
+  await fs.writeFile(file, JSON.stringify({ ...a, id: competingId, releaseId: second.id, owner: 'alice', candidateId: second.candidate.id, releaseRevision: second.revision }));
+  await assert.rejects(delivery.confirm(first.id, a.id, 'alice', { idempotencyKey: 'legacy', confirmation: confirmation(a) }), error => error.statusCode === 409);
+  assert.equal(calls.length, 0);
+  assert.equal((await delivery.get(first.id, a.id, 'alice')).state, 'prepared');
+  await delivery.cancel(second.id, competingId, 'alice');
+  assert.equal((await delivery.confirm(first.id, a.id, 'alice', { idempotencyKey: 'legacy', confirmation: confirmation(a) })).state, 'deployed-unverified');
+  assert.equal(calls.length, 1);
+});
+
 test('one complete delivery: prepare, confirm, deployed-unverified, read-back, verified with linked evidence', async t => {
   const { projects, releases, delivery, calls } = await setup(t);
   const release = await approvedRelease(projects, releases);
@@ -88,6 +150,9 @@ test('PROD is rejected server-side by environment and by actual identity regardl
   const misleading = await delivery.connections.create('alice', target('apply', { name: 'TEST', adapterOptions: { scenario: 'apply', identity: { host: 'prod.example.invalid', version: '2025.10' } } }));
   assert.equal((await delivery.connections.probe(misleading.id, 'alice')).probe.protectedHost, true);
   await assert.rejects(delivery.prepare(release.id, 'alice', { revision: release.revision, connectionId: misleading.id }), error => error.statusCode === 403 && /защищённый/.test(error.message));
+  const normalized = await delivery.connections.create('alice', target('apply', { adapterOptions: { identity: { host: ' PROD.EXAMPLE.INVALID. ' } } }));
+  assert.equal((await delivery.connections.probe(normalized.id, 'alice')).probe.protectedHost, true);
+  await assert.rejects(delivery.prepare(release.id, 'alice', { revision: release.revision, connectionId: normalized.id }), error => error.statusCode === 403);
   const source = await delivery.connections.create('alice', target('apply', { role: 'source' }));
   await assert.rejects(delivery.prepare(release.id, 'alice', { revision: release.revision, connectionId: source.id }), error => error.statusCode === 403);
   assert.equal((await delivery.list(release.id, 'alice')).length, 0);
@@ -110,6 +175,7 @@ test('stale approval and target drift block confirmation; duplicate confirmation
   release = await releases.change(release.id, 'alice', { revision: release.revision, action: 'approve', reason: 'Повторно принимаю' });
   await assert.rejects(delivery.prepare(release.id, 'alice', { revision: release.revision, connectionId: ok.id }), /незавершённая/, 'the stale prepared attempt still holds the lock');
   await assert.rejects(delivery.confirm(release.id, attempt.id, 'alice', { idempotencyKey: 'e', confirmation: confirmation(attempt) }), error => error.statusCode === 409);
+  await delivery.cancel(release.id, attempt.id, 'alice');
   // A fresh release cycle on the same target with two concurrent clicks.
   const second = await approvedRelease(projects, releases);
   let fresh = await delivery.prepare(second.id, 'alice', { revision: second.revision, connectionId: ok.id });

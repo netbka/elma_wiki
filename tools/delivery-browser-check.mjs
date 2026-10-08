@@ -59,6 +59,15 @@ try {
   await panel().getByRole('button', { name: 'Проверить учебный стенд', exact: true }).click();
   await panel().getByText(/Проверенный учебный стенд: test.example.invalid/).waitFor();
   const attempt = await prepare(positive, connection);
+  await open(cancelled);
+  await panel().getByLabel('Учебный стенд для доставки', { exact: true }).selectOption(connection.id);
+  const reservedResponse = page.waitForResponse(r => r.url().endsWith(`/api/releases/${cancelled.id}/delivery`) && r.request().method() === 'POST');
+  await panel().getByRole('button', { name: 'Подготовить учебную доставку', exact: true }).click();
+  assert.equal((await reservedResponse).status(), 409);
+  await page.getByRole('alert').filter({ hasText: /На этом Target уже есть незавершённая доставка/ }).waitFor();
+  assert.equal((await api(`/api/releases/${cancelled.id}/delivery`)).length, 0);
+  assert.equal(await panel().getByRole('button', { name: 'Подготовить учебную доставку', exact: true }).isEnabled(), true);
+  await open(positive);
   await page.setViewportSize({ width: 390, height: 844 }); assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
   await page.setViewportSize({ width: 1280, height: 900 });
   assert.equal(await panel().getByRole('button', { name: 'Подтвердить учебную операцию', exact: true }).isDisabled(), true);

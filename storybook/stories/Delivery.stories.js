@@ -22,14 +22,30 @@ const bridgeFixture = state => {
   return { release: releaseView(base.release, { attempts: attempts.length, latest: latest && { ...latest, connectionName: connection.name, adapter: 'bridge' } }), data: { capabilities: { mode: 'bridge', liveDelivery: false, bridge: true, adapters: ['bridge'] }, connections: [connection], attempts, bridges: state === 'bridge-no-bridge' ? [] : [bridge] } };
 };
 function story(state) {
-  const { release, data } = state.startsWith('bridge-') ? bridgeFixture(state) : fixture(state);
+  const { release, data } = state.startsWith('bridge-') ? bridgeFixture(state) : fixture(state === 'target-reserved' ? 'ready' : state);
   const unavailable = async () => { throw Error('Учебное состояние Storybook: выберите другую story. Здесь операции не запускаются.'); };
+  const act = state === 'target-reserved' ? async () => { throw Object.assign(Error('На этом Target уже есть незавершённая доставка. Завершите, проверьте или отмените её подготовку.'), { status: 409 }); } : unavailable;
   return mountRelease({ release, open: unavailable, change: unavailable, preview: unavailable, download: unavailable,
-    deliveryClient: { load: async () => { if (state === 'load-error') throw Error('Учебная ошибка загрузки состояния'); return data; }, act: unavailable, refresh: async () => release, createConnection: unavailable, probeConnection: unavailable, removeConnection: unavailable, createBridge: unavailable, removeBridge: unavailable } });
+    deliveryClient: { load: async () => { if (state === 'load-error') throw Error('Учебная ошибка загрузки состояния'); return data; }, act, refresh: async () => release, createConnection: unavailable, probeConnection: unavailable, removeConnection: unavailable, createBridge: unavailable, removeBridge: unavailable } });
 }
 export default { id: 'delivery', title: 'Аналитик/Доставка', parameters: { layout: 'fullscreen' } };
 export const Unavailable = { render: () => story('unavailable') };
 export const Ready = { render: () => story('ready') };
+export const TargetReserved = { render: () => story('target-reserved'), play: async ({ canvasElement }) => {
+  for (let attempt = 0; attempt < 50; attempt++) {
+    const prepare = [...canvasElement.querySelectorAll('button')].find(button => button.textContent === 'Подготовить учебную доставку' && !button.disabled);
+    if (prepare) {
+      prepare.click();
+      for (let observation = 0; observation < 50; observation++) {
+        if (canvasElement.querySelector('[role="alert"]')?.textContent.includes('На этом Target уже есть незавершённая доставка')) return;
+        await new Promise(resolve => setTimeout(resolve, 20));
+      }
+      throw Error('Target reservation message was not displayed');
+    }
+    await new Promise(resolve => setTimeout(resolve, 20));
+  }
+  throw Error('Target reservation fixture did not load');
+} };
 export const Prepared = { render: () => story('prepared') };
 export const Deploying = { render: () => story('deploying') };
 export const Unverified = { render: () => story('deployed-unverified') };
