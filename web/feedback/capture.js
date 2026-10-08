@@ -1,11 +1,11 @@
 export async function captureWindow() {
   if (!navigator.mediaDevices?.getDisplayMedia) throw Error('Снимок окна недоступен в этом браузере. Можно приложить готовый файл.');
-  let stream, video;
+  let stream, video, timeout;
   try {
     // Must run directly from the user's click. The browser chooses/grants the source.
     stream = await navigator.mediaDevices.getDisplayMedia({ video: { displaySurface: 'window' }, audio: false, selfBrowserSurface: 'include', systemAudio: 'exclude' });
     video = document.createElement('video'); video.muted = true; video.srcObject = stream;
-    await Promise.race([video.play(), new Promise((_, reject) => setTimeout(() => reject(Error('Не удалось прочитать снимок окна.')), 10000))]);
+    await Promise.race([video.play(), new Promise((_, reject) => { timeout = setTimeout(() => reject(Error('Не удалось прочитать снимок окна.')), 10000); })]);
     if (!video.videoWidth || !video.videoHeight || video.videoWidth * video.videoHeight > 32 * 1024 * 1024) throw Error('Размер снимка слишком большой или неизвестен.');
     const canvas = document.createElement('canvas'); canvas.width = video.videoWidth; canvas.height = video.videoHeight;
     canvas.getContext('2d').drawImage(video, 0, 0);
@@ -16,6 +16,7 @@ export async function captureWindow() {
     if (error.name === 'NotAllowedError' || error.name === 'AbortError') throw Error('Снимок отменён. Можно повторить или приложить файл.');
     throw error;
   } finally {
+    clearTimeout(timeout);
     stream?.getTracks().forEach(track => track.stop());
     if (video) video.srcObject = null;
   }
