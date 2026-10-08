@@ -54,6 +54,17 @@ export function reviewGate(review, boundaryKeys = [], resolutions = {}) {
 }
 export const workspaceUrl = (id, view, artifact, home = '/workspaces') => home + (id || view ? '?' + new URLSearchParams({ ...(id ? { id } : {}), ...(view ? { view } : {}), ...(artifact ? { artifact } : {}) }) : '');
 
+// Navigation hint only; the server reparses exact bytes under its queue before
+// capture, approval and handoff. A virtual mixed state has no handoff entry.
+export function hasAcceptedFullExport(state) {
+  if (!state || state.status !== 'active' || state.pending?.length || state.openFindings?.length) return false;
+  const artifacts = state.artifacts || [], baseline = artifacts.at(-1);
+  if (!baseline || baseline.id !== state.baselineId || baseline.scope !== 'full' || !Array.isArray(baseline.components) || !Array.isArray(state.current)) return false;
+  const current = new Map(state.current.map(row => [row.key, row.digest]));
+  return current.size === state.current.length && baseline.components.length === state.current.length
+    && baseline.components.every(row => current.get(row.key) === row.digest);
+}
+
 // The domain stays authoritative. This pure projection chooses one next action.
 export function solutionNextAction(state, { error, stale, view } = {}) {
   if (error || stale) return { state: stale ? 'stale' : 'error', summary: 'Проверьте актуальное состояние решения.', label: 'Обновить состояние', view: 'overview' };

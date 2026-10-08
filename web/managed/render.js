@@ -1,5 +1,7 @@
 import { componentName, dateLabel, labels, elementLabels, elementKinds, responsibilityLabel, responsibilityReport, reviewGate, workspaceSummary, workspaceUrl as buildUrl, solutionNextAction } from './model.js';
 import { mountSnapshotVisual } from '../visual/render.js';
+import { mountRelease } from '../releases/render.js';
+import { hasAcceptedFullExport } from './model.js';
 const el = (tag, text, className) => { const node = document.createElement(tag); if (text !== undefined) node.textContent = text; if (className) node.className = className; return node; };
 let sequence = 0;
 export function mountManagedWorkspace(model = {}, actions = {}) {
@@ -81,8 +83,18 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
       if (view === mode || mode === 'changes' && ['change', 'full', 'review'].includes(view)) a.setAttribute('aria-current', 'page');
       tabs.append(a);
     }
+    if (model.shared && (hasAcceptedFullExport(state) || view === 'handoff')) {
+      const tab = link('Передача', workspaceUrl(state.id, 'handoff'));
+      if (view === 'handoff') tab.setAttribute('aria-current', 'page'); tabs.append(tab);
+    }
     content.append(tabs);
     content.append(context);
+    if (view === 'handoff' && model.shared) {
+      if (model.error) { content.append(link('Повторить загрузку передачи', workspaceUrl(state.id, 'handoff'), true)); return root; }
+      content.append(mountRelease({ ...actions.handoff, release: model.handoff, releases: model.handoffs || [],
+        solution: { id: state.id, url: workspaceUrl(state.id), canCreate: !!model.exportEvidence, reason: model.handoffReason } }));
+      return root;
+    }
     if (['overview', 'changes', 'solution'].includes(view)) {
       const next = solutionNextAction(state, model);
       const actionsBar = el('div', undefined, 'managed-actions');
@@ -112,6 +124,7 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
       const artifacts = el('details'); artifacts.append(el('summary', 'Исходные файлы и технические данные'), el('p', summary.source),
         el('p', `Заявленная ответственность: ${state.baselineOwner}. Авторы публикаций ELMA не установлены.`),
         el('p', 'Отсутствие объекта в частичном пакете не удаляет его. Текущее состояние не является готовым архивом для установки.'));
+      if (model.shared) artifacts.append(link('История передачи решения', workspaceUrl(state.id, 'handoff')));
       state.artifacts.forEach((artifact, i) => { const item = el('div'); item.append(link(`Скачать файл ${i + 1}`, `${api}/${state.id}/artifacts/${artifact.id}/original`)); technical(item, 'Источник и контрольная сумма', { snapshot: artifact.snapshot, scope: artifact.scopeDeclaration, checksum: artifact.checksum, uploadedBy: artifact.uploadedBy }); artifacts.append(item); });
       history.append(artifacts);
       if (view === 'solution') lower.append(current);

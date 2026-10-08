@@ -39,7 +39,7 @@ capabilities:
     routes: ["docs/contracts/request-bot.md", "docs/contracts/portal-requests.md", "services/request-bot/README.md", "docs/plans/vk-teams-agent-delivery.md"]
     boundaries: ["domain", "storage", "security", "connection", "tooling", "ops"]
   analyst-releases:
-    owners: ["lib/releases.mjs", "web/releases/", "web/releases.html", "test/releases.test.mjs"]
+    owners: ["lib/releases.mjs", "lib/solutions.mjs", "web/releases/", "web/releases.html", "test/releases.test.mjs", "test/solution-handoffs.test.mjs", "tools/solution-handoff-browser-check.mjs"]
     routes: ["docs/contracts/analyst-releases.md", "docs/workflows/analyst-release.md", "docs/plans/analyst-release-investigation.md"]
     boundaries: ["ui", "domain", "storage", "security", "tooling"]
   authentication:

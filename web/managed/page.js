@@ -6,6 +6,9 @@ const shared = location.pathname === '/solutions', home = shared ? '/solutions' 
 const api = shared ? '/api/solutions' : '/api/managed-workspaces';
 const href = (id, view, artifact) => workspaceUrl(id, view, artifact, home);
 const config = { shared, home, api };
+const handoffId = query.get('handoff');
+const handoffApi = `${api}/${encodeURIComponent(id)}/handoffs`;
+const handoffHref = releaseId => href(id, 'handoff') + (releaseId ? '&handoff=' + encodeURIComponent(releaseId) : '');
 async function request(url, input, upload) {
   let response;
   try {
@@ -22,6 +25,21 @@ async function request(url, input, upload) {
 }
 const navigate = href => { location.href = href; };
 const actions = {
+  handoff: {
+    create: async input => { const result = await request(handoffApi, { ...input, expectedRevision: workspace.revision }); navigate(handoffHref(result.id)); },
+    change: (releaseId, input) => request(`${handoffApi}/${encodeURIComponent(releaseId)}`, input),
+    preview: (releaseId, path, side) => request(`${handoffApi}/${encodeURIComponent(releaseId)}/preview?` + new URLSearchParams({ path, side })),
+    open: releaseId => navigate(handoffHref(releaseId)),
+    download: async (releaseId, revision) => {
+      let response;
+      try { response = await fetch(`${handoffApi}/${encodeURIComponent(releaseId)}/bundle`, { method: 'POST', headers: { 'X-Elma-Wiki-Request': '1', 'Content-Type': 'application/json' }, body: JSON.stringify({ revision }) }); }
+      catch { throw Object.assign(Error('Ответ не получен. Обновите передачу перед повтором.'), { requiresRefresh: true }); }
+      if (!response.ok) { const value = await response.json(); throw Object.assign(Error(value.error || 'Передача не получена'), { status: response.status, requiresRefresh: response.status >= 500 }); }
+      let blob;
+      try { blob = await response.blob(); } catch { throw Object.assign(Error('Пакет не получен полностью. Обновите передачу перед повтором.'), { requiresRefresh: true }); }
+      const url = URL.createObjectURL(blob), link = document.createElement('a'); link.href = url; link.download = 'solution-handoff.zip'; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+  },
   ...(api === '/api/solutions' ? { visual: artifactId => request(`${api}/${encodeURIComponent(id)}/artifacts/${encodeURIComponent(artifactId)}/visual`) } : {}),
   logout: async () => { await request('/auth/logout', {}); navigate('/login'); },
   upload: file => request((shared ? '/api/solutions/uploads?sharedConfirmed=true&filename=' : '/api/projects?filename=') + encodeURIComponent(file.name), file, true),
@@ -38,7 +56,14 @@ try {
   workspace = id ? await request(`${api}/${encodeURIComponent(id)}`) : null;
   const review = id && artifact && view === 'review' ? await request(`${api}/${encodeURIComponent(id)}/artifacts/${encodeURIComponent(artifact)}/${shared ? 'review' : 'preview'}`) : null;
   const rows = !id && view !== 'create' ? await request(api + (view === 'archived' ? '?archived=true' : '')) : [];
-  root.replaceChildren(mountManagedWorkspace({ ...config, workspace, view, review, rows }, actions));
+  let handoff, handoffs, exportEvidence, handoffReason;
+  if (shared && workspace && view === 'handoff') {
+    handoffs = await request(handoffApi);
+    handoff = handoffId ? await request(`${handoffApi}/${encodeURIComponent(handoffId)}`) : null;
+    try { exportEvidence = await request(`${api}/${encodeURIComponent(id)}/accepted-export?expectedRevision=${workspace.revision}`); }
+    catch (error) { if (![409, 422].includes(error.status)) throw error; handoffReason = 'Передача новой версии недоступна: завершите рассмотрение и примите полный экспорт, содержащий все принятые изменения.'; }
+  }
+  root.replaceChildren(mountManagedWorkspace({ ...config, workspace, view, review, rows, handoff, handoffs, exportEvidence, handoffReason }, actions));
   document.title = (workspace?.name || (view === 'create' ? 'Добавить решение' : 'Решения')) + ' · E365';
   root.querySelector('h1')?.focus({ preventScroll: true });
 } catch (error) {

@@ -105,6 +105,23 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
         try { return send(res, 201, await solutions.uploads.create(SOLUTION_CATALOG, await body(req, limits.upload), url.searchParams.get('filename') || 'configuration.e365', session.user)); }
         finally { uploading = false; }
       }
+      const solutionHandoff = /^\/api\/solutions\/([^/]+)\/handoffs(?:\/([^/]+)(?:\/(bundle|preview))?)?$/.exec(pathname);
+      if (solutionHandoff) {
+        if (!session) return send(res, 404, { error: 'Решение не найдено' });
+        const [, id, releaseId, action] = solutionHandoff, handoffs = solutions.handoffs;
+        if (releaseId) await handoffs.authorize(id, releaseId); else await solutions.managed.authorize(id, SOLUTION_CATALOG);
+        if (req.method === 'GET' && !action) return send(res, 200, releaseId ? await handoffs.get(id, releaseId) : await handoffs.list(id));
+        if (req.method === 'GET' && action === 'preview') return send(res, 200, await handoffs.preview(id, releaseId, url.searchParams.get('path'), url.searchParams.get('side')));
+        if (req.method !== 'POST' || action === 'preview') return send(res, 405, { error: 'Метод не поддерживается' });
+        if (req.headers['content-type']?.split(';')[0] !== 'application/json') return send(res, 415, { error: 'Требуется JSON' });
+        const input = JSON.parse((await body(req, 32 * 1024)).toString('utf8'));
+        if (action === 'bundle') {
+          const bytes = await handoffs.bundle(id, releaseId, input, session.user);
+          res.writeHead(200, { 'Content-Type': 'application/zip', 'Content-Disposition': 'attachment; filename="solution-handoff.zip"', 'Cache-Control': 'no-store' });
+          return res.end(bytes);
+        }
+        return send(res, releaseId ? 200 : 201, releaseId ? await handoffs.change(id, releaseId, input, session.user) : await handoffs.create(id, input, session.user));
+      }
       const acceptedExport = /^\/api\/solutions\/([^/]+)\/accepted-export(?:\/(original))?$/.exec(pathname);
       if (acceptedExport) {
         if (!session) return send(res, 404, { error: 'Решение не найдено' });

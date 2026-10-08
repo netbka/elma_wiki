@@ -1,6 +1,15 @@
 {
   "version": 2,
   "capabilities": {
+    "solution-handoff": {
+      "entry": "/solutions?id=:id&view=handoff",
+      "kind": "implemented",
+      "actions": ["review-package", "freeze", "approve-offline-handoff", "download", "refresh-stale-state"],
+      "renderer": ["web/managed/render.js", "web/releases/render.js"],
+      "storyIds": ["solution-handoff--create", "solution-handoff--blocked", "solution-handoff--review", "solution-handoff--ready", "solution-handoff--candidate", "solution-handoff--prepared", "solution-handoff--stale", "solution-handoff--loading", "solution-handoff--load-error", "solution-handoff--lost-response"],
+      "requiredVisibleStates": ["create", "blocked", "review", "ready", "candidate", "prepared", "stale", "loading", "load-error", "lost-response"],
+      "sources": ["lib/solutions.mjs", "lib/releases.mjs", "test/solution-handoffs.test.mjs", "docs/contracts/shared-solutions.md"]
+    },
     "public-field-lookup": {
       "entry": "/learn/find-field/",
       "kind": "implemented",
