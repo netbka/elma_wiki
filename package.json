@@ -7,6 +7,8 @@
     "node": ">=22"
   },
   "scripts": {
+    "agent:context": "node tools/agent-workflow.mjs",
+    "check:agent": "node tools/agent-workflow.mjs --check",
     "test:handoff:browser": "node tools/solution-handoff-browser-check.mjs",
     "test:managed:browser": "node tools/managed-workspace-browser-check.mjs",
     "test:delivery:browser": "node tools/delivery-browser-check.mjs",
@@ -42,6 +44,7 @@
     "yazl": "^3.3.1"
   },
   "devDependencies": {
-    "playwright": "^1.63.0"
+    "playwright": "^1.63.0",
+    "yaml": "^2.9.1"
   }
 }

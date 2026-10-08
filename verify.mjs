@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { run as checkAgentWorkflow } from './tools/agent-workflow.mjs';
 import { articles } from './dist/articles.js';
 const data = JSON.parse(fs.readFileSync(new URL('./dist/data.json', import.meta.url), 'utf8'));
 assert.equal(data.readOnly, true);
@@ -11,3 +12,4 @@ for (const file of ['dist/app.js', 'dist/articles.js', 'dist/index.html', 'READM
   assert.ok(!/\b192\.168\.\d+\.\d+\b|C:\\(?:Users|git)\\|gh[pousr]_[A-Za-z0-9]{20,}/.test(source), `Локальные адреса или credentials в ${file}`);
 }
 console.log(`${articles.length} универсальных статей; пустой индекс; внутренние сведения отсутствуют.`);
+console.log(checkAgentWorkflow(['--check']));

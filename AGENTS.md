@@ -32,6 +32,8 @@ Before non-trivial edits inspect current main/open PRs or active work touching t
 
 Always read this file and .agent/capabilities.yaml. Then load only selected capability contracts/runbooks. docs/INDEX.md is the human map.
 
+Use `npm run agent:context -- <intent> <capability> [capability...]` to list the selected contracts; `--list` shows valid names. Follow [the execution workflow](docs/workflows/agent-execution.md). `npm run check:agent` validates routing and runs inside repository verification; it does not replace the required investigation or evidence.
+
 Read STATE only when implemented/deployed status matters and ROADMAP only for coordination. History/plans do not outrank current contracts.
 
 ## Authority
