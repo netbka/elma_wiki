@@ -59,6 +59,9 @@ renderer lets the person upload a bundle/multiple individual packages, load
 one/all solutions from DEV/dev2, download the original and select a member.
 Selection feeds the existing full/partial/same-Source responsibility/review
 engine. Upload/import never automatically accepts changes or infers deletions.
+The normal File .e365 field also accepts a multi-solution container: it saves
+the immutable acquisition, opens member selection and keeps the entered
+responsibility/scope values before continuing. A single member continues directly.
 Each connected member gets the selected named Source reference; manual uploads
 get uploader provenance only. Shared content is available to authenticated
 actors; Source credentials and execution routing remain server-side.

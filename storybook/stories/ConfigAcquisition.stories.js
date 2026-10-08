@@ -3,7 +3,7 @@ const project = { id: 'synthetic-project', filename: 'synthetic.e365' };
 const record = { id: 'synthetic-acquisition', state: 'ready', solutions: [{ code: 'synthetic', project }], exclusions: [{ code: 'paid_example', status: 'excluded-paid' }] };
 const explain = async () => { throw Error('Учебный пример: соединение с ELMA не выполняется.'); };
 function story(model) {
-  return mountAcquisition({ upload: explain, catalog: explain, start: explain, get: explain }, () => {}, model);
+  return mountAcquisition({ upload: explain, catalog: explain, start: explain, get: explain }, () => {}, { ...model, synthetic: true });
 }
 export default { id: 'config-acquisition', title: 'Решение/Загрузка из ELMA и архива', parameters: { layout: 'padded' } };
 export const Ready = { render: () => story({ acquisition: record }) };

@@ -69,6 +69,6 @@ export function mountAcquisition(actions, selected, model = {}) {
   });
   server.onchange = () => { solution.replaceChildren(all); };
   if (model.error) error.textContent = model.error;
-  if (model.acquisition) { show(model.acquisition); if (model.acquisition.state === 'exporting') queueMicrotask(() => run(() => monitor(model.acquisition))); }
+  if (model.acquisition) { show(model.acquisition); if (model.acquisition.state === 'exporting' && !model.synthetic) queueMicrotask(() => run(() => monitor(model.acquisition))); }
   return root;
 }

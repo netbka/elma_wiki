@@ -42,6 +42,21 @@ try {
   await page.getByLabel('Это полный экспорт решения', { exact: true }).check();
   await page.getByRole('button', { name: 'Добавить решение', exact: true }).click();
   await page.getByRole('heading', { name: 'Учебная загрузка', exact: true }).waitFor();
+  const other = await fixture({ code: 'other_solution' });
+  const multiple = await zip([['config-bundle.json', { format: 'elma-config-bundle', schemaVersion: 1, deployable: false,
+    solutions: [['synthetic_solution', native], ['other_solution', other]].map(([code, bytes]) => ({ code, status: 'exported', path: 'solutions/' + code + '.e365',
+      sha256: crypto.createHash('sha256').update(bytes).digest('hex'), bytes: bytes.length })) }],
+    ['solutions/synthetic_solution.e365', native], ['solutions/other_solution.e365', other]]);
+  await page.goto(base + '/solutions?view=create');
+  await page.getByLabel('Название решения', { exact: true }).fill('Прямая загрузка конфигурации');
+  await page.getByLabel('Кто отвечает за исходную версию', { exact: true }).fill('Учебная команда');
+  await page.getByLabel('Файл .e365', { exact: true }).setInputFiles({ name: 'configuration.e365', mimeType: 'application/octet-stream', buffer: multiple });
+  await page.getByLabel('Это полный экспорт решения', { exact: true }).check();
+  await page.getByRole('button', { name: 'Добавить решение', exact: true }).click();
+  await page.getByRole('button', { name: 'Выбрать other_solution' }).waitFor();
+  await page.getByRole('button', { name: 'Выбрать other_solution' }).click();
+  await page.getByRole('button', { name: 'Добавить решение', exact: true }).click();
+  await page.getByRole('heading', { name: 'Прямая загрузка конфигурации', exact: true }).waitFor();
   await page.goto(base + '/solutions?view=create');
   await page.getByText('Загрузить из ELMA / выбрать решение из конфигурации', { exact: true }).click();
   await page.getByLabel('Архив конфигурации или файлы решений .e365').setInputFiles({ name: 'all.e365', mimeType: 'application/octet-stream', buffer: bytes });

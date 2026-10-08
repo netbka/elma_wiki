@@ -37,7 +37,7 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
     controls().forEach(node => { node.dataset.unavailable = String(node.disabled); });
     busy = true; lock(); error.textContent = ''; notice.textContent = 'Сохраняем. Дождитесь ответа…';
     let completed = false;
-    try { await operation(); completed = true; }
+    try { completed = await operation() !== false; }
     catch (e) {
       blocked = e.status === 409 || e.requiresRefresh;
       error.textContent = e.message || 'Не удалось выполнить действие.';
@@ -155,13 +155,18 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
     const evidence = el('p'); form.append(evidence);
     let captured = null;
     file.onchange = () => { captured = null; file.required = true; evidence.replaceChildren(); };
+    let acquisition;
+    const selectCapture = project => {
+      captured = project; file.value = ''; file.required = false;
+      evidence.textContent = 'Выбран сохранённый экспорт: ' + project.filename;
+    };
+    const showAcquisition = record => {
+      acquisition.replaceChildren(el('summary', 'Загрузить из ELMA / выбрать решение из конфигурации'),
+        mountAcquisition(actions.acquisition, selectCapture, { acquisition: record }));
+      if (record) acquisition.open = true;
+    };
     if (model.shared && actions.acquisition) {
-      const acquisition = el('details'); acquisition.append(el('summary', 'Загрузить из ELMA / выбрать решение из конфигурации'));
-      acquisition.append(mountAcquisition(actions.acquisition, project => {
-        captured = project; file.value = ''; file.required = false;
-        evidence.textContent = 'Выбран сохранённый экспорт: ' + project.filename;
-      }, { acquisition: model.acquisition })); form.append(acquisition);
-      if (model.acquisition) acquisition.open = true;
+      acquisition = el('details'); showAcquisition(model.acquisition); form.append(acquisition);
     }
     const scope = check(form, partial ? 'Это частичный экспорт изменений' : 'Это полный экспорт решения'); scope.required = true;
     const sameSource = state ? check(form, 'Экспорт относится к этому решению и тому же источнику ELMA') : null;
@@ -173,7 +178,14 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
       const selected = file.files[0];
       if (!captured && !selected?.name.toLowerCase().endsWith('.e365')) { error.textContent = 'Выберите файл с расширением .e365.'; error.focus(); return; }
       run(async () => {
-        captured ||= await actions.upload(selected);
+        if (!captured && acquisition) {
+          const record = await actions.acquisition.upload(selected); actions.acquisition.remember?.(record.id);
+          if (record.solutions.length > 1) {
+            showAcquisition(record); evidence.textContent = 'Конфигурация сохранена. Выберите решение и продолжите.';
+            return false;
+          }
+          captured = record.solutions[0].project;
+        } else captured ||= await actions.upload(selected);
         evidence.replaceChildren(el('span', 'Исходный файл сохранён.'));
         if (!model.shared) evidence.append(link('Открыть загруженный файл', '/p/' + captured.id + '/'));
         const snapshot = { projectId: captured.id, snapshotId: captured.currentSnapshotId, scope: partial ? 'partial' : 'full', scopeConfirmed: true };
