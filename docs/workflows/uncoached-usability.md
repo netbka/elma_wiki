@@ -24,9 +24,9 @@ Do not use customer files. Stop with Ctrl+C; the synthetic session is retained.
 No production service or ELMA Target is used or enabled.
 
 The session records the Git revision and whether the tested checkout has local
-changes. Start the acceptance pass from a clean committed checkout. Missing Git
-Keep that checkout unchanged while participants use it.
-metadata or a dirty checkout remains explicit and cannot produce a complete
+changes. Start the acceptance pass from a clean committed checkout and keep it
+unchanged while participants use it. Missing Git metadata or a dirty checkout
+remains explicit and cannot produce a complete
 report. Keep each pass bound to its own session directory; a fix requires a new
 pass against the new revision. Previously created sessions without this source
 record remain useful notes but cannot establish version-bound acceptance.
