@@ -41,12 +41,14 @@ export function mountSnapshotVisual(model={},actions={}) {
     const mode=el('button','Проверить путь по экспорту');mode.type='button';
     const status=el('p'), error=el('p');status.setAttribute('role','status');error.setAttribute('role','alert');
     const refresh=()=>{mode.textContent=simulation?'Завершить проверку пути':'Проверить путь по экспорту';status.textContent=simulation?
-      'Проверка Wiki: '+path.join(' → ')+'. Обязательность полей взята из экспорта; поведение ELMA не проверено.':'Выберите шаг и переход для просмотра. Проверка пути использует только локальные учебные значения.';};
+      'Проверка Wiki: '+path.join(' → ')+'. Выбор шага начинает новый путь; введённые значения сохраняются. Обязательность полей взята из экспорта; поведение ELMA не проверено.':'Выберите шаг и переход для просмотра. Проверка пути использует только локальные учебные значения.';};
     mode.onclick=()=>{simulation=!simulation;path=[];values={};error.textContent='';if(current)select(current);refresh();};
     scenario.append(mode,status,error);content.append(scenario);
     const layout=el('div');layout.className='visual-layout';const diagram=svg('svg',{viewBox:process.viewBox.join(' '),role:'img','aria-label':'Схема процесса из экспорта'}),panel=el('section');panel.className='visual-form';panel.setAttribute('aria-live','polite');
-    const select=node=>{
-      current=node;error.textContent='';if(simulation){if(path.length>=100)path=[];path.push(node.name);}refresh();
+    const select=(node,followTransition=false)=>{
+      current=node;error.textContent='';if(simulation){
+        if(followTransition)path.push(node.name);else path=[node.name];
+      }refresh();
       panel.replaceChildren(el('h3',node.name),source(node.pointer));
       diagram.querySelectorAll('[data-node]').forEach(n=>n.setAttribute('stroke',n.dataset.node===node.id?'#087451':'#536660'));
       const relation=relatedForm(process,node.id);
@@ -56,9 +58,11 @@ export function mountSnapshotVisual(model={},actions={}) {
       const branches=process.edges.filter(e=>e.source===node.id);
       panel.append(el('h4','Варианты перехода'));
       for(const edge of branches){const b=el('button',(simulation?'Проверить переход: ':'Посмотреть переход: ')+(edge.name||'без названия'));b.type='button';b.disabled=!edge.supported;b.onclick=()=>{
-        if(simulation){const result=checkScenarioStep(process,node.id,values[node.id],edge.id);
+        if(simulation){
+          if(path.length>=100){error.textContent='Достигнут предел проверки: 100 шагов. Выберите шаг, чтобы начать новый путь. Введённые значения сохранены.';return;}
+          const result=checkScenarioStep(process,node.id,values[node.id],edge.id);
           if(!result.allowed){error.textContent=result.missing.length?'По экспорту требуется: '+result.missing.map(field=>field.name||field.code).join(', ')+'. Введённые значения сохранены.':'Проверка связи недоступна: неоднозначное или неподдерживаемое исходное состояние.';return;}}
-        const target=process.nodes.find(n=>n.id===edge.target);if(target)select(target);
+        const target=process.nodes.find(n=>n.id===edge.target);if(target)select(target,simulation);
       };panel.append(b,el('small',' · Проверка Wiki и просмотр связи не подтверждают исполнение в ELMA'));}
       if(!branches.length)panel.append(el('p','Исходящих переходов в экспорте нет.'));
       if(node.anchor){const detail=el('details');detail.append(el('summary','Источник для замечания'),el('pre',JSON.stringify(node.anchor,null,2)));panel.append(detail);actions.selectAnchor?.(node.anchor);}
