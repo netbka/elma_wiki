@@ -5,6 +5,7 @@ Routing, not an always-read checklist.
 | Need | Read |
 | --- | --- |
 | Agent behavior | ../AGENTS.md |
+| Concrete agent task routing, verification and completion | [workflows/agent-execution.md](workflows/agent-execution.md) |
 | Canonical Solution-first product contract (PR #53 / #52) | [SOLUTION_FIRST_PRODUCT_PLAN.md](SOLUTION_FIRST_PRODUCT_PLAN.md) |
 | Solution-first execution order | [SOLUTION_FIRST_EXECUTION.md](SOLUTION_FIRST_EXECUTION.md) |
 | Product contradictions / migration register | [SOLUTION_FIRST_CONTRADICTIONS.md](SOLUTION_FIRST_CONTRADICTIONS.md) |

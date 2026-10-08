@@ -95,8 +95,8 @@ capabilities:
     routes: ["docs/STORYBOOK.md", "docs/EXPERIENCE_REVIEW.md"]
     boundaries: ["tooling", "ui", "domain", "storage"]
   agent-system:
-    owners: ["AGENTS.md", ".agent/capabilities.yaml", "docs/INDEX.md", "docs/PRODUCT_DIRECTION.md", ".github/pull_request_template.md"]
-    routes: ["AGENTS.md", "docs/PRODUCT_DIRECTION.md", "docs/INDEX.md"]
+    owners: ["AGENTS.md", "CLAUDE.md", ".agent/capabilities.yaml", "docs/INDEX.md", "docs/PRODUCT_DIRECTION.md", "docs/SOLUTION_FIRST_PRODUCT_PLAN.md", "docs/SOLUTION_FIRST_EXECUTION.md", "docs/SOLUTION_FIRST_CONTRADICTIONS.md", "docs/workflows/agent-execution.md", "tools/agent-workflow.mjs", "test/agent-workflow.test.mjs", ".github/pull_request_template.md", "verify.mjs"]
+    routes: ["AGENTS.md", "docs/SOLUTION_FIRST_PRODUCT_PLAN.md", "docs/SOLUTION_FIRST_EXECUTION.md", "docs/SOLUTION_FIRST_CONTRADICTIONS.md", "docs/workflows/agent-execution.md", "docs/INDEX.md"]
     boundaries: ["tooling"]
   operations:
     owners: ["deploy/", "compose.yaml", "Dockerfile"]
