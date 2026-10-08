@@ -117,7 +117,7 @@ export function mountRelease({ release, projects = [], releases = [], change, cr
   const checks = el('section'); checks.append(el('h2', 'Проверки и доказательства')); const checkList = el('ul', undefined, 'release-checks');
   for (const check of release.checks) checkList.append(el('li', `${check.label}: ${checkLabels[check.result]}`)); checks.append(checkList, el('p', 'Принятие относится только к локальной рецензии и передаче. Оно не разрешает импорт и не доказывает совместимость, зависимости, успешное развёртывание или Verified.')); root.append(checks);
   if (release.candidate) (nextActions || root).append(el('p', `Неизменяемый кандидат ${release.candidate.id}: ${release.candidate.sha256}`, 'release-hash'));
-  if (release.approval) root.append(el('p', `${solution ? 'Принял' : 'Принято владельцем'} ${actorLabel(release.approval.actor)}: ${release.approval.reason}`));
+  if (release.approval) root.append(el('p', `Принял ${actorLabel(release.approval.actor)}: ${release.approval.reason}`));
   const actions = el('div', undefined, 'actions');
   const freeze = button('Подготовить неизменяемый кандидат', () => run(() => change(release.id, { revision: release.revision, action: 'freeze' })), actions); freeze.dataset.unavailable = String(release.blockers.length > 0); freeze.disabled = release.blockers.length > 0;
   const approval = el('form'), why = field(approval, 'Объяснение принятия кандидата', '', 'textarea'); why.required = true;

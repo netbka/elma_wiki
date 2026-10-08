@@ -2,7 +2,7 @@
 
 Implemented scope: AR-00/01/02 and the unchanged-original handoff part of AR-03, issue #11. The release does not connect to Source or Target, build workspace changes, execute uploaded code or authorize an import.
 
-This page describes the legacy owner-private entry. The same release engine now
+This page describes the legacy package entry, shared by all signed-in users. The same release engine now
 also supports an explicitly shared, contextual accepted-Solution handoff, with
 trusted actor attribution and a current association guard before local mutations
 and bundle issuance. See [shared Solution handoff](shared-solutions.md#contextual-offline-candidate-and-handoff--34--11).
@@ -13,7 +13,7 @@ delivery from the new entry.
 
 One upload remains one owner-scoped project. `/releases` explicitly selects a new DEV export and an optional previous DEV export. Names never merge projects. Both originals and their parser metadata, inventory and structural summaries are pinned to the release under private runtime storage. Reparse/deletion of the original project cannot change a pinned release. A different artifact requires a new release.
 
-The association is owner-only. A target-intent label is an instruction to a future operator, not an authenticated connection or target identity. All release, preview, decision and bundle routes authorize the owner server-side. No shared team membership or independent reviewer approval is implied.
+All signed-in users can read and review historical releases under the owner clarification of 2026-10-08. The service selects shared access centrally; creator/uploader provenance remains unchanged and new decisions/handoffs record the current trusted session actor. A target-intent label is an instruction to a future operator, not an authenticated connection or target identity. Artifact/revision/checksum guards and explicit Target execution authorization still apply. Shared content access does not prove independent reviewer approval.
 
 The release creation UI explicitly picks project and immutable snapshot for both source and optional baseline. Different snapshots of one project are allowed. It displays timestamp, full archive hash, coverage and manual-upload or non-secret Source reference; none proves a live Source connection. Loading failures block creation until retry, and late responses for a previous project cannot replace the current choice. Selection never changes the project's current snapshot or workspace. `POST /api/releases` accepts optional `sourceSnapshotId` and `baselineSnapshotId`, verifies membership and ownership, and atomically captures the chosen snapshot's original bytes and pinned parser documents. A missing/foreign/corrupt snapshot fails rather than falling back to the current snapshot. Legacy API callers without snapshot IDs retain their previous current-project capture behavior; existing releases remain unchanged.
 

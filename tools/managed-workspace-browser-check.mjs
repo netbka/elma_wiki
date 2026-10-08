@@ -36,7 +36,7 @@ try {
   const upload = async (bytes, full = false) => {
     await page.getByLabel('Файл .e365', { exact: true }).setInputFiles({ name: 'synthetic.e365', mimeType: 'application/octet-stream', buffer: bytes });
     await page.getByLabel(full ? 'Это полный экспорт решения' : 'Это частичный экспорт изменений', { exact: true }).check();
-    await page.getByLabel('Файл доступен всем пользователям сервиса', { exact: true }).check();
+    assert.equal(await page.getByLabel('Файл доступен всем пользователям сервиса', { exact: true }).count(), 0);
   };
   await upload(baseBytes, true);
   await page.getByRole('button', { name: 'Добавить решение', exact: true }).click();

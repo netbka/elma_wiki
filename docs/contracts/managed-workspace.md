@@ -56,7 +56,7 @@ Full reads, previews and mutations verify SHA-256 for referenced accepted/pendin
 
 ## Authenticated HTTP API
 
-All routes start with `/api/managed-workspaces`. Authentication supplies the owner; request bodies cannot override it. An unauthenticated collection returns 401; unknown/foreign workspace IDs return 404 before body parsing, method checks or artifact access. Existing Host/Origin/service-header checks run first. Writes require JSON and `X-Elma-Wiki-Request: 1`, with a 256 KiB body limit. JSON reads and original downloads use `Cache-Control: no-store`.
+All routes start with `/api/managed-workspaces`. Authentication supplies the trusted actor; request bodies cannot override it. The service enables shared access centrally, preserving original uploader/storage provenance and recording the current session actor on mutations. An unauthenticated collection returns 401; unknown workspace IDs and anonymous item requests return 404; historical records are shared across signed-in users before body parsing, method checks or artifact access. Existing Host/Origin/service-header checks run first. Writes require JSON and `X-Elma-Wiki-Request: 1`, with a 256 KiB body limit. JSON reads and original downloads use `Cache-Control: no-store`.
 
 | Method and suffix | Request / result |
 | --- | --- |

@@ -125,15 +125,18 @@ test('two trusted VK actors share admitted Solutions and retain distinct upload,
   assert.equal(state.audit.at(-1).action, 'reopened');
 });
 
-test('shared admission never exposes legacy private uploads or workspaces, and caller fields cannot forge identity', async t => {
-  const { directory, request, post, login, upload, ref, create } = await setup(t);
-  const a = await login('alice@example.org'), b = await login('bob@example.org');
-  const legacy = await upload(a.cookie, [['private', 1]], '/api/projects');
+test('authenticated users share legacy content while roots and actor identity remain distinct', async t => {
+  const { directory, request, post, login, upload, ref, create, restart } = await setup(t);
+  let a = await login('alice@example.org'), b = await login('bob@example.org');
+  const legacy = await upload(a.cookie, [['legacy', 1]], '/api/projects');
   const oldStore = managedWorkspaceStore(directory, projectStore(directory));
   const old = await oldStore.create(a.user.id, { name: 'Private legacy', baselineOwner: 'Vendor', snapshot: ref(legacy, 'full') });
   assert.deepEqual(await json(await request(endpoint, b.cookie)), []);
-  for (const route of ['/api/projects/' + legacy.id + '/data', '/api/managed-workspaces/' + old.id,
-    endpoint + '/' + old.id, endpoint + '/' + old.id + '/artifacts/' + old.baselineId + '/original',
+  for (const route of ['/api/projects/' + legacy.id + '/data', '/api/managed-workspaces/' + old.id]) {
+    assert.equal((await request(route, b.cookie)).status, 200);
+    assert.equal((await request(route, null)).status, 404);
+  }
+  for (const route of [endpoint + '/' + old.id, endpoint + '/' + old.id + '/artifacts/' + old.baselineId + '/original',
     endpoint + '/' + old.id + '/accepted-export?expectedRevision=0', endpoint + '/' + old.id + '/accepted-export/original?expectedRevision=0'])
     assert.equal((await request(route, b.cookie)).status, 404);
   await json(await create(a.cookie, legacy), 404); // Matching owner and UUID are not admission.
@@ -144,16 +147,23 @@ test('shared admission never exposes legacy private uploads or workspaces, and c
   await json(await post(endpoint, a.cookie, { ...input, sharedConfirmed: false }), 400);
   const state = await json(await post(endpoint, a.cookie, input, { 'X-Actor-Id': b.user.id }), 201);
   assert.deepEqual(state.createdBy, a.user);
-  assert.deepEqual(await json(await request('/api/managed-workspaces', b.cookie)), []);
-  assert.deepEqual(await json(await request('/api/projects', b.cookie)), []);
+  assert.equal((await json(await request('/api/managed-workspaces', b.cookie)))[0].id, old.id);
+  assert.equal((await json(await request('/api/projects', b.cookie)))[0].id, legacy.id);
   assert.equal((await request('/api/projects/' + shared.id + '/data', a.cookie)).status, 404);
   assert.equal((await request('/p/' + shared.id + '/data.json', a.cookie)).status, 404);
   assert.equal((await request('/api/managed-workspaces/' + state.id, a.cookie)).status, 404);
   assert.equal((await request('/api/projects/' + legacy.id + '/data', a.cookie)).status, 200);
+  const metadata = await fs.readFile(path.join(directory,'projects',legacy.id,'project.json'),'utf8');
+  await restart(); a = await login('alice@example.org'); b = await login('bob@example.org');
+  assert.equal((await json(await request('/api/projects',b.cookie)))[0].id,legacy.id);
+  assert.equal((await request('/api/managed-workspaces/'+old.id,b.cookie)).status,200);
+  assert.equal(await fs.readFile(path.join(directory,'projects',legacy.id,'project.json'),'utf8'),metadata);
+  const stored = JSON.parse(metadata);
+  assert.equal(stored.owner,a.user.id); assert.deepEqual(stored.uploadedBy,a.user);
 });
 
-test('anonymous, cross-origin and unconfirmed catalog writes fail before data access', async t => {
-  const { request, post, login, upload, create } = await setup(t);
+test('anonymous and cross-origin writes fail; sharing needs no separate confirmation', async t => {
+  const { request, post, login, upload, create, ref } = await setup(t);
   const a = await login('alice@example.org');
   const home = await request('/', a.cookie, { redirect: 'manual' });
   assert.equal(home.status, 302); assert.equal(home.headers.get('location'), '/solutions');
@@ -169,7 +179,8 @@ test('anonymous, cross-origin and unconfirmed catalog writes fail before data ac
   await json(await post(endpoint, a.cookie, {}, { Origin: 'https://foreign.invalid' }), 403);
   await json(await post(endpoint, a.cookie, {}, { 'X-Elma-Wiki-Request': '' }), 403);
   await json(await post(endpoint + '/uploads', null, {}), 401);
-  await json(await request(endpoint + '/uploads', a.cookie, { method: 'POST', headers: { 'X-Elma-Wiki-Request': '1', 'Content-Type': 'application/octet-stream' }, body: await archive([['shared', 1]]) }), 400);
+  const automatic = await json(await request(endpoint + '/uploads', a.cookie, { method: 'POST', headers: { 'X-Elma-Wiki-Request': '1', 'Content-Type': 'application/octet-stream' }, body: await archive([['shared', 1]]) }), 201);
+  await json(await post(endpoint, a.cookie, { name: 'Automatic sharing', baselineOwner: 'Vendor', snapshot: ref(automatic, 'full') }), 201);
 });
 
 test('attributed findings survive explicit corrections and block stale or unresolved acceptance', async t => {

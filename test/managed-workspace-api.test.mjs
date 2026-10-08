@@ -104,7 +104,7 @@ test('HTTP lifecycle pins a full baseline, reviews changes/conflicts, restores p
   assert.deepEqual(Buffer.from(await original.arrayBuffer()), baseline.bytes);
 });
 
-test('HTTP owner checks precede malformed bodies and artifact reads; method, CSRF and JSON gates remain enforced', async t => {
+test('HTTP authentication precedes shared artifact reads; checksum, method, CSRF and JSON gates remain enforced', async t => {
   const { directory, projects, request, post, upload, badHost } = await setup(t);
   const foreignSnapshot = await upload([['a', 'private']], 'full', { owner: 'foreign' });
   const foreign = await managedWorkspaceStore(directory, projects).create('foreign', creation(foreignSnapshot.ref));
@@ -114,14 +114,14 @@ test('HTTP owner checks precede malformed bodies and artifact reads; method, CSR
   await json(await request('', anon), 401);
   for (const id of [foreignPath, missing]) {
     for (const suffix of ['', '/artifacts/' + foreign.baselineId + '/preview', '/artifacts/' + foreign.baselineId + '/original']) {
-      await json(await request(id + suffix), 404);
+      await json(await request(id + suffix), id === foreignPath ? 409 : 404);
       await json(await request(id + suffix, anon), 404);
     }
     for (const suffix of ['/prepare', '/archive', '/artifacts/' + foreign.baselineId + '/accept'])
-      await json(await request(id + suffix, { method: 'POST', headers: { 'X-Elma-Wiki-Request': '1' }, body: '{malformed' }), 404);
+      await json(await request(id + suffix, { method: 'POST', headers: { 'X-Elma-Wiki-Request': '1' }, body: '{malformed' }), id === foreignPath ? 415 : 404);
   }
-  assert.deepEqual(await json(await request()), []);
-  await json(await post('', creation(foreignSnapshot.ref)), 404);
+  assert.equal((await json(await request()))[0].id,foreign.id);
+  await json(await post('', creation(foreignSnapshot.ref)), 201);
   const base = await upload([['a', 'base']], 'full'), input = creation(base.ref);
   await json(await post('', input, { 'X-Elma-Wiki-Request': '0' }), 403);
   await json(await post('', input, { Origin: 'https://foreign.invalid' }), 403);

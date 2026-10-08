@@ -1,12 +1,12 @@
 # Shared authenticated Solution catalog
 
-Authority: #52 / SOLUTION_FIRST_PRODUCT_PLAN.md. P1: #55. The legacy owner-private APIs retain their existing contract.
+Authority: #52 / SOLUTION_FIRST_PRODUCT_PLAN.md and owner's 2026-10-08 clarification: no per-user private configurations. P1: #55. Historical content and new Solutions are shared by all authenticated users.
 
 ## Admission and identity
 
 `lib/solutions.mjs` stores new, explicitly shared records under `shared-solutions/`, separate from legacy `projects/` and `managed-workspaces/`. The fixed storage principal is a server implementation detail; clients cannot choose it. All authenticated MVP actors can read and mutate this catalog equally. Anonymous requests cannot access it. Host, Origin, service-header, body-size, immutable capture, explicit full/partial scope, Source, checksum, revision and reviewed-digest guards still apply.
 
-`POST /api/solutions/uploads?sharedConfirmed=true&filename=configuration.e365` accepts the existing bounded binary upload. The confirmation admits these new bytes for shared use. `POST /api/solutions` also requires `sharedConfirmed: true` and the existing `{name, baselineOwner, snapshot}` fields. Snapshot references resolve only in the shared root; neither a legacy UUID nor its owner can admit a private record. Shared uploads are not exposed through legacy viewer/project routes. Unattached uploads have no public route and remain bounded by the catalog's 5,000-upload limit (50 Solutions x 100 lifecycle artifacts).
+`POST /api/solutions/uploads?filename=configuration.e365` accepts the existing bounded binary upload. `POST /api/solutions` accepts the existing `{name, baselineOwner, snapshot}` fields. Sharing is automatic for signed-in users; no checkbox or per-user visibility choice exists. Older clients may send `sharedConfirmed: true`; false is rejected because a private mode is unavailable. Snapshot references still resolve only in the Solution root; a legacy UUID is not a full/partial declaration or a lifecycle association. Shared uploads are not exposed through legacy viewer/project routes. Unattached uploads have no public route and remain bounded by the catalog's 5,000-upload limit (50 Solutions x 100 lifecycle artifacts).
 
 The remaining `/api/solutions/:id` lifecycle routes mirror the existing managed engine: get/list, prepare, artifact preview/accept/original, archive/reopen. The collection supports `archived=true`. Internal Workspace/baseline structures remain the engine, not new product concepts.
 
@@ -33,7 +33,7 @@ authenticated association check for the existing release capability. The same
 path with `/original` before the query downloads the exact captured bytes, with
 `X-Artifact-SHA256` and `X-Solution-Revision` headers. Both reads require the
 explicit current integer revision and run in the managed store's mutation queue.
-Legacy private IDs remain inaccessible through this route.
+Legacy storage IDs remain inaccessible through this route.
 
 Policy `accepted-full-export-v1` supports only the current accepted full export:
 the Solution must be active, have no pending review or open finding, have no
@@ -62,7 +62,7 @@ finding without changing the domain revision. This response is evidence at
 observation time, not a durable approval.
 
 Focused store/API tests cover exact bytes and metadata, two authenticated actors,
-anonymous/private isolation, explicit revision, method restrictions, restart,
+anonymous denial and storage-root isolation, explicit revision, method restrictions, restart,
 deleted uploads, corrupt archives, archived/pending state, no-op partial changes,
 matching full reconciliation and retained local conflict state.
 
@@ -78,8 +78,7 @@ with `{expectedRevision, title, intent, targetIntent}`. Creation takes a fresh
 server-owned accepted-export capture; clients cannot provide archive bytes,
 Source, actor, ownership or association evidence. Shared records use the
 existing `releaseStore` under `shared-solutions/releases`, with the fixed
-catalog principal and distinct authenticated actors. Legacy owner-private
-release roots and routes are unchanged; a shared handoff is not accessible
+catalog principal and distinct authenticated actors. Legacy release roots stay separate; their HTTP access is shared; a shared handoff is not accessible
 through `/api/releases/:id`.
 
 `GET/POST .../handoffs/:handoffId` reads/changes the existing release lifecycle:
@@ -106,7 +105,7 @@ The browser preserves drafts on stale or lost mutation responses, disables
 further actions until refresh and reloads the stored outcome before continuing.
 Only the current freeze/approve/download action is visually dominant; the main
 action and checksum appear next to the next-action summary. No source-project
-link points to the incompatible legacy private viewer.
+link points to the incompatible legacy viewer.
 
 This completes the bounded offline physical candidate association and handoff
 for an accepted full export. It does not build virtual mixed packages, validate
@@ -123,22 +122,20 @@ stale drafts, lost approval response/recovery, archive invalidation, keyboard,
 390px reflow and 200% zoom. Ten synthetic Storybook states use these same
 production renderers.
 
-## Explicit migration and backout
+## Shared historical content and backout
 
-There is no automatic exposure of old data. Before a legacy record is copied into the catalog, record its source, sensitivity, intended Solution, original uploader/native provenance and explicit admission decision. The authorized owner must classify and approve that particular record; filenames, matching solution codes, previous uploads and login do not imply consent. A classified record can then be re-uploaded through the confirmed shared route as a new immutable copy. Preserve the original private record and its evidence; never relabel the original owner's storage root or overwrite native authorship. No bulk migration or unclassified-record endpoint exists.
+The owner explicitly chooses shared access for all historical configuration content. The service enables `sharedAccess` for its legacy projects, portals, managed workspaces and releases. Authentication precedes every read/mutation. No content copy, owner rewrite, archive modification or inferred Solution/full-snapshot creation is needed: original IDs, bytes and uploader/native provenance remain in place. All signed-in users can list/open the historical records, review their snapshots and work with supported code under the existing checksum/revision guards. New mutations use trusted session actors, not original uploader ownership. The primary Solution lifecycle stays separate from legacy capture identity; importing into that lifecycle still requires the correct full/partial declarations. Low-level stores retain their scoped default for internal callers; production HTTP always enables the shared product policy. Operational credentials and bridge/connection controls are governed separately by their execution contracts.
 
-Prepare the private classification input with `node tools/legacy-inventory.mjs <private-storage-directory>`.
+Prepare a local metadata inventory with `node tools/legacy-inventory.mjs <private-storage-directory>`.
 This read-only helper inventories legacy project, managed-workspace and portal
 metadata, preserves opaque owner/upload/snapshot provenance and fingerprints the
 metadata. It does not read original exports, credentials or the shared catalog.
 Malformed/unreadable records stay explicit. Output is a new private `.local`
-file; stdout contains only counts and its path. Every decision starts unreviewed
-and every record remains private. The selected local directory is not evidence
-of the deployed service's data. An owner must approve keep-private or a selected
-copy before an operational migration; the tool performs no migration.
+file; stdout contains only counts and its path. The schema records the shared-authenticated policy and unknown lifecycle association; it contains no per-record privacy choice. The selected local directory is not evidence
+of the deployed service's data. The helper performs no deployment or migration.
 
 Backout disables the new catalog routes/UI and retains both private roots and actor records. Restoring a previous service revision does not move shared data into a legacy owner index or destroy either root. Back up private storage before an operational rollout. One service process owns each store; multiple writers require a shared transactional lock before deployment.
 
 ## Evidence
 
-`test/solutions-api.test.mjs` uses synthetic archives and two signed VK identities: equal shared visibility/mutation, separate upload/creation/acceptance authors, persistent actors/history after restart, failed-decision atomicity, forged actor/owner rejection, anonymous/Origin/service-header rejection, explicit admission, and no legacy-to-shared or shared-to-legacy exposure. Existing managed storage/domain/API and VK tests cover the preserved safeguards. This proves no live ELMA or production deployment.
+`test/solutions-api.test.mjs` uses synthetic archives and two signed VK identities: equal Solution and historical-content visibility, separate upload/creation/acceptance authors, persistent actors/history after restart, failed-decision atomicity, forged actor/owner rejection, anonymous/Origin/service-header rejection, automatic sharing and storage-root identity checks. Legacy snapshot/workspace/release tests cover authenticated access, checksum/revision/Source guards and shared code mutation attribution. This proves no live ELMA or production deployment.

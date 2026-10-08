@@ -8,7 +8,7 @@ Authority target: SOLUTION_FIRST_PRODUCT_PLAN.md.
 | --- | --- | --- | --- |
 | Primary object | Older file-project flow: one uploaded .e365 creates a private project | User-facing primary object is Solution | Keep file-project primitives only as storage/legacy inspection where needed |
 | Workspace term | #33 and managed-workspace contracts use Workspace | Workspace stays internal; UI says Solution | P2 reuses the renderer/engine with Solution copy; /workspaces remains private compatibility |
-| Visibility | Legacy project/release APIs are owner-scoped/private | MVP authenticated users share the approved Solution catalog and permissions | P1 uses a separate explicitly admitted catalog; old records remain private until classified and copied with approval; see contracts/shared-solutions.md |
+| Visibility | Legacy project/release APIs are owner-scoped/private | MVP authenticated users share the approved Solution catalog and permissions | Owner clarification 2026-10-08 shares all historical/new configuration content with signed-in users; centralized store policy preserves bytes, IDs and provenance; no sharing checkbox |
 | Authentication | Legacy login/session implied owner scope | Authentication establishes actor identity; no role tiers in MVP | P1 persists trusted actors separately from sessions and attributes catalog mutations; ACL/roles remain deferred |
 | Authorship | Uploader/owner may be confused with change author | Portal actor, uploader, ELMA publisher/author and responsible person are different evidence | Store/display separately; unknown stays unknown |
 | Top navigation | Projects/Releases/Flows/Storybook/Developer Workspace existed as destinations | Solutions is home; Learn is secondary | P2 enters /solutions with Overview / Changes / Solution; compatibility files are disclosed and Delivery remains contextual/deferred |
@@ -22,17 +22,17 @@ Authority target: SOLUTION_FIRST_PRODUCT_PLAN.md.
 | Virtual state | Engine can compute effective state | Virtual state is not automatically deployable | No Send to TEST without proven candidate path |
 | Delivery | Bridge foundation may tempt early pipeline UI | TEST is a later contextual phase | P6 only; no pipeline builder/PROD |
 | Comments | Some Storybook review paths use unauthenticated signatures | Product comments belong to authenticated actors | P4 reuses review event rules in the private Solution record; trusted session actors, revision gates and persistent cross-version anchors |
-| Legacy private data | Existing records may contain private content | Shared catalog must not expose them by default | P1 never reads legacy roots through shared routes; inventory/classify/approve a new copy explicitly |
+| Legacy private data | Existing records may contain private content | Owner explicitly chooses no private configuration mode | Legacy content routes are shared; Solution-root references remain separate and require full/partial declarations |
 | Public/Vercel | Earlier work treated public portal as milestone | Internal Solution-first product is priority | No new Vercel work without owner assignment |
 | Git/GitHub | Engineering uses issues/PRs | Git is implementation ledger, not user model | No PR/branch/commit language in normal UI |
 | VK/agent | #19 has rich orchestration states | Agent advances same Solution/Change/Review/Delivery contracts | Keep bot execution state separate |
 | Roles | Older planning implies owners/reviewers | No role hierarchy in MVP | All authenticated users same permissions; identity only for provenance |
 
 ## Migration safety rules
-1. Shared visibility applies only to records explicitly admitted to the shared Solution catalog.
-2. Existing owner-private uploads do not become shared merely because a new shared route exists.
+1. All authenticated users share configuration content, including historical uploads, under the explicit 2026-10-08 owner decision.
+2. The service enables the same shared-access policy for every legacy content store; roots remain distinct for lifecycle identity.
 3. Do not infer consent from filename, package code, uploader or matching metadata.
-4. Before exposing a legacy record, classify source, sensitivity, intended Solution and migration decision.
+4. No per-record private/shared choice or copy is required. Preserve original storage IDs, bytes and uploader provenance.
 5. Actor attribution must survive migration.
 6. ELMA-native authorship/history must never be overwritten by portal actor identity.
 7. Public educational surfaces never receive private Solution data.
