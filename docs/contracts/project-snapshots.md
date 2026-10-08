@@ -6,7 +6,7 @@ Own immutable imported revisions and the boundary between source evidence, worki
 - Manual upload remains supported.
 - Each Source load creates a new immutable snapshot.
 - Original artifact is never edited in place.
-- ownerId + projectId scope is enforced server-side for every artifact.
+- Authentication and project/snapshot identity are enforced server-side for every artifact. The HTTP service enables shared access for all historical and new configuration content (owner clarification 2026-10-08); original ownerId remains provenance. Internal store callers retain the scoped default unless shared access is explicitly selected.
 - Original archive, parsed index, workspace, generated artifacts, candidates and evidence are separate layers.
 - Unknown/opaque content is preserved privately when required for round trip and never silently treated as supported.
 - Search/index data is not a deployable source package.

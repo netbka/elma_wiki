@@ -44,7 +44,7 @@ test('workspace never resolves uploaded imports from filesystem or executes code
   const state=await workspaces.save(p.id,'local',object,{revision:0,files:{'client.ts':'import fs from "node:fs"; import x from "../../server.mjs"; globalThis.TEST_EXECUTED = true;', 'server.ts':'function check() { throw Error("uploaded code must never run"); }'}});
   const checked=await workspaces.check(p.id,'local',object,{revision:state.revision});assert.equal(checked.check.typescript,'failed');assert.ok(checked.check.diagnostics.some(d=>d.code==='TS2307'));assert.equal(globalThis.TEST_EXECUTED,undefined);
 });
-test('workspace API checks owner, mutation protections, source allowlist and conflicts',async t=>{
+test('workspace API shares authenticated code and retains mutation protections, source allowlist and conflicts',async t=>{
   const {directory,projects,p,object}=await setup(t),server=createServer({directory,allowLocal:true});
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));t.after(()=>new Promise(resolve=>server.close(resolve)));
   const base='http://127.0.0.1:'+server.address().port,request=(route,options)=>fetch(base+route,options),endpoint=`/api/projects/${p.id}/workspace/${object}`;
@@ -58,7 +58,10 @@ test('workspace API checks owner, mutation protections, source allowlist and con
   assert.equal((await request(endpoint+'/save',{method:'POST',headers:{...headers,cookie},body:JSON.stringify({revision:0,files:changed})})).status,200);
   assert.equal((await request(endpoint+'/save',{method:'POST',headers:{...headers,cookie},body:payload})).status,409);
   const other=await projects.create('other-owner',await fixture());
-  for(const suffix of ['', '/save','/check','/checkpoint','/restore']) assert.equal((await request(`/api/projects/${other.id}/workspace/${object}`+suffix,suffix ? {method:'POST',headers:{...headers,cookie},body:payload} : {headers:{cookie}})).status,404);
+  const sharedEndpoint=`/api/projects/${other.id}/workspace/${object}`;
+  assert.equal((await request(sharedEndpoint,{headers:{cookie}})).status,200);
+  assert.equal((await request(sharedEndpoint+'/save',{method:'POST',headers:{...headers,cookie},body:JSON.stringify({revision:0,files:{...initial.files,'client.ts':initial.files['client.ts']+'\n// shared edit'}})})).status,200);
+  assert.equal((await (await request(sharedEndpoint,{headers:{cookie}})).json()).audit.at(-1).actor.id,'local');
   const unsupported=await projects.create('local',await zip([['package.json',{code:'fixture'}],['widgets/manifest.json',{entities:[{kind:'PROCESS',code:'process',namespace:'fixture',path:'process'}]}],['widgets/process',{descriptor:{clientScripts:'Context.data.title;'}}]]));
   assert.equal((await request(`/api/projects/${unsupported.id}/workspace/object-0`,{headers:{cookie}})).status,422);
   assert.equal((await request(endpoint+'/restore',{method:'POST',headers:{...headers,cookie},body:JSON.stringify({revision:1,checkpoint:'../../state.json'})})).status,404);

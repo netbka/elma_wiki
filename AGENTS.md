@@ -55,7 +55,7 @@ Ask only for unresolved choices materially changing product capability/expectati
 - Git contains only code, universal docs and synthetic fixtures.
 - Never commit .env, OAuth/ELMA tokens, real .e365 archives, customer code/data or private connection details.
 - dist/data.json remains empty; user projects/snapshots/evidence live only in private runtime storage.
-- Every data API enforces authentication and its record's visibility server-side. Existing owner-private records stay owner-scoped until explicitly admitted through the migration; new approved shared Solutions grant equal product access to all authenticated MVP actors. Do not widen legacy access or bypass checks piecemeal. Preserve actor attribution separately from storage ownership and ELMA-native authorship.
+- Every data API enforces authentication server-side. Owner clarification on 2026-10-08: product configurations, including historical uploads, have no per-user private mode; all authenticated MVP actors have equal content access. The service enables shared access centrally for legacy project/portal/workspace/release stores as well as Solutions, preserving original bytes, IDs, uploader provenance and trusted mutation actors. Separate roots still enforce artifact/lifecycle identity; a legacy ID is not automatically a full Solution snapshot. Operational credentials and bridge/connection controls retain their execution contract. Preserve actor attribution separately from storage ownership and ELMA-native authorship.
 - Archive paths are data, never direct host filesystem paths.
 - Hosted Wiki never executes arbitrary uploaded customer code.
 - Unknown/opaque content is preserved privately when needed for round trip and never treated as safe executable input.

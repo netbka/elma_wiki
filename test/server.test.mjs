@@ -41,13 +41,17 @@ test('duplicate uploads have separate UUIDs; original, report, reparse, restart 
   assert.equal((await store.list('local')).length,1); assert.equal((await request(`/api/projects/${a.id}/original`,{headers:{cookie}})).status,404);
   assert.deepEqual(await store.original(b.id,'local'),bytes);
 });
-test('all project surfaces check owner, including mutation and original bytes',async t=>{
+test('all project surfaces require login and share historical records without rewriting originals',async t=>{
   const {request,directory}=await instance(t),cookie=await login(request),p=await projectStore(directory).create('github:999',await fixture());
   for (const route of [`/p/${p.id}/`,`/p/${p.id}/data.json`,...['data','report','original','preview?path=package.json','diagnostic-summary'].map(s=>`/api/projects/${p.id}/${s}`)]) {
-    for (const auth of [{},{cookie}]) assert.equal((await request(route,{headers:auth})).status,404,route);
+    assert.equal((await request(route)).status,404,route);
+    assert.equal((await request(route,{headers:{cookie}})).status,200,route);
   }
-  assert.equal((await request(`/api/projects/${p.id}/reparse`,{method:'POST',headers:{...headers,cookie}})).status,404);
-  assert.equal((await request(`/api/projects/${p.id}`,{method:'DELETE',headers:{...headers,cookie}})).status,404);
+  assert.equal((await (await request('/api/projects',{headers:{cookie}})).json()).length,1);
+  const reparsed=await request(`/api/projects/${p.id}/reparse`,{method:'POST',headers:{...headers,cookie}});
+  assert.equal(reparsed.status,200); assert.equal((await reparsed.json()).reparsedBy.id,'local');
+  assert.equal((await projectStore(directory).get(p.id,'github:999')).owner,'github:999');
+  assert.equal((await request(`/api/projects/${p.id}`,{method:'DELETE',headers:{...headers,cookie}})).status,200);
   assert.equal((await (await request('/api/projects',{headers:{cookie}})).json()).length,0);
 });
 test('mixed archive keeps known objects and original unknown/malformed fragments',async()=>{

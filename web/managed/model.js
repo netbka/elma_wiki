@@ -19,7 +19,7 @@ export function responsibilityReport(state, review) {
     `Отпечаток рассмотренных данных: ${review.artifactDigest || 'Не установлен'}`, `Команда изменения: ${quote(review.options.team || review.options.baselineOwner)}`,
     `Загрузил: ${quote(review.uploadedBy?.login)}`, `Принято: ${quote(review.acceptedAt)}`, `Принял: ${quote(review.acceptedDecision?.actor?.login)}`,
     'Заявленная ответственность команд; авторы публикаций ELMA и договорная ответственность не установлены.',
-    'Это частный отчёт рассмотрения. Исходные файлы сохранены отдельно; отчёт не является пакетом установки или подтверждением доставки.', ''];
+    'Это отчёт рассмотрения. Исходные файлы сохранены отдельно; отчёт не является пакетом установки или подтверждением доставки.', ''];
   for (const row of review.rows) {
     lines.push(`Объект: ${quote(row.key)} · ${labels[row.classification] || row.classification}`,
       `Граница исходной версии: ${row.boundaryCrossing ? 'требует рассмотрения' : 'не выявлена'} · конфликт: ${row.conflict || row.classification === 'conflict' ? 'да' : 'нет'}`);

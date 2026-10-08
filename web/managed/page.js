@@ -42,7 +42,7 @@ const actions = {
   },
   ...(api === '/api/solutions' ? { visual: artifactId => request(`${api}/${encodeURIComponent(id)}/artifacts/${encodeURIComponent(artifactId)}/visual`) } : {}),
   logout: async () => { await request('/auth/logout', {}); navigate('/login'); },
-  upload: file => request((shared ? '/api/solutions/uploads?sharedConfirmed=true&filename=' : '/api/projects?filename=') + encodeURIComponent(file.name), file, true),
+  upload: file => request((shared ? '/api/solutions/uploads?filename=' : '/api/projects?filename=') + encodeURIComponent(file.name), file, true),
   create: async input => { const state = await request(api, input); navigate(href(state.id)); },
   prepare: async input => { const review = await request(`${api}/${id}/prepare`, { ...input, ...(shared && artifact && ['change', 'full'].includes(view) ? { supersedesArtifactId: artifact } : {}) }); navigate(href(id, 'review', review.artifactId)); },
   accept: async (artifactId, input) => { await request(`${api}/${id}/artifacts/${artifactId}/accept`, input); navigate(href(id)); },

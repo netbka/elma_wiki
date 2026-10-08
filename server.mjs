@@ -47,12 +47,11 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
   deliveryTimeoutMs = Number(process.env.DELIVERY_TIMEOUT_MS) || 20 * 60 * 1000,
   requests = requestCoordinator() } = {}) {
   const actors = actorStore(directory);
-  const base = new URL(baseUrl), auth = createAuth({ baseUrl, allowLocal, sendEmail, sendVk, now, onLogin: actors.resolve }), portals = portalStore(directory), projects = projectStore(directory), oldDemo = demoData(), sample = oldDemo.servers.showcase, demo = {entities:sample.entities,solution:sample.solutions[0],coverage:'structural',parserVersion:'2.0.0',inventory:[],provenance:{},synthetic:true};
+  const base = new URL(baseUrl), auth = createAuth({ baseUrl, allowLocal, sendEmail, sendVk, now, onLogin: actors.resolve }), portals = portalStore(directory, { sharedAccess: true }), projects = projectStore(directory, { sharedAccess: true }), oldDemo = demoData(), sample = oldDemo.servers.showcase, demo = {entities:sample.entities,solution:sample.solutions[0],coverage:'structural',parserVersion:'2.0.0',inventory:[],provenance:{},synthetic:true};
   const solutions = solutionStore(directory);
-  const workspaces = workspaceStore(projects);
-  const managed = managedWorkspaceStore(directory, projects);
+  const managed = managedWorkspaceStore(directory, projects, { sharedAccess: true });
   let delivery;
-  const releases = releaseStore(directory, projects, { deliverySummary: (id, owner) => delivery.summary(id, owner) });
+  const releases = releaseStore(directory, projects, { sharedAccess: true, deliverySummary: (id, owner) => delivery.summary(id, owner) });
   // The bridge adapter is always available: it only does something once an owner registers a bridge and an
   // operator runs the worker with the token. The service itself still makes no outbound connections.
   const bridges = bridgeStore(directory);
@@ -97,8 +96,8 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
       if (pathname === '/api/solutions/uploads') {
         if (!session) return send(res, 401, { error: 'Войдите в сервис' });
         if (req.method !== 'POST') return send(res, 405, { error: 'Метод не поддерживается' });
-        if (url.searchParams.get('sharedConfirmed') !== 'true' || [...url.searchParams.keys()].some(k => !['filename', 'sharedConfirmed'].includes(k)))
-          return send(res, 400, { error: 'Подтвердите доступ к файлу для всех пользователей сервиса' });
+        if (url.searchParams.has('sharedConfirmed') && url.searchParams.get('sharedConfirmed') !== 'true' || [...url.searchParams.keys()].some(k => !['filename', 'sharedConfirmed'].includes(k)))
+          return send(res, 400, { error: 'Все файлы доступны вошедшим пользователям сервиса' });
         if (req.headers['content-type']?.split(';')[0] !== 'application/octet-stream') return send(res, 415, { error: 'Загрузите файл .e365' });
         if (uploading) return send(res, 409, { error: 'Дождитесь завершения текущей загрузки' });
         uploading = true;
@@ -161,7 +160,7 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
         if (req.headers['content-type']?.split(';')[0] !== 'application/json') return send(res, 415, { error: 'Требуется JSON' });
         const input = JSON.parse((await body(req, 256 * 1024)).toString('utf8'));
         if (!id) {
-          if (input?.sharedConfirmed !== true) return send(res, 400, { error: 'Подтвердите общее решение' });
+          if (input?.sharedConfirmed !== undefined && input.sharedConfirmed !== true) return send(res, 400, { error: 'Все решения доступны вошедшим пользователям сервиса' });
           delete input.sharedConfirmed;
         }
         const result = !id ? await store.create(SOLUTION_CATALOG, input, session.user) : action === 'discussion' ? await store.comment(id, SOLUTION_CATALOG, artifactId, input, session.user)
@@ -204,8 +203,8 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
         if (req.method !== 'POST' || (id && !['prepare', 'archive', 'accept'].includes(action))) return send(res, 405, { error: 'Метод не поддерживается' });
         if (req.headers['content-type']?.split(';')[0] !== 'application/json') return send(res, 415, { error: 'Требуется JSON' });
         const input = JSON.parse((await body(req, 256 * 1024)).toString('utf8'));
-        const result = !id ? await managed.create(owner, input) : action === 'prepare' ? await managed.prepare(id, owner, input)
-          : action === 'accept' ? await managed.accept(id, owner, artifactId, input) : await managed.setArchived(id, owner, input);
+        const result = !id ? await managed.create(owner, input, session.user) : action === 'prepare' ? await managed.prepare(id, owner, input, session.user)
+          : action === 'accept' ? await managed.accept(id, owner, artifactId, input, session.user) : await managed.setArchived(id, owner, input, session.user);
         return send(res, !id || action === 'prepare' ? 201 : 200, result);
       }
       if (pathname === '/api/delivery/capabilities') {
@@ -222,7 +221,7 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
         if (req.headers['content-type']?.split(';')[0] !== 'application/json') return send(res,415,{error:'Требуется JSON'});
         const input = JSON.parse((await body(req,64*1024)).toString('utf8'));
         if (!input || typeof input !== 'object' || Array.isArray(input)) return send(res,400,{error:'Некорректный запрос'});
-        return send(res,201,await releases.create(session.user.id,input));
+        return send(res,201,await releases.create(session.user.id,input,session.user));
       }
       // Operator bridge worker: bearer token (hash-compared), never a browser session. Bodies stay small;
       // the candidate artifact is streamed separately and only while its job is taken.
@@ -291,7 +290,7 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
         if (req.headers['content-type']?.split(';')[0] !== 'application/json') return send(res,415,{error:'Требуется JSON'});
         const input = JSON.parse((await body(req,64*1024)).toString('utf8'));
         if (!input || typeof input !== 'object' || Array.isArray(input)) return send(res,400,{error:'Некорректный запрос'});
-        if (action === 'change') return send(res,200,await releases.change(id,owner,input));
+        if (action === 'change') return send(res,200,await releases.change(id,owner,input,session.user));
         if (action === 'delivery') {
           if (input.action === 'prepare') return send(res,201,await delivery.prepare(id,owner,input));
           if (input.action === 'confirm') return send(res,200,await delivery.confirm(id,input.attemptId,owner,input));
@@ -299,7 +298,7 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
           if (input.action === 'cancel') return send(res,200,await delivery.cancel(id,input.attemptId,owner));
           return send(res,400,{error:'Неизвестное действие доставки'});
         }
-        const bundle = await releases.bundle(id,owner,input.revision);
+        const bundle = await releases.bundle(id,owner,input.revision,session.user);
         res.writeHead(200,{'Content-Type':'application/zip','Content-Disposition':'attachment; filename="release-handoff.zip"','Cache-Control':'no-store'});
         return res.end(bundle);
       }
@@ -307,6 +306,7 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
       if (workspaceMatch) {
         const [,id,object,action] = workspaceMatch;
         if (!session || !await projects.get(id,session.user.id)) return send(res,404,{error:'Проект не найден'});
+        const workspaces = workspaceStore(projects, { actor: session.user, action });
         if (req.method === 'GET' && !action) return send(res,200,await workspaces.read(id,session.user.id,object));
         if (req.method !== 'POST' || !action) return send(res,405,{error:'Метод не поддерживается'});
         if (req.headers['content-type']?.split(';')[0] !== 'application/json') return send(res,415,{error:'Требуется JSON'});
@@ -327,7 +327,7 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
           if (req.headers['content-type']?.split(';')[0] !== 'application/octet-stream') return send(res,415,{error:'Загрузите файл .e365'});
           if (uploading) return send(res,409,{error:'Дождитесь завершения текущей загрузки'});
           uploading = true;
-          try { return send(res,201,await projects.create(session.user.id,await body(req,limits.upload),url.searchParams.get('filename') || 'configuration.e365')); }
+          try { return send(res,201,await projects.create(session.user.id,await body(req,limits.upload),url.searchParams.get('filename') || 'configuration.e365',session.user)); }
           finally { uploading = false; }
         }
         return send(res,405,{error:'Метод не поддерживается'});
@@ -348,7 +348,7 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
         if (req.headers['content-type']?.split(';')[0] !== 'application/json') return send(res,415,{error:'Требуется JSON'});
         const input = JSON.parse((await body(req,4096)).toString('utf8'));
         if (!input || typeof input !== 'object' || Array.isArray(input)) return send(res,400,{error:'Некорректный запрос'});
-        return send(res,200,await projects.selectSnapshot(id,owner,snapshotId,input.expectedSnapshotId));
+        return send(res,200,await projects.selectSnapshot(id,owner,snapshotId,input.expectedSnapshotId,session.user));
       }
       const projectMatch = /^\/api\/projects\/([^/]+)(?:\/(data|report|original|preview|reparse|diagnostic-summary))?$/.exec(pathname);
       if (projectMatch) {
@@ -356,7 +356,7 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
         if (!session || !await projects.get(id,session.user.id)) return send(res,404,{error:'Проект не найден'});
         const owner = session.user.id;
         if (req.method === 'DELETE' && !action) { await projects.delete(id,owner); return send(res,200,{ok:true}); }
-        if (req.method === 'POST' && action === 'reparse') return send(res,200,await projects.reparse(id,owner));
+        if (req.method === 'POST' && action === 'reparse') return send(res,200,await projects.reparse(id,owner,session.user));
         if (req.method !== 'GET') return send(res,405,{error:'Метод не поддерживается'});
         if (action === 'data' || action === 'report') return send(res,200,await projects.read(id,owner,action));
         if (action === 'preview') return send(res,200,await projects.preview(id,owner,url.searchParams.get('path')));
