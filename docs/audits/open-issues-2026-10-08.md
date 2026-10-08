@@ -52,10 +52,19 @@ report, never admits data or alters originals. Unavailable storage fails rather
 than producing a false empty inventory.
 
 The selected primary checkout's local storage contained **0 legacy records**.
-This is a local directory result, not the deployed service inventory. Owner
-retention/migration decisions and any separately authorized deployed migration
-remain unobserved. New shared Solutions retain their existing explicit admission
-boundary and legacy records stay private.
+Separate read-only inspection verified the documented internal Wiki service,
+healthy image `elma-wiki:226dcbe`, and its actual mounted private storage:
+**1 legacy project, 1 distinct owner, 0 managed workspaces, 0 legacy portals,
+0 shared Solutions, 0 unreadable metadata records**. Only aggregate counts
+were emitted; no customer archive, code, identity or credential was published.
+The local directory result did not establish the deployed inventory; the
+separate inspection did. Retention/migration decisions remain pending. No
+record was admitted, copied or changed. New shared Solutions retain their
+existing explicit admission boundary and the legacy project stays private.
+
+The deployed image predates the current Solution-first implementation. It
+cannot supply the current-product user acceptance evidence. Use the isolated
+local session for this pass; deployment is outside current authorization.
 
 ## Native history (#47)
 
@@ -90,9 +99,9 @@ Do not infer field authors or build another history/merge engine.
 | #30, #35, #56 | Their implemented first-use/navigation work retains the same human acceptance dependencies; no second navigation rebuild |
 | #37 | Human integrated acceptance alongside the separately passing synthetic E2E |
 | #52, #33 | Coordination/final product acceptance, plus the separately tracked migration/native/delivery gates |
-| #55 | Inventory/classification of actual deployed legacy storage and owner retention/admission decisions; no automatic exposure |
+| #55 | Owner retention/admission decision and classification of the one inventoried deployed legacy project; no automatic exposure |
 | #47 | General Source/object/native-version association, process/application cases and native stale-write evidence |
-| #34 | Exact physical candidate handoff through #11; virtual mixed state remains non-deployable |
+| #34 | Existing release/candidate integration through #11; PR #75 independently supplies bounded exact accepted-full-export evidence, while virtual mixed state remains non-deployable |
 | #11 | Explicit physical accepted candidate, usable non-production Target and authorized native import/read-back under the exact inventory policy |
 | #19 | Private bot/provider/repository bindings and an authorized live execution/repair pilot; synthetic worker contracts do not supply them |
 
@@ -107,3 +116,21 @@ source/static learning journeys. The action-separation regression failed before
 the fix and passed afterward at desktop/mobile widths. QA screenshots/JSON
 and session/inventory reports remain ignored. These results are local evidence,
 not a claim about a new GitHub CI run, human acceptance or a serving release.
+
+## Concurrent implementation and CI observation
+
+[PR #75](https://github.com/netbka/elma_wiki/pull/75) appeared in another active
+lane after this pass started. Independently reviewed head `1b7a65b` and ran its
+affected store/API tests: **19/19 passed**. Its read-only accepted-export route
+preserves exact full bytes and complete inventory, rejects pending/open
+findings, stale/archived/corrupt states, later partials (including component
+no-ops) and retained virtual conflicts, and marks external checks not-run.
+It does not generate mixed packages or authorize delivery. `git merge-tree`
+found clean integration with this branch. The other session's checkout/branch
+was not changed. Actual release/candidate/Target integration remains #11.
+
+[PR #76 Verify service 37765398345](https://github.com/netbka/elma_wiki/actions/runs/37765398345)
+completed successfully on Ubuntu and Windows at head `e4e3d56`. Linux exercised
+the browser journeys; Windows browser stages were intentionally skipped.
+This is observed CI for that head, separate from the local Chrome pass and
+pending participant observations.
