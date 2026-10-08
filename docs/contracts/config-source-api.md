@@ -15,6 +15,8 @@ Export state: queued -> running -> ready | failed. Ready includes artifact
 SHA-256, byte count, filename and per-solution coverage. Paid exclusions and
 export failures remain explicit. Captures are fresh, sequential, immutable;
 they are not an atomic server/database/infrastructure backup.
+When non-paid exports fail, artifact coverage is partial-export-failures.
+Ready means a downloadable artifact exists, not that all solutions succeeded.
 
 Wiki operators set CONFIG_SOURCE_API_URL and CONFIG_SOURCE_API_TOKEN privately.
 No browser-supplied URLs, credentials or arbitrary servers are accepted.
@@ -41,6 +43,7 @@ All /api/config-source/ routes require an authenticated session. Writes retain
 Host/Origin/service-header guards. GET /servers, GET /servers/:server/solutions;
 POST /exports JSON {server,solution?}; POST /uploads bounded binary;
 GET /acquisitions/:id; GET /acquisitions/:id/original.
+GET /acquisitions lists recent saved loads for recovery after a lost response.
 
 Acquisition state: exporting -> parsing -> ready | failed. Acquisition records
 and original containers remain private and persist across restart. Public

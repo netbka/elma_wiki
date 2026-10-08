@@ -14,3 +14,4 @@
 .config-acquisition > div { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; }
 .config-acquisition label { display: block; }
 .config-acquisition input { max-width: 100%; }
+.config-acquisition button.secondary { background: transparent; color: #172c3d; border-color: #8aa0b0; }

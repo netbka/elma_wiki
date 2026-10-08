@@ -12,7 +12,7 @@ export function mountAcquisition(actions, selected, model = {}) {
   for (const [value, caption] of [['dev', 'DEV'], ['dev2', 'dev2']]) { const option = el('option', caption); option.value = value; server.append(option); }
   const solution = label('Что загрузить', el('select'));
   const all = el('option', 'Все доступные решения'); all.value = ''; solution.append(all);
-  const button = (text, operation) => { const node = el('button', text); node.type = 'button'; node.onclick = () => run(operation); controls.append(node); return node; };
+  const button = (text, operation) => { const node = el('button', text); node.type = 'button'; node.className = 'secondary'; node.onclick = () => run(operation); controls.append(node); return node; };
   const lock = value => { busy = value; for (const node of controls.querySelectorAll('input,select,button')) node.disabled = value; };
   const run = async operation => {
     if (busy) return; lock(true); error.textContent = ''; status.textContent = 'Загружаем…';
@@ -28,7 +28,7 @@ export function mountAcquisition(actions, selected, model = {}) {
     if (acquisition.state === 'ready') {
       const download = el('a', 'Скачать исходную конфигурацию'); download.href = '/api/config-source/acquisitions/' + acquisition.id + '/original'; results.append(download);
       for (const row of acquisition.solutions || []) {
-        const choose = el('button', 'Выбрать ' + row.code); choose.type = 'button';
+        const choose = el('button', 'Выбрать ' + row.code); choose.type = 'button'; choose.className = 'secondary';
         choose.onclick = () => { selected(row.project); results.querySelectorAll('button').forEach(node => { node.disabled = false; }); choose.disabled = true; status.textContent = 'Выбрано решение: ' + row.code; };
         results.append(choose);
       }

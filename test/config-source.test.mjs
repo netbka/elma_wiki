@@ -68,6 +68,7 @@ test('configured HTTP adapter keeps token local, refuses redirects and checks re
     request = { url, options }; return new Response(JSON.stringify({ servers: [] })); } });
   await client.servers(); assert.equal(request.options.redirect, 'error'); assert.equal(request.options.headers.Authorization, 'Bearer synthetic-secret');
   assert.equal(configSourceClient({}), null);
+  assert.throws(() => configSourceClient({ url: 'http://source.invalid' }), /both/);
   assert.throws(() => configSourceClient({ url: 'http://user:password@host', token: 'x' }));
   const failed = configSourceClient({ url: 'http://source.invalid', token: 'x', fetcher: async () => new Response('secret', { status: 500 }) });
   await assert.rejects(failed.servers(), error => !error.message.includes('secret') && error.statusCode === 502);
