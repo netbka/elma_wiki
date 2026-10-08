@@ -1,5 +1,6 @@
 import { componentName, dateLabel, labels, elementLabels, elementKinds, responsibilityLabel, responsibilityReport, reviewGate, workspaceSummary, workspaceUrl as buildUrl, solutionNextAction } from './model.js';
 import { mountSnapshotVisual } from '../visual/render.js';
+import { mountExplanation } from '../explanations/render.js';
 import { mountRelease } from '../releases/render.js';
 import { hasAcceptedFullExport } from './model.js';
 import { mountAcquisition } from './acquisition.js';
@@ -105,6 +106,22 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
         actionsBar.append(link('Обновить версию', workspaceUrl(state.id, 'full')));
       }
       content.append(el('h2', view === 'solution' ? `Объекты решения · ${state.current.length}` : view === 'changes' ? 'Изменения' : 'Что требует внимания'), el('p', next.summary), actionsBar);
+      if(actions.explanations && ['overview','solution'].includes(view)){
+        const evidence=el('div');
+        content.append(mountExplanation({target:{scope:'solution'},label:'Объяснить решение'}, {...actions.explanations,
+          openSource:async reference=>{
+            evidence.replaceChildren(el('p','Загружаем источник…'));
+            try {
+              const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(reference.componentKey));
+              const ref=[...new Uint8Array(digest)].map(byte=>byte.toString(16).padStart(2,'0')).join('');
+              const value=await actions.context(reference.artifactId,ref);
+              const title=el('h3',value.name||value.code);title.tabIndex=-1;
+              evidence.replaceChildren(title,el('p',value.source),el('pre',value.content||'Исходный текст недоступен в пределах просмотра.'));
+              title.focus();
+            }catch(e){const alert=el('p',e.message);alert.setAttribute('role','alert');evidence.replaceChildren(alert);}
+          }
+        }),evidence);
+      }
       if (view === 'overview') content.append(el('p', `Изменённых объектов: ${summary.changed} · Ожидают рассмотрения: ${summary.pending}`));
       for (const pending of view === 'solution' ? [] : state.pending) {
         const card = el('article', undefined, 'managed-card');
@@ -115,9 +132,30 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
       }
       const lower = el('div', undefined, 'managed-columns'), current = el('section'), history = el('section');
       current.append(el('h2', `Текущее состояние · ${state.current.length} объектов`));
-      const table = el('table'), head = el('tr'); ['Объект', 'Ответственность', 'Состояние'].forEach(label => head.append(el('th', label))); table.append(head);
-      for (const row of state.current) { const tr = el('tr'); tr.append(el('td', row.code), el('td', responsibilityLabel(row)), el('td', row.interventionId ? 'Принятое изменение' : 'Принятая версия')); table.append(tr); }
+      const visualTarget=el('div');
+      const table = el('table'), head = el('tr'); ['Объект', 'Ответственность', 'Состояние',...(actions.explanations?['Просмотр']:[])].forEach(label => head.append(el('th', label))); table.append(head);
+      for (const row of state.current) {
+        const tr = el('tr'); tr.append(el('td', row.code), el('td', responsibilityLabel(row)), el('td', row.interventionId ? 'Принятое изменение' : 'Принятая версия'));
+        if(actions.explanations){
+          const cell=el('td');
+          if(row.service==='processor'){
+            const captured=state.artifacts.filter(artifact=>artifact.components.some(component=>component.key===row.key&&component.digest===row.digest)).at(-1);
+            const load=async()=>{
+              visualTarget.replaceChildren(mountSnapshotVisual({loading:true}));
+              try{
+                const value=await actions.visual(captured.id);
+                value.processes=value.processes.filter(process=>JSON.stringify(process.object)===row.key);
+                visualTarget.replaceChildren(mountSnapshotVisual(value,{explanations:actions.explanations}));
+              }catch(e){visualTarget.replaceChildren(mountSnapshotVisual({error:e.message},{retry:load}));}
+            };
+            if(captured)button('Посмотреть процесс: '+row.code,load,cell).className='secondary';
+          }
+          tr.append(cell);
+        }
+        table.append(tr);
+      }
       const scroll = el('div', undefined, 'managed-table'); scroll.tabIndex = 0; scroll.setAttribute('role', 'region'); scroll.setAttribute('aria-label', 'Рабочее состояние объектов'); scroll.append(table); current.append(scroll);
+      current.append(visualTarget);
       history.append(el('h2', 'Принятые изменения'), el('p', `Изменений: ${state.changes.length} · Обновлений версии: ${state.reconciliations.length}`));
       for (const row of state.reviewedChanges || []) history.append(link(row.kind === 'change' ? row.options.taskRef : 'Обновление версии', workspaceUrl(state.id, 'review', row.artifactId)));
       const events = { created: 'Добавлено решение', 'change-accepted': 'Принято изменение', 'baseline-accepted': 'Принята новая версия', archived: 'Перемещено в архив', reopened: 'Работа возобновлена' };
@@ -128,7 +166,7 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
       if (model.shared) artifacts.append(link('История передачи решения', workspaceUrl(state.id, 'handoff')));
       state.artifacts.forEach((artifact, i) => { const item = el('div'); item.append(link(`Скачать файл ${i + 1}`, `${api}/${state.id}/artifacts/${artifact.id}/original`)); technical(item, 'Источник и контрольная сумма', { snapshot: artifact.snapshot, scope: artifact.scopeDeclaration, checksum: artifact.checksum, uploadedBy: artifact.uploadedBy }); artifacts.append(item); });
       history.append(artifacts);
-      if (view === 'solution') lower.append(current);
+      if (view === 'solution') {lower.style.gridTemplateColumns='minmax(0,1fr)';lower.append(current);}
       else if (view === 'changes') lower.append(history);
       else { const details = el('details'); details.append(el('summary', 'Объекты и история'), current, history); lower.append(details); }
       content.append(lower);
@@ -207,6 +245,7 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
       const load=async()=>{
         target.replaceChildren(mountSnapshotVisual({loading:true}));
         try { target.replaceChildren(mountSnapshotVisual(await actions.visual(review.artifactId), {
+          explanations: actions.explanations,
           selectAnchor: anchor => { selectedSource = anchor; showSelectedSource(); }
         })); loaded=true; }
         catch(e){target.replaceChildren(mountSnapshotVisual({error:e.message},{retry:load}));}

@@ -49,7 +49,13 @@ const actions = {
       const url = URL.createObjectURL(blob), link = document.createElement('a'); link.href = url; link.download = 'solution-handoff.zip'; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
   },
-  ...(api === '/api/solutions' ? { visual: artifactId => request(`${api}/${encodeURIComponent(id)}/artifacts/${encodeURIComponent(artifactId)}/visual`) } : {}),
+  ...(api === '/api/solutions' ? {
+    visual: artifactId => request(`${api}/${encodeURIComponent(id)}/artifacts/${encodeURIComponent(artifactId)}/visual`),
+    explanations: {
+      read: target => request(`${api}/${encodeURIComponent(id)}/explanations?`+new URLSearchParams(target)),
+      save: (target,input) => request(`${api}/${encodeURIComponent(id)}/explanations`,{...target,...input})
+    }
+  } : {}),
   logout: async () => { await request('/auth/logout', {}); navigate('/login'); },
   upload: file => request((shared ? '/api/solutions/uploads?filename=' : '/api/projects?filename=') + encodeURIComponent(file.name), file, true),
   create: async input => { const state = await request(api, input); navigate(href(state.id)); },

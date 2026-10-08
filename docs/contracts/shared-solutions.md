@@ -16,6 +16,12 @@ The server supplies the actor separately from request data. Upload metadata and 
 
 ## Change review and contextual code
 
+Contextual Solution/process/step explanations use the same authenticated actors,
+captured originals and atomic managed storage. They are separate documentation,
+not comments, accepted changes or deployment evidence. See
+[solution-explanations.md](solution-explanations.md) for scopes, provenance,
+source/version conflicts and history preservation.
+
 `GET /api/solutions/:id/artifacts/:artifactId/review` combines the captured comparison, responsibility/boundary evidence, before/after object references, uploader, discussion and acceptance proof. Historical accepted comparisons remain readable. Old pending records can derive a fresh comparison; an unavailable historical comparison stays explicitly unknown.
 
 `POST .../discussion` accepts only `{expectedRevision, expectedDiscussionRevision, type, text, componentKey?, parentId?}`. The session supplies identity. Comment, Needs changes, reply, resolve and reopen use the existing review-event rules; a caller cannot forge an approval, author or actor. The domain revision and discussion version are checked under the same storage queue as the decision. Events and audit persist atomically with the record. Open Needs changes findings block acceptance; comments alone do not. Acceptance binds the actual actor, current discussion version, artifact digest and existing boundary/conflict choices.
