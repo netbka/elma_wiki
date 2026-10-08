@@ -17,6 +17,11 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Production updater synthetic contracts
+        run: npm run test:prod
       - run: npm run build:editor
       - name: Unit and contract tests
         timeout-minutes: 5
