@@ -26,6 +26,46 @@ An explicit `supersedesArtifactId` on preparation continues that Change's discus
 
 The object context API resolves checksum-verified bytes only within the Solution's captured artifacts. Supported widget scripts link to `/solutions/:id/code/:artifactId/:objectRef`, reusing the existing editor and revision/checkpoint checks. Shared working-copy mutations retain the actual actor and are blocked while the Solution is archived. Arbitrary imported code never runs. Editor changes remain a separate working copy; they do not replace an export or enter accepted Solution state automatically. Unsupported or ambiguous objects have no editor action.
 
+## Exact accepted export association — #34 / #11
+
+`GET /api/solutions/:id/accepted-export?expectedRevision=N` is a read-only,
+authenticated association check for the existing release capability. The same
+path with `/original` before the query downloads the exact captured bytes, with
+`X-Artifact-SHA256` and `X-Solution-Revision` headers. Both reads require the
+explicit current integer revision and run in the managed store's mutation queue.
+Legacy private IDs remain inaccessible through this route.
+
+Policy `accepted-full-export-v1` supports only the current accepted full export:
+the Solution must be active, have no pending review or open finding, have no
+accepted partial artifact after that full export, and have an accepted component
+state matching a fresh parse of its immutable bytes. A reconciliation that keeps
+local components absent from or different to the full export is blocked. Even a
+component-level no-op partial change requires a later reviewed full export;
+component equality cannot prove package/dependency metadata equivalence.
+
+Evidence retains the full original SHA-256, complete expanded inventory and its
+fingerprint (using the existing exact-inventory validator), snapshot and scope
+declaration, acceptance time and actor where recorded. Package and manifest files
+are included. Reparse/deletion of the upload does not alter captured bytes. Reads
+do not mutate state, create a candidate, approve deployment or choose a Target.
+This is the bounded physical association foundation for #11, not a parallel
+release/deployment engine or a general virtual-state package builder. The normal
+product shell and its deferred Delivery entry are unchanged.
+
+Artifact integrity and accepted-state association can pass; compiler,
+dependencies, Target, read-back and business-flow checks are explicitly `not-run`.
+`deploymentAuthorized` and `verified` remain false. Existing candidate/release
+acceptance, live adapter/import/export correspondence and authorized TEST
+verification gates still apply. A caller must recheck the revision before later
+use, and rerun the association check itself: later discussion can reopen a
+finding without changing the domain revision. This response is evidence at
+observation time, not a durable approval.
+
+Focused store/API tests cover exact bytes and metadata, two authenticated actors,
+anonymous/private isolation, explicit revision, method restrictions, restart,
+deleted uploads, corrupt archives, archived/pending state, no-op partial changes,
+matching full reconciliation and retained local conflict state.
+
 ## Explicit migration and backout
 
 There is no automatic exposure of old data. Before a legacy record is copied into the catalog, record its source, sensitivity, intended Solution, original uploader/native provenance and explicit admission decision. The authorized owner must classify and approve that particular record; filenames, matching solution codes, previous uploads and login do not imply consent. A classified record can then be re-uploaded through the confirmed shared route as a new immutable copy. Preserve the original private record and its evidence; never relabel the original owner's storage root or overwrite native authorship. No bulk migration or unclassified-record endpoint exists.

@@ -30,6 +30,74 @@ async function setup(t) {
 const changeInput = (snapshot, revision = 0) => ({ kind: 'change', snapshot, expectedRevision: revision, team: 'Internal', taskRef: 'SYNTHETIC-1', sameSourceConfirmed: true });
 const decisions = preview => ({ expectedRevision: preview.revision, reviewedDigest: preview.artifactDigest });
 
+test('accepted export preserves exact full bytes and all metadata across project deletion and store restart', async t => {
+  const { directory, projects, store, base, create } = await setup(t);
+  const state = await create();
+  const before = await fs.readFile(path.join(directory, 'managed-workspaces', state.id, 'workspace.json'));
+  const result = await store.acceptedExport(state.id, owner, state.revision);
+  assert.deepEqual(result.bytes, base.bytes);
+  assert.equal(result.evidence.artifactId, state.baselineId);
+  assert.equal(result.evidence.snapshot.snapshotId, base.ref.snapshotId);
+  assert.equal(result.evidence.sha256, state.artifacts[0].checksum);
+  assert.ok(result.evidence.inventory.some(row => row.path === 'package.json'));
+  assert.ok(result.evidence.inventory.some(row => row.path === 'widgets/manifest.json'));
+  assert.equal(result.evidence.deploymentAuthorized, false);
+  assert.equal(result.evidence.verified, false);
+  assert.equal(result.evidence.checks.readBack, 'not-run');
+  assert.deepEqual(await fs.readFile(path.join(directory, 'managed-workspaces', state.id, 'workspace.json')), before);
+  await projects.delete(base.project.id, owner);
+  const restarted = managedWorkspaceStore(directory, projects);
+  assert.deepEqual(await restarted.acceptedExport(state.id, owner, state.revision), result);
+  await assert.rejects(restarted.acceptedExport(state.id, foreign, state.revision), status(404));
+  await assert.rejects(restarted.acceptedExport(state.id, owner, state.revision + 1), status(409));
+  await assert.rejects(restarted.acceptedExport(state.id, owner), status(409));
+  await fs.appendFile(path.join(directory, 'managed-workspaces', state.id, state.baselineId + '.e365'), 'corrupt');
+  await assert.rejects(restarted.acceptedExport(state.id, owner, state.revision), /checksum/);
+});
+
+test('accepted export blocks pending, archived and partial no-op state until a later full review', async t => {
+  const { store, upload, create } = await setup(t);
+  let state = await create();
+  const partial = await upload([['a', 'base']], 'partial');
+  const review = await store.prepare(state.id, owner, changeInput(partial.ref));
+  await assert.rejects(store.acceptedExport(state.id, owner, state.revision), /pending reviews/);
+  state = await store.accept(state.id, owner, review.artifactId, decisions(review));
+  // Even identical component content cannot account for partial metadata.
+  await assert.rejects(store.acceptedExport(state.id, owner, state.revision), /later reviewed full export/);
+  const full = await upload([['a', 'base'], ['b', 'untouched']], 'full');
+  const reconciliation = await store.prepare(state.id, owner, { kind: 'reconciliation', snapshot: full.ref,
+    expectedRevision: state.revision, baselineOwner: 'Korus', sameSourceConfirmed: true });
+  state = await store.accept(state.id, owner, reconciliation.artifactId, decisions(reconciliation));
+  assert.deepEqual((await store.acceptedExport(state.id, owner, state.revision)).bytes, full.bytes);
+  const performedBy = { id: owner, login: 'synthetic@example.org', provider: 'local' };
+  const finding = await store.comment(state.id, owner, reconciliation.artifactId, {
+    expectedRevision: state.revision, expectedDiscussionRevision: 0, type: 'reject', text: 'New evidence needs review'
+  }, performedBy);
+  await assert.rejects(store.acceptedExport(state.id, owner, state.revision), /open findings/);
+  await store.comment(state.id, owner, reconciliation.artifactId, {
+    expectedRevision: state.revision, expectedDiscussionRevision: finding.version, type: 'resolve',
+    parentId: finding.findings[0].id, text: 'Reviewed the new evidence'
+  }, performedBy);
+  assert.deepEqual((await store.acceptedExport(state.id, owner, state.revision)).bytes, full.bytes);
+  state = await store.setArchived(state.id, owner, { archived: true, expectedRevision: state.revision });
+  await assert.rejects(store.acceptedExport(state.id, owner, state.revision), /Reopen/);
+});
+
+test('accepted full reconciliation retaining a local component cannot masquerade as a physical export', async t => {
+  const { store, upload, create } = await setup(t);
+  let state = await create();
+  const local = await upload([['a', 'ours']], 'partial');
+  const change = await store.prepare(state.id, owner, changeInput(local.ref));
+  state = await store.accept(state.id, owner, change.artifactId, { ...decisions(change), reviewedBoundaryKeys: change.rows.filter(row => row.boundaryCrossing).map(row => row.key) });
+  const full = await upload([['a', 'theirs'], ['b', 'untouched']], 'full');
+  const review = await store.prepare(state.id, owner, { kind: 'reconciliation', snapshot: full.ref,
+    expectedRevision: state.revision, baselineOwner: 'Korus', sameSourceConfirmed: true });
+  const conflict = review.rows.find(row => row.classification === 'conflict');
+  state = await store.accept(state.id, owner, review.artifactId,
+    { ...decisions(review), resolutions: { [conflict.key]: 'keep-working' } });
+  await assert.rejects(store.acceptedExport(state.id, owner, state.revision), /retained or ambiguous/);
+});
+
 test('persisted baseline, partial change, conflict, reconciliation and archive/reopen retain exact artifacts', async t => {
   const { directory, projects, store, upload, base, create } = await setup(t);
   const initial = await create(), local = await upload([['x', 'ours']], 'partial');

@@ -53,6 +53,38 @@ async function setup(t) {
   return { directory, request, post, login, upload, uploadBytes, ref, create, restart: async () => { await close(); await start(); } };
 }
 
+test('accepted export API binds exact shared full bytes to a revision without authorizing delivery', async t => {
+  const { request, post, login, uploadBytes, create, restart } = await setup(t);
+  let a = await login('alice@example.org'), b = await login('bob@example.org');
+  const bytes = await archive([['base', 1]]), project = await uploadBytes(a.cookie, bytes);
+  let state = await json(await create(a.cookie, project), 201);
+  const route = endpoint + '/' + state.id + '/accepted-export';
+  const url = route + '?expectedRevision=' + state.revision;
+  const proof = await json(await request(url, b.cookie));
+  assert.equal(proof.sha256, crypto.createHash('sha256').update(bytes).digest('hex'));
+  assert.equal(proof.policy, 'accepted-full-export-v1');
+  assert.equal(proof.snapshot.checksum, proof.sha256);
+  assert.equal(proof.deploymentAuthorized, false);
+  assert.equal(proof.verified, false);
+  assert.equal(proof.checks.compiler, 'not-run');
+  assert.deepEqual(proof.acceptedBy, a.user);
+  const original = await request(route + '/original?expectedRevision=' + state.revision, b.cookie);
+  assert.equal(original.status, 200);
+  assert.equal(original.headers.get('x-artifact-sha256'), proof.sha256);
+  assert.equal(original.headers.get('cache-control'), 'no-store');
+  assert.deepEqual(Buffer.from(await original.arrayBuffer()), bytes);
+  for (const suffix of ['', '?expectedRevision=-1', '?expectedRevision=0.0', '?expectedRevision=', '?expectedRevision=9007199254740992', '?expectedRevision=0&expectedRevision=0'])
+    await json(await request(route + suffix, a.cookie), 400);
+  await json(await request(url, null), 404);
+  await json(await post(url, a.cookie, {}), 405);
+  await json(await request(endpoint + '/' + crypto.randomUUID() + '/accepted-export', a.cookie), 404);
+  await restart(); b = await login('bob@example.org'); a = await login('alice@example.org');
+  assert.deepEqual(await json(await request(url, b.cookie)), proof);
+  state = await json(await post(endpoint + '/' + state.id + '/archive', a.cookie, { expectedRevision: state.revision, archived: true }));
+  await json(await request(url, b.cookie), 409);
+  await json(await request(route + '?expectedRevision=' + state.revision, b.cookie), 409);
+});
+
 test('two trusted VK actors share admitted Solutions and retain distinct upload, acceptance and archive authors after restart', async t => {
   const { directory, request, post, login, upload, ref, create, restart } = await setup(t);
   let a = await login('alice@example.org'), b = await login('bob@example.org');
@@ -101,7 +133,8 @@ test('shared admission never exposes legacy private uploads or workspaces, and c
   const old = await oldStore.create(a.user.id, { name: 'Private legacy', baselineOwner: 'Vendor', snapshot: ref(legacy, 'full') });
   assert.deepEqual(await json(await request(endpoint, b.cookie)), []);
   for (const route of ['/api/projects/' + legacy.id + '/data', '/api/managed-workspaces/' + old.id,
-    endpoint + '/' + old.id, endpoint + '/' + old.id + '/artifacts/' + old.baselineId + '/original'])
+    endpoint + '/' + old.id, endpoint + '/' + old.id + '/artifacts/' + old.baselineId + '/original',
+    endpoint + '/' + old.id + '/accepted-export?expectedRevision=0', endpoint + '/' + old.id + '/accepted-export/original?expectedRevision=0'])
     assert.equal((await request(route, b.cookie)).status, 404);
   await json(await create(a.cookie, legacy), 404); // Matching owner and UUID are not admission.
   const shared = await upload(a.cookie, [['shared', 1]]);

@@ -105,6 +105,21 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
         try { return send(res, 201, await solutions.uploads.create(SOLUTION_CATALOG, await body(req, limits.upload), url.searchParams.get('filename') || 'configuration.e365', session.user)); }
         finally { uploading = false; }
       }
+      const acceptedExport = /^\/api\/solutions\/([^/]+)\/accepted-export(?:\/(original))?$/.exec(pathname);
+      if (acceptedExport) {
+        if (!session) return send(res, 404, { error: 'Решение не найдено' });
+        const [, id, original] = acceptedExport;
+        await solutions.managed.authorize(id, SOLUTION_CATALOG);
+        if (req.method !== 'GET') return send(res, 405, { error: 'Только чтение' });
+        const expected = url.searchParams.getAll('expectedRevision');
+        if (expected.length !== 1 || !/^(0|[1-9][0-9]*)$/.test(expected[0]) || !Number.isSafeInteger(Number(expected[0])))
+          return send(res, 400, { error: 'Требуется явная версия решения expectedRevision' });
+        const result = await solutions.managed.acceptedExport(id, SOLUTION_CATALOG, Number(expected[0]));
+        if (!original) return send(res, 200, result.evidence);
+        res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Disposition': 'attachment; filename="accepted-solution.e365"',
+          'Cache-Control': 'no-store', 'X-Artifact-SHA256': result.evidence.sha256, 'X-Solution-Revision': String(result.evidence.revision) });
+        return res.end(result.bytes);
+      }
       const solutionMatch = /^\/api\/solutions(?:\/([^/]+)(?:\/(prepare|archive)|\/artifacts\/([^/]+)\/(preview|review|discussion|accept|original|visual))?)?$/.exec(pathname);
       if (solutionMatch) {
         const [, id, operation, artifactId, artifactAction] = solutionMatch, action = operation || artifactAction;
