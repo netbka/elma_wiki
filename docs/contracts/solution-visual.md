@@ -16,6 +16,8 @@ The scenario catalog is the captured process list. Select a process, step and br
 
 Native screenshot/runtime evidence requires its own separately authorized collection; reconstruction never creates an observation or expected-vs-native comparison. A reviewer can record the bounded Wiki result as an attributed step comment. Genuine native observations remain an external evidence gate.
 
+Only a supported transition that passes the bounded field check extends the local path. Selecting a step directly, including through the keyboard, starts a new path at that step and preserves temporary field values. Inspection never invents a transition between unrelated selections. At 100 steps the check blocks another transition explicitly, retaining the path and values; selecting a step starts a new bounded path.
+
 Evidence is synthetic: source projection and bounded scenario tests; authenticated capture/API tests for checksum rejection, forged step anchors and durable current/stale/removed/ambiguous mappings; browser checks for geometry, explicit forms, happy/return/missing-comment paths, attributed step discussion, inert imported actions, unknown descriptors, escaped text, keyboard, 390px reflow and 200% zoom. Nine Storybook states reuse the renderer. Private export schemas were inspected locally to establish field shapes; no customer labels, IDs, fields, scripts or screenshots were copied into fixtures. Review/delivery acceptance guards remain authoritative.
 
 Duplicate node, lane and transition codes mark every occurrence unsupported,

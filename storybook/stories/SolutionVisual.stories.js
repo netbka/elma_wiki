@@ -8,6 +8,6 @@ export const Duplicate = story('duplicate');
 export const Empty = story('empty');
 export const Loading = story('loading');
 export const Error = story('error');
-export const Happy = story('happy');
+export const Happy = {...story('happy'),parameters:{docs:{description:{story:'Проверенные переходы продолжают путь. Выбор шага мышью или клавиатурой начинает новый путь и сохраняет учебные значения; просмотр не создаёт вымышленный переход.'}}}};
 export const Return = story('return');
 export const MissingComment = story('missing-comment');
