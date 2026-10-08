@@ -49,12 +49,13 @@ test('VK authenticated users share projects and original bytes with distinct upl
     return response.headers.getSetCookie()[0].split(';')[0];
   }
   const first=await login('first'),second=await login('second');
-  const uploaded=await fetch(a.base+'/api/projects?filename=synthetic.e365',{method:'POST',headers:{'Content-Type':'application/octet-stream','X-Elma-Wiki-Request':'1',cookie:first},body:await fixture()});
+  const uploadedBytes = await fixture();
+  const uploaded=await fetch(a.base+'/api/projects?filename=synthetic.e365',{method:'POST',headers:{'Content-Type':'application/octet-stream','X-Elma-Wiki-Request':'1',cookie:first},body:uploadedBytes});
   assert.equal(uploaded.status,201); const project=await uploaded.json();
   assert.equal((await a.get('/api/projects/'+project.id+'/original',first)).status,200);
   const original = await a.get('/api/projects/'+project.id+'/original',second);
   assert.equal(original.status,200);
-  assert.deepEqual(Buffer.from(await original.arrayBuffer()),await fixture());
+  assert.deepEqual(Buffer.from(await original.arrayBuffer()),uploadedBytes);
   assert.equal((await (await a.get('/api/projects',second)).json())[0].id,project.id);
   assert.equal(project.uploadedBy.login,'first@example.org');
 });
