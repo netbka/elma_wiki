@@ -10,8 +10,9 @@ import { createServer } from '../server.mjs';
 const actor = { id: 'local', login: 'local', provider: 'local' };
 const other = { id: 'other', login: 'other@example.org', provider: 'email' };
 const input = () => ({ id: crypto.randomUUID(), title: 'Synthetic bug', text: '<img src=x onerror=alert(1)>\nExpected a readable page.', kind: 'bug', publishConfirmed: true,
-  context: { route: '/solutions', viewport: { width: 1440, height: 900, devicePixelRatio: 1 } }, attachments: [{ name: 'synthetic.txt', mime: 'text/plain', data: Buffer.from('synthetic attachment').toString('base64') }] });
+  context: { route: '/solutions', viewport: { width: 1440, height: 900, devicePixelRatio: 1 } }, attachments: [{ name: 'synthetic.png', mime: 'image/png', data: png.toString('base64') }] });
 async function directory(t) { const root = await fs.mkdtemp(path.join(os.tmpdir(), 'wiki-bugs-')); t.after(() => fs.rm(root, { recursive: true, force: true })); return root; }
+const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=', 'base64');
 const baseUrl = 'https://wiki.example.org';
 
 test('durable shared report, exact attachments and actor attribution survive restart; no configuration never claims publication', async t => {
@@ -21,7 +22,7 @@ test('durable shared report, exact attachments and actor attribution survive res
   const restored = bugReportStore(root, { baseUrl });
   assert.equal((await restored.get(report.id, other)).title, report.title);
   const file = await restored.attachment(report.id, report.attachments[0].id, other);
-  assert.equal(file.bytes.toString(), 'synthetic attachment');
+  assert.deepEqual(file.bytes, png);
   await assert.rejects(restored.get(report.id, null), /authenticated actor/);
   await fs.writeFile(path.join(root, 'bug-reports', report.id, report.attachments[0].id + '.bin'), 'corrupt');
   await assert.rejects(restored.attachment(report.id, report.attachments[0].id, other), /Целостность/);
@@ -29,7 +30,7 @@ test('durable shared report, exact attachments and actor attribution survive res
 
 test('same operation/payload retries publish once; changed payload or actor cannot reuse it', async t => {
   const root = await directory(t); let calls = 0;
-  const github = { repository: 'example/synthetic', publish: async () => { calls++; return { number: 85, url: 'https://github.com/example/synthetic/issues/85' }; } };
+  const github = { repository: 'example/synthetic', upload: async () => 'https://github.com/user-attachments/assets/' + crypto.randomUUID(), publish: async () => { calls++; return { number: 85, url: 'https://github.com/example/synthetic/issues/85' }; } };
   const store = bugReportStore(root, { baseUrl, github }), value = input();
   const results = await Promise.all([store.submit(value, actor), store.submit(value, actor), store.retry(value.id, other)]);
   assert.equal(calls, 1); assert.ok(results.every(report => report.status === 'published'));
@@ -37,19 +38,36 @@ test('same operation/payload retries publish once; changed payload or actor cann
   await assert.rejects(store.submit(value, other), /другим содержимым/);
 });
 
+test('partial attachment failure survives restart, keeps completed receipts and never creates an incomplete issue', async t => {
+  const root = await directory(t); let uploads = 0, publications = 0, refused = true;
+  const github = { repository: 'example/synthetic', upload: async () => {
+    uploads++; if (uploads === 2 && refused) throw Error('synthetic lost upload response');
+    return 'https://github.com/user-attachments/assets/' + crypto.randomUUID();
+  }, publish: async report => {
+    publications++; assert.ok(report.attachments.every(item => item.githubUrl)); return { number: 85, url: 'https://github.com/example/synthetic/issues/85' };
+  } };
+  const value = input(); value.attachments.push(value.attachments[0]);
+  const first = await bugReportStore(root, { baseUrl, github }).submit(value, actor);
+  assert.equal(first.status, 'attachment-failed'); assert.equal(publications, 0); assert.ok(first.attachments[0].githubUrl); assert.ok(!first.attachments[1].githubUrl);
+  refused = false;
+  const result = await bugReportStore(root, { baseUrl, github }).retry(value.id, other);
+  assert.equal(result.status, 'published'); assert.equal(uploads, 3); assert.equal(publications, 1); assert.equal(result.attachments[0].githubUrl, first.attachments[0].githubUrl);
+});
+
 test('ambiguous publication survives restart and reconciles without redispatch', async t => {
   const root = await directory(t); let calls = 0, recoverCalls = 0, found = false;
-  const github = { repository: 'example/synthetic', publish: async () => { calls++; throw Error('synthetic lost response'); },
+  const github = { repository: 'example/synthetic', upload: async () => 'https://github.com/user-attachments/assets/' + crypto.randomUUID(), publish: async () => { calls++; throw Error('synthetic lost response'); },
     recover: async () => { recoverCalls++; return found ? { number: 85, url: 'https://github.com/example/synthetic/issues/85' } : null; } };
   const value = input(), first = await bugReportStore(root, { baseUrl, github }).submit(value, actor);
   assert.equal(first.status, 'unknown');
+  assert.equal((await bugReportStore(root, { baseUrl }).retry(value.id, actor)).status, 'unknown', 'temporarily removing credentials cannot make an ambiguous issue safe to redispatch');
   const store = bugReportStore(root, { baseUrl, github });
   assert.equal((await store.submit(value, actor)).status, 'unknown'); assert.equal(calls, 1);
   found = true; assert.equal((await store.retry(value.id, other)).status, 'published'); assert.equal(calls, 1); assert.equal(recoverCalls, 2);
 });
 
 test('known GitHub refusal permits explicit retry; a new configured repository cannot repurpose an existing dispatch', async t => {
-  const root = await directory(t), github = { repository: 'example/synthetic', publish: async () => { throw Object.assign(Error('synthetic HTTP refusal'), { unknown: false }); } };
+  const root = await directory(t), github = { repository: 'example/synthetic', upload: async () => 'https://github.com/user-attachments/assets/' + crypto.randomUUID(), publish: async () => { throw Object.assign(Error('synthetic HTTP refusal'), { unknown: false }); } };
   const value = input(), result = await bugReportStore(root, { baseUrl, github }).submit(value, actor);
   assert.equal(result.status, 'failed');
   const changed = bugReportStore(root, { baseUrl, github: { repository: 'example/other', publish: async () => assert.fail('must not dispatch') } });
@@ -69,22 +87,30 @@ test('five attachments allowed; six, oversized, forged actor, invalid media and 
     value => value.id = '../outside',
     value => value.attachments[0].name = '../file.txt',
     value => value.attachments[0].mime = 'image/svg+xml',
-    value => value.attachments[0].mime = 'image/png',
+    value => value.attachments[0].mime = 'image/jpeg',
     value => value.context.route = '/login?token=secret',
     value => value.context.viewport.width = -1,
     value => value.publishConfirmed = false,
   ]) { const value = input(); change(value); await assert.rejects(store.submit(value, actor)); }
 });
 
-test('GitHub adapter publishes only explicit report text plus authenticated links, never attachment bytes or actor identity', async () => {
-  const calls = [], adapter = bugGitHub({ repository: 'example/synthetic', token: 'synthetic-token', fetchImpl: async (url, options) => { calls.push({ url, options }); return new Response(JSON.stringify({ number: 85 }), { status: 201 }); } });
-  const value = input(); value.actor = other; value.attachments = [{ id: crypto.randomUUID(), name: 'private file', data: 'private attachment bytes' }];
+test('GitHub adapter uploads exact bytes to native assets and publishes their links without actor identity', async () => {
+  const calls = [], asset = 'https://github.com/user-attachments/assets/' + crypto.randomUUID();
+  const adapter = bugGitHub({ repository: 'example/synthetic', token: 'synthetic-token', fetchImpl: async (url, options) => {
+    calls.push({ url, options });
+    return new Response(JSON.stringify(url.startsWith('https://uploads.github.com/') ? { url: asset } : options.method === 'POST' ? { number: 85 } : { id: 123 }), { status: 200 });
+  } });
+  const value = input(); value.actor = other;
+  const item = { id: crypto.randomUUID(), name: 'synthetic.png', mime: 'image/png' };
+  item.githubUrl = await adapter.upload(item, png); value.attachments = [item];
   const receipt = await adapter.publish(value, baseUrl);
   assert.equal(receipt.url, 'https://github.com/example/synthetic/issues/85');
-  const body = JSON.parse(calls[0].options.body);
-  assert.ok(body.body.includes('/api/bug-reports/' + value.id + '/attachments/'));
-  assert.ok(!body.body.includes(other.login)); assert.ok(!body.body.includes('private attachment bytes')); assert.ok(!body.body.includes('private file'));
-  assert.equal(calls[0].options.redirect, 'error');
+  assert.deepEqual(calls[1].options.body, png);
+  assert.equal(new URL(calls[1].url).searchParams.get('repository_id'), '123');
+  const body = JSON.parse(calls[2].options.body);
+  assert.ok(body.body.includes(asset)); assert.ok(!body.body.includes(other.login));
+  assert.ok(calls.every(call => call.options.redirect === 'error'));
+  await assert.rejects(adapter.publish({ ...value, attachments: [{ ...item, githubUrl: null }] }, baseUrl), /Upload all/);
 });
 
 test('complete GitHub recovery rejects duplicate markers on later pages, incomplete lists and malformed receipts', async () => {
@@ -114,7 +140,7 @@ test('HTTP enforces authentication, same-origin guards, session actor and privat
   assert.equal((await fetch(url)).status, 401);
   const attachment = await fetch(url, { headers: { Cookie: cookie } });
   assert.match(attachment.headers.get('content-disposition'), /^attachment;/); assert.equal(attachment.headers.get('content-type'), 'application/octet-stream');
-  assert.equal(await attachment.text(), 'synthetic attachment');
+  assert.deepEqual(Buffer.from(await attachment.arrayBuffer()), png);
   const page = await fetch(base + '/solutions', { headers: { Cookie: cookie } }); assert.ok((await page.text()).includes('/feedback/page.js'));
   const secret = options({ ...input(), performedBy: other }); assert.equal((await fetch(base + '/api/bug-reports', secret)).status, 400);
 });

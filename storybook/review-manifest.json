@@ -4,10 +4,10 @@
     "bug-reports": {
       "entry": "authenticated Wiki pages: side Bug icon",
       "kind": "implemented",
-      "actions": ["report", "capture-window", "annotate", "attach", "remove", "submit", "retry-or-reconcile"],
+      "actions": ["report", "capture-window", "annotate", "attach", "remove", "submit", "retry-or-reconcile", "reject-change"],
       "renderer": ["web/feedback/render.js"],
-      "storyIds": ["bug-reports--ready", "bug-reports--attachments", "bug-reports--limit", "bug-reports--capture-error", "bug-reports--published", "bug-reports--unknown", "bug-reports--failed", "bug-reports--unconfigured"],
-      "requiredVisibleStates": ["ready", "attachments", "limit", "capture-error", "published", "unknown", "failed", "unconfigured"],
+      "storyIds": ["bug-reports--ready", "bug-reports--attachments", "bug-reports--limit", "bug-reports--capture-error", "bug-reports--published", "bug-reports--unknown", "bug-reports--failed", "bug-reports--unconfigured", "bug-reports--reject", "bug-reports--rejected", "bug-reports--blocked", "bug-reports--attachment-failed"],
+      "requiredVisibleStates": ["ready", "attachments", "limit", "capture-error", "published", "unknown", "failed", "unconfigured", "reject", "rejected", "blocked", "attachment-failed"],
       "sources": ["docs/contracts/bug-reports.md", "lib/bug-reports.mjs", "test/bug-reports.test.mjs", "tools/bug-reports-browser-check.mjs"]
     },
     "solution-handoff": {

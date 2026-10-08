@@ -55,7 +55,12 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
   const base = new URL(baseUrl), auth = createAuth({ baseUrl, allowLocal, sendEmail, sendVk, now, onLogin: actors.resolve }), portals = portalStore(directory, { sharedAccess: true }), projects = projectStore(directory, { sharedAccess: true }), oldDemo = demoData(), sample = oldDemo.servers.showcase, demo = {entities:sample.entities,solution:sample.solutions[0],coverage:'structural',parserVersion:'2.0.0',inventory:[],provenance:{},synthetic:true};
   const solutions = solutionStore(directory);
   const managed = managedWorkspaceStore(directory, projects, { sharedAccess: true });
-  const bugs = bugReportStore(directory, { github: bugPublisher, baseUrl });
+  const bugs = bugReportStore(directory, { github: bugPublisher, baseUrl, rejectChange: report => solutions.managed.comment(
+    report.context.solutionId, SOLUTION_CATALOG, report.context.artifactId, {
+      type: 'reject', text: `${report.title}\n\n${report.text.slice(0, 3000)}\n\n${base.origin}/bug-reports?id=${report.id}`,
+      expectedRevision: report.context.expectedRevision, expectedDiscussionRevision: report.context.expectedDiscussionRevision,
+      operationId: report.id
+    }, report.actor) });
   let delivery;
   const releases = releaseStore(directory, projects, { sharedAccess: true, deliverySummary: (id, owner) => delivery.summary(id, owner) });
   // The bridge adapter is always available: it only does something once an owner registers a bridge and an

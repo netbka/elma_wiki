@@ -21,7 +21,7 @@ capabilities:
   bug-reports:
     owners: ["lib/bug-reports.mjs", "lib/github-api.mjs", "web/feedback/", "web/bug-reports.html", "storybook/stories/BugReports.stories.js", "test/bug-reports.test.mjs", "tools/bug-reports-browser-check.mjs", "server.mjs"]
     routes: ["docs/contracts/bug-reports.md", "docs/SOLUTION_FIRST_PRODUCT_PLAN.md", "docs/contracts/shared-solutions.md"]
-    boundaries: ["ui", "storage", "security", "connection", "tooling"]
+    boundaries: ["ui", "domain", "storage", "security", "connection", "tooling"]
   solution-visual:
     owners: ["lib/solution-visual.mjs", "web/visual/", "storybook/stories/SolutionVisual.stories.js", "test/solution-visual.test.mjs", "tools/solution-visual-browser-check.mjs"]
     routes: ["docs/contracts/solution-visual.md", "docs/SOLUTION_FIRST_PRODUCT_PLAN.md", "docs/contracts/shared-solutions.md"]

@@ -15,7 +15,7 @@ try {
     document.body.append(mountBugReporter(config, {
       context: () => ({ route: location.pathname, viewport: { width: innerWidth, height: innerHeight, devicePixelRatio },
         ...JSON.parse(document.querySelector('#managed-root')?.dataset.bugContext || '{}') }),
-      submit: input => request('/api/bug-reports', input), retry: id => request('/api/bug-reports/' + id + '/retry', {})
+      submit: input => request('/api/bug-reports', input), retry: id => request('/api/bug-reports/' + id + '/retry', {}), changed: () => location.reload()
     }));
     if (location.pathname === '/bug-reports') {
       const root = document.getElementById('bug-report-root');

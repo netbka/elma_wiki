@@ -19,7 +19,12 @@ export function mountBugReporter(config = {}, actions = {}) {
   const type = input('Тип отчёта', 'select', form);
   for (const [value, text] of [['bug', 'Ошибка'], ['reject', 'Отклонить']]) { const option = element('option', text); option.value = value; type.append(option); }
   const kindNote = element('p', null, 'bug-muted'); form.append(kindNote);
-  const updateKind = () => { kindNote.textContent = type.value === 'reject' ? config.rejectNote || 'Отчёт об отклонении.' : ''; };
+  const updateKind = () => {
+    const canReject = context?.artifactId && context?.solutionId && Number.isInteger(context.expectedDiscussionRevision) && Number.isInteger(context.expectedRevision);
+    type.querySelector('[value=reject]').disabled = !canReject;
+    if (!canReject && type.value === 'reject') type.value = 'bug';
+    kindNote.textContent = canReject ? (type.value === 'reject' ? 'Добавит блокирующее замечание «Нужны изменения» и отправит ошибку в GitHub. Принятие заблокировано до разрешения замечания.' : '') : 'Для отклонения откройте проверку текущего изменения.';
+  };
   type.onchange = updateKind;
   const attachmentsHeading = element('h3', 'Вложения · до 5 файлов'); form.append(attachmentsHeading);
   const toolbar = element('div', null, 'bug-actions'); form.append(toolbar);
@@ -30,13 +35,13 @@ export function mountBugReporter(config = {}, actions = {}) {
     finally { host.classList.remove('bug-capturing'); setBusy(false); }
   }, toolbar);
   const pickerLabel = element('label', 'Прикрепить файлы'), picker = element('input'); picker.type = 'file'; picker.multiple = true;
-  picker.accept = 'image/png,image/jpeg,image/webp,application/pdf,text/plain,.txt,.log'; pickerLabel.append(picker); toolbar.append(pickerLabel);
+  picker.accept = 'image/png,image/jpeg,image/webp'; pickerLabel.append(picker); toolbar.append(pickerLabel);
   picker.onchange = async () => { try { await addFiles([...picker.files]); } catch (error) { status.textContent = error.message; } finally { picker.value = ''; } };
   const list = element('div', null, 'bug-attachments'); form.append(list);
-  form.append(element('p', 'PNG, JPEG, WebP, PDF или текст · до 5 МБ каждый. Вложения доступны только после входа в Wiki.', 'bug-muted'));
+  form.append(element('p', 'PNG, JPEG или WebP · до 5 МБ каждый. Вложения будут опубликованы в GitHub.', 'bug-muted'));
   const editor = element('section', null, 'bug-editor'); editor.hidden = true; form.append(editor);
   const consentRow = element('label'), consent = element('input'); consent.type = 'checkbox'; consent.required = true;
-  consentRow.append(consent, document.createTextNode(' Опубликовать заголовок и описание в GitHub' + (config.repository ? ` (${config.repository})` : '') + '. Вложения останутся в Wiki.')); form.append(consentRow);
+  consentRow.append(consent, document.createTextNode(' Опубликовать заголовок, описание и все вложения в GitHub' + (config.repository ? ` (${config.repository})` : '') + '. Проверьте снимки перед отправкой.')); form.append(consentRow);
   const submit = element('button', 'Отправить отчёт'); submit.type = 'submit'; form.append(submit);
   const outcome = element('section', null, 'bug-outcome'); outcome.hidden = true; dialog.append(outcome);
   function setBusy(value) {
@@ -51,7 +56,7 @@ export function mountBugReporter(config = {}, actions = {}) {
     for (const file of selected) {
       if (!file.size || file.size > 5 * 1024 * 1024) throw Error('Каждое вложение должно быть не больше 5 МБ.');
       const mime = file.type || (/\.(txt|log)$/i.test(file.name) ? 'text/plain' : '');
-      if (!['image/png', 'image/jpeg', 'image/webp', 'application/pdf', 'text/plain'].includes(mime)) throw Error('Разрешены PNG, JPEG, WebP, PDF и текстовые файлы.');
+      if (!['image/png', 'image/jpeg', 'image/webp'].includes(mime)) throw Error('Разрешены PNG, JPEG и WebP.');
       const dataUrl = await readFile(file); added.push({ file, mime, dataUrl });
     }
     files.push(...added); renderAttachments();
@@ -90,6 +95,10 @@ export function mountBugReporter(config = {}, actions = {}) {
     const messages = { published: 'Отчёт отправлен в GitHub', unconfigured: 'Отчёт сохранён в Wiki', failed: 'Не удалось отправить в GitHub', unknown: 'Проверяем результат отправки' };
     outcome.append(element('h3', messages[result.status] || 'Отчёт сохранён'));
     if (result.message) outcome.append(element('p', result.message));
+    if (result.rejection?.status === 'applied') {
+      outcome.append(element('p', 'Нужны изменения: блокирующее замечание добавлено.'));
+      const review = element('a', 'Открыть изменение с замечанием'); review.href = `/solutions?id=${result.context.solutionId}&view=review&artifact=${result.context.artifactId}`; outcome.append(review);
+    }
     if (result.issue) { const link = element('a', 'Открыть GitHub issue #' + result.issue.number); link.href = result.issue.url; link.target = '_blank'; link.rel = 'noopener noreferrer'; outcome.append(link); }
     if (result.status !== 'published') button(result.status === 'unknown' ? 'Проверить результат' : 'Повторить отправку', async () => {
       setBusy(true); try { showResult(await actions.retry(result.id)); } catch (error) { status.textContent = error.message; } finally { setBusy(false); }
@@ -110,12 +119,13 @@ export function mountBugReporter(config = {}, actions = {}) {
     } finally { setBusy(false); }
   };
   function close() { if (busy) return; dialog.close(); originalFocus?.focus(); }
+  dialog.addEventListener('close', () => { if (saved?.rejection?.status === 'applied') actions.changed?.(); });
   dialog.addEventListener('cancel', event => { if (busy) event.preventDefault(); });
   async function open() {
     originalFocus = document.activeElement;
     context = actions.context?.() || { route: location.pathname, viewport: { width: innerWidth, height: innerHeight, devicePixelRatio } };
     if (!dialog.open) dialog.showModal();
-    if (config.open) { title.value = config.title || ''; description.value = config.text || ''; }
+    if (config.open) { title.value = config.title || ''; description.value = config.text || ''; type.value = config.kind || 'bug'; }
     updateKind(); title.focus();
     if (config.files && !files.length) await addFiles(config.files);
     if (config.message) status.textContent = config.message;

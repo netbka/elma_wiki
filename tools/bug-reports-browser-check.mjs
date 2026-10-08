@@ -7,7 +7,7 @@ import crypto from 'node:crypto';
 import { createServer } from '../server.mjs';
 const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'bug-report-browser-'));
 let calls = 0, recoverCalls = 0, lastPublished;
-const github = { repository: 'example/synthetic', publish: async report => {
+const github = { repository: 'example/synthetic', upload: async () => 'https://github.com/user-attachments/assets/' + crypto.randomUUID(), publish: async report => {
   calls++; lastPublished = report;
   return { number: 85, url: 'https://github.com/example/synthetic/issues/85' };
 }, recover: async () => { recoverCalls++; return null; } };
@@ -55,17 +55,18 @@ try {
   await page.getByRole('button', { name: 'Сохранить отметки' }).click();
   await page.getByRole('button', { name: /^Карандаш: annotated/ }).waitFor();
   const annotated = await page.getByRole('img').getAttribute('src'); assert.notEqual(crypto.createHash('sha256').update(annotated).digest('hex'), crypto.createHash('sha256').update(original).digest('hex'));
+  const png = Buffer.from(annotated.split(',')[1], 'base64');
   const upload = page.locator('input[type=file]');
-  await upload.setInputFiles(Array.from({ length: 4 }, (_, i) => ({ name: `synthetic-${i}.txt`, mimeType: 'text/plain', buffer: Buffer.from('synthetic attachment ' + i) })));
+  await upload.setInputFiles(Array.from({ length: 4 }, (_, i) => ({ name: `synthetic-${i}.png`, mimeType: 'image/png', buffer: png })));
   await page.getByRole('heading', { name: 'Вложения · 5/5' }).waitFor();
   assert.equal(await page.getByRole('button', { name: /Снимок окна/ }).isDisabled(), true);
   assert.equal(await upload.isDisabled(), true);
   // An oversize selection is rejected as a whole and leaves the existing attachments.
-  await page.getByRole('button', { name: 'Удалить: synthetic-0.txt', exact: true }).click();
-  await upload.setInputFiles([{ name: 'six-a.txt', mimeType: 'text/plain', buffer: Buffer.from('a') }, { name: 'six-b.txt', mimeType: 'text/plain', buffer: Buffer.from('b') }]);
+  await page.getByRole('button', { name: 'Удалить: synthetic-0.png', exact: true }).click();
+  await upload.setInputFiles([{ name: 'six-a.png', mimeType: 'image/png', buffer: png }, { name: 'six-b.png', mimeType: 'image/png', buffer: png }]);
   await page.getByRole('status').filter({ hasText: 'не более пяти' }).waitFor();
   await page.getByRole('heading', { name: 'Вложения · 4/5' }).waitFor();
-  await upload.setInputFiles({ name: 'last.txt', mimeType: 'text/plain', buffer: Buffer.from('last') });
+  await upload.setInputFiles({ name: 'last.png', mimeType: 'image/png', buffer: png });
   await page.getByRole('heading', { name: 'Вложения · 5/5' }).waitFor();
   await page.setViewportSize({ width: 390, height: 844 });
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
@@ -93,19 +94,24 @@ try {
   assert.equal(await page.getByRole('link', { name: 'annotated-screenshot.png' }).count(), 1);
   evidence.checks.push('authenticated-side-button-and-keyboard', 'capture-cancel-retains-draft', 'full-resolution-frame-and-stopped-tracks', 'pencil-saves-exact-attachment', 'five-file-limit-and-remove', 'lost-response-retry-without-duplicate', 'private-download-and-inert-report', '390px-reflow');
   // Real DOM from the production renderer, with synthetic fixture ViewModels.
-  for (const mode of ['ready', 'attachments', 'limit', 'capture-error', 'published', 'unknown', 'failed', 'unconfigured']) {
+  for (const mode of ['ready', 'attachments', 'limit', 'capture-error', 'published', 'unknown', 'failed', 'unconfigured', 'reject', 'rejected', 'blocked', 'attachment-failed']) {
     await page.evaluate(async mode => {
       document.querySelector('.bug-reporter')?.remove();
       const { mountBugReporter } = await import('/feedback/render.js'), { bugFixture } = await import('/feedback/fixtures.js');
-      document.body.append(mountBugReporter(bugFixture(mode), { retry: async id => ({ id, status: 'unknown' }) }));
+      document.body.append(mountBugReporter(bugFixture(mode), { context: () => ({ route: '/solutions', viewport: { width: 1280, height: 720, devicePixelRatio: 1 }, ...bugFixture(mode).context }), retry: async id => ({ id, status: 'unknown' }) }));
     }, mode);
     await page.getByRole('dialog').waitFor();
     await page.waitForTimeout(80);
     assert.ok(await page.getByRole('dialog').evaluate(node => node.scrollWidth <= node.clientWidth), mode);
+    if (mode === 'reject') {
+      assert.equal(await page.getByLabel('Тип отчёта').inputValue(), 'reject');
+      assert.ok(await page.getByText(/Принятие заблокировано/).isVisible());
+    }
+    if (mode === 'rejected') assert.ok(await page.getByRole('link', { name: 'Открыть изменение с замечанием' }).isVisible());
     if (mode === 'unknown') { await page.getByRole('button', { name: 'Проверить результат' }).click(); assert.equal(calls, 1); }
   }
   assert.deepEqual(errors, []);
-  evidence.checks.push('eight-shared-renderer-states');
+  evidence.checks.push('twelve-shared-renderer-states');
   await fs.writeFile('qa/bug-reports-browser-evidence.json', JSON.stringify(evidence, null, 2));
   console.log('Bug reporting browser: side icon, capture contract, pencil, five attachments, private download, deduplication, keyboard and narrow states passed. Native picker and live GitHub were not exercised.');
 } finally {
