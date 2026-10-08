@@ -12,6 +12,32 @@ import { zip } from './fixture.mjs';
 import { visualSource } from '../web/visual/fixtures.js';
 
 const endpoint = '/api/solutions';
+test('bug rejection blocks acceptance once, survives cross-store recovery and refuses stale review without publishing', async t => {
+  let publications = 0;
+  const publisher = { repository: 'example/synthetic', publish: async () => { publications++; return { number: 85, url: 'https://github.com/example/synthetic/issues/85' }; } };
+  const { directory, request, post, login, upload, ref, create, restart } = await setup(t, { bugPublisher: publisher });
+  let a = await login('alice@example.org');
+  const state = await json(await create(a.cookie, await upload(a.cookie, [['base', 1]])), 201), route = endpoint + '/' + state.id;
+  const review = await json(await post(route + '/prepare', a.cookie, { kind: 'change', snapshot: ref(await upload(a.cookie, [['base', 2]]), 'partial'), expectedRevision: state.revision, team: 'Internal', taskRef: 'BUG-TEST', sameSourceConfirmed: true }), 201);
+  const input = { id: crypto.randomUUID(), title: 'Synthetic rejection', text: 'x'.repeat(8000), kind: 'reject', publishConfirmed: true, attachments: [], context: { route: '/solutions', viewport: { width: 1280, height: 720, devicePixelRatio: 1 }, solutionId: state.id, artifactId: review.artifactId, expectedRevision: state.revision, expectedDiscussionRevision: 0 } };
+  const result = await json(await post('/api/bug-reports', a.cookie, input), 201);
+  assert.equal(result.rejection.status, 'applied'); assert.equal(result.status, 'published'); assert.equal(publications, 1);
+  let current = await json(await request(route + '/artifacts/' + review.artifactId + '/review', a.cookie));
+  assert.equal(current.discussion.blocking, 1); assert.deepEqual(current.discussion.findings[0].actor, a.user);
+  assert.equal((await json(await request(route, a.cookie))).pending[0].decision, 'needs-changes');
+  await json(await post(route + '/artifacts/' + review.artifactId + '/accept', a.cookie, { expectedRevision: state.revision, reviewedDigest: review.artifactDigest, expectedDiscussionRevision: 1 }), 409);
+  // Model a crash after the review store commit but before its receipt reaches the report store.
+  const file = path.join(directory, 'bug-reports', input.id, 'report.json');
+  const record = JSON.parse(await fs.readFile(file, 'utf8')); delete record.rejection; await fs.writeFile(file, JSON.stringify(record));
+  await restart(); a = await login('alice@example.org');
+  const restored = await json(await post('/api/bug-reports/' + input.id + '/retry', a.cookie, {}));
+  assert.equal(restored.rejection.status, 'applied'); assert.equal(publications, 1);
+  current = await json(await request(route + '/artifacts/' + review.artifactId + '/review', a.cookie)); assert.equal(current.discussion.version, 1);
+  const stale = await json(await post('/api/bug-reports', a.cookie, { ...input, id: crypto.randomUUID() }), 201);
+  assert.equal(stale.status, 'blocked'); assert.equal(stale.issue, null); assert.equal(publications, 1);
+  const reused = { expectedRevision: state.revision, expectedDiscussionRevision: 0, type: 'reject', text: 'different', operationId: input.id };
+  await json(await post(route + '/artifacts/' + review.artifactId + '/discussion', a.cookie, reused), 409);
+});
 const secret = 'SYNTHETIC_LINK_SECRET_NOT_A_REAL_CREDENTIAL';
 const archive = entries => zip([
   ['package.json', { code: 'synthetic_solution', type: 'SOLUTION', isAuthor: true }],
@@ -21,12 +47,12 @@ const archive = entries => zip([
 async function json(response, status = 200) {
   const result = await response.json(); assert.equal(response.status, status, JSON.stringify(result)); return result;
 }
-async function setup(t) {
+async function setup(t, options = {}) {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'wiki-solutions-'));
   let server;
   const start = async () => {
     const sendVk = Object.assign(async () => {}, { domain: 'example.org', linkSecret: secret });
-    server = createServer({ directory, sendEmail: undefined, sendVk });
+    server = createServer({ directory, sendEmail: undefined, sendVk, bugPublisher: null, ...options });
     await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   };
   const close = () => new Promise(resolve => server.close(resolve));

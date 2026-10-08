@@ -64,6 +64,7 @@ let workspace;
 try {
   workspace = id ? await request(`${api}/${encodeURIComponent(id)}`) : null;
   const review = id && artifact && view === 'review' ? await request(`${api}/${encodeURIComponent(id)}/artifacts/${encodeURIComponent(artifact)}/${shared ? 'review' : 'preview'}`) : null;
+  if (shared && id && workspace) root.dataset.bugContext = JSON.stringify({ solutionId: id, ...(review ? { artifactId: artifact, expectedDiscussionRevision: review.discussion.version } : {}), expectedRevision: workspace.revision });
   const rows = !id && view !== 'create' ? await request(api + (view === 'archived' ? '?archived=true' : '')) : [];
   let handoff, handoffs, exportEvidence, handoffReason;
   if (shared && workspace && view === 'handoff') {

@@ -47,7 +47,7 @@ export async function startUsabilitySession(directory, { port = 0 } = {}) {
   const baseUrl = `http://127.0.0.1:${port}`;
   const sendVk = Object.assign(async () => { throw Error('Synthetic session has no message transport.'); }, { domain: 'example.org', linkSecret: secret });
   const server = createServer({ directory: path.join(directory, 'data'), baseUrl, sendEmail: undefined, sendVk,
-    allowLocal: false, syntheticDelivery: false, protectedTargetHosts: [] });
+    allowLocal: false, syntheticDelivery: false, protectedTargetHosts: [], requests: null, bugPublisher: null });
   await new Promise((resolve, reject) => { server.once('error', reject); server.listen(port, '127.0.0.1', resolve); });
   const base = `http://127.0.0.1:${server.address().port}`;
   const links = vkLoginLinks({ secret, baseUrl, domain: 'example.org' });
