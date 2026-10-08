@@ -141,6 +141,12 @@ setup запрашивает адрес отправителя и скрыто �
 
 ## Docker и HTTPS
 
+Обновление существующего production CT с локального checkout: `npm run prod:update`.
+Команда использует приватные `PROD_*` из `.env`, сохраняет окружение и volume,
+делает резервную копию и проверяет HTTPS/health; при ошибке возвращает прежний контейнер.
+Проверка без обновления: `npm run prod:update -- --check`. Требования и процедура:
+[deploy/README.md](deploy/README.md).
+
 ```sh
 docker build -t e365-wiki .
 docker run -d --name e365-wiki \
