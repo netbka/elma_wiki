@@ -68,6 +68,13 @@ local session for this pass; deployment is outside current authorization.
 
 ## Native history (#47)
 
+Later same-day evidence is reconciled in the [Lane B dossier](lane-b-elma-evidence-2026-10-08.md).
+Process history access and application historical bodies are now recorded by a
+separately authorized dev2 repair. Unique export/native-version association,
+application projection mapping and native stale-write protection remain open.
+The section below preserves this earlier checkpoint; its missing-history-access
+observations are not the latest status.
+
 The old missing-second-user/historical-body blocker is superseded for one
 controlled dev2 widget by published parent-repository evidence. This pass
 read those records; it did not repeat native tests.
