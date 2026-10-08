@@ -78,6 +78,7 @@
       "storyIds": [
         "delivery--unavailable",
         "delivery--ready",
+        "delivery--target-reserved",
         "delivery--prepared",
         "delivery--deploying",
         "delivery--unverified",
@@ -97,6 +98,7 @@
       "requiredVisibleStates": [
         "unavailable",
         "ready",
+        "target-reserved",
         "prepared",
         "deploying",
         "deployed-unverified",

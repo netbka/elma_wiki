@@ -17,4 +17,6 @@ Authorized healthy Target, visible target identity/version, ready candidate, req
 
 Stop before state change if target identity differs, checks fail, candidate changed after review, capability/credential is unavailable, or operation would hit PROD without separate authorization.
 
+One unresolved attempt reserves the observed Target host across releases and connection aliases in the single Wiki service. Finish/read back that attempt, or cancel its preparation before dispatch, before preparing another. A stale preparation can still be cancelled. If older records contain overlapping preparations, cancel the preparations that should not run; neither may dispatch while the other holds the reservation. Do not delete private records to bypass the guard. External operators and multiple Wiki processes require separate operational coordination.
+
 Never record secrets in evidence.
