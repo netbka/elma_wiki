@@ -33,6 +33,8 @@ export const Unavailable = { render: () => story('unavailable') };
 export const Ready = { render: () => story('ready') };
 export const TargetReserved = { render: () => story('target-reserved'), play: async ({ canvasElement }) => {
   for (let attempt = 0; attempt < 50; attempt++) {
+    const picker = [...canvasElement.querySelectorAll('select')].find(select => [...select.options].some(option => option.value === 'synthetic-connection'));
+    if (picker && !picker.value) { picker.value = 'synthetic-connection'; picker.dispatchEvent(new Event('change', { bubbles: true })); }
     const prepare = [...canvasElement.querySelectorAll('button')].find(button => button.textContent === 'Подготовить учебную доставку' && !button.disabled);
     if (prepare) {
       prepare.click();
