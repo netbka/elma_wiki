@@ -1,7 +1,9 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { pathToFileURL } from 'node:url';
+import { pathToFileURL, fileURLToPath } from 'node:url';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { createServer } from '../server.mjs';
 import { vkLoginLinks } from '../lib/vk-login-links.mjs';
 import { zip } from '../test/fixture.mjs';
@@ -12,6 +14,16 @@ import { visualSource } from '../web/visual/fixtures.js';
 export async function startUsabilitySession(directory, { port = 0 } = {}) {
   if (process.env.VK_LOGIN_BOT_POLL === '1') throw Error('Disable VK_LOGIN_BOT_POLL for the isolated synthetic session.');
   if (!Number.isInteger(port) || port < 0 || port > 65535) throw Error('Invalid local port.');
+  const git = promisify(execFile);
+  const gitOptions = { cwd: fileURLToPath(new URL('..', import.meta.url)), timeout: 5000, maxBuffer: 1024 * 1024 };
+  // The tested checkout, not the observer's current directory. Unknown evidence
+  // stays unknown when Git metadata is unavailable (e.g. a packaged distribution).
+  let source = { revision: null, dirty: null };
+  try {
+    const revision = (await git('git', ['rev-parse', 'HEAD'], gitOptions)).stdout.trim();
+    const status = (await git('git', ['status', '--porcelain', '--untracked-files=normal'], gitOptions)).stdout;
+    if (/^[a-f0-9]{40}$/.test(revision)) source = { revision, dirty: status.length > 0 };
+  } catch {}
   await fs.mkdir(directory, { recursive: false, mode: 0o700 }); // Never reuse runtime storage.
   const code = 'synthetic_usability';
   const widget = limit => ({ descriptor: { fields: [{ code: 'title', type: 'STRING', view: { name: 'Название договора' } }],
@@ -43,12 +55,14 @@ export async function startUsabilitySession(directory, { port = 0 } = {}) {
     const login = new URL(links.issue(role + '@example.org')); login.port = String(server.address().port);
     return { role, login: login.href };
   });
-  const session = { synthetic: true, nativeElmaObserved: false, startedAt: new Date().toISOString(), base, inputs, participants };
+  const session = { synthetic: true, nativeElmaObserved: false, source, startedAt: new Date().toISOString(), base, inputs, participants };
   try {
     await fs.writeFile(path.join(directory, 'session.local.json'), JSON.stringify(session, null, 2), { mode: 0o600, flag: 'wx' });
     await fs.writeFile(path.join(directory, 'observations.local.json'), JSON.stringify({
-      synthetic: true, participants: participants.map(({ role }) => ({ role, performed: false, coachingGiven: null,
-        tasks: {}, hesitation: [], wrongClicks: [], misunderstoodLabels: [], materialFindings: [], outcome: null })),
+      synthetic: true, source, sessionStartedAt: session.startedAt,
+      participants: participants.map(({ role }) => ({ role, performed: false, coachingGiven: null,
+        tasks: Object.fromEntries(Array.from({ length: 10 }, (_, i) => [String(i + 1), { outcome: null, coachingGiven: null, actions: '' }])),
+        hesitation: [], wrongClicks: [], misunderstoodLabels: [], materialFindings: [], outcome: null })),
       independentVisualReview: null, ownerDecision: null
     }, null, 2), { mode: 0o600, flag: 'wx' });
   } catch (error) { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); throw error; }
