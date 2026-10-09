@@ -1,86 +1,61 @@
 # Solution-first contradiction and migration register
 
-Status: active product-convergence register.
-Date: 2026-10-07.
-Authority target: SOLUTION_FIRST_PRODUCT_PLAN.md.
+Status: active product-convergence register. Updated 2026-10-08.
+Authority: [SOLUTION_FIRST_PRODUCT_PLAN.md](SOLUTION_FIRST_PRODUCT_PLAN.md), with the owner's working-configuration correction #94 / PR #92.
 
-| Area | Existing rule / evidence | Solution-first decision | Migration / action |
-| --- | --- | --- | --- |
-| Primary object | Older file-project flow: one uploaded .e365 creates a private project | User-facing primary object is Solution | Keep file-project primitives only as storage/legacy inspection where needed |
-| Workspace term | #33 and managed-workspace contracts use Workspace | Workspace stays internal; UI says Solution | P2 reuses the renderer/engine with Solution copy; /workspaces remains authenticated compatibility |
-| Visibility | Legacy project/release APIs are owner-scoped/private | MVP authenticated users share the approved Solution catalog and permissions | Owner clarification 2026-10-08 shares all historical/new configuration content with signed-in users; centralized store policy preserves bytes, IDs and provenance; no sharing checkbox |
-| Authentication | Legacy login/session implied owner scope | Authentication establishes actor identity; no role tiers in MVP | P1 persists trusted actors separately from sessions and attributes catalog mutations; ACL/roles remain deferred |
-| Authorship | Uploader/owner may be confused with change author | Portal actor, uploader, ELMA publisher/author and responsible person are different evidence | Store/display separately; unknown stays unknown |
-| Top navigation | Projects/Releases/Flows/Storybook/Developer Workspace existed as destinations | Solutions is home; Learn is secondary | P2 enters /solutions with Overview / Changes / Solution; compatibility files are disclosed and Delivery remains contextual/deferred |
-| Three-area model | #30 frames Learn / Code & lint / Review as product entries | Keep capabilities, not equal destinations | Code and Review become contextual |
-| Storybook | Engineering Storybook and solution review were conflated | Storybook is engineering infrastructure; user sees Preview/Review | Shared renderer, no Storybook vocabulary in product UI |
-| Save explanation to Storybook | Owner asks to save generated understanding beside a Solution/flow element | Save explanation in authenticated Solution context; Storybook exercises the same UI with synthetic data | Owner-approved explanation plan; deterministic local source outline, attributed history and stale/removed source tracking. No customer story or external AI transfer. See contracts/solution-explanations.md. |
-| Release entry | #11 starts from packages/releases | Delivery is contextual to accepted Solution state | Reuse domain, change entry/navigation |
-| Code workspace | Browser editor exists as distinct capability | Code belongs to supported object/change | P4 links the existing editor from checksum-bound Change context, preserves immutable exports and attributes shared working-copy mutations |
-| Manual upload | Every .e365 becomes isolated project | Files are inputs to Solution lifecycle | Standalone inspection remains compatibility-only |
-| Server configuration acquisition | Whole configuration could be flattened into one Solution or treated as complete despite paid omissions | Owner 2026-10-08 requests DEV/dev2 API and full/single upload with paid internals excluded | Read-only acquisition keeps native member packages separate, lists exclusions and feeds explicitly selected members into existing full/partial lifecycle |
-| Partial package | File model can make each input look complete | Partial package never means deletion or baseline | Preserve explicit scope evidence internally |
-| Baseline | Engine exposes baseline as core domain object | Prefer Current/Accepted version in normal UI | Keep baseline in technical details |
-| Virtual state | Engine can compute effective state | Virtual state is not automatically deployable | No Send to TEST without proven candidate path |
-| Delivery | Bridge foundation may tempt early pipeline UI | TEST is a later contextual phase | P6 only; no pipeline builder/PROD |
-| Comments | Some Storybook review paths use unauthenticated signatures | Product comments belong to authenticated actors | P4 reuses review event rules in the shared authenticated Solution record; trusted session actors, revision gates and persistent cross-version anchors |
-| Legacy private data | Existing records may contain private content | Owner explicitly chooses no private configuration mode | Legacy content routes are shared; Solution-root references remain separate and require full/partial declarations |
-| Public/Vercel | Earlier work treated public portal as milestone | Internal Solution-first product is priority | No new Vercel work without owner assignment |
-| Git/GitHub | Engineering uses issues/PRs | Git is implementation ledger, not user model | No PR/branch/commit language in normal UI |
-| VK/agent | #19 has rich orchestration states | Agent advances same Solution/Change/Review/Delivery contracts | Keep bot execution state separate |
-| Roles | Older planning implies owners/reviewers | No role hierarchy in MVP | All authenticated users same permissions; identity only for provenance |
+## Current resolutions
 
-## Migration safety rules
-1. All authenticated users share configuration content, including historical uploads, under the explicit 2026-10-08 owner decision.
-2. The service enables the same shared-access policy for every legacy content store; roots remain distinct for lifecycle identity.
-3. Do not infer consent from filename, package code, uploader or matching metadata.
-4. No per-record private/shared choice or copy is required. Preserve original storage IDs, bytes and uploader provenance.
-5. Actor attribution must survive migration.
-6. ELMA-native authorship/history must never be overwritten by portal actor identity.
-7. Public educational surfaces never receive private Solution data.
-8. Storage/index rollout must have a backout plan.
+| Area / competing evidence | Current decision | Implementation or evidence action |
+| --- | --- | --- |
+| Audit described review as the complete product and native delivery as optional | Owner explicitly requires comparison, merge/conflict resolution and working configuration release | Correct product/execution/audit; #94 and native elma365#60 implement missing composition, #11 retains delivery |
+| Current reducer offers conservative whole-file choices, not general merge | This is a current implementation limit, not a prohibition on building the required merge capability | Extend existing reducer with explicit bases, stable part identity and resolutions; preserve old guards until proven |
+| Virtual accepted state vs deployable package | Resolved virtual state must materialize before release | Never package from sanitized index; native stage/compiler or proven isolated assembler; MR-03 |
+| Existing all-Solutions inspection bundle vs full server release | A full configuration must account for global configuration and required dependencies too | Executable native package set/actions, coverage inventory, locked profile; MR-04 |
+| Paid-export failure and excluded paid internals | Paid modules must be resolved as licensed dependencies, not silently omitted | Compatible preinstallation or authorized intact import; entitlement/functionality checks; no decryption or license bypass |
+| Earlier permanent PROD non-goal vs owner's production outcome | Production-ready promotion is intended capability; each actual live write still needs concrete authorization | Preserve target runbook, explicit identity/candidate, drift/read-back/recovery and current GitHub-only boundary |
+| Two colleague exports vs two personal change sets | Source ancestry and export scope establish changes, not uploader identity or arrival order | Shared DEV export may contain earlier colleague work; store proven bases and do not invent authorship |
+| Old file-project primary object | Solution is the user context | Keep standalone viewer as compatibility, not the main lifecycle |
+| Workspace/baseline terms in engine | Retain internal domain objects | Ordinary UI uses Solution/current version; no competing workspace destination |
+| Historical owner-private content vs current MVP | Owner 2026-10-08 shares all old/new configuration content across signed-in users | Centralized policy preserves bytes/IDs/provenance. No per-record sharing checkbox; #55 deployed evidence remains separate |
+| Identity vs roles | Authentication identifies people; equal MVP content permissions | Stable actors, no ACL/role editor. Credentials/Target controls stay separate |
+| Uploader/team vs native author | Different facts | Preserve each; unknown native author remains unknown |
+| Code/Storybook/Releases/Connections as global products | Capabilities follow Solution/Change | No navigation rebuild or global capability dashboard |
+| Storybook vs business review | Storybook is engineering infrastructure | Product discussion uses authenticated Solution/Change records; same production renderer, synthetic stories |
+| Save explanation to Storybook | Save source-bound human text/history beside the object | Current deterministic explanation uses private runtime storage; no customer stories or implicit external AI |
+| Code working copy vs accepted export | Editable source is separate until reviewed as build input | Materialization must consume the exact approved source and regenerate coupled executable output |
+| Full vs partial | Partial absence is not deletion; full scope is explicit | Keep immutable capture and full/partial contracts; supported tombstones require evidence |
+| Server acquisition | Keep native packages separate and report all exclusions/failures | Inspection acquisition does not claim full-server deployment; feed selected sources to existing lifecycle |
+| Review acceptance vs release acceptance | A reviewed change is not a working release | Build, matching native installation/business acceptance and final Target checks remain mandatory |
+| Native historical matching | Equal exported content may match multiple native revisions | Keep #47 bounded identity/author/stale-write gaps; do not guess via time/history markers |
+| Shared handoff vs legacy delivery | Keep correct cross-root 404; add contextual guarded dispatch | Reuse one #11 queue/reservations and trusted operational actor, not shared storage principal |
+| Public/Vercel | Internal product remains priority | Learn secondary; no unassigned Vercel work |
+| VK/agent orchestration | Secondary mechanism advancing the same lifecycle | #19/#89 pilot is not prerequisite for manually creating a working release |
 
-## User-language defaults
-| Internal term | Normal UI term |
+## Shared-content and retention invariants
+
+All signed-in users share configuration content, including historical uploads. Preserve original IDs, bytes, attribution and separate artifact roots. No per-record private/shared selection or migration copy is needed. Do not infer native author or full scope from owner/filename. Public Learn never receives customer content; credentials and external publication keep separate controls. Shared visibility does not authorize deletion, a retention deadline or a lost history. Storage/index changes require a backout plan.
+
+## Dyk adaptation retained
+
+Earlier detailed comparison at Wiki `9f8f17c` used Dyk `57622c7`; fresh audit uses Dyk `1562aa3`. Current Wiki authority wins over consumer or operational assumptions.
+
+| Mechanism | Wiki adaptation / remaining evidence |
 | --- | --- |
-| Managed Workspace | Solution |
-| Full Snapshot / accepted baseline | Current version / accepted version |
-| Partial package / intervention | Change |
-| Reconciliation | Review changes / Update current version |
-| Review thread | Comment / discussion |
-| Issue | Needs changes / finding |
-| Candidate | Version ready for TEST |
-| Target connection | TEST environment, when needed |
-| Verification / read-back | Verify TEST |
-| Storybook | never shown as normal product term |
-| Parser report | Technical details |
-| Provenance | Source details |
-| Conflict object | Conflict |
+| One renderer and one behavioral owner | Production ViewModel/renderers + synthetic manifest; no copied markup/compiler/delivery |
+| T2 committed current state | All dependent diff/resolution/history/build/next-action representations must agree; no optimistic acceptance |
+| Blind intent / contract / behavior / visual | Separate behavioral B2 evidence needed; avoid irrelevant repeat visual audits |
+| Interaction cost and inference | Contextual actions, five costs; explicit base/scope/license/Target confirmation is justified safety cost, not guessed convenience |
+| Phone-first and RU/EN/HE | Desktop engineering density with keyboard/zoom/narrow review; current product language Russian |
+| Per-user privacy | Current shared authenticated configuration policy; no imported private mode |
+| Local Storybook signatures | Engineering-only; trusted authenticated actors own actual product decisions |
+| Release/deployment autonomy | Wiki/native execution contracts apply; Dyk permissions do not authorize a server |
+| Legacy deletion deadline | Retain customer source/history under explicit Wiki retention, not Dyk deadlines |
+| CI or developer checks as acceptance | Evidence must match its layer; human #59/#41 remains deferred, #38 owner gate remains open |
 
-## UI copy checklist
-- Is the action needed in the current state?
-- Can the label be a familiar verb plus familiar object?
-- Would an ELMA-familiar technical user understand it without a tooltip?
-- Does it expose an implementation concept unnecessarily?
-- Is it primary, secondary, or should it be hidden until context requires it?
-- If the user asks what it means, can the UI be simplified instead of adding help text?
+## Language and ongoing document reconciliation
 
-## Dyk consistency pass — #39 / #36
+Normal actions: Add solution, Add change, Compare changes, Resolve conflict, Review changes, Build configuration, Verify configuration, Prepare release, Verify target. One visually dominant next action; source/manifest/parser/candidate internals appear only when useful. No clever invented nouns.
 
-Primary sources read at Dyk `57622c7d05ffef152db2d438a86adab0bd823015`: Experience Review, Storybook and Principles. The governing adaptation is [ENTERPRISE_REVIEW_RULES.md](ENTERPRISE_REVIEW_RULES.md). Implementation inspected through integrated Wiki #70/#71, including actual shared-catalog, review, contextual-code, source-anchor and reconciliation checks.
+Remaining stale runtime/legacy descriptions in README, managed-workspace historical checkpoints and review prose must be reconciled with their owning implementation, not interpreted as overriding this product contract. Prior limitations are retained as dated evidence through Git links; they cannot narrow the owner's working-release outcome or claim an unimplemented capability is live.
 
-| Competing rules / implementation | User impact | Resolution and decision owner | Evidence / remaining gate |
-| --- | --- | --- | --- |
-| Older #30/#33/#52 bodies and Storybook/index copy name three global tools or Workspace home; owner #52 plan names Solution home | Users must learn internal subsystems | Solution -> Change -> Review; engine Workspace stays internal. Owner-authorized #52 plan wins. Correct Storybook/index routing; older issue text is historical. | Shared shell/next action, #63; final comprehension #59 |
-| Dyk U6 phone-first RU/EN/HE; Wiki #36 desktop engineering density | Applying mobile marketing layout increases navigation and hides diffs | Owner #36 explicitly chooses desktop tables/columns with narrow readable review, keyboard/reflow/zoom; no imported locale promise | Shared tables/columns, 1920/800/390 browser checks; independent visual pass #41 |
-| Dyk S1 owner/grant checks; Wiki equal authenticated MVP permissions; historical owner-scoped content | Piecemeal access changes would contradict the owner-approved policy | Owner clarification 2026-10-08 and #80 centrally share all historical/new configuration content. Preserve bytes, IDs and provenance; authentication, artifact roots and execution controls remain enforced. | #80 two-actor API/restart/integrity/attribution tests; deployed two-user verification #55 |
-| Dyk T1/A1 one renderer; old Wiki text calls only the flow catalog authoritative | Product state coverage becomes unclear | Manifest maps each wired renderer to current stories; flows remain engineering scenarios. No copied production markup. | Shared managed/visual/request/release/delivery renderers; catalog/browser checks |
-| Local Storybook signature vs authenticated Solution discussion | A local name could be mistaken for a verified reviewer | Separate local catalog evidence from trusted actor/change/artifact/step-bound product review | #67/#69/#70 API/browser discussion and correction checks |
-| Dyk T2 current state vs old snapshot, code working copy or native simulation | An accepted review could be mistaken for delivered/native state | Commit/reload current state; keep original artifacts, working copies, local checks and observed runtime separate. Scope/Source confirmations remain deliberate safety cost (#52). | Revision/digest gates, preserved drafts, immutable captures; live candidate path #11 |
-| Dyk U4 avoid known questions vs explicit archive scope/team declarations | Guessing would create deletion or authorship errors | Ask only non-inferable declarations; do not infer full scope or native authors from package provenance. Sharing is already decided by the owner and needs no per-upload question. | Full/partial tests, per-part attribution and #80 sharing-choice removal |
-| Dyk review/approval/wiring/verification discipline vs treating CI or a static story as final acceptance | False completion hides usability/native delivery gaps | Use the evidence stages above without a second lifecycle; developer tests are not uncoached review. Final owner acceptance remains #38 after #59. | Automated paths pass; human gates remain open |
-| Dyk A4 legacy quarantine/removal dates vs retained Wiki historical uploads | Copying a deletion deadline could destroy source evidence | Retain compatibility, original bytes and immutable history under the approved shared-content policy; sharing does not authorize deletion or a retention deadline. | #80 original-byte/provenance preservation; deployed verification #55 |
-| Execution plan P1 retained the pre-#80 private-record migration gate | Contributors could reintroduce personal content visibility or a sharing checkbox | Reconcile P1 to the explicit 2026-10-08 owner decision and #80. Operational credentials and Target confirmation remain separate. | Documentation reconciled; no runtime or rollout claim |
-| Dyk automatic production release policy vs Wiki unknown internal host and separate ELMA targets | Reference policy could authorize the wrong server | This owner's assigned rollout and Wiki target runbook govern; target identity/candidate/read-back must be proven. Vercel remains deferred. | No Wiki rollout or ELMA Verified claim; #11 target evidence remains separate |
-
-Resolved documentation findings: primary Storybook entry, catalog authority, existing authenticated product discussions, and docs/index product authority. No Dyk consumer/person/messenger model or deployment policy was imported. This consistency pass does not claim blind-intent acceptance, independent browser review, live ELMA behavior or a service rollout.
+This update changes documentation authority and task planning only. No runtime sharing, package, native setting, permissions or deployment is changed by it.
