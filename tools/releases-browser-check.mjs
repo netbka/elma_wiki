@@ -55,7 +55,7 @@ try {
   await unavailableDelivery.getByRole('heading', { name: 'Мосты оператора: 0', exact: true }).waitFor();
   assert.equal(await unavailableDelivery.getByRole('button', { name: 'Добавить учебный стенд', exact: true }).count(), 0);
   assert.equal(await unavailableDelivery.getByRole('button', { name: 'Добавить подключение Target', exact: true }).isDisabled(), true);
-  assert.equal(await unavailableDelivery.getByRole('button', { name: 'Подготовить учебную доставку', exact: true }).isDisabled(), true);
+  assert.equal(await unavailableDelivery.getByRole('button', { name: 'Подготовить доставку на Target', exact: true }).isDisabled(), true);
   // Bridge registration from the UI: the token is shown once, a Target connection can reference the bridge,
   // and without a running worker the probe is honest about it.
   await unavailableDelivery.getByLabel('Название моста', { exact: true }).fill('Оператор');
@@ -68,7 +68,7 @@ try {
   assert.equal(await unavailableDelivery.locator('.release-token').count(), 0, 'the token is not shown again after the next action');
   await unavailableDelivery.getByRole('button', { name: 'Проверить подключение — TEST через мост', exact: true }).click();
   await unavailableDelivery.getByText(/TEST · bridge \(Оператор\) · Личность не проверена/).waitFor();
-  await unavailableDelivery.getByLabel('Подключение Target для доставки', { exact: true }).selectOption({ label: 'TEST через мост' });
+  await unavailableDelivery.getByLabel('Подключение Target для доставки', { exact: true }).selectOption({ label: 'TEST через мост — требуется проверка доступности' });
   await unavailableDelivery.getByText(/Target ещё не проверен/).waitFor();
   assert.equal(await unavailableDelivery.getByRole('button', { name: 'Подготовить доставку на Target', exact: true }).isDisabled(), true, 'no accepted candidate yet');
   await unavailableDelivery.getByRole('button', { name: 'Удалить мост — Оператор', exact: true }).click();

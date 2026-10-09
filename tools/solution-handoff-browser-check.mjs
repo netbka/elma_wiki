@@ -34,7 +34,7 @@ try {
   await page.getByRole('heading', { name: 'Проверка принятого экспорта', exact: true }).waitFor();
   assert.equal(await page.getByRole('button', { name: 'Подготовить неизменяемый кандидат', exact: true }).isDisabled(), true);
   assert.equal(await page.getByRole('link', { name: 'Исходный проект', exact: true }).count(), 0);
-  assert.equal(await page.locator('.release-delivery').count(), 0);
+  assert.equal(await page.locator('.release-delivery').count(), 1);
   await page.getByLabel('Ограничения: неполное покрытие, отсутствие базы, неизвестное влияние', { exact: true }).fill('Нет предыдущего пакета; ELMA и доставка не проверены.');
   await page.getByRole('button', { name: 'Сохранить условия (снимает принятие кандидата)', exact: true }).click();
   for (const filename of ['package.json', 'widgets/manifest.json', 'widgets/form.json']) {

@@ -41,6 +41,8 @@ try {
   const open = async release => { await page.goto(base + '/releases?id=' + release.id); await panel().getByText(/Учебный режим:/).waitFor(); };
   const prepare = async (release, connection) => {
     await panel().getByLabel('Учебный стенд для доставки', { exact: true }).selectOption(connection.id);
+    await panel().getByRole('button', { name: 'Проверить учебный стенд', exact: true }).click();
+    await panel().getByText(/Проверенный учебный стенд:.*доступен/).waitFor();
     const response = page.waitForResponse(r => r.url().endsWith(`/api/releases/${release.id}/delivery`) && r.request().method() === 'POST');
     await panel().getByRole('button', { name: 'Подготовить учебную доставку', exact: true }).click();
     const attempt = await (await response).json(); await panel().getByRole('heading', { name: 'Последняя попытка: Подготовлена', exact: true }).waitFor(); return attempt;

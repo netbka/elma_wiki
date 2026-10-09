@@ -6,8 +6,10 @@ This page describes the legacy package entry, shared by all signed-in users. The
 also supports an explicitly shared, contextual accepted-Solution handoff, with
 trusted actor attribution and a current association guard before local mutations
 and bundle issuance. See [shared Solution handoff](shared-solutions.md#contextual-offline-candidate-and-handoff--34--11).
-This does not expose legacy releases to the shared catalog or enable Target
-delivery from the new entry.
+Legacy releases remain separate from the Solution catalog. The contextual
+handoff now wires the existing guarded Target delivery renderer to the exact
+Solution/handoff API pair; its separate confirmation and read-back gates are
+defined in [target deployment](target-deployment.md).
 
 ## Immutable association
 

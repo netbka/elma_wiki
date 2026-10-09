@@ -5,18 +5,24 @@ const el = (tag, value, className) => { const node = document.createElement(tag)
 let sequence = 0;
 // A bridge token is shown exactly once, in the render right after it was issued; the server keeps only its hash.
 const freshTokens = new Map();
-export function mountDelivery({ release, client, onAction, onRefresh } = {}) {
+export function mountDelivery({ release, client, onAction, onRefresh, onState, isBlocked = () => false, initialDrafts = new Map() } = {}) {
   const root = el('section', undefined, 'release-delivery'); root.setAttribute('aria-label', 'Доставка и проверка результата');
   let data = null, busy = false, selected = '', loadError = '';
+  root.getDrafts = () => new Map([...initialDrafts, ...[...root.querySelectorAll('[data-draft-key]')].map(node => [node.dataset.draftKey, node.value])]);
   const execute = async input => {
+    if (busy || isBlocked()) return;
+    busy = true;
     freshTokens.clear();
     const status = root.querySelector('[role="status"]');
-    status.textContent = input.action === 'confirm' ? 'Учебная операция выполняется. Дождитесь ответа; повторный запуск не нужен.' : input.action === 'verify' ? 'Читаем и сравниваем результат учебной операции…' : 'Обновляем подготовку учебной операции…';
-    await onAction(input);
-    if (root.isConnected) status.textContent = 'Действие не подтверждено. Проверьте сообщение об ошибке и обновите состояние перед продолжением.';
+    status.textContent = input.action === 'confirm' ? 'Операция выполняется. Дождитесь ответа; повторный запуск не нужен.' : input.action === 'verify' ? 'Читаем и сравниваем результат операции…' : 'Обновляем подготовку доставки…';
+    try { await onAction(input); }
+    finally {
+      busy = false;
+      if (root.isConnected) status.textContent = 'Действие не подтверждено. Проверьте сообщение об ошибке и обновите состояние перед продолжением.';
+    }
   };
   const button = (parent, label, action, unavailable = false) => {
-    const node = el('button', label); node.type = 'button'; node.dataset.unavailable = String(unavailable); node.disabled = unavailable || busy;
+    const node = el('button', label, 'secondary'); node.type = 'button'; node.dataset.unavailable = String(unavailable); node.disabled = unavailable || busy || isBlocked();
     node.onclick = action; parent.append(node); return node;
   };
   const field = (parent, label, value = '', tag = 'input') => {
@@ -25,9 +31,9 @@ export function mountDelivery({ release, client, onAction, onRefresh } = {}) {
     node.dataset.draftKey = label; node.dataset.savedValue = value; wrap.append(caption, node); parent.append(wrap); return node;
   };
   const refresh = async operation => {
-    if (busy) return;
+    if (busy || isBlocked()) return;
     busy = true; loadError = ''; if (operation) freshTokens.clear(); root.querySelectorAll('button').forEach(b => b.disabled = true);
-    try { if (operation) await operation(); data = await client.load(release.id); }
+    try { if (operation) await operation(); data = await client.load(release.id); onState?.(data); }
     catch (error) { loadError = error.message; }
     finally { busy = false; draw(); }
   };
@@ -40,12 +46,14 @@ export function mountDelivery({ release, client, onAction, onRefresh } = {}) {
         target.tabIndex = target.tagName === 'H2' ? -1 : 0; target.focus({ preventScroll: true });
       });
     }
-    const drafts = new Map([...root.querySelectorAll('[data-draft-key]')].map(node => [node.dataset.draftKey, node.value]));
+    const drafts = root.getDrafts();
+    // Retain panel drafts even when a failed load replaces the fields with retry.
+    initialDrafts = new Map(drafts);
     root.replaceChildren(el('h2', 'Доставка и проверка результата'));
     const alert = el('p', loadError); alert.setAttribute('role', 'alert'); root.append(alert);
     if (loadError) {
       root.append(el('p', 'Состояние доставки не получено. Действия заблокированы до успешного обновления.'));
-      button(root, 'Повторить загрузку доставки', () => refresh()); return;
+      const retry = button(root, 'Повторить загрузку доставки', onRefresh || (() => refresh())); retry.dataset.recovery = 'true'; retry.disabled = false; return;
     }
     if (!data) {
       root.append(el('p', client ? 'Загружаем состояние доставки…' : 'Доставка в ELMA пока недоступна. Используйте приватный пакет передачи.'));
@@ -54,7 +62,7 @@ export function mountDelivery({ release, client, onAction, onRefresh } = {}) {
     const view = deliveryPanelView(release, data);
     if (view.synthetic) root.append(el('p', 'Учебный режим: стенд синтетический, ELMA не подключена. Операции и успешная проверка относятся только к этому примеру.', 'note'));
     const status = el('p', view.next); status.setAttribute('role', 'status'); root.append(status);
-    button(root, 'Обновить состояние доставки', onRefresh);
+    const reload = button(root, 'Обновить состояние доставки', onRefresh); reload.dataset.recovery = 'true'; reload.disabled = busy;
     if (view.enabled) {
       if (view.synthetic) {
         const create = el('form'), name = field(create, 'Название учебного стенда'); name.maxLength = 120; name.required = true;
@@ -100,24 +108,28 @@ export function mountDelivery({ release, client, onAction, onRefresh } = {}) {
       const picker = field(root, view.synthetic ? 'Учебный стенд для доставки' : 'Подключение Target для доставки', '', 'select');
       const empty = el('option', view.synthetic ? 'Выберите учебный стенд' : 'Выберите подключение Target'); empty.value = ''; picker.append(empty);
       for (const connection of view.connections) {
-        const option = el('option', `${connection.name}${connection.environment === 'prod' ? ' — PROD недоступен' : ''}`); option.value = connection.id;
-        option.disabled = !view.usable(connection);
+        const option = el('option', `${connection.name}${connection.environment === 'prod' ? ' — PROD недоступен' : !view.usable(connection) ? ' — требуется проверка доступности' : ''}`); option.value = connection.id;
+        option.disabled = !view.selectable(connection);
         picker.append(option);
       }
-      picker.value = selected; picker.onchange = () => { selected = picker.value; draw(); };
+      if (!selected) selected = drafts.get(picker.dataset.draftKey) || '';
+      if (!view.connections.some(c => c.id === selected)) selected = '';
+      picker.value = selected; picker.onchange = () => { selected = picker.value; initialDrafts.delete(picker.dataset.draftKey); draw(); };
       const connection = view.connections.find(c => c.id === selected);
       if (connection) {
         const identity = connection.probe?.identity, stand = connection.adapter === 'bridge' ? 'Target' : 'учебный стенд';
         root.append(el('p', identity ? `Проверенный ${stand}: ${identity.host} · версия ${identity.version || 'не определена'} · ${connection.probe.ok ? 'доступен' : 'недоступен'}` : `${connection.adapter === 'bridge' ? 'Target' : 'Стенд'} ещё не проверен. Его имя не подтверждает личность.`));
         button(root, connection.adapter === 'bridge' ? 'Проверить Target' : 'Проверить учебный стенд', () => refresh(() => client.probeConnection(connection.id)));
       }
-      button(root, connection?.adapter === 'bridge' ? 'Подготовить доставку на Target' : 'Подготовить учебную доставку', () => execute({ action: 'prepare', revision: release.revision, connectionId: selected }), !view.canPrepare || !view.usable(connection));
+      const prepare = button(root, view.synthetic && connection?.adapter !== 'bridge' ? 'Подготовить учебную доставку' : 'Подготовить доставку на Target', () => execute({ action: 'prepare', revision: release.revision, connectionId: selected }), !view.canPrepare || !view.usable(connection));
+      if (!prepare.disabled) prepare.classList.remove('secondary');
     }
     const latest = view.latest;
     if (latest) {
       const attempt = el('section', undefined, 'card'); attempt.setAttribute('aria-label', 'Последняя попытка доставки');
       attempt.append(el('h3', `Последняя попытка: ${deliveryStateLabels[latest.state] || latest.state}`), el('p', `${latest.connection.adapter === 'synthetic' ? 'Учебный стенд (не ELMA)' : 'Target'}: ${latest.connection.name} · ${latest.targetIdentity.host} · версия ${latest.targetIdentity.version || 'не определена'}`), el('p', `Решение ${latest.solutionCode} · ревизия ${latest.releaseRevision}`), el('p', `Кандидат SHA-256: ${latest.sha256}`, 'release-hash'));
       if (!view.current) attempt.append(el('p', 'Устаревшая попытка: текущий кандидат или условия релиза изменились.', 'note'));
+      if (latest.state === 'prepared' && view.current && !view.canConfirm) attempt.append(el('p', 'Подключение Target недоступно или не проверено. Проверьте подключение и обновите состояние перед подтверждением.', 'note'));
       if (view.canConfirm) {
         const form = el('form'); form.append(el('p', `Для отдельного подтверждения введите: ${view.confirmation}`, 'release-hash'));
         const viaBridge = latest.connection.adapter === 'bridge';
@@ -125,11 +137,12 @@ export function mountDelivery({ release, client, onAction, onRefresh } = {}) {
         const confirm = button(form, viaBridge ? 'Подтвердить доставку на Target' : 'Подтвердить учебную операцию', () => {
           if (confirmation.value === view.confirmation) execute({ action: 'confirm', attemptId: latest.id, confirmation: confirmation.value, idempotencyKey: 'release-ui-' + latest.id });
         }, true);
-        confirmation.oninput = () => { const disabled = confirmation.value !== view.confirmation; confirm.disabled = disabled; confirm.dataset.unavailable = String(disabled); };
+        confirmation.oninput = () => { const disabled = confirmation.value !== view.confirmation; confirm.disabled = disabled || busy || isBlocked(); confirm.dataset.unavailable = String(disabled); };
+        confirm.classList.remove('secondary');
         form.onsubmit = event => event.preventDefault(); attempt.append(form);
       }
       if (view.canCancel) button(attempt, 'Отменить подготовку', () => execute({ action: 'cancel', attemptId: latest.id }));
-      if (view.canVerify) button(attempt, 'Прочитать и проверить результат', () => execute({ action: 'verify', attemptId: latest.id }));
+      if (view.canVerify) button(attempt, 'Прочитать и проверить результат', () => execute({ action: 'verify', attemptId: latest.id })).classList.remove('secondary');
       const comparison = latest.evidence.comparison;
       if (comparison) {
         attempt.append(el('p', `Сравнено файлов: ${comparison.compared}. Политика проверки: ${comparison.policy || 'прежняя, требуется повторная проверка'}.`));
@@ -147,11 +160,13 @@ export function mountDelivery({ release, client, onAction, onRefresh } = {}) {
       const history = el('details'); history.append(el('summary', 'История доставок'));
       for (const attempt of data.attempts) {
         history.append(el('h3', `${attempt.connection.name} · ревизия ${attempt.releaseRevision} · ${deliveryStateLabels[attempt.state] || attempt.state}`));
+        if (attempt.candidateStatus === 'stale' || attempt.state === 'verified' && attempt.verificationCurrent === false) history.append(el('p', 'Историческое доказательство не подтверждает текущую передачу.', 'note'));
         for (const event of attempt.history) history.append(el('p', `${event.at} · ${deliveryStateLabels[event.state] || event.state} · ${event.note || ''}`));
       }
       root.append(history);
     }
     for (const node of root.querySelectorAll('[data-draft-key]')) if (drafts.has(node.dataset.draftKey)) { node.value = drafts.get(node.dataset.draftKey); node.oninput?.(); }
+    initialDrafts.clear();
   };
   draw(); if (client) refresh(); return root;
 }

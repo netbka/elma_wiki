@@ -1,6 +1,7 @@
 import { compareSnapshots } from './comparison.js';
 export const deliveryStateLabels = { prepared: 'Подготовлена', deploying: 'Выполняется', 'deployed-unverified': 'Операция завершена, результат не проверен', 'unknown-outcome': 'Результат неизвестен', verified: 'Проверено чтением результата', 'verification-failed': 'Результат проверки не совпал', failed: 'Ошибка операции', blocked: 'Заблокирована', cancelled: 'Подготовка отменена' };
-export const deliveryIsCurrent = (release, attempt) => !!attempt && release.approval?.revision === release.revision && attempt.releaseRevision === release.revision && attempt.candidateId === release.candidate?.id && attempt.sha256 === release.candidate?.sha256;
+export const deliveryIsCurrent = (release, attempt) => !!attempt && release.associationStatus !== 'stale' && attempt.candidateStatus !== 'stale' && release.approval?.revision === release.revision && attempt.releaseRevision === release.revision && attempt.candidateId === release.candidate?.id && attempt.sha256 === release.candidate?.sha256;
+export const deliveryTargetResult = (release, latest) => !latest ? 'not-run' : !deliveryIsCurrent(release, latest) ? 'stale' : latest.state === 'verified' ? (latest.verificationCurrent === false ? 'stale' : 'pass') : ['verification-failed', 'failed', 'blocked'].includes(latest.state) ? 'fail' : 'not-run';
 export function releaseView(record, delivery = null) {
   const changes = compareSnapshots(record.source, record.baseline);
   const blockers = [];
@@ -20,7 +21,7 @@ export function releaseView(record, delivery = null) {
   const { owner, ...publicRecord } = record;
   const latest = delivery?.latest || null;
   // Only a matching read-back passes; a returned import, a timeout or a mismatch never does.
-  const targetResult = !latest ? 'not-run' : !deliveryIsCurrent(record, latest) ? 'stale' : latest.state === 'verified' ? 'pass' : ['verification-failed', 'failed', 'blocked'].includes(latest.state) ? 'fail' : 'not-run';
+  const targetResult = deliveryTargetResult(record, latest);
   return { ...publicRecord, changes, blockers, unreviewed: unreviewed.length, rejected: rejected.length, state, delivery: delivery || { attempts: 0, latest: null }, checks: [
     { id: 'artifact', result: 'pass', label: 'Оригинал сохранён с SHA-256' },
     { id: 'review', result: blockers.length ? 'fail' : 'pass', label: 'Локальная рецензия всего пакета' },

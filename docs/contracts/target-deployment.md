@@ -58,8 +58,12 @@ the historical attempt once matched. Stale preparations remain cancellable;
 unknown outcomes require read-back without redispatch. Matching whole-inventory
 read-back is scoped Target-state evidence, not native business-flow acceptance.
 
-This API handles exact unchanged accepted originals. Composed MR-06 candidates,
-UI dispatch controls and live/native acceptance remain separate work. Existing
+This API handles exact unchanged accepted originals. The Solution handoff now
+uses the existing delivery renderer with this contextual client, actor-owned
+connections, typed confirmation, read-back and response-loss recovery. It
+projects `candidateStatus` and `verificationCurrent` into the Target check and
+history; a historical match never passes the current check after invalidation.
+Composed MR-06 candidates and live/native acceptance remain separate work. Existing
 Target selection, typed confirmation, PROD refusal and native pilot gates remain
 required; offline approval alone does not authorize an import.
 

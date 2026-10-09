@@ -1,38 +1,39 @@
 import { changeLabels, impactLabels } from './comparison.js';
 import { mountDelivery } from './delivery.js';
 import { mountSnapshotPicker } from './snapshot-picker.js';
+import { deliveryTargetResult, deliveryStateLabels } from './model.js';
 const el = (tag, content, className) => { const node = document.createElement(tag); if (content !== undefined) node.textContent = content; if (className) node.className = className; return node; };
 const stateLabels = { review: 'Рецензия', candidate: 'Кандидат подготовлен', prepared: 'Принят для локальной передачи', 'handed-off': 'Пакет передачи выдан' };
 const checkLabels = { pass: 'Пройдено', fail: 'Не пройдено', 'not-run': 'Не выполнялось', unsupported: 'Не поддерживается', stale: 'Устарело' };
 const eventLabels = { review: 'Решение по изменению', details: 'Условия передачи изменены', freeze: 'Кандидат подготовлен', approve: 'Кандидат принят для передачи', handoff: 'Пакет передачи выдан' };
 let fieldId = 0;
-export function mountRelease({ release, projects = [], releases = [], change, create, preview, download, open, visibleChanges = 20, deliveryClient, loadSnapshots, solution = null } = {}) {
+export function mountRelease({ release, projects = [], releases = [], change, create, preview, download, open, visibleChanges = 20, deliveryClient, loadSnapshots, solution = null, deliveryDrafts = new Map() } = {}) {
   const root = el('div', undefined, 'release-shell');
   const status = el('p'); status.setAttribute('role', 'status');
   const error = el('p'); error.setAttribute('role', 'alert');
   let busy = false, stale = false;
   const button = (label, action, parent = root) => { const node = el('button', label); node.type = 'button'; node.onclick = action; parent.append(node); return node; };
   const field = (form, label, value = '', kind = 'input') => { const wrapper = el('div'), caption = el('label', label), node = el(kind); node.id = `release-field-${++fieldId}`; caption.htmlFor = node.id; node.value = value; node.dataset.draftKey = label; node.dataset.savedValue = value; node.maxLength = kind === 'textarea' ? 4000 : 200; wrapper.append(caption, node); form.append(wrapper); return node; };
-  const run = async (operation, redraw = true, focusSelector = 'h1') => {
-    if (busy || stale) return;
+  const run = async (operation, redraw = true, focusSelector = 'h1', recovery = false) => {
+    if (busy || stale && !recovery) return;
     busy = true; error.textContent = ''; root.querySelectorAll('button').forEach(b => b.disabled = true);
     try {
       const next = await operation();
       if (redraw && next) {
-        const drafts = new Map([...root.querySelectorAll('[data-draft-key]')].filter(node => node.value !== node.dataset.savedValue).map(node => [node.dataset.draftKey, node.value]));
-        const replacement = mountRelease({ release: next, projects, releases, change, create, preview, download, open, visibleChanges, deliveryClient, loadSnapshots, solution });
+        const drafts = new Map([...(root.querySelector('.release-delivery')?.getDrafts?.() || []), ...[...root.querySelectorAll('[data-draft-key]')].filter(node => node.value !== node.dataset.savedValue).map(node => [node.dataset.draftKey, node.value])]);
+        const replacement = mountRelease({ release: next, projects, releases, change, create, preview, download, open, visibleChanges, deliveryClient, loadSnapshots, solution, deliveryDrafts: new Map(drafts) });
         for (const node of replacement.querySelectorAll('[data-draft-key]')) if (drafts.has(node.dataset.draftKey)) node.value = drafts.get(node.dataset.draftKey);
         root.replaceWith(replacement); const heading = replacement.querySelector(focusSelector) || replacement.querySelector('h2'); if (heading) { heading.tabIndex = -1; heading.focus({ preventScroll: true }); } return;
       }
-    } catch (e) { stale = e.requiresRefresh || e.status === 409 && (solution || /другой вкладке|Обновите релиз/.test(e.message)); error.textContent = e.message; }
+    } catch (e) { stale = stale || e.requiresRefresh || !e.recoverable && e.status === 409 && (solution || /другой вкладке|Обновите релиз/.test(e.message)); error.textContent = e.message; }
     finally {
-      busy = false; root.querySelectorAll('button').forEach(b => b.disabled = stale || b.dataset.unavailable === 'true');
+      busy = false; root.querySelectorAll('button').forEach(b => b.disabled = stale && b.dataset.recovery !== 'true' || b.dataset.unavailable === 'true');
       if (stale) { const refresh = button(solution ? 'Обновить передачу (запишите черновик перед обновлением)' : 'Обновить релиз (запишите черновик перед обновлением)', () => open(release?.id)); refresh.disabled = false; }
     }
   };
   const actorLabel = actor => actor?.login || actor || 'Не установлен';
   root.append(el('p', solution ? 'Передача принятой версии решения' : 'Приватное пространство аналитика', 'eyebrow'), el(solution ? 'h2' : 'h1', release?.title || (solution ? 'Подготовить передачу' : 'Подготовить релиз')),
-    el('p', solution ? 'Проверить состав → Принять версию для передачи → Скачать пакет' : 'Загрузить DEV → Рассмотреть изменения → Подготовить кандидат → Передать', 'lead'), status, error);
+    el('p', solution ? deliveryClient ? 'Проверить состав → Принять версию → Подтвердить доставку → Проверить Target' : 'Проверить состав → Принять версию для передачи → Скачать пакет' : 'Загрузить DEV → Рассмотреть изменения → Подготовить кандидат → Передать', 'lead'), status, error);
   if (release?.synthetic) root.append(el('p', 'Синтетический пример. Решения не сохраняются; этот Storybook не принимает реальные пакеты.', 'note'));
   if (!release) {
     if (solution) {
@@ -70,10 +71,10 @@ export function mountRelease({ release, projects = [], releases = [], change, cr
   const progress = el('ol', undefined, 'release-progress');
   const currentStage = release.state === 'review' ? 1 : release.state === 'candidate' ? 2 : 3;
   [solution ? 'Принятый экспорт сохранён' : 'DEV снимок сохранён', 'Рецензия', 'Кандидат', 'Передача'].forEach((label, index) => { const step = el('li', label); if (index === currentStage) step.setAttribute('aria-current', 'step'); progress.append(step); }); root.append(progress);
-  root.append(el('h2', 'Следующее действие'), el('p', release.blockers.length ? `Завершите рецензию и устраните блокировки: ${release.blockers.length}. Не приняты файлы: ${release.unreviewed}.` : !release.candidate ? 'Подготовьте неизменяемый кандидат из исходного пакета.' : !release.approval ? 'Проверьте кандидат и примите его только для локальной передачи.' : 'Скачайте приватный пакет передачи и передайте его оператору отдельно.'));
+  root.append(el('h2', 'Следующее действие'), el('p', release.blockers.length ? `Завершите рецензию и устраните блокировки: ${release.blockers.length}. Не приняты файлы: ${release.unreviewed}.` : !release.candidate ? 'Подготовьте неизменяемый кандидат из исходного пакета.' : !release.approval ? 'Проверьте кандидат и примите его только для локальной передачи.' : deliveryClient && solution ? 'Проверьте состояние доставки ниже. Для импорта выберите явный Target и отдельно подтвердите точный кандидат; пакет также можно скачать для передачи оператору.' : 'Скачайте приватный пакет передачи и передайте его оператору отдельно.'));
   const nextActions = solution ? el('div', undefined, 'release-next-actions') : null;
   if (nextActions) root.append(nextActions);
-  root.append(el('p', release.intent), el('p', `Назначение передачи: ${release.targetIntent}. Личность и состояние Target не проверены.`));
+  root.append(el('p', release.intent), el('p', `Назначение передачи: ${release.targetIntent}. Эта подпись не выбирает Target; его личность и результат проверяются отдельно.`));
   root.append(el('p', solution ? 'Передаётся принятый полный .e365 целиком. Рабочая копия редактора не входит в эту версию.' : 'Этот релиз использует исходный .e365 целиком. Правки в рабочей копии редактора не входят в кандидат.', 'note'));
   for (const [label, snapshot] of solution ? [['Принятый экспорт', release.source]] : [['Новый DEV', release.source], ['Базовая версия DEV', release.baseline]]) {
     const section = el('section'); section.append(el('h2', label));
@@ -123,7 +124,16 @@ export function mountRelease({ release, projects = [], releases = [], change, cr
   const approval = el('form'), why = field(approval, 'Объяснение принятия кандидата', '', 'textarea'); why.required = true;
   const accept = button('Принять кандидат для передачи', () => { if (why.reportValidity()) run(() => change(release.id, { revision: release.revision, action: 'approve', reason: why.value })); }, approval); accept.dataset.unavailable = String(!release.candidate || release.blockers.length > 0); accept.disabled = accept.dataset.unavailable === 'true'; approval.onsubmit = event => event.preventDefault(); root.append(actions, approval);
   const handoff = button('Скачать приватный пакет передачи', () => run(async () => { await download(release.id, release.revision); return open(release.id); }), root); handoff.dataset.unavailable = String(!release.approval || release.associationStatus === 'stale'); handoff.disabled = handoff.dataset.unavailable === 'true';
-  if (!solution) root.append(mountDelivery({ release, client: deliveryClient, onAction: input => run(() => deliveryClient.act(release.id, input), true, '.release-delivery h2'), onRefresh: () => run(() => deliveryClient.refresh(release.id), true, '.release-delivery h2') }));
+  if (!solution || deliveryClient) (nextActions || root).append(mountDelivery({ release, client: deliveryClient, initialDrafts: deliveryDrafts, isBlocked: () => busy || stale,
+    onAction: input => run(() => deliveryClient.act(release.id, input), true, '.release-delivery h2'),
+    onRefresh: () => run(() => deliveryClient.refresh(release.id), true, '.release-delivery h2', true),
+    onState: data => {
+      const latest = data.attempts.at(-1), check = release.checks.find(c => c.id === 'target');
+      const index = release.checks.indexOf(check);
+      const node = checkList.children[index];
+      if (node) node.textContent = `${latest ? `${latest.connection.adapter === 'synthetic' ? 'Учебный стенд (не ELMA)' : 'Target'} «${latest.connection.name}»: ${deliveryStateLabels[latest.state] || latest.state}` : check.label}: ${checkLabels[deliveryTargetResult(release, latest)]}`;
+    }
+  }));
   const history = el('details'); history.append(el('summary', 'История решений'));
   for (const event of release.history) history.append(el('p', `${event.at} · ${actorLabel(event.actor)} · ${eventLabels[event.action] || event.action} · ревизия ${event.revision}${event.reason ? ': ' + event.reason : ''}`)); root.append(history);
   if (release.associationStatus === 'stale') {
@@ -139,7 +149,7 @@ export function mountRelease({ release, projects = [], releases = [], change, cr
       const back = el('a', 'Открыть решение', 'button'); back.href = solution.url; nextActions.prepend(back);
     }
     for (const node of root.querySelectorAll('button')) node.classList.add('secondary');
-    for (const node of [freeze, accept, handoff]) if (!node.hidden && !node.disabled && !node.closest('[hidden]')) node.classList.remove('secondary');
+    for (const node of [freeze, accept, ...(deliveryClient ? [] : [handoff])]) if (!node.hidden && !node.disabled && !node.closest('[hidden]')) node.classList.remove('secondary');
   }
   const all = button(solution ? 'Сохранённые передачи решения' : 'Все релизы', () => open(null)); if (solution) all.classList.add('secondary');
   return root;
