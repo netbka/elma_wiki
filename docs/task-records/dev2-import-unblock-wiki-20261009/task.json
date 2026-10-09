@@ -1,0 +1,354 @@
+{
+  "schemaVersion": 1,
+  "task": {
+    "id": "dev2-import-unblock-wiki-20261009",
+    "title": "Accept evidence-backed native solution components",
+    "owner": "Codex",
+    "branch": "fix/dev2-import-unblock-wiki-20261009",
+    "worktreeName": "dev2-import-unblock-wiki-20261009",
+    "baseCommit": "4eef34c1c3eb811facdf33d297b54b00f19a0780",
+    "initialCommit": "4eef34c1c3eb811facdf33d297b54b00f19a0780"
+  },
+  "domain": "repository",
+  "summary": "Accept evidence-backed native solution components",
+  "target": {
+    "environment": "repository",
+    "host": null
+  },
+  "objects": [
+    {
+      "key": "docs/task-records/dev2-import-unblock-wiki-20261009/task.json",
+      "kind": "file",
+      "operation": "create",
+      "channels": [
+        "files"
+      ],
+      "files": [
+        "docs/task-records/dev2-import-unblock-wiki-20261009/task.json"
+      ],
+      "before": null,
+      "after": null
+    },
+    {
+      "key": "docs/task-records/dev2-import-unblock-wiki-20261009/README.md",
+      "kind": "file",
+      "operation": "create",
+      "channels": [
+        "files"
+      ],
+      "files": [
+        "docs/task-records/dev2-import-unblock-wiki-20261009/README.md"
+      ],
+      "before": null,
+      "after": {
+        "sha256": "0505cc43b7d056388b8fdd83fe89da85272fa02854ff01f4ee3c25f76d5120e3",
+        "version": "working-tree",
+        "gitBlobOid": "f287eeb07b367f36cf5c75f9d7a6dd7c574c9540"
+      }
+    },
+    {
+      "key": "lib/managed-workspace.mjs",
+      "kind": "file",
+      "operation": "update",
+      "channels": [
+        "files"
+      ],
+      "files": [
+        "lib/managed-workspace.mjs"
+      ],
+      "before": {
+        "sha256": "a264d6dceec6929eaa6e08fdca6d199535189e087e7d53ed389ebef8b571f23f",
+        "version": "4eef34c1c3eb811facdf33d297b54b00f19a0780"
+      },
+      "after": {
+        "sha256": "7e371a772e0e1ef7ab75b76fcebf92a264cce8d85cf3535517e9f75f3aa78f4a",
+        "version": "working-tree",
+        "gitBlobOid": "03ebfb500e513b08a0279874ad524d788323d601"
+      }
+    },
+    {
+      "key": "lib/native-components.mjs",
+      "kind": "file",
+      "operation": "create",
+      "channels": [
+        "files"
+      ],
+      "files": [
+        "lib/native-components.mjs"
+      ],
+      "before": null,
+      "after": {
+        "sha256": "c967f3b87b3a9a5217804be5da49938ccc218c513465bc5c3343641a2031d254",
+        "version": "working-tree",
+        "gitBlobOid": "292fca64b3e25d05819e7d61c7e5d99e554b20f4"
+      }
+    },
+    {
+      "key": "lib/project-parser.mjs",
+      "kind": "file",
+      "operation": "update",
+      "channels": [
+        "files"
+      ],
+      "files": [
+        "lib/project-parser.mjs"
+      ],
+      "before": {
+        "sha256": "d6301ca100bdee64f519ed0447aa2732c7fc4da70faefb36b37ab939854b2665",
+        "version": "4eef34c1c3eb811facdf33d297b54b00f19a0780"
+      },
+      "after": {
+        "sha256": "c57086522d5aeb7212dee6e0988e44570860a4ad909dcd70127881901e901680",
+        "version": "working-tree",
+        "gitBlobOid": "2574fe4e360840b4e61c862d5a6ec48797e85175"
+      }
+    },
+    {
+      "key": "lib/solution-visual.mjs",
+      "kind": "file",
+      "operation": "update",
+      "channels": [
+        "files"
+      ],
+      "files": [
+        "lib/solution-visual.mjs"
+      ],
+      "before": {
+        "sha256": "e85283d3ce04db36266fbca579456578a8e8aa8d57aecdfce9992a50c515422a",
+        "version": "4eef34c1c3eb811facdf33d297b54b00f19a0780"
+      },
+      "after": {
+        "sha256": "ca395de769241d2160a780acb6685101c7aa115efdfc8c23505119314a0cf685",
+        "version": "working-tree",
+        "gitBlobOid": "32ddc7372ca66be787b5b0d10ee3d46a5b0ff000"
+      }
+    },
+    {
+      "key": "lib/solutions.mjs",
+      "kind": "file",
+      "operation": "update",
+      "channels": [
+        "files"
+      ],
+      "files": [
+        "lib/solutions.mjs"
+      ],
+      "before": {
+        "sha256": "65e9b73994f7c5215fc7559a7a402b3cc280a7972a686bea2f483d67dfc440a7",
+        "version": "4eef34c1c3eb811facdf33d297b54b00f19a0780"
+      },
+      "after": {
+        "sha256": "57fbad13e5eb1a1ab164d3704556de529e512bdc3d387a5b1ac689544411c66b",
+        "version": "working-tree",
+        "gitBlobOid": "c26240f4420cb4740ba151141e6ceb6336ec7e56"
+      }
+    },
+    {
+      "key": "storybook/stories/ManagedWorkspace.stories.js",
+      "kind": "file",
+      "operation": "update",
+      "channels": [
+        "files"
+      ],
+      "files": [
+        "storybook/stories/ManagedWorkspace.stories.js"
+      ],
+      "before": {
+        "sha256": "55e1ef6b2a803e57678a3144ec28b9a9942bf5ae9eb177de5f37348f8ad77e5a",
+        "version": "4eef34c1c3eb811facdf33d297b54b00f19a0780"
+      },
+      "after": {
+        "sha256": "9b2c65568dce2566ed44dd76e33a271b08e0ed44ba07d3ec876644e55ad2ed5e",
+        "version": "working-tree",
+        "gitBlobOid": "ba92d140199fc4cc38a91841cc84dd8f8a0d4988"
+      }
+    },
+    {
+      "key": "test/native-components.test.mjs",
+      "kind": "file",
+      "operation": "create",
+      "channels": [
+        "files"
+      ],
+      "files": [
+        "test/native-components.test.mjs"
+      ],
+      "before": null,
+      "after": {
+        "sha256": "24c32765b74edb3046534df5dfb01109a472fe01a2df72c44f48eacb784b518e",
+        "version": "working-tree",
+        "gitBlobOid": "ec8ff0d05f821f0096a50540916a49528921df51"
+      }
+    },
+    {
+      "key": "tools/config-acquisition-browser-check.mjs",
+      "kind": "file",
+      "operation": "update",
+      "channels": [
+        "files"
+      ],
+      "files": [
+        "tools/config-acquisition-browser-check.mjs"
+      ],
+      "before": {
+        "sha256": "0770a76105243c34d8cbe727f0ab842762ffe17b205f1101f639f49590ab6705",
+        "version": "4eef34c1c3eb811facdf33d297b54b00f19a0780"
+      },
+      "after": {
+        "sha256": "ba0a216bd23a1409739b85797959ded21b0a27753417ca7e15c74d20e2f441d9",
+        "version": "working-tree",
+        "gitBlobOid": "b8bae283df4b9e0978cd4384f49e6ef2902e102b"
+      }
+    },
+    {
+      "key": "web/managed/fixtures.js",
+      "kind": "file",
+      "operation": "update",
+      "channels": [
+        "files"
+      ],
+      "files": [
+        "web/managed/fixtures.js"
+      ],
+      "before": {
+        "sha256": "34fe6d1e3091bca01187e97b447251e7c61a707d793fbe9c3f22b6ccbab84792",
+        "version": "4eef34c1c3eb811facdf33d297b54b00f19a0780"
+      },
+      "after": {
+        "sha256": "1b329666fc7ddaa6e1d11e6b62e60b14f2bf2a948ee7dc3faf200288396a6dc5",
+        "version": "working-tree",
+        "gitBlobOid": "7357b5951ab02d439b6384bd0cd7fcfdffffa807"
+      }
+    },
+    {
+      "key": "web/managed/render.js",
+      "kind": "file",
+      "operation": "update",
+      "channels": [
+        "files"
+      ],
+      "files": [
+        "web/managed/render.js"
+      ],
+      "before": {
+        "sha256": "a2fe13a4a4c5b9b1551041804fbdf5a0d6354abee7d971ca18cc0aaacdf91176",
+        "version": "4eef34c1c3eb811facdf33d297b54b00f19a0780"
+      },
+      "after": {
+        "sha256": "d8043c2d421c6be3c8d6633b8565c70ea659992d857199b28667b42fec214ece",
+        "version": "working-tree",
+        "gitBlobOid": "cfef38f4afdb411cb00adeb0b98e4d87851bf05c"
+      }
+    },
+    {
+      "key": "owned-dev2-evidence-experiments",
+      "kind": "package",
+      "operation": "invoke",
+      "channels": [
+        "files",
+        "cli",
+        "api"
+      ],
+      "files": [],
+      "before": null,
+      "after": {
+        "sha256": "3cb29ecf068911d5082020a886c58664a603cc9a30b2b394a9fe097d58b64cca",
+        "version": "observed-task-outcome",
+        "evidence": "owned-artifacts"
+      },
+      "reason": "Owner requested unblocking on Dev2 only. Retain copied Dev2 artifacts/index maps in owned .local; run synthetic local fixtures/builds and read-only explicit Dev2 checks. No business native edits or production operations intended.",
+      "outcome": "11 local baselines; 1076 components; zero ambiguities; exact original exports. 279 tests and synthetic browser passed. No hosted or native deployment."
+    },
+    {
+      "key": "draft-review-delivery",
+      "kind": "infrastructure",
+      "operation": "invoke",
+      "channels": [
+        "cli",
+        "api"
+      ],
+      "files": [],
+      "before": null,
+      "after": {
+        "sha256": "74f6335eb81fb129728a94e7ae167189f10d7c17cf2cb831ab5f6e16274b128f",
+        "version": "draft-pr-99",
+        "evidence": "draft-pr-created.json"
+      },
+      "reason": "Deliver task branch and stacked draft PR for review; no merge or production publication.",
+      "outcome": {
+        "url": "https://github.com/netbka/elma_wiki/pull/99",
+        "draft": true,
+        "merged": false,
+        "createdHead": "7da4cee0c31d61202d7d4f6ebe14a68759dfc102"
+      }
+    }
+  ],
+  "evidence": [
+    {
+      "id": "owned-artifacts",
+      "path": ".local/dev2-import-unblock-wiki-20261009/owned-artifacts.json",
+      "sha256": "3cb29ecf068911d5082020a886c58664a603cc9a30b2b394a9fe097d58b64cca"
+    },
+    {
+      "id": "local-admission",
+      "path": ".local/dev2-import-unblock-wiki-20261009/admission.json",
+      "sha256": "1e3c556a5bae7144e87bd2625ae31a802c8ee3b9a265ee004be67916de3c1009"
+    },
+    {
+      "id": "unit-tests",
+      "path": ".local/dev2-import-unblock-wiki-20261009/unit-tests-final.log",
+      "sha256": "7d135ff4147897e64503cc7e598e56b58e13518e773901932b50f5fb504772a6"
+    },
+    {
+      "id": "browser-tests",
+      "path": ".local/dev2-import-unblock-wiki-20261009/browser-native.log",
+      "sha256": "1cf94c496425c0df916a9f66cca9e47a721db199b98ce50778d7e13e4c5610aa"
+    },
+    {
+      "id": "storybook-build",
+      "path": ".local/dev2-import-unblock-wiki-20261009/storybook-final.log",
+      "sha256": "5ac379d9d510b0b8d6ef47d42ff754a745433667cc02849c7479af42504ff69d"
+    },
+    {
+      "id": "verify",
+      "path": ".local/dev2-import-unblock-wiki-20261009/verify-final.log",
+      "sha256": "1d7f1d20b1beb4beb19831ba16449e6928356a1e1b1886259e6fe7dfeadf6c66"
+    },
+    {
+      "id": "agent-routing",
+      "path": ".local/dev2-import-unblock-wiki-20261009/agent-final.log",
+      "sha256": "53dcf1adee77f936e8d82504c45bc1e1efeec5eed91b6a3b8ccc410dff1a3608"
+    },
+    {
+      "id": "browser-report",
+      "path": "qa/config-acquisition-browser.json",
+      "sha256": "b9ff8c77549466c9dcb8f94b7f2f5d4a0503f1cede0730a21467cd76b58607b9"
+    },
+    {
+      "id": "native-mobile",
+      "path": "qa/native-components-mobile.png",
+      "sha256": "797d426469959fbc6cb5cbf019dd4dfe63fc04e051a0d2a5b2f8e45206075712"
+    },
+    {
+      "id": "unit-tests-anchor4",
+      "path": ".local/dev2-import-unblock-wiki-20261009/unit-tests-anchor4.log",
+      "sha256": "752fb30c3800591e05975349e1405681f86f19d64ef7412b857a690dbb694b7d"
+    },
+    {
+      "id": "draft-pr-created.json",
+      "path": ".local/dev2-import-unblock-wiki-20261009/draft-pr-created.json",
+      "sha256": "74f6335eb81fb129728a94e7ae167189f10d7c17cf2cb831ab5f6e16274b128f"
+    },
+    {
+      "id": "record-delivery.py",
+      "path": ".local/dev2-import-unblock-wiki-20261009/record-delivery.py",
+      "sha256": "3f106b0bc980fb820b204d328057e370053d14aa4cd90f155eda65027b7a8a8e"
+    }
+  ],
+  "checks": [],
+  "scenarios": [],
+  "cleanup": {
+    "status": "not-required",
+    "notes": "No business fixtures/instances created. Browser temporary servers/stores removed by teardown; private evidence/worktrees retained. Owned ELMA .env removed."
+  }
+}
