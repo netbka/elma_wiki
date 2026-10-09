@@ -168,22 +168,31 @@ can make previously committed evidence historical; the guard does not certify
 future state.
 
 This callback is server-owned code, never an HTTP request parameter. Lock order
-is Solution then release. A future delivery coordinator owns its single queue
+is Solution then release. The delivery coordinator owns its single queue
 before entering these guards; the callback must not re-enter either store or
 acquire that delivery queue. Perform slow adapter probes/read-back outside the
 callback, then use a short guarded callback for the final local transition.
 Consumer failure releases both guards without claiming success.
 
-This primitive does not wire shared dispatch routes, select a Target, reserve a
-delivery operation or authorize a native write. Offline handoff approval remains
-offline approval; the existing deployment candidate/confirmation and read-back
-contracts still govern delivery. Original-export handoffs remain independent of
-the future composed installable candidate. Legacy/shared storage roots retain
-their separate identities.
+The [contextual delivery API](target-deployment.md#contextual-unchanged-original-delivery-api)
+now consumes this primitive through the existing single delivery coordinator.
+It selects the candidate store from the verified Solution/handoff pair, uses
+the authenticated execution actor's explicit Target connection and requires a
+separate typed confirmation. Attempts have a distinct namespace and share host
+reservations with legacy delivery. Offline approval remains offline approval;
+the existing deployment/confirmation and read-back contracts govern execution.
+Original-export handoffs remain independent of future composed installable
+candidates. Legacy/shared storage roots retain their separate identities. No
+contextual UI dispatch control or live/native acceptance is claimed by this API.
 
 `test/guarded-candidate.test.mjs` covers exact original bytes and hashes, stale
 preflight refusal, queued Solution/release mutations, consumer failure and
 foreign-root/pairing/integrity refusal using synthetic local storage.
+`test/shared-delivery.test.mjs` additionally exercises the actual authenticated
+contextual API, deterministic async mutation/persistence races, equal UUIDs across
+roots, cross-actor Target aliases, restart/unknown outcomes and exact synthetic
+read-back. Historical matches do not become current passing evidence after a
+review mutation.
 
 ## Evidence
 
