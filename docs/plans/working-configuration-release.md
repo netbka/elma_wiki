@@ -144,3 +144,7 @@ Build/install могут быть долговременными: durable job/op
 MR-04/MR-05 design can run alongside MR-01/02; their requirements must be satisfied before release eligibility. All tests above are required work, not claims of runs in this GitHub-only task. Start with synthetic fixtures and the existing focused tests; native tests follow actual permitted execution. Keep freeze/review, test installation, business acceptance and PROD authorization distinct.
 
 Completion of one vertical slice establishes that slice, not all types/scopes. Expand by explicit compatibility contracts and evidence until every required product scope is delivered. Human #59/#41 remains deferred and is not silently restarted or replaced by technical testing.
+
+## MR-04 pure planner implementation
+
+The bounded pure scope/dependency planner and its native-metadata gaps are specified in [release-scope-planner.md](../contracts/release-scope-planner.md). Planning does not enable materialization, release eligibility or provider execution; unknown native units and global coverage remain blockers.
