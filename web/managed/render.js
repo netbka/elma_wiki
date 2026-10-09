@@ -4,6 +4,7 @@ import { mountExplanation } from '../explanations/render.js';
 import { mountRelease } from '../releases/render.js';
 import { hasAcceptedFullExport } from './model.js';
 import { mountAcquisition } from './acquisition.js';
+import { mountDependencies } from './dependencies.js';
 const el = (tag, text, className) => { const node = document.createElement(tag); if (text !== undefined) node.textContent = text; if (className) node.className = className; return node; };
 let sequence = 0;
 export function mountManagedWorkspace(model = {}, actions = {}) {
@@ -170,6 +171,9 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
       else if (view === 'changes') lower.append(history);
       else { const details = el('details'); details.append(el('summary', 'Объекты и история'), current, history); lower.append(details); }
       content.append(lower);
+      for (const artifact of state.artifacts) if (artifact.dependencies?.rows?.length) {
+        const details = el('details'); details.append(el('summary', `Зависимости исходного файла ${state.artifacts.indexOf(artifact) + 1}`), mountDependencies(artifact.dependencies)); content.append(details);
+      }
       const form = el('form', undefined, 'managed-archive');
       const confirm = check(form, state.status === 'archived' ? 'Возобновить работу с сохранённой базой и историей' : 'Убрать из активных; сохранить снимки, изменения и историю'); confirm.required = true;
       const submit = el('button', state.status === 'archived' ? 'Возобновить работу' : 'В архив', state.status === 'archived' ? '' : 'secondary'); submit.type = 'submit'; form.append(submit);
@@ -191,8 +195,8 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
     const task = partial ? field(form, 'Что изменили') : null; if (task) task.required = true;
     const file = field(form, 'Файл .e365', 'file'); file.accept = '.e365'; file.required = true;
     const evidence = el('p'); form.append(evidence);
-    let captured = null;
-    file.onchange = () => { captured = null; file.required = true; evidence.replaceChildren(); };
+    let captured = null, pendingAcquisition = null;
+    file.onchange = () => { captured = null; pendingAcquisition = null; file.required = true; evidence.replaceChildren(); };
     let acquisition;
     const selectCapture = project => {
       captured = project; file.value = ''; file.required = false;
@@ -217,9 +221,11 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
       if (!captured && !selected?.name.toLowerCase().endsWith('.e365')) { error.textContent = 'Выберите файл с расширением .e365.'; error.focus(); return; }
       run(async () => {
         if (!captured && acquisition) {
-          const record = await actions.acquisition.upload(selected); actions.acquisition.remember?.(record.id);
-          if (record.solutions.length > 1) {
-            showAcquisition(record); evidence.textContent = 'Конфигурация сохранена. Выберите решение и продолжите.';
+          const record = pendingAcquisition ||= await actions.acquisition.upload(selected); actions.acquisition.remember?.(record.id);
+          if (record.solutions.length > 1 || record.solutions[0]?.sourceAvailability === 'opaque') {
+            showAcquisition(record); evidence.textContent = record.solutions[0]?.sourceAvailability === 'opaque'
+              ? 'Исходный файл сохранён. Содержимое зашифровано; для изменений нужен читаемый экспорт решения.'
+              : 'Конфигурация сохранена. Выберите решение и продолжите.';
             return false;
           }
           captured = record.solutions[0].project;
@@ -317,6 +323,7 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
       technical(card, 'Идентичность и доказательства сравнения', row); form.append(card);
     }
     if (!review.rows.length) form.append(el('p', 'Изменений распознанных объектов нет. Проверьте полноту исходного снимка перед принятием.'));
+    if (review.dependencies) form.append(mountDependencies(review.dependencies));
     if (review.ambiguities.length) technical(form, 'Нераспознанные части', review.ambiguities);
     form.append(link('Скачать исходный файл', `${api}/${state.id}/artifacts/${review.artifactId}/original`));
     if (!review.acceptedAt && !review.stale) {

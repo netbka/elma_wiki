@@ -142,11 +142,11 @@ test('missing and duplicate identities are ambiguous, even if display names matc
 test('opaque/incomplete full snapshots never establish deletion or an accepted baseline', async () => {
   const a = await artifact('base', 'full', [definition('a')]);
   const broken = await artifact('broken', 'full', [], { extra: [['data', 'opaque']] });
-  assert.throws(() => workspace(broken), /Ambiguous/);
+  assert.throws(() => workspace(broken), /зашифровано/);
   const p = previewReconciliation(workspace(a), broken);
   assert.equal(p.rows[0].classification, 'ambiguous');
   assert.equal(p.rows[0].removed, null);
-  assert.throws(() => accept(workspace(a), broken), /Ambiguous/);
+  assert.throws(() => accept(workspace(a), broken), /зашифровано/);
 });
 
 test('side script and declared resource bytes participate in component change evidence', async () => {
