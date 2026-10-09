@@ -17,6 +17,7 @@ const native = async code => zip([['package.json', { code, type: 'SOLUTION', dep
     ['form.json', { descriptor: { fields: [{ code: 'value', type: 'STRING' }], clientScripts: 'const x = 1;' } }],
     ['unknown.bin', Buffer.from([0, 255])]])]]);
 const bundle = async (members, extra = []) => zip([['config-bundle.json', { format: 'elma-config-bundle', schemaVersion: 1, deployable: false,
+  dependencyEvidence: { schemaVersion: 1, catalog: [{ code: 'paid', paid: true, version: '1.0', namespaces: ['paid'], observedAt: '2026-10-09T00:00:00Z' }] },
   solutions: [...members.map(([code, bytes]) => ({ code, status: 'exported', path: 'solutions/' + code + '.e365', sha256: sha(bytes), bytes: bytes.length })), { code: 'paid', status: 'excluded-paid' }] }],
   ...members.map(([code, bytes]) => ['solutions/' + code + '.e365', bytes]), ...extra]);
 
@@ -46,6 +47,7 @@ test('acquisition validates all members, retains originals and attribution, resu
   assert.equal((await acquisitions.get(job.id)).state, 'exporting');
   solutions = solutionStore(directory); acquisitions = configAcquisitions(directory, solutions.uploads, client); ready = true;
   const [first, second] = await Promise.all([acquisitions.get(job.id), acquisitions.get(job.id)]);
+  assert.equal(first.solutions[0].dependencies.rows[0].status, 'paid-source-unavailable');
   assert.equal(first.state, 'ready'); assert.deepEqual(first, second); assert.equal(artifactCalls, 1);
   assert.deepEqual(await acquisitions.original(job.id), bytes);
   const snapshot = await solutions.uploads.snapshot(first.solutions[0].project.id, SOLUTION_CATALOG, first.solutions[0].project.currentSnapshotId);

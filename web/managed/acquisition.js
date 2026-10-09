@@ -1,4 +1,5 @@
 const el = (tag, text) => { const node = document.createElement(tag); if (text !== undefined) node.textContent = text; return node; };
+import { mountDependencies } from './dependencies.js';
 let sequence = 0;
 export function mountAcquisition(actions, selected, model = {}) {
   const root = el('section'); root.className = 'config-acquisition';
@@ -21,13 +22,20 @@ export function mountAcquisition(actions, selected, model = {}) {
   };
   const show = acquisition => {
     results.replaceChildren();
-    status.textContent = acquisition.state === 'ready' ? 'Файлы сохранены. Выберите решение.' : acquisition.state === 'failed' ? 'Загрузка не завершена.' : 'Экспорт выполняется…';
+    status.textContent = acquisition.state === 'ready' ? acquisition.solutions?.every(row => row.sourceAvailability === 'opaque')
+      ? 'Исходный файл сохранён. Для изменений нужен читаемый экспорт решения.' : 'Файлы сохранены. Выберите решение.'
+      : acquisition.state === 'failed' ? 'Загрузка не завершена.' : 'Экспорт выполняется…';
     if (acquisition.error) error.textContent = acquisition.error;
     if (acquisition.progress) results.append(el('p', 'Получено решений: ' + acquisition.progress.completed + ' / ' + acquisition.progress.total));
     if (acquisition.exclusions?.length) results.append(el('p', 'Недоступные решения: ' + acquisition.exclusions.map(row => row.code + ' (' + row.status + ')').join(', ')));
     if (acquisition.state === 'ready') {
       const download = el('a', 'Скачать исходную конфигурацию'); download.href = '/api/config-source/acquisitions/' + acquisition.id + '/original'; results.append(download);
       for (const row of acquisition.solutions || []) {
+        if (row.sourceAvailability === 'opaque') {
+          results.append(el('p', row.code + ': конфигурация сохранена, но содержимое непрозрачно или зашифровано. Загрузите читаемые решения отдельно или через архив конфигурации.'));
+          continue;
+        }
+        if (row.dependencies) results.append(mountDependencies(row.dependencies));
         const choose = el('button', 'Выбрать ' + row.code); choose.type = 'button'; choose.className = 'secondary';
         choose.onclick = () => { selected(row.project); results.querySelectorAll('button').forEach(node => { node.disabled = false; }); choose.disabled = true; status.textContent = 'Выбрано решение: ' + row.code; };
         results.append(choose);
