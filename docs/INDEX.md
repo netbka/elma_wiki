@@ -5,12 +5,15 @@ Routing, not an always-read checklist.
 | Need | Read |
 | --- | --- |
 | Agent behavior | ../AGENTS.md |
+| Working-configuration product goal: merge, build, native verification and release (#94) | [SOLUTION_FIRST_PRODUCT_PLAN.md](SOLUTION_FIRST_PRODUCT_PLAN.md) |
+| Parallel export merge, physical materialization, paid dependencies and release acceptance | [plans/working-configuration-release.md](plans/working-configuration-release.md) |
+| Updated GitHub enterprise audit and retained Dyk/EW findings | [audits/github-enterprise-audit-2026-10-08.md](audits/github-enterprise-audit-2026-10-08.md) |
 | Contextual bug reports, screenshots and GitHub issue publication | [contracts/bug-reports.md](contracts/bug-reports.md) |
 | Concrete agent task routing, verification and completion | [workflows/agent-execution.md](workflows/agent-execution.md) |
-| Canonical Solution-first product contract (PR #53 / #52) | [SOLUTION_FIRST_PRODUCT_PLAN.md](SOLUTION_FIRST_PRODUCT_PLAN.md) |
+| Canonical Solution-first product contract (PR #53 / #52, owner correction #94) | [SOLUTION_FIRST_PRODUCT_PLAN.md](SOLUTION_FIRST_PRODUCT_PLAN.md) |
 | Solution-first execution order | [SOLUTION_FIRST_EXECUTION.md](SOLUTION_FIRST_EXECUTION.md) |
 | Product contradictions / migration register | [SOLUTION_FIRST_CONTRADICTIONS.md](SOLUTION_FIRST_CONTRADICTIONS.md) |
-| Prior baseline-first implementation direction (#33; reconcile through PR #53) | [PRODUCT_DIRECTION.md](PRODUCT_DIRECTION.md) |
+| Prior baseline-first implementation direction (#33; reconcile through current product authority) | [PRODUCT_DIRECTION.md](PRODUCT_DIRECTION.md) |
 | Capability routing | ../.agent/capabilities.yaml |
 | Current implemented truth | STATE.md |
 | Public Vercel site / internal Docker | PUBLIC_DEPLOYMENT.md |
@@ -34,7 +37,7 @@ Routing, not an always-read checklist.
 | Source geometry and read-only process/form reconstruction | [contracts/solution-visual.md](contracts/solution-visual.md) |
 | Explain Solution/process/step, edit/save and retain source-bound history | [contracts/solution-explanations.md](contracts/solution-explanations.md) |
 | Portal-origin requests and shared worker queue, without VK | [contracts/portal-requests.md](contracts/portal-requests.md) |
-| Baseline-first engine, private storage and HTTP API | [contracts/managed-workspace.md](contracts/managed-workspace.md) |
+| Baseline-first engine, private runtime storage and shared authenticated HTTP API | [contracts/managed-workspace.md](contracts/managed-workspace.md) |
 | Managed workspace UI and shared Storybook lifecycle | [workflows/managed-workspace.md](workflows/managed-workspace.md) |
 | Source/Target boundary | contracts/source-target-connections.md |
 | Developer code workspace | contracts/developer-workspace.md |
@@ -48,7 +51,8 @@ Routing, not an always-read checklist.
 | Storybook investigation evidence | plans/workflow-storybook-investigation.md |
 | E2E implementation package | plans/source-target-e2e.md |
 | VK Teams request coordination (implemented service; no live agent or Dev2) | [contracts/request-bot.md](contracts/request-bot.md), [service runbook](../services/request-bot/README.md) |
+| Bounded #19 provider/repository pilot preparation (disabled; private bindings unresolved) | [pilot handoff](../services/request-bot/PILOT.md) |
 | VK Teams request-to-Dev2 automation (proposed) | plans/vk-teams-agent-delivery.md |
 | VK Teams user conversation (proposed) | workflows/vk-teams-agent-delivery.md |
 
-[SOLUTION_FIRST_PRODUCT_PLAN.md](SOLUTION_FIRST_PRODUCT_PLAN.md) is the current owner-authorized product contract. [PRODUCT_DIRECTION.md](PRODUCT_DIRECTION.md) preserves the earlier engine/lifecycle foundation. Final integrated owner acceptance remains #38 after #59 uncoached review. Dyk supplies reviewed mechanics, not Wiki product or deployment authority.
+[SOLUTION_FIRST_PRODUCT_PLAN.md](SOLUTION_FIRST_PRODUCT_PLAN.md) is the current owner-authorized product contract, including the working-configuration release outcome. [PRODUCT_DIRECTION.md](PRODUCT_DIRECTION.md) preserves the earlier engine/lifecycle foundation. Review-only acceptance is an intermediate milestone; release completion requires physical artifacts and native/Target evidence. Final integrated owner acceptance remains #38 after #59 uncoached review; its existing deferral is not lifted by a plan. Dyk supplies reviewed mechanics, not Wiki product or deployment authority.
