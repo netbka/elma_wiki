@@ -1,313 +1,128 @@
 # Solution-first product plan
 
-Status: current owner-authorized implementation contract; final product acceptance remains #38 / #59.
-Date: 2026-10-07.
-Coordinates: #33, #35, #38, #39, #40, #41, #47, #52.
+Status: current owner-authorized product contract. Updated by the explicit owner correction on 2026-10-08, recorded in #94 / PR #92. Final acceptance and implementation evidence remain separate.
+Coordinates: #52, #33, #34, #11, #38, #41, #47, #55, #59, #94.
 
-## Product sentence
+## Product sentence and required result
 
-E365 Wiki is a guided engineering and review system for an ELMA solution.
+E365 Wiki is a guided collaborative engineering system that compares and merges ELMA configuration changes and produces a working installable configuration for the next server and controlled production release.
 
-A user opens a familiar **Solution**, sees its current state and the one thing that needs attention next, reviews changes in context, and only when relevant proceeds to TEST delivery and verification.
+A user opens a familiar Solution, understands its current state, compares independently based versions, resolves conflicts, reviews the combined result, and obtains a physical configuration whose installation and affected business behavior have been verified for an explicit target profile.
 
-The product is not presented as a Wiki, Git client, Storybook, IDE, release center, parser or deployment platform. Those are capabilities behind the Solution.
+Understanding, code review, visual review and offline handoff are useful intermediate outcomes. They are not the complete product endpoint. The owner explicitly rejected treating native materialization and working release as optional features outside the product. Missing serializers, partial-package semantics, paid dependencies and platform coverage are engineering work to resolve, not a permanent viewer-only boundary.
 
-## Deliberate MVP boundary
+Wiki owns the path to the working result; native execution remains in ELMA and its existing adapters. This does not require a second document-process runtime, ELMA Designer, Git host, general IDE, compiler or deployment engine.
 
-### Shared system, identified people
+## One user model
 
-For the current MVP, authentication establishes **identity, not authorization tiers**.
+**Solution -> Changes -> Compare and resolve -> Review -> Build -> Verify -> Release.**
 
-- Login continues through the VK Teams bot.
-- The trusted bot sender identity creates/resolves the application user.
-- All authenticated users see the same Solutions and have the same product permissions.
-- There are no private workspaces, teams, ACL configuration, role editor or per-Solution membership rules in this milestone.
-- Identity is retained so the system can show who uploaded a configuration, created/changed a review item, commented, accepted/rejected a change or performed another auditable mutation.
-- Actor identity and ELMA-native author/publisher evidence are different facts and must never be silently conflated.
-- Anonymous access does not gain private-system mutation rights.
+The existing Solution -> Change -> Review flow stays intact. A review-only task can finish as reviewed; it must not label a configuration released. For a release task, Done requires the working-configuration outcome and target-specific evidence. Internally retain Workspace, snapshots, baseline, interventions, candidate and delivery attempts; do not make these competing global destinations.
 
-Owner clarification on 2026-10-08: there is no private product-content mode, including for previously uploaded configurations. All signed-in users share historical content and new Solutions. The service uses one shared-access policy for legacy project, portal, managed workspace and release stores; original ownership fields remain provenance, not visibility rules. Existing bytes and IDs are preserved in place. Separate storage roots and explicit full/partial declarations continue to protect lifecycle correctness. New uploads need no sharing checkbox. Public educational pages remain separate from authenticated configuration content; operational credentials/bridge controls retain their execution contract.
+The primary home remains Solutions. Learn is secondary. Inside a Solution retain Overview / Changes / Solution, with contextual build/delivery when the capability actually exists. A server-wide release can select several Solutions in that context; it is not an unrelated control panel. Do not expose unsupported actions as if this contract implemented them.
 
-Future authorization is deliberately deferred. The data model should keep stable actor IDs so permissions can be added later without rewriting authorship history.
+## Supported output scope is a product obligation
 
-## Borrowed interaction model
+The product must develop and verify these release scopes:
 
-Do not invent a novel shell. Borrow mature patterns selectively:
+| Requested scope | Required result |
+| --- | --- |
+| Application part | Selected change plus complete required references and the smallest proven native import unit; show any necessary scope expansion before acceptance |
+| Application | Definition, forms, scripts, processes, permissions, resources and required dependencies relevant to that application |
+| Solution | Complete native package or supported package set representing the reviewed Solution |
+| Server configuration | Accounted-for configuration across Solutions and global/platform configuration domains, with an executable installation plan and explicit target bindings |
 
-- **Power Platform Solutions:** Solution is the familiar home object; object tree and contextual commands live inside it.
-- **Salesforce DevOps Center:** changes are reviewed/promoted as work, while Git mechanics remain hidden from non-Git users.
-- **GitHub pull-request review:** one change gathers diff, discussion, checks and accept/request-changes decisions.
-- **OutSystems / Mendix:** application/version/environment promotion is contextual and sequential, not a separate cockpit.
+A server configuration is not automatically a database/business-record/file or infrastructure backup. Required reference/configuration data must be classified explicitly rather than silently omitted. An all-Solutions inspection download is not a full deployable server configuration if it omits global configuration or paid dependencies.
 
-Do **not** copy their administrative density, configurable pipeline builders, repository vocabulary, environment administration or large settings surfaces.
+One release may contain multiple intact native packages, a dependency lock, supported configuration actions and an installation/evidence manifest. Do not fabricate a universal .e365 wrapper or claim that the existing inspection container is directly importable by ELMA. Every release member must have an actual supported installation path. A partial requested scope does not authorize overwriting unrelated target content.
 
-ELMA visual styling is not the target. Familiar enterprise interaction patterns are.
+## Shared system, identified people
+
+Authentication establishes identity, not authorization tiers, in the current MVP.
+
+- Login continues through the trusted VK Teams bot identity and existing authentication contracts.
+- All authenticated users share all historical and new configuration content with equal product permissions. There is no per-user private configuration mode, sharing checkbox, role editor or per-Solution membership UI in this milestone.
+- Preserve original bytes, storage IDs and upload provenance in place. Separate roots protect artifact and lifecycle identity, not personal content visibility.
+- Record trusted actors for uploads, changes, comments, resolutions, review decisions and releases. Uploader, declared team and ELMA-native author/publisher are distinct facts.
+- Public Learn, credentials and operational connection controls remain separate. Shared content access never grants arbitrary Target execution.
+- Stable actor IDs allow future authorization without rewriting history. Future role tiers remain a separate owner decision.
 
 ## Product laws
 
-1. **Solution is home.** A user starts from Solutions, not subsystems.
-2. **One obvious next action.** Every primary state has one visually dominant recommended action.
-3. **Complexity follows the object.** Code belongs to a supported script/widget; comments belong to a reviewed object/change; delivery belongs to an accepted version.
-4. **Use ordinary words.** Prefer Solution, Change, Review, Comment, Needs changes, Accept, Send to TEST. Hide snapshot/candidate/parser/Storybook/Git terminology unless technical evidence is explicitly opened.
-5. **Show state, not instructions.** The normal screen answers where I am, what changed, whether attention is needed and what I should do next. Help text is exceptional.
-6. **Progressive disclosure.** Raw JSON, archive paths, provenance internals and technical evidence are secondary.
-7. **No capability dashboard.** Do not expose Code, Storybook, Releases, Connections, Flows or Parser as competing global destinations.
-8. **Truth before convenience.** Unknown remains unknown; reconstructed UI is not native ELMA runtime evidence; accepted review is not verified deployment.
+1. Solution is home; capabilities follow the object and current task.
+2. Every primary state has one obvious next action and a return path.
+3. Use ordinary familiar actions, not Git/parser/Storybook vocabulary in the normal UI.
+4. Show current committed state consistently across lists, details, counts, history and next action. Preserve drafts and context on failure.
+5. Use desktop tables, trees and diffs where they reduce work; retain readable narrow review, keyboard/focus and reflow.
+6. Preserve immutable original source, reviewed decisions, physical build and evidence separately. Never build a deployable package from the sanitized search index.
+7. Truth before convenience: unknown remains unknown. Review, conflict resolution, compilation, native installation, business acceptance and production readiness are separate assertions.
+8. Working configuration is the required release outcome. Never release a known-broken or unverified required scope, and never downgrade the product to review-only merely because an adapter is unfinished.
 
-## User language
+## Parallel versions and merge
 
-The domain model may retain Workspace, Full Snapshot, Baseline, Intervention, Candidate and Verification internally. The normal user model is intentionally smaller:
+Canonical example: full baseline B; one developer exports Contracts changes A; another exports Contracts changes C. Establish each change's actual base and ancestry before combining it. Two exports of shared DEV may already include one another's changes; uploading them does not establish independent personal branches or authorship.
 
-**Solution -> Change -> Review -> Done**
+Compare B->A and B->C, using proven service/namespace/object identities and supported field/node/transition/script identities. Absence outside a declared partial scope is not deletion. An explicit supported deletion is different from an omitted object. Renames and duplicate/missing identities must not be guessed from display names.
 
-When delivery is available:
+Auto-combine proven independent changes and identical edits. Conflicting edits to the same value, delete-vs-edit, ambiguous identity, incompatible dependency/schema/permissions and uncertain behavioral combinations require an explicit resolution or additional evidence. Disjoint text edits are not proof of compatible business behavior.
 
-**Solution -> Change -> Review -> TEST -> Done**
+The resolution produces a new immutable merged revision referencing originals, bases, selected edits, decisions and actors. No last-upload-wins overwrite, silent content loss, invented native history or automatic acceptance of AI suggestions. Invalidate affected review/build/verification when any relevant input changes.
 
-Use technical domain terms only when they communicate a decision the user genuinely needs.
+The current reducer's conservative whole-object/whole-file conflict handling is an implementation foundation. Fine-grained merge and physical composition extend it under #94; current unsupported behavior remains blocked until its replacement is proved.
 
-## Top-level information architecture
+## Build and release guarantee
 
-The authenticated product has one primary destination:
+For every released scope, the system must establish:
 
-### Solutions
+- complete physical artifacts and accounted-for required configuration/dependencies;
+- a pinned compiler/platform/package profile and target requirements;
+- consistent source, generated executable runtime, manifests, resources, bindings and permissions;
+- native validation and installation of the exact artifact on an authorized isolated matching environment;
+- affected parent business-route acceptance, not just a child task finishing or import exit 0;
+- exact target read-back under a versioned expected-outcome policy and no unexpected missing/changed/extra content;
+- a controlled next-server promotion path, drift checks, known partial-failure behavior and verified recovery appropriate to the change.
 
-Optional educational material is a separate **Learn** surface and must not compete with active work.
+A static check or code review cannot satisfy the whole guarantee. Evidence states what was observed for which artifact/profile. Passing on a different server does not automatically certify a new Target; recheck actual dependencies, licenses, bindings, baseline and impacted acceptance there. Prefer promoting identical frozen bytes. Necessary environment substitutions are explicit, reviewed, hashed and reverified; do not silently rebuild after acceptance.
 
-Do not add top-level navigation for Projects, Workspaces, Releases, Storybook, Code, Connections, Deployments, Snapshots or Flows.
+An unmet required condition prevents release and identifies the exact remediation: resolve a conflict, add a dependency, provision a licensed module, implement a configuration adapter, correct a build or run a required scenario. Unsupported scope remains an open product-delivery gap, not a successful release with a disclaimer.
 
-### Empty state
+Paid modules must be handled through compatible licensed preinstallation or an authorized intact distribution/import path, with preserved references and verified target functionality. Do not remove payment flags, decrypt protected internals, invent entitlement or omit required modules to turn a failure green. Purchasing, credentials and legal distribution decisions remain owner-reserved.
 
-A first-time authenticated user should see approximately:
+Production promotion is part of the intended product. This product decision itself does not select a live host/candidate, grant credentials, or authorize a PROD write. Existing target-deployment confirmation and recovery rules remain binding. The current GitHub-only task performs no live operation.
 
-**Solutions**
+## Review and explanation remain contextual
 
-No solutions yet.
+One Change review gathers differences, affected objects, responsibility, before/after context, comments/findings, resolutions, checks and accept/request-changes decisions. Findings keep stable source references and current/stale/removed/ambiguous states. Supported code is contextual; an edited working copy enters a release only through a reviewed build input.
 
-**Add solution**
+The user sees process/form Preview, not an engineering Storybook destination. Distinguish source-derived, reconstructed/simulated, native-observed and unknown behavior. Production and Storybook use the same renderer with synthetic fixtures; hosted Wiki never executes arbitrary uploaded code.
 
-One dominant action. No architecture lesson.
+Saved explanations retain sources, human edits, authors and history. Current deterministic explanation is not an external AI service. AI may assist explanation and conflict proposals only under an approved data-transfer and review policy, never inventing source truth or accepting its own proposal.
 
-### Add solution
+## One-next-action map
 
-Expose only acquisition methods that really work.
-
-Initial milestone may contain only:
-
-**Upload .e365**
-
-with concise supporting text such as "Full export of the ELMA365 solution."
-
-When a live Source path is proven, add **Load from ELMA**. Both create the same immutable source evidence downstream.
-
-Do not ask for baseline/parser/workspace/snapshot terminology. Infer safe facts. Ask only a question that cannot safely be answered from evidence.
-
-## Solution home
-
-A Solution overview answers:
-
-- which Solution is this;
-- how current is the accepted source state;
-- what changed;
-- what needs attention;
-- what is the next action.
-
-Example state:
-
-**CRM**
-
-Current version: updated today 14:32
-
-3 changes since the accepted version
-
-1 needs attention
-
-**Review changes**
-
-Secondary contextual actions may include **Add change** and **Update from ELMA**.
-
-Avoid general dashboards, charts and metric cards unless later evidence proves a real decision need.
-
-## Inside a Solution
-
-Target navigation:
-
-- **Overview**
-- **Changes**
-- **Solution**
-- **Delivery** only when delivery is relevant and supported
-
-### Overview
-State + attention + one next action.
-
-### Changes
-Human-readable changes, responsibility/boundary evidence, conflicts and review state. This is where GitHub PR interaction mechanics may be borrowed without Git vocabulary.
-
-### Solution
-Reconstructed ELMA object/process/form tree. Supported objects expose contextual actions. Code editing is an object capability, not a product area.
-
-### Delivery
-Appears only for a review state that can produce/use a valid candidate. It guides TEST promotion and verification. It is not a configurable pipeline product.
-
-## Contextual review
-
-For a change, gather in one place:
-
-- what changed;
-- affected objects;
-- added/modified/removed/ambiguous evidence;
-- responsibility/boundary crossings where proven;
-- before/after or visual reconstruction;
-- comments and "needs changes" findings;
-- checks/evidence;
-- **Accept change** or **Needs changes**.
-
-Comments and findings record the authenticated actor.
-
-Use **Comment**, **Needs changes**, **Accept change** in the user UI. "Issue", "PR", "Story", "review thread ID" and similar engineering implementation terms stay internal unless an advanced evidence view needs them.
-
-## Visual reconstruction
-
-"Storybook" is an engineering implementation/review technology, not normal product vocabulary.
-
-A user opens a Solution/process/form/scenario and sees a **Preview** or **Review** surface reconstructed from source evidence. Clearly distinguish:
-
-- extracted from ELMA source;
-- reconstructed/simulated by this product;
-- observed in native ELMA;
-- unknown/unsupported.
-
-Do not claim pixel-perfect ELMA runtime parity.
-
-## One-next-action state map
-
-The state machine chooses the primary action.
-
-| Current state | Primary action |
+| State | Primary action |
 | --- | --- |
-| No Solution | Add solution |
-| Solution lacks accepted full source | Upload full export |
-| Accepted source, no pending change | Add change |
-| Unreviewed change | Review changes |
-| Boundary/conflict blocks review | Resolve conflict |
-| Review has requested fixes | Review fixes |
-| Change review complete, no delivery requested | Finish review |
-| Valid delivery candidate and TEST enabled | Send to TEST |
-| TEST delivery awaiting evidence | Verify TEST |
-| Verified | Done |
+| No Solution/full base | Add solution / load full export |
+| Ready for development | Add change |
+| Changes need comparison | Compare changes |
+| Conflict or unknown base | Resolve conflict / establish base |
+| Resolved change needs review | Review changes |
+| Review requests fixes | Review fixes |
+| Accepted merged revision | Build configuration |
+| Required dependency/coverage missing | Resolve the named requirement |
+| Built, unverified candidate | Verify configuration |
+| Passed matching-profile candidate | Prepare release / choose approved destination |
+| Deployment awaiting evidence | Verify target |
+| Required target checks passed | Release complete |
 
-Secondary actions must not visually compete with the primary action.
+These are product targets, not a claim that every mapped UI/API state is implemented. Keep secondary actions subordinate and disclose technical evidence progressively.
 
-## MVP scope
+## Delivery and acceptance
 
-The first product milestone should excel at:
+Execution order is [SOLUTION_FIRST_EXECUTION.md](SOLUTION_FIRST_EXECUTION.md). Detailed merge/materialization/dependency gates are in [the working-configuration plan](plans/working-configuration-release.md), tracked by #94 and native netbka/elma365#60; #11 retains delivery ownership, #47 native history/identity evidence, and #91 coordination.
 
-**Load Solution -> understand it -> add a later export/change -> see what changed and whose boundary is affected -> visually review -> accept/reject -> establish the next accepted state.**
+P0-P5 review implementation and an independently accepted review milestone remain valuable. They do not complete the full merge/build/release product. #59/#41 user review remains deferred by the owner's existing instruction; #38 still requires the actual integrated walkthrough. Neither this document nor CI supplies those observations.
 
-TEST delivery is the next bounded milestone and reuses the same Solution/change/review state.
+## Non-goals and boundaries
 
-### Explicit non-goals for the first milestone
-
-- private workspaces or per-Solution ACLs;
-- role/permission administration;
-- Git/GitHub UI, branches or commits;
-- separate Storybook UI for business users;
-- separate IDE destination;
-- separate Release Center;
-- configurable pipelines;
-- arbitrary workflow builder;
-- universal dashboard;
-- AI chat as primary navigation;
-- user-customizable layouts;
-- large Settings area;
-- PROD deployment;
-- claiming a virtual merged state is a deployable .e365 without proven round-trip semantics.
-
-## Work plan
-
-### P0 - authority and terminology
-
-1. Make this contract, once owner-approved, the product authority referenced by README, AGENTS and docs index.
-2. Build the contradiction register and mark stale file-first/private-workspace/capability-first language as legacy or superseded.
-3. Define one terminology table: internal domain term vs user-facing term.
-4. Add a UI copy rule/checklist: every new button must use a familiar verb+noun or established ordinary action; no invented nouns without owner approval.
-
-### P1 - identity without authorization complexity
-
-1. Resolve/create a stable user from trusted VK Teams bot sender identity.
-2. Persist stable actor ID + safe display identity.
-3. Attribute uploads, comments, findings, review decisions and mutations to actor ID.
-4. Change product visibility from owner-scoped private projects to the approved shared authenticated Solution catalog in one explicit migration.
-5. Preserve authorship history and distinguish uploader/reviewer from ELMA author/publisher evidence.
-6. Add tests proving authenticated shared visibility, attribution, anonymous rejection and no accidental role divergence.
-7. Do not add roles/ACL UI.
-
-### P2 - Solution-first shell
-
-1. Replace capability/file-first landing with Solutions.
-2. Implement minimal empty state and Add solution.
-3. Make a managed Solution the primary navigation object; retain legacy standalone inspection only as secondary compatibility where required.
-4. Implement Overview / Changes / Solution; conditionally expose Delivery.
-5. Remove/hide competing top-level subsystem entries from normal navigation.
-
-### P3 - guided state and next action
-
-1. Derive an attention/next-action ViewModel from deterministic product state.
-2. Put one primary action on every Solution state.
-3. Add explicit empty, ambiguous, conflict, stale and recovery states.
-4. Test that each state has exactly one recommended next action and a return path.
-
-### P4 - change review
-
-1. Consolidate diff, responsibility evidence, visual/source context, comments and decision into one Change review.
-2. Use shared actor attribution.
-3. Reuse existing review primitives but rename product language to ordinary terms.
-4. Preserve comments across revisions with explicit stale/removed/ambiguous mappings.
-5. Keep code editing contextual to supported objects.
-
-### P5 - reconstructed Solution review
-
-1. Continue #51 using the same Solution shell.
-2. Process/form previews are contextual views, not a new Storybook destination.
-3. Anchor comments/findings to stable source/scenario/object references.
-4. Keep evidence labels explicit.
-
-### P6 - TEST delivery, later bounded milestone
-
-1. Expose Delivery only when a valid accepted state exists.
-2. Guide **Send to TEST -> Verify TEST -> Done**.
-3. Reuse #11 delivery/read-back contracts; no second deployment engine.
-4. No configurable pipeline UI and no PROD in this milestone.
-
-### P7 - usability convergence
-
-Before acceptance, test with an ELMA-familiar technical user and a technically literate user who has not read project docs.
-
-They must be able to:
-- identify how to add a Solution;
-- identify current Solution state;
-- find what changed;
-- understand what requires attention;
-- review a change;
-- find a supported object's code without a global Code area;
-- leave a comment and see its author;
-- know the next action without documentation.
-
-Record hesitation, wrong clicks and misunderstood labels. A button that repeatedly requires explanation is a product defect, not a documentation gap.
-
-## Open decisions to validate before broad implementation
-
-These require small prototypes/evidence, not architecture expansion:
-
-1. Whether user-facing **Solution** should map one-to-one to an ELMA exported solution or can later represent a broader environment/application grouping. MVP should choose the narrowest proven meaning.
-2. The smallest reliable component identity for comments/history across exports.
-3. Which ELMA object types can be reconstructed usefully enough for first review; start with one process/form vertical slice.
-4. Whether **Change** should be created automatically for every later full export or only when the user explicitly adds a partial package.
-5. How to represent an accepted change that is understood virtually but cannot yet be safely rebuilt into a deployable package.
-6. Exact VK Teams identity fields that are stable and safe to persist/display.
-7. Migration treatment for existing owner-scoped private uploads when the shared catalog is enabled. Do not expose old private content merely because the new MVP is shared.
-8. Whether "Accept change" or a simpler phrase such as "Looks good" tests better with the intended Russian-speaking ELMA audience. Use usability evidence, not clever terminology.
-
-## Acceptance guardrail
-
-Do not accept a product-shaping PR because it adds capability. Accept it only if it preserves the simple user model, reduces or does not increase navigation choice, has one clear next action, uses familiar language and does not expose implementation concepts without need.
+No competing Git host, general workflow builder, second compiler/deployment engine, global IDE/Storybook/pipeline dashboard, role administration or public customer-code catalog. Native runtime stays in ELMA. No fake claims of universal export/import support, arbitrary byte merging, automatically safe rollback, unrestricted PROD writes or removal of data-retention/credential safeguards. Working configuration production is in scope; implementing it must preserve these boundaries.

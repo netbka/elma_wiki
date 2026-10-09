@@ -1,0 +1,28 @@
+{
+  "installation": "request-pilot-19-20261008",
+  "role": "publisher",
+  "coordinator": "http://127.0.0.1:43174",
+  "tokenEnv": "REQUEST_PUBLISHER_KEY",
+  "githubTokenEnv": "REQUEST_PUBLISHER_GITHUB_TOKEN",
+  "maxJobMs": 180000,
+  "projects": {
+    "wiki": {
+      "repository": "netbka/elma_wiki",
+      "baseRef": "main",
+      "taskKind": "wiki_code",
+      "contextFiles": [
+        "AGENTS.md",
+        ".agent/capabilities.yaml",
+        "docs/workflows/agent-execution.md",
+        "docs/SOLUTION_FIRST_PRODUCT_PLAN.md",
+        "docs/SOLUTION_FIRST_EXECUTION.md",
+        "docs/SOLUTION_FIRST_CONTRADICTIONS.md",
+        "docs/contracts/request-bot.md",
+        "services/request-bot/PILOT.md"
+      ],
+      "editableFiles": ["docs/examples/request-worker-pilot.txt"],
+      "publishEnabled": false,
+      "allowPublicCode": false
+    }
+  }
+}

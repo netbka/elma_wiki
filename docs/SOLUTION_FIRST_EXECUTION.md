@@ -1,107 +1,58 @@
 # Solution-first execution plan
 
-Status: current execution plan from merged PR #53 / issue #52. P0-P5 implementation is authorized; final usability/owner acceptance remains P7 / #38.
-Date: 2026-10-07.
-Product contract: SOLUTION_FIRST_PRODUCT_PLAN.md. The 2026-10-08 owner clarification and merged #80 govern P1 sharing: all authenticated users share historical and new configuration content; no per-record private/shared choice is required. Deployment and final human acceptance remain separate gates.
+Authority: [SOLUTION_FIRST_PRODUCT_PLAN.md](SOLUTION_FIRST_PRODUCT_PLAN.md), including the owner's 2026-10-08 working-configuration correction (#94 / PR #92).
+Coordination: #52 / #91. This plan records required product work; individual workers claim bounded outcomes, not the whole roadmap. Current task: GitHub-only documentation and handoff; no live execution.
 
 ## Goal
 
-Converge the current E365 Wiki into a simple Solution-first product without losing the useful parser, review, developer-workspace, Storybook, delivery and agent capabilities already built.
+Preserve the useful Solution-first review product and complete its missing path from parallel configuration changes to a working, installable, verified release. Review-only acceptance is an intermediate milestone, not the full product endpoint. Production promotion is a required product capability with separate operational authorization.
 
-## Delivery order
+## Retained P0-P5 foundation
 
-### P0 - one authority
-- Link the Solution-first contract from README, AGENTS and docs/INDEX.
-- Mark conflicting product statements historical/superseded instead of deleting evidence.
-- Maintain SOLUTION_FIRST_CONTRADICTIONS.md.
-- Add one user-language table and copy checklist.
+| Stage | Existing outcome to retain | Current follow-through |
+| --- | --- | --- |
+| P0 | One Solution-first authority and contradiction register | Reconcile current instructions with the owner's merge/build/release outcome; remove obsolete private-admission and business-Storybook rules |
+| P1 | Shared historical/new configuration content with stable trusted actors | #55 deployed two-user/integrity evidence remains separate; no sharing checkbox or roles UI |
+| P2 | Solutions home, Overview / Changes / Solution | Keep the shell; build/delivery and multi-Solution scope are contextual, not another navigation rebuild |
+| P3 | Deterministic state and one next action | Extend only for actually implemented base/merge/build/dependency/verification/release states |
+| P4 | Attributed Change discussion, corrections, contextual code and review | Preserve anchors and add version-bound conflict resolutions and build inputs |
+| P5 | Source-bound process/form preview and explanations | Preserve uncertainty labels; preview is not native acceptance |
 
-Exit: a new contributor can identify one current product truth; no current contract simultaneously claims private owner isolation and shared authenticated visibility as the intended MVP.
+## P6 - mandatory working-configuration release stream
 
-### P1 - identity and shared catalog foundation
-- Resolve a stable application actor from trusted VK Teams sender identity.
-- Persist actor identity separately from session state.
-- Attribute uploads, comments, findings, review decisions and audited mutations.
-- Apply the owner-approved shared-access policy centrally to the Solution catalog and historical project, portal, workspace and release content stores.
-- Preserve original bytes, IDs and uploader provenance in place; ownership fields record provenance rather than per-user content visibility. Keep operational credentials and Source/Target execution controls under their separate contracts.
-- Keep portal actor identity separate from ELMA-native author/publisher evidence.
+P6 may ship in bounded increments but is not optional in the full product. #94 owns merge-to-materialized-revision integration; native [elma365#60](https://github.com/netbka/elma365/issues/60) owns package/compiler/native assembly adapters; #11 owns delivery. Do not create competing state, compiler or delivery engines.
 
-Exit: two authenticated users can see the same Solution and historical configuration content, and their actions retain distinct authors; anonymous access to configuration APIs is rejected; no role/ACL or private/shared-choice UI exists. Synthetic/local #80 evidence establishes the implemented policy, while deployed two-user verification remains pending an authorized rollout under #55.
+| Slice | Outcome | Dependencies / exit |
+| --- | --- | --- |
+| MR-01 | Explicit base/ancestry and full/partial scope for two contributors | Existing immutable store/reducer; shared-server snapshots cannot masquerade as personal deltas |
+| MR-02 | Three-way semantic merge plan and durable conflict resolution | MR-01; independent changes preserved, ambiguous or conflicting changes cannot silently win |
+| MR-03 | Physical native materialization from resolved inputs | MR-02 plus native adapter; preserve baseline, resources and coupled runtime; exact output traceable to decisions |
+| MR-04 | Part/application/Solution/server configuration coverage and dependency closure | Start design alongside MR-01; scope expansion and global configuration accounted for; no inspection-bundle-as-release claim |
+| MR-05 | Locked target profile, paid/opaque dependency and environment-binding resolution | Start alongside MR-03; official distribution or verified licensed target prerequisites, not omitted dependencies |
+| MR-06 | Composed candidate integration with guarded delivery | MR-03/04/05; reuse #90 handoff design and #11 single reservation/coordinator |
+| MR-07 | Actual isolated native acceptance of the combined Contracts scenario | MR-06; both changes operate together and native source/runtime/business outputs match |
+| MR-08 | Controlled next-server/production promotion and recovery | MR-07 plus concrete operational permission; target-specific evidence, drift/retry/partial-failure handling |
 
-### P2 - Solution-first shell
-- Replace file/capability-first landing with Solutions.
-- Implement Add solution.
-- Route a managed Solution to Overview / Changes / Solution.
-- Show Delivery only when relevant and supported.
-- Demote legacy inspection/subsystem routes from primary navigation.
+Detailed contracts, negative cases, evidence and team boundaries: [working-configuration-release.md](plans/working-configuration-release.md).
 
-Exit: first-time user sees one obvious action and an existing Solution opens into one stable context.
+Critical path: MR-01 -> MR-02 -> MR-03 -> MR-06 -> MR-07 -> MR-08. MR-04/MR-05 must be resolved before a candidate is eligible for MR-06/MR-07. Start with one bounded Contracts vertical slice; expand every requested output scope through its own proven adapters. Block unsupported releases without redefining the intended product as a viewer.
 
-### P3 - deterministic next action
-- Create a pure ViewModel from Solution state to attention summary + primary action.
-- Cover no-source, ready, unreviewed, conflict, needs-fixes, accepted, TEST-awaiting-verification and verified states.
-- Keep secondary actions visually subordinate.
+## P7 - product usability and final acceptance
 
-Exit: every primary state has exactly one recommended next action and explicit empty/error/stale/conflict/recovery states.
+#59/#41 remains DEFERRED at the owner's prior request. This plan does not restart the human task. On resumption, preserve its actual tested revision/observations; review the old review milestone honestly and add version-bound merge/build/release tasks when implemented. #38 is final owner acceptance, not implied by documentation, a build or a test script.
 
-### P4 - one Change review
-- Consolidate diff, responsibility/boundary evidence, object context, comments, findings and decision.
-- Use Comment / Needs changes / Accept change in the normal UI.
-- Record actor attribution.
-- Preserve discussion across revisions with stale/removed/ambiguous anchors.
-- Link code editing contextually from supported objects.
+Test with an ELMA-familiar technical user and a technically literate person who did not read repository docs. They should identify bases, compare colleague changes, distinguish conflict-free from verified, resolve a conflict, see the release scope and understand whether a package is built, tested or actually released. Fix misleading UI rather than adding explanatory prose to waive the finding.
 
-Exit: reviewer can answer what changed, where, who acted, what needs attention and whether it is accepted on one screen, without Git vocabulary.
+## Cross-cutting audit follow-through
 
-### P5 - visual Solution review
-- Coordinate #51.
-- Use one shared renderer for production review and Storybook fixtures.
-- Reconstruct one supported process/form vertical slice.
-- Distinguish source-derived, reconstructed, observed and unknown evidence.
-- Anchor comments/findings to stable references.
+The updated [GitHub audit](audits/github-enterprise-audit-2026-10-08.md) retains EW-01 through EW-11 as supporting work. EW-01 authority consistency, EW-02 behavioral B2/current-state coherence and EW-03 evidence routing accompany the affected MR slices; they are not a long governance project that must finish before useful release engineering starts. EW-04/05/06 feed MR-06/07/08. EW-07 deployed Wiki and EW-09 operational recovery proceed independently. EW-10 AI and EW-11 agent pilot do not block the core merge/build result.
 
-Exit: analyst can review one supported business journey visually; Storybook remains engineering infrastructure, not a user destination.
+## Ready, verification and completion
 
-### P6 - TEST delivery
-- Coordinate #11 and existing delivery contracts.
-- Expose Delivery only when a valid accepted state exists.
-- Guide Send to TEST -> Verify TEST -> Done.
-- Reuse bridge/read-back; do not create another deployment engine.
-- PROD remains unavailable.
+Before changes: record assigned outcome, owning issue, phase, capabilities/boundaries, base/head, existing owners reused and overlaps reserved in #91. Inspect current main and preserve other lanes. A new scope/architecture decision belongs to the owner; technical choices inside accepted invariants belong to the implementing agent.
 
-Exit: one explicitly authorized non-production slice reaches TEST and read-back proves the intended result; no-op/drift stays unverified.
+For a runtime slice: focused tests prove changed invariants and crossed boundaries. Visible state changes update the production renderer and synthetic Storybook in the same task. Verify trigger/ack/pending/success/failure/retry/cancel/return and dependent state; screenshots alone are not behavior evidence. Retest affected layers after integration, without ritual full-suite reruns.
 
-### P7 - usability convergence
-- Run uncoached review with one ELMA-familiar technical user and one technically literate user who did not read project docs.
-- Record hesitation, wrong turns, misunderstood labels and dead ends.
-- Fix UI before adding documentation.
+For a release: bind base and input digests, merged revision/resolutions, target profile, dependency/compiler identities, physical artifacts, review and native acceptance. Separate build success, test-install permission, business acceptance and actual deployment. A native prerequisite cannot be satisfied by synthetic evidence. A code/diagram change may require the complete affected parent route, not just the edited node.
 
-Exit: users independently add/open a Solution, understand state, find/review a change, leave an attributed comment and know the next action.
-
-## Dependency order
-
-P0 -> P1 -> P2 -> P3 -> P4 -> P5 -> P7.
-P6 is a later bounded milestone after a valid accepted state exists and must not block P0-P5/P7 usability.
-
-## Definition of ready for implementation
-- Identify phase and owning issue.
-- Name affected product states and one user-facing outcome.
-- Name existing renderer/domain/storage capability being reused.
-- List contradictions touched from SOLUTION_FIRST_CONTRADICTIONS.md.
-- State explicit non-goals.
-
-## Definition of done
-- Shared production renderer updated where UI changed.
-- Storybook state updated for user-visible states.
-- Focused domain/API tests.
-- Browser evidence for the changed journey.
-- Keyboard/focus/reflow check where relevant.
-- Actor attribution checked for mutations.
-- Copy reviewed against ordinary-language rules.
-- No new top-level navigation concept.
-- No live-ELMA claim without live evidence.
-- Owning issue ends with DONE or a concrete blocker.
-
-## Execution rule
-
-Prefer deleting, hiding or contextualizing an existing option over adding a new navigation concept. If normal flow needs a new noun, first prove it cannot be represented with Solution -> Change -> Review -> Done.
+Complete each assigned outcome with proportional evidence or a concrete blocker. An unresolved required adapter/dependency becomes assigned remedial work, not a green release or a permanent scope excuse. Incomplete parent issues stay open. Never claim a worker is running because a GitHub task exists.

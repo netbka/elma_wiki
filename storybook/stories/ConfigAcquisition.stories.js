@@ -7,6 +7,7 @@ function story(model) {
 }
 export default { id: 'config-acquisition', title: 'Решение/Загрузка из ELMA и архива', parameters: { layout: 'padded' } };
 export const Ready = { render: () => story({ acquisition: record }) };
+export const Encrypted = { render: () => story({ acquisition: { ...record, solutions: [{ code: 'global', project, sourceAvailability: 'opaque' }], exclusions: [] } }) };
 export const Empty = { render: () => story({}) };
 export const Failed = { render: () => story({ acquisition: { ...record, state: 'failed', solutions: [], error: 'Экспорт не завершён. Начните новую загрузку.' } }) };
 export const ConnectionError = { render: () => story({ error: 'Источник недоступен. Проверьте соединение.' }) };

@@ -25,6 +25,8 @@ export const Loading = { render: () => story('loading') };
 export const LoadError = { render: () => story('load-error') };
 export const Changes = { render: () => story('changes') };
 export const Solution = { render: () => story('solution') };
+export const NativeComponents = { render: () => story('native-components') };
+export const PaidDependencies = { render: () => story('paid-dependencies') };
 export const NoSource = { render: () => story('no-source') };
 export const NeedsFixes = { render: () => story('needs-fixes') };
 export const PendingConflict = { render: () => story('pending-conflict') };
