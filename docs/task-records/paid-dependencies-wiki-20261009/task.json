@@ -61,9 +61,9 @@
       ],
       "before": null,
       "after": {
-        "sha256": "ed219a0c23b2cbc0c8fae645c8db25f9949b25feefee5f009653cc13116d7f17",
+        "sha256": "f8cc66f44313b4255abbd609b462890c13ed9dbe16df5185fcfcef55c773c880",
         "version": "working-tree",
-        "gitBlobOid": "71192695d47103edb6c246e31ccd6d6b4ce5638d"
+        "gitBlobOid": "bcbd2cd11ffa11f573d67e1c45ee03999a1873bb"
       }
     },
     {
@@ -98,9 +98,9 @@
         "version": "9f8f17c9729acf5193f79f38a51f7aa104e97717"
       },
       "after": {
-        "sha256": "fd17569c323f857a0353454a8e70411b7e08f828a621c85270c74cfe88e13768",
+        "sha256": "14668201657da055adf1a37fe55e41ca6a904a697671af1074494d4f8ef59170",
         "version": "working-tree",
-        "gitBlobOid": "bef299b69cf966a90d9717bd75fc846b36c433a2"
+        "gitBlobOid": "b0915e09cccd9edacd1325d8ee074fe2fc53d3e5"
       }
     },
     {
@@ -175,9 +175,9 @@
         "version": "9f8f17c9729acf5193f79f38a51f7aa104e97717"
       },
       "after": {
-        "sha256": "882a2fc71470632ea51acb494957016b8d238e22cc6101d5798ce10e5852ead5",
+        "sha256": "a264d6dceec6929eaa6e08fdca6d199535189e087e7d53ed389ebef8b571f23f",
         "version": "working-tree",
-        "gitBlobOid": "de9da2dd359c32f60aab656cd1f3c09cc427fe3d"
+        "gitBlobOid": "e99eb6021a8181cea06ec385d9e17fc9912a8b51"
       }
     },
     {
@@ -312,9 +312,9 @@
         "version": "9f8f17c9729acf5193f79f38a51f7aa104e97717"
       },
       "after": {
-        "sha256": "c4f3178ff5ca209ccbafa28ff31217657e26746dc015934554991737000853e6",
+        "sha256": "0770a76105243c34d8cbe727f0ab842762ffe17b205f1101f639f49590ab6705",
         "version": "working-tree",
-        "gitBlobOid": "8445dc14117369826be7498eccefb5ee528e11c7"
+        "gitBlobOid": "3f2d66e7745beec113479aba3e777426529a5c57"
       }
     },
     {
@@ -332,9 +332,9 @@
         "version": "9f8f17c9729acf5193f79f38a51f7aa104e97717"
       },
       "after": {
-        "sha256": "e1be43fbad552d4bbe32066bc11722df2b109d80a2f3cb2eb0f0a6fc9889bcc2",
+        "sha256": "9055cd0acc8daf4d34fd293d83687c011972ab87e74e472a35aedd52227cb325",
         "version": "working-tree",
-        "gitBlobOid": "8458311fe0f027b807e0dcdea1cf406eb7f57826"
+        "gitBlobOid": "13d7caad7fccc8ea37b7936702b4d2b94b87b9dd"
       }
     },
     {
@@ -389,9 +389,9 @@
         "version": "9f8f17c9729acf5193f79f38a51f7aa104e97717"
       },
       "after": {
-        "sha256": "ec6f82c805cd299f15c8709536d554cb16b7de619b70c5880ad436d8eb6e2620",
+        "sha256": "a2fe13a4a4c5b9b1551041804fbdf5a0d6354abee7d971ca18cc0aaacdf91176",
         "version": "working-tree",
-        "gitBlobOid": "faaf820b611ea3622a45fce3ea8e7bfb13ed9677"
+        "gitBlobOid": "4672e3213e2f0f41dc5e27c19f7a2e19ab6c07ba"
       }
     },
     {
@@ -434,7 +434,9 @@
         "merged": false,
         "createdHead": "7fef519548a136facf9e5323021ad7ed4de3a14d",
         "finalReadbackPath": ".local/paid-dependencies-wiki-20261009/final-delivery-readback.json"
-      }
+      },
+      "automationObservation": "GitHub reported automatic Vercel branch success. Environment/runtime not verified or exercised; no production deployment requested.",
+      "metadataUpdateEvidence": "draft-pr-updated"
     }
   ],
   "evidence": [
@@ -455,12 +457,12 @@
     },
     {
       "id": "browser-tests",
-      "path": "qa/config-acquisition-browser.json",
+      "path": ".local/paid-dependencies-wiki-20261009/browser-before-wording.json",
       "sha256": "e91685c71c2b5a62cbf06d3848db58bd237013f8668dcf7b58e597db6415acb4"
     },
     {
       "id": "mobile-screen",
-      "path": "qa/config-acquisition-mobile.png",
+      "path": ".local/paid-dependencies-wiki-20261009/mobile-before-wording.png",
       "sha256": "b64b47002a1375025acaebf65a99f60df990c348c0b17ccabf198e5bd9faf953"
     },
     {
@@ -472,6 +474,31 @@
       "id": "draft-pr-created",
       "path": ".local/paid-dependencies-wiki-20261009/draft-pr-created.json",
       "sha256": "ff72f80d93a478d6e0945803bd711e724a838e1d3573cf930c32292805d92fe0"
+    },
+    {
+      "id": "unit-tests-wording",
+      "path": ".local/paid-dependencies-wiki-20261009/unit-tests-wording.log",
+      "sha256": "53d9763ac4e0e64cebf68ca87c7009723df1296226125c0a84119922f14180fa"
+    },
+    {
+      "id": "browser-wording",
+      "path": "qa/config-acquisition-browser.json",
+      "sha256": "e91685c71c2b5a62cbf06d3848db58bd237013f8668dcf7b58e597db6415acb4"
+    },
+    {
+      "id": "mobile-wording",
+      "path": "qa/config-acquisition-mobile.png",
+      "sha256": "9513d2fd5ec162b835952e1a866da31aaac26489e18cbc1509d4e3e563c369a7"
+    },
+    {
+      "id": "storybook-wording",
+      "path": ".local/paid-dependencies-wiki-20261009/storybook-wording.log",
+      "sha256": "8c24e04a43587690f7c19d59bfca30c41b3bfeb63f6994b07510c22b35a410a2"
+    },
+    {
+      "id": "draft-pr-updated",
+      "path": ".local/paid-dependencies-wiki-20261009/draft-pr-updated.json",
+      "sha256": "17c82a08c17c09a56ad50767a8f613ff0c02ee392244ff88e33d030f55e835df"
     }
   ],
   "checks": [],

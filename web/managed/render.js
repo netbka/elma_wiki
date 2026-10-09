@@ -224,7 +224,7 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
           const record = pendingAcquisition ||= await actions.acquisition.upload(selected); actions.acquisition.remember?.(record.id);
           if (record.solutions.length > 1 || record.solutions[0]?.sourceAvailability === 'opaque') {
             showAcquisition(record); evidence.textContent = record.solutions[0]?.sourceAvailability === 'opaque'
-              ? 'Исходный файл сохранён. Содержимое зашифровано; для изменений нужен читаемый экспорт решения.'
+              ? 'Исходный файл сохранён. Содержимое непрозрачно или зашифровано; для изменений нужен читаемый экспорт решения.'
               : 'Конфигурация сохранена. Выберите решение и продолжите.';
             return false;
           }

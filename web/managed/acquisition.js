@@ -32,7 +32,7 @@ export function mountAcquisition(actions, selected, model = {}) {
       const download = el('a', 'Скачать исходную конфигурацию'); download.href = '/api/config-source/acquisitions/' + acquisition.id + '/original'; results.append(download);
       for (const row of acquisition.solutions || []) {
         if (row.sourceAvailability === 'opaque') {
-          results.append(el('p', row.code + ': конфигурация сохранена, но содержимое зашифровано. Загрузите читаемые решения отдельно или через архив конфигурации.'));
+          results.append(el('p', row.code + ': конфигурация сохранена, но содержимое непрозрачно или зашифровано. Загрузите читаемые решения отдельно или через архив конфигурации.'));
           continue;
         }
         if (row.dependencies) results.append(mountDependencies(row.dependencies));

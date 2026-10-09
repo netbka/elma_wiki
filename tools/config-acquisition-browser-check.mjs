@@ -84,7 +84,7 @@ try {
   await page.getByLabel('Файл .e365', { exact: true }).setInputFiles({ name: 'global.e365', mimeType: 'application/octet-stream', buffer: opaque });
   await page.getByLabel('Это полный экспорт решения', { exact: true }).check();
   await page.getByRole('button', { name: 'Добавить решение', exact: true }).click();
-  await page.getByText(/global: конфигурация сохранена, но содержимое зашифровано/).waitFor();
+  await page.getByText(/global: конфигурация сохранена, но содержимое непрозрачно или зашифровано/).waitFor();
   assert.equal(await page.getByRole('button', { name: 'Выбрать global', exact: true }).count(), 0);
   assert.equal(await page.getByRole('heading', { name: 'Зашифрованный файл', exact: true }).count(), 0);
   const opaqueDownload = await Promise.all([page.waitForEvent('download'), page.getByRole('link', { name: 'Скачать исходную конфигурацию' }).click()]);
