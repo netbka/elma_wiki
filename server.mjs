@@ -69,7 +69,7 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
   // The bridge adapter is always available: it only does something once an owner registers a bridge and an
   // operator runs the worker with the token. The service itself still makes no outbound connections.
   const bridges = bridgeStore(directory);
-  delivery = deliveryStore(directory, releases, { adapters: { ...(syntheticDelivery ? { synthetic: syntheticAdapter } : {}), bridge: (options, connection) => bridges.adapter(options, connection) }, protectedHosts: protectedTargetHosts, timeoutMs: deliveryTimeoutMs });
+  delivery = deliveryStore(directory, releases, { solutionHandoffs: solutions.handoffs, adapters: { ...(syntheticDelivery ? { synthetic: syntheticAdapter } : {}), bridge: (options, connection) => bridges.adapter(options, connection) }, protectedHosts: protectedTargetHosts, timeoutMs: deliveryTimeoutMs });
   let uploading = false;
   const loginBot = createVkLoginBot({ directory, issueLink: auth.issueVkLink });
   const server = http.createServer(async (req, res) => {
@@ -158,11 +158,25 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
         try { return send(res, 201, await solutions.uploads.create(SOLUTION_CATALOG, await body(req, limits.upload), url.searchParams.get('filename') || 'configuration.e365', session.user)); }
         finally { uploading = false; }
       }
-      const solutionHandoff = /^\/api\/solutions\/([^/]+)\/handoffs(?:\/([^/]+)(?:\/(bundle|preview))?)?$/.exec(pathname);
+      const solutionHandoff = /^\/api\/solutions\/([^/]+)\/handoffs(?:\/([^/]+)(?:\/(bundle|preview|delivery))?)?$/.exec(pathname);
       if (solutionHandoff) {
         if (!session) return send(res, 404, { error: 'Решение не найдено' });
         const [, id, releaseId, action] = solutionHandoff, handoffs = solutions.handoffs;
         if (releaseId) await handoffs.authorize(id, releaseId); else await solutions.managed.authorize(id, SOLUTION_CATALOG);
+        if (action === 'delivery') {
+          const contextual = delivery.forSolution(id), executionActor = session.user.id;
+          if (req.method === 'GET') return send(res, 200, await contextual.list(releaseId, executionActor));
+          if (req.method !== 'POST') return send(res, 405, { error: 'Метод не поддерживается' });
+          if (req.headers['content-type']?.split(';')[0] !== 'application/json') return send(res, 415, { error: 'Требуется JSON' });
+          const input = JSON.parse((await body(req, 32 * 1024)).toString('utf8'));
+          const keys = { prepare: ['action', 'revision', 'connectionId'], confirm: ['action', 'attemptId', 'idempotencyKey', 'confirmation'], verify: ['action', 'attemptId'], cancel: ['action', 'attemptId'] };
+          if (!input || typeof input !== 'object' || Array.isArray(input) || !Object.hasOwn(keys, input.action) || Object.keys(input).some(key => !keys[input.action].includes(key)))
+            return send(res, 400, { error: 'Invalid contextual delivery request' });
+          if (input.action === 'prepare') return send(res, 201, await contextual.prepare(releaseId, executionActor, input));
+          if (input.action === 'confirm') return send(res, 200, await contextual.confirm(releaseId, input.attemptId, executionActor, input));
+          if (input.action === 'verify') return send(res, 200, await contextual.verify(releaseId, input.attemptId, executionActor));
+          return send(res, 200, await contextual.cancel(releaseId, input.attemptId, executionActor));
+        }
         if (req.method === 'GET' && !action) return send(res, 200, releaseId ? await handoffs.get(id, releaseId) : await handoffs.list(id));
         if (req.method === 'GET' && action === 'preview') return send(res, 200, await handoffs.preview(id, releaseId, url.searchParams.get('path'), url.searchParams.get('side')));
         if (req.method !== 'POST' || action === 'preview') return send(res, 405, { error: 'Метод не поддерживается' });

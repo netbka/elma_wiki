@@ -18,12 +18,50 @@ Candidate states: draft -> checked -> ready -> deploying -> deployed-unverified 
 
 ## Implemented: delivery foundation (AR-04)
 
-The delivery foundation below currently reads the legacy release store. Shared
-Solution handoffs use a separate guarded store and expose offline bundles only;
-their IDs do not resolve through `/api/releases/:id/delivery`. Contextual Target
-dispatch must reuse this engine while preserving the Solution/review association
-and operational execution controls. Do not copy a shared candidate into the
-legacy root to bypass this boundary. See the [Lane B evidence and pilot gates](../audits/lane-b-elma-evidence-2026-10-08.md).
+The same delivery engine reads legacy releases and explicitly paired shared
+Solution handoffs. Shared IDs do not resolve through
+`/api/releases/:id/delivery`; use the contextual route described below. A shared
+candidate is never copied into the legacy root. See the [Lane B evidence and pilot gates](../audits/lane-b-elma-evidence-2026-10-08.md).
+
+### Contextual unchanged-original delivery API
+
+`GET/POST /api/solutions/:solutionId/handoffs/:handoffId/delivery` uses the
+existing actions `prepare`, `confirm`, `verify`, `cancel`. The server verifies
+the exact Solution/handoff pair and chooses its guarded candidate store. It
+rejects client-supplied actor, owner, namespace, bytes or association fields.
+Connections and attempts remain scoped to the authenticated execution actor;
+shared content access does not grant another actor's connection or attempt.
+New attempt evidence records that actor ID and the pinned accepted-full/review
+association, independently of original upload/native authorship.
+
+One deliveryStore instance owns both facades, adapter instances and its serial
+queue. Legacy attempts retain `delivery/attempts/:releaseId/`; contextual attempts
+use `delivery/attempts/solutions/:handoffId/`. Equal IDs cannot cross roots.
+Target reservation scans both namespaces, including unresolved records after
+restart. No second coordinator or connection catalog is introduced.
+
+Lock order is delivery -> Solution -> release. After awaited preparation probes,
+confirmation identity/drift inspection or read-back/final identity inspection,
+the trusted candidate callback rechecks the current association, approval,
+revision and exact hash while persisting the final transition. Dispatch starts
+once inside this guard after durable `deploying`, then the guard/queue releases
+without waiting for the native operation. A concurrent mutation during native
+work cannot undo dispatch; its operation evidence remains historical and cannot
+be verified against a stale candidate. Callbacks never reacquire these queues.
+Atomic attempt renames retry bounded `EPERM`/`EBUSY` sharing failures without
+retrying any adapter operation.
+
+Contextual reads retain historical state/evidence and explicitly return
+`candidateStatus` and `verificationCurrent`. A later review comment, finding,
+archive, revision or release edit makes the current verification false even if
+the historical attempt once matched. Stale preparations remain cancellable;
+unknown outcomes require read-back without redispatch. Matching whole-inventory
+read-back is scoped Target-state evidence, not native business-flow acceptance.
+
+This API handles exact unchanged accepted originals. Composed MR-06 candidates,
+UI dispatch controls and live/native acceptance remain separate work. Existing
+Target selection, typed confirmation, PROD refusal and native pilot gates remain
+required; offline approval alone does not authorize an import.
 
 `lib/delivery.mjs` implements attempts behind the adapter interface from the [connections contract](source-target-connections.md). API: `/api/connections` (owner-scoped references, read-only `probe`), `GET/POST /api/releases/:id/delivery` with actions `prepare`, `confirm`, `verify`, `cancel`. Authenticated GET `/api/delivery/capabilities` reports `mode` (`synthetic` or `bridge`), `bridge: true` (the operator-bridge adapter is registered) and the adapter list; `liveDelivery` stays `false` until a live delivery has been verified. Every route authorizes the owner first; connections and attempts live in `.local/delivery/`, private file modes, outside Git.
 
