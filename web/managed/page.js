@@ -1,5 +1,6 @@
 import { mountManagedWorkspace } from './render.js';
 import { workspaceUrl } from './model.js';
+import { solutionDeliveryClient } from './delivery-client.js';
 const root = document.getElementById('managed-root'), query = new URLSearchParams(location.search);
 const id = query.get('id'), view = query.get('view') || (id ? 'overview' : 'list'), artifact = query.get('artifact');
 const shared = location.pathname === '/solutions', home = shared ? '/solutions' : '/workspaces';
@@ -9,12 +10,12 @@ const config = { shared, home, api };
 const handoffId = query.get('handoff');
 const handoffApi = `${api}/${encodeURIComponent(id)}/handoffs`;
 const handoffHref = releaseId => href(id, 'handoff') + (releaseId ? '&handoff=' + encodeURIComponent(releaseId) : '');
-async function request(url, input, upload) {
+async function request(url, input, upload, method = 'POST') {
   let response;
   try {
-    response = await fetch(url, input === undefined ? {} : { method: 'POST', headers: {
+    response = await fetch(url, input === undefined ? {} : { method, headers: {
       'X-Elma-Wiki-Request': '1', 'Content-Type': upload ? 'application/octet-stream' : 'application/json'
-    }, body: upload ? input : JSON.stringify(input) });
+    }, ...(method === 'DELETE' ? {} : { body: upload ? input : JSON.stringify(input) }) });
   } catch {
     throw Object.assign(Error(input === undefined ? 'Сервис недоступен. Повторите загрузку.' : 'Ответ не получен. Действие могло сохраниться; проверьте состояние перед повтором.'), { requiresRefresh: input !== undefined });
   }
@@ -35,6 +36,7 @@ const actions = {
     resumeUrl: id => { const url = new URL(location.href); url.searchParams.set('acquisition', id); return url.pathname + url.search; }
   } } : {}),
   handoff: {
+    ...(shared && id ? { deliveryClient: solutionDeliveryClient(id, request) } : {}),
     create: async input => { const result = await request(handoffApi, { ...input, expectedRevision: workspace.revision }); navigate(handoffHref(result.id)); },
     change: (releaseId, input) => request(`${handoffApi}/${encodeURIComponent(releaseId)}`, input),
     preview: (releaseId, path, side) => request(`${handoffApi}/${encodeURIComponent(releaseId)}/preview?` + new URLSearchParams({ path, side })),

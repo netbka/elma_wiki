@@ -51,6 +51,10 @@ jobs:
       - if: runner.os == 'Linux'
         run: npm run test:handoff:browser
       - if: runner.os == 'Linux'
+        run: npm run test:solution-delivery:browser
+      - if: runner.os == 'Linux'
+        run: npm run test:solution-delivery:storybook
+      - if: runner.os == 'Linux'
         run: node tools/requests-browser-check.mjs
       - if: runner.os == 'Linux'
         run: node tools/bug-reports-browser-check.mjs
@@ -95,5 +99,6 @@ jobs:
             qa/solution-explanations-*.png
             qa/solution-explanations-browser-evidence.json
             qa/solution-handoff-*.png
+            qa/solution-delivery-*.png
           retention-days: 7
           if-no-files-found: error

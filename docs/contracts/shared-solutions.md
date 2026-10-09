@@ -89,7 +89,9 @@ matching full reconciliation and retained local conflict state.
 The Solution's **Передача** view reuses `web/releases/render.js` within the
 existing Solution shell. It appears for a matching accepted full state; old
 handoffs remain accessible from the technical history even after that state
-changes. It does not add a global release area or expose Target dispatch.
+changes. It does not add a global release area. The same handoff now hosts
+contextual Target controls through the existing delivery renderer and API;
+offline acceptance still does not authorize an import.
 
 `/api/solutions/:id/handoffs` supports authenticated GET/list and POST/create
 with `{expectedRevision, title, intent, targetIntent}`. Creation takes a fresh
@@ -183,7 +185,11 @@ reservations with legacy delivery. Offline approval remains offline approval;
 the existing deployment/confirmation and read-back contracts govern execution.
 Original-export handoffs remain independent of future composed installable
 candidates. Legacy/shared storage roots retain their separate identities. No
-contextual UI dispatch control or live/native acceptance is claimed by this API.
+live/native acceptance is claimed by this API. The contextual UI is wired
+separately to the exact pair and the session actor's operational connections;
+it consumes `candidateStatus`/`verificationCurrent`, preserves drafts on refresh
+and blocks replay after unknown responses. See the
+[Solution workflow](../workflows/solutions.md#attention-and-recovery).
 
 `test/guarded-candidate.test.mjs` covers exact original bytes and hashes, stale
 preflight refusal, queued Solution/release mutations, consumer failure and

@@ -14,6 +14,8 @@
     "agent:context": "node tools/agent-workflow.mjs",
     "check:agent": "node tools/agent-workflow.mjs --check",
     "test:handoff:browser": "node tools/solution-handoff-browser-check.mjs",
+    "test:solution-delivery:browser": "node tools/solution-delivery-browser-check.mjs",
+    "test:solution-delivery:storybook": "node tools/solution-delivery-storybook-check.mjs",
     "test:managed:browser": "node tools/managed-workspace-browser-check.mjs",
     "test:delivery:browser": "node tools/delivery-browser-check.mjs",
     "test:releases:browser": "node tools/releases-browser-check.mjs",

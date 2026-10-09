@@ -2,7 +2,7 @@
 
 Authority: #52 / SOLUTION_FIRST_PRODUCT_PLAN.md. P2-P3: #56. Identity/privacy: contracts/shared-solutions.md.
 
-Signed-in home and the verified VK link open `/solutions`. Empty state offers one Add solution action. A Solution stays in Overview / Changes / Solution context; Learn is secondary. Legacy upload/workspace/release routes shared by signed-in users are compatibility capabilities. Delivery remains hidden until P6 supplies an accepted candidate through the existing delivery contract.
+Signed-in home and the verified VK link open `/solutions`. Empty state offers one Add solution action. A Solution stays in Overview / Changes / Solution context; Learn is secondary. Legacy upload/workspace/release routes shared by signed-in users are compatibility capabilities. An exact accepted full export can enter contextual handoff and guarded delivery through the existing delivery contract; composed configuration release remains under P6.
 
 `web/managed/render.js` remains the single production/Storybook renderer. The controller selects the shared `/api/solutions` root or the shared historical-content compatibility API, without crossing storage principals. Synthetic fixtures never use customer files or contact ELMA.
 
@@ -25,6 +25,30 @@ not accept a Change or establish native ELMA behavior. See the
 [explanation contract](../contracts/solution-explanations.md).
 
 ## Attention and recovery
+
+In **Передача**, review the exact accepted original, freeze it and accept it for
+handoff. The contextual **Доставка и проверка результата** panel uses the exact
+Solution/handoff pair and the session actor's explicit Target references. An
+unavailable adapter or unhealthy/offline connection blocks delivery; the private
+handoff bundle remains available. Probe a selected connection before preparation.
+Check the observed Target identity, version and candidate hash, then type the
+separate confirmation. Preparation can be cancelled before dispatch.
+
+During dispatch refresh the stored state; after completion read back and compare
+the entire inventory. A mismatch or read failure offers read-back retry; another
+import requires a new preparation and confirmation. Unknown outcomes reserve the
+Target and require read-back without redispatch. On a lost response, **Обновить
+состояние доставки** reloads the stored handoff/attempt while retaining drafts
+and contextual focus. Failed loads offer retry and no delivery action. Stale
+associations retain history and preparation cancellation but cannot confirm or
+verify a changed candidate. Historical verified is displayed as stale when the
+server's current evidence flags are false. Package read-back does not establish
+native business acceptance or a completed configuration release.
+
+`test:solution-delivery:browser` checks these controls through authenticated
+synthetic API/storage. `test:solution-delivery:storybook` checks 17 contextual
+states and the interactive path using the same production renderers. #59/#41
+remains deferred; these checks do not restart or replace human evidence.
 
 `solutionNextAction` is a pure projection: error/stale recovery and archive precede normal work; no source requests an initial export; fresh conflict/unknown evidence precedes other pending review; needs-changes requests a corrected export; otherwise review the first fresh change. Only stale proposals request a fresh comparison. Accepted state opens Solution; ready state adds a change. TEST-awaiting-verification/verified projections require a supplied supported delivery capability and are not inferred from review acceptance.
 
