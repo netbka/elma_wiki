@@ -4,6 +4,7 @@ Routing, not an always-read checklist.
 
 | Need | Read |
 | --- | --- |
+| Integrated PR inventory and complete secondary-worktree cleanup (2026-10-09) | [audits/integration-and-worktree-cleanup-2026-10-09.md](audits/integration-and-worktree-cleanup-2026-10-09.md) |
 | Agent behavior | ../AGENTS.md |
 | Working-configuration product goal: merge, build, native verification and release (#94) | [SOLUTION_FIRST_PRODUCT_PLAN.md](SOLUTION_FIRST_PRODUCT_PLAN.md) |
 | Parallel export merge, physical materialization, paid dependencies and release acceptance | [plans/working-configuration-release.md](plans/working-configuration-release.md) |
