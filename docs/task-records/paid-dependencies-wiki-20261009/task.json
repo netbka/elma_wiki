@@ -422,8 +422,19 @@
       ],
       "files": [],
       "before": null,
-      "after": null,
-      "reason": "Deliver reviewed repository implementation through task-owned branch and draft PR; no deployment or publication to ELMA/Wiki hosting."
+      "after": {
+        "sha256": "ff72f80d93a478d6e0945803bd711e724a838e1d3573cf930c32292805d92fe0",
+        "version": "draft-pr-96@7fef519548a136facf9e5323021ad7ed4de3a14d",
+        "evidence": "draft-pr-created"
+      },
+      "reason": "Deliver reviewed repository implementation through task-owned branch and draft PR; no deployment or publication to ELMA/Wiki hosting.",
+      "outcome": {
+        "url": "https://github.com/netbka/elma_wiki/pull/96",
+        "draft": true,
+        "merged": false,
+        "createdHead": "7fef519548a136facf9e5323021ad7ed4de3a14d",
+        "finalReadbackPath": ".local/paid-dependencies-wiki-20261009/final-delivery-readback.json"
+      }
     }
   ],
   "evidence": [
@@ -456,6 +467,11 @@
       "id": "storybook-build",
       "path": ".local/paid-dependencies-wiki-20261009/storybook-build-final.log",
       "sha256": "84c27a4c6798e0b8ea656dbccb60d8aedb8a68c75d68f2baa90b1c7826020687"
+    },
+    {
+      "id": "draft-pr-created",
+      "path": ".local/paid-dependencies-wiki-20261009/draft-pr-created.json",
+      "sha256": "ff72f80d93a478d6e0945803bd711e724a838e1d3573cf930c32292805d92fe0"
     }
   ],
   "checks": [],
