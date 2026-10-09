@@ -2,7 +2,9 @@ import { mountManagedWorkspace } from '../../web/managed/render.js';
 import { managedFixture } from '../../web/managed/fixtures.js';
 function story(mode) {
   const explain = async () => { throw Error('Учебный пример: данные не сохраняются. Для следующего состояния выберите другую story.'); };
-  const root = mountManagedWorkspace(managedFixture(mode), { upload: explain, create: explain, prepare: explain, accept: explain, archive: explain, comment: explain,
+  const model = managedFixture(mode);
+  let draft = model.draft ?? null;
+  const root = mountManagedWorkspace(model, { draft: { read: () => draft, write: value => { draft = value; }, clear: () => { draft = null; } }, upload: explain, create: explain, prepare: explain, accept: explain, archive: explain, comment: explain,
     context: async id => ({ source: 'widgets/synthetic-contract.json', content: JSON.stringify({ descriptor: { clientScripts: id === 'synthetic-before' ? 'const value = 1;' : 'const value = 2;' } }, null, 2), editable: false,
       limitation: 'Синтетический исходный файл. Код не выполняется.' }),
     navigate: () => { root.querySelector('[role=status]').textContent = 'Учебная навигация: выберите нужное состояние в меню Storybook.'; } });
@@ -42,3 +44,9 @@ export const ElementsAdded = { render: () => story('elements-added') };
 export const ElementsBoundary = { render: () => story('elements-boundary') };
 export const ElementsConflict = { render: () => story('elements-conflict') };
 export const ElementsUnknown = { render: () => story('elements-unknown') };
+export const ChangeBase = { render: () => story('change-base'), parameters: { docs: { description: { story:
+  'Принятые полные версии с точной ревизией и SHA-256; прежняя версия остаётся выбираемой. Без выбора база неизвестна.' } } } };
+export const ChangeDraft = { render: () => story('change-draft') };
+export const ChangeRejected = { render: () => story('change-rejected') };
+export const BaseDeclared = { render: () => story('base-declared') };
+export const BaseUnknown = { render: () => story('base-unknown') };

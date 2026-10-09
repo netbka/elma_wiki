@@ -15,3 +15,4 @@
 .config-acquisition label { display: block; }
 .config-acquisition input { max-width: 100%; }
 .config-acquisition button.secondary { background: transparent; color: #172c3d; border-color: #8aa0b0; }
+.managed-base{border:1px solid #c9d6de;border-radius:6px;padding:12px 16px;margin:16px 0;min-width:0}.managed-base legend{font-weight:600;padding:0 6px}.managed-base textarea{width:100%;min-height:72px;padding:10px 12px;border:1px solid #8aa0b0;border-radius:5px;font:13px/1.4 ui-monospace,monospace}.managed-members{list-style:none;padding:0;margin:8px 0;max-height:320px;overflow:auto}.managed-members .managed-check{margin:6px 0!important}.managed-members code,.managed-provenance code{font-size:12px;color:#405565;overflow-wrap:anywhere}.managed-provenance ul{padding-left:20px}
