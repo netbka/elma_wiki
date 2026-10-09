@@ -122,6 +122,62 @@ application or server materialization requires its own supported adapters and
 release evidence. Existing process-part responsibility tracking inside complete
 supplied entities remains separate and unchanged.
 
+## Conservative three-way component plan — MR-02 / #94 (PLAN-01 P2)
+
+`planManagedComponentMerge(state, artifact)` is a pure, deterministic helper
+beside the reducer. It compares the immutable declared full base B (the
+`baseDeclaration` artifact, revalidated for membership, revision, checksum and
+scope), the current accepted working state A and an incoming partial C. It
+returns a deeply frozen plan; it never accepts, resolves, rewrites state,
+materializes bytes or enables a build (`ancestryVerified`,
+`automaticMergeEnabled`, `acceptanceEnabled` and `buildEnabled` are `false`).
+
+`inputs` binds B's artifact ID, acceptance revision, checksum, artifact digest
+and declaration; A's workspace ID, revision, current baseline and canonical
+digest; and C's artifact ID, checksum, whole-artifact digest and revalidated
+change scope. `planDigest` covers the whole plan. `assertCurrentManagedMergePlan`
+recomputes it and rejects (409) any changed revision, base, artifact, scope or
+edited plan. A forged base declaration or tampered scope evidence fails closed.
+Declared ancestry stays an assertion.
+
+Rows use exact component identity, whole-component digests and validated
+tombstones only:
+
+| B / A / C evidence | Classification | Proposal |
+| --- | --- | --- |
+| All agree, or C has no claim and A = B | `unchanged` | keep current |
+| A changed or removed, C = B or no claim | `current-only` | keep current |
+| A = B, C modified | `incoming-only` | take incoming |
+| A and C made the same modification | `identical` | keep current |
+| A and C modified differently | `divergent` | resolution required |
+| Absent in B; added only by A / only by C | `addition-current` / `addition-incoming` | keep / take |
+| Absent in B; both added, same / different | `addition-identical` / `addition-divergent` | keep / resolution required |
+| A = B, C tombstone | `delete-incoming` | remove |
+| A removed, C tombstone | `delete-identical` | keep current |
+| A modified, C tombstone | `delete-edit` | resolution required |
+| A removed, C modified | `edit-delete` | resolution required |
+
+Absence from a partial is `no-claim` and never deletes. Only a tombstone that
+binds a scoped, absent member to its exact declared-base digest counts as
+removal. Unlike `declareManagedChangeScope`, the plan does not reject a tombstone
+whose member A has since edited; it classifies `delete-edit` instead. Each row
+retains B, A (digest, team, intervention ID) and C (artifact ID, digest or
+tombstone) contributions with their original file evidence.
+
+Unknown or undeclared bases produce a `blocked` plan without rows. Duplicate
+identities in any input, incoming ambiguity (including unproven identity) and an
+addition beside a removal of the same service/kind involving C (a possible
+rename) block the affected rows and the plan; no rename is guessed. The plan
+retains B and C ambiguities and unclassified files under `unknown`. An ambiguous
+capture cannot carry a validated scope, so its tombstones are not used. A Source
+declaration bound to an earlier baseline fails as stale. Plan status is
+`blocked`, `resolution-required` or `clear`. Even `clear` is only a proposal.
+
+This slice stops at the plan. It has no API or UI, durable resolutions (P3),
+part-level process merge or generated artifact. Disjoint process-part edits stay
+whole-component `divergent`. Evidence: `node --test test/managed-merge-plan.test.mjs`
+(synthetic store-backed B/A/C fixtures).
+
 State and proposals use one atomic JSON replacement after immutable artifact writes. A failed metadata replacement leaves the previous committed state; uncommitted artifacts are not discoverable. Restart reads the persisted baseline, decisions, proposals and archive status. This is single-process atomic persistence, not multi-process locking or a guarantee against storage-device power loss. A crash can leave unreferenced staging/artifact files; they are never auto-adopted. Operator retention/cleanup remains a follow-up.
 
 Full reads, previews and mutations verify SHA-256 for referenced accepted/pending originals. `original` verifies the selected member. List rows are metadata summaries, not an integrity/verification pass. Missing/corrupt artifacts fail closed. There are at most 50 managed workspaces per owner and 100 captured artifacts (including pending) per workspace. This bounded checkpoint does not implement discard/retention or multi-reviewer collaboration; archived records still count toward the owner limit.
@@ -148,7 +204,7 @@ State/list responses expose `baselineAcceptedAt`; only full baseline creation/ac
 ## Remaining integration gates
 
 - The shared UI provides explicit scope/Source confirmations; uncoached first use and independent product review remain separate gates. Storage receives a trusted owner, not a browser identity assertion.
-- Package-level metadata/dependency reconciliation and finer component adapters where stable identity is proven. An entity projection does not represent a deployable complete package. Partial deletion needs an explicit proven tombstone contract; it is absent here.
+- Package-level metadata/dependency reconciliation and finer component adapters where stable identity is proven. An entity projection does not represent a deployable complete package. Partial deletion uses only the bounded tombstone declaration above; general delete/edit resolution and native part deletion remain open (the three-way plan classifies them but does not resolve them).
 - Candidate handoff must use #11's exact artifact/review contract and cannot construct an archive from this projection.
 - Shared Solution UI, attributed Change discussion, contextual supported code and captured process/form preview are wired. Live candidate/delivery integration, independent human usability and final owner acceptance remain separate gates.
 
@@ -156,6 +212,6 @@ This engine does not generate or publish a deployable package. Separate delivery
 
 ## Evidence
 
-Run `node --test test/managed-workspace-api.test.mjs test/managed-workspace-store.test.mjs test/managed-workspace.test.mjs test/project-snapshots.test.mjs test/server.test.mjs`.
+Run `node --test test/managed-workspace-api.test.mjs test/managed-workspace-store.test.mjs test/managed-workspace.test.mjs test/managed-merge-plan.test.mjs test/project-snapshots.test.mjs test/server.test.mjs`.
 
 Domain tests cover all eight architecture comparison cases, identity/order/path stability, original side-script/resource evidence, immutable history, review binding, stale/mixed artifact rejection and archive/reopen. Storage tests use real synthetic archives, the existing parser and project store, and temporary file-backed storage: restart, complete reconciliation lifecycle, pinned historical snapshots, owner/membership isolation, stale/concurrent decisions, attribution pinning, unsupported evidence, corrupt bytes and failed atomic writes. HTTP tests exercise the same lifecycle through a loopback server, restart/re-authentication, scope/Source assertions, foreign/malformed requests, method/Host/CSRF/JSON/body-size gates, concurrent acceptance and corruption. CI execution evidence is recorded on the PR; syntax checks alone are not a test pass. No browser, uncoached first-use, live delivery or complete #34/#33 acceptance is established by these tests.
