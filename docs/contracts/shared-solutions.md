@@ -142,6 +142,37 @@ of the deployed service's data. The helper performs no deployment or migration.
 
 Backout disables the new catalog routes/UI and retains both private roots and actor records. Restoring a previous service revision does not move shared data into a legacy owner index or destroy either root. Back up private storage before an operational rollout. One service process owns each store; multiple writers require a shared transactional lock before deployment.
 
+## Guarded candidate consumer prerequisite
+
+The existing release store exposes a trusted internal `withCandidate` callback;
+the Solution handoff facade additionally checks the Solution/release pairing.
+Immediately before invoking the callback, it validates the current accepted
+full-export/review association, original checksum, release revision, approval
+and immutable candidate hash. It holds the Solution guard and release mutation
+queue until the callback finishes, including awaited final local persistence.
+A comment, finding, archive or release edit completed during an earlier async
+preflight therefore prevents the final callback from running. A later mutation
+can make previously committed evidence historical; the guard does not certify
+future state.
+
+This callback is server-owned code, never an HTTP request parameter. Lock order
+is Solution then release. A future delivery coordinator owns its single queue
+before entering these guards; the callback must not re-enter either store or
+acquire that delivery queue. Perform slow adapter probes/read-back outside the
+callback, then use a short guarded callback for the final local transition.
+Consumer failure releases both guards without claiming success.
+
+This primitive does not wire shared dispatch routes, select a Target, reserve a
+delivery operation or authorize a native write. Offline handoff approval remains
+offline approval; the existing deployment candidate/confirmation and read-back
+contracts still govern delivery. Original-export handoffs remain independent of
+the future composed installable candidate. Legacy/shared storage roots retain
+their separate identities.
+
+`test/guarded-candidate.test.mjs` covers exact original bytes and hashes, stale
+preflight refusal, queued Solution/release mutations, consumer failure and
+foreign-root/pairing/integrity refusal using synthetic local storage.
+
 ## Evidence
 
 `test/solutions-api.test.mjs` uses synthetic archives and two signed VK identities: equal Solution and historical-content visibility, separate upload/creation/acceptance authors, persistent actors/history after restart, failed-decision atomicity, forged actor/owner rejection, anonymous/Origin/service-header rejection, automatic sharing and storage-root identity checks. Legacy snapshot/workspace/release tests cover authenticated access, checksum/revision/Source guards and shared code mutation attribution. This proves no live ELMA or production deployment.
