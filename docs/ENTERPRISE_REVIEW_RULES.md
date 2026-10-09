@@ -4,9 +4,9 @@ Authority: the current [Solution-first plan](SOLUTION_FIRST_PRODUCT_PLAN.md) and
 
 ## Product review
 
-The primary journey is Solution -> Change -> Review -> Done. Review the goal and next action before individual components. Keep the Solution name, current version and affected object visible. Code, process preview and delivery are contextual capabilities. Learn is secondary; technical evidence is disclosed when needed.
+Review the goal and next action before individual components. Keep the Solution name, current version and affected object visible. The implemented Solution -> Change -> Review journey is an intermediate milestone; the owner's #94 outcome also requires merge/conflict resolution, physical build, native verification and controlled release under the current product contract. Code, process preview and delivery stay contextual. Learn is secondary; technical evidence is disclosed when needed. Do not expose planned build/release actions as implemented.
 
-For each important goal record actions, navigation transitions, decisions, required input and context loss. Start where the need arises. Reuse the existing contextual capability before adding a destination. Infer only facts captured evidence proves; package scope, shared admission, responsible team and deployment authority cannot safely be guessed. Safety confirmations are deliberate interaction cost.
+For each important goal record actions, navigation transitions, decisions, required input and context loss. Start where the need arises. Reuse the existing contextual capability before adding a destination. Infer only facts captured evidence proves; package scope, change base, responsible team and deployment authority cannot safely be guessed. Shared configuration visibility is already decided centrally and requires no per-upload sharing question. Necessary scope/Source/Target confirmations remain deliberate interaction cost.
 
 Desktop work may use dense tables, trees and diffs when they reduce navigation. Group by task and consequence; place decisions near the affected object. Large screens should use useful columns rather than stretched paragraphs. Narrow widths retain readable review/status and accessible table scrolling; a complete mobile engineering workstation is not required. Russian is the current product language. These are explicit enterprise adaptations from #36.
 
@@ -24,7 +24,7 @@ Desktop work may use dense tables, trees and diffs when they reduce navigation. 
 
 Wired surfaces use the production renderer with synthetic fixture ViewModels in Storybook. The [manifest](../storybook/review-manifest.json) identifies current story/state authority and reasoned exclusions. Stories never copy markup, use customer exports or impersonate native ELMA. Workflow models explain behavior without replacing product/API evidence. Update affected fixtures and contracts in the same task.
 
-Catalog signatures are local unauthenticated development evidence. Product discussions use trusted authenticated actors and Solution-member artifacts. Equal MVP access applies only to explicitly admitted shared Solutions; legacy owner-private records stay private pending approved migration. Portal actors and declared teams are not native authors.
+Catalog signatures are local unauthenticated development evidence. Product discussions use trusted authenticated actors and Solution-member artifacts. All authenticated MVP actors share historical and new configuration content, including legacy project, portal, workspace and release records, under the owner's 2026-10-08 decision. Private runtime storage protects content from Git/public Learn; it is not a per-user private mode. Separate roots still enforce artifact/lifecycle identity, and operational credentials/connection controls retain their execution contract. Preserve original bytes, IDs and uploader provenance; attribute mutations to the actual actor. Portal actors and declared teams are not native authors.
 
 ## Evidence lifecycle
 
