@@ -8,8 +8,9 @@ import { createServer } from '../server.mjs';
 import { fixture, zip } from '../test/fixture.mjs';
 
 const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'config-browser-'));
-const native = await fixture({ code: 'synthetic_solution' }), hash = crypto.createHash('sha256').update(native).digest('hex');
+const native = await fixture({ code: 'synthetic_solution', target: 'external' }), hash = crypto.createHash('sha256').update(native).digest('hex');
 const bytes = await zip([['config-bundle.json', { format: 'elma-config-bundle', schemaVersion: 1, deployable: false,
+  dependencyEvidence: { schemaVersion: 1, catalog: [{ code: 'provider', paid: true, version: '1.0', namespaces: ['example_module'], observedAt: '2026-10-09T00:00:00Z' }] },
   solutions: [{ code: 'synthetic_solution', status: 'exported', path: 'solutions/synthetic_solution.e365', sha256: hash, bytes: native.length }, { code: 'paid', status: 'excluded-paid' }] }],
   ['solutions/synthetic_solution.e365', native]]);
 let sourceServer, poll = 0;
@@ -35,6 +36,7 @@ try {
   await page.getByRole('button', { name: 'Загрузить из ELMA', exact: true }).click();
   await page.waitForURL(/acquisition=/); const resume = page.url(); await page.reload();
   await page.getByRole('button', { name: 'Выбрать synthetic_solution' }).waitFor();
+  assert.ok(await page.getByText(/Платная зависимость: исходник недоступен/).isVisible());
   assert.equal(sourceServer, 'dev2');
   await page.getByRole('button', { name: 'Выбрать synthetic_solution' }).focus(); await page.keyboard.press('Enter');
   await page.getByLabel('Название решения', { exact: true }).fill('Учебная загрузка');
@@ -42,6 +44,8 @@ try {
   await page.getByLabel('Это полный экспорт решения', { exact: true }).check();
   await page.getByRole('button', { name: 'Добавить решение', exact: true }).click();
   await page.getByRole('heading', { name: 'Учебная загрузка', exact: true }).waitFor();
+  await page.getByText('Зависимости исходного файла 1', { exact: true }).click();
+  assert.ok(await page.getByText(/Платная зависимость: исходник недоступен/).isVisible());
   const other = await fixture({ code: 'other_solution' });
   const multiple = await zip([['config-bundle.json', { format: 'elma-config-bundle', schemaVersion: 1, deployable: false,
     solutions: [['synthetic_solution', native], ['other_solution', other]].map(([code, bytes]) => ({ code, status: 'exported', path: 'solutions/' + code + '.e365',
@@ -73,6 +77,18 @@ try {
   await page.getByLabel('Архив конфигурации или файлы решений .e365').setInputFiles({ name: 'bad.e365', mimeType: 'application/octet-stream', buffer: Buffer.from('bad') });
   await page.getByRole('button', { name: 'Прочитать архив' }).click();
   await page.locator('.config-acquisition [role=alert]').filter({ hasText: /ZIP|архив|Файл/i }).waitFor();
+  await page.goto(base + '/solutions?view=create');
+  await page.getByLabel('Название решения', { exact: true }).fill('Зашифрованный файл');
+  await page.getByLabel('Кто отвечает за исходную версию', { exact: true }).fill('Учебная команда');
+  const opaque = await zip([['package.json', { code: 'global', type: 'CONFIGURATION', paidPackage: true }], ['data', Buffer.from([0, 255])]]);
+  await page.getByLabel('Файл .e365', { exact: true }).setInputFiles({ name: 'global.e365', mimeType: 'application/octet-stream', buffer: opaque });
+  await page.getByLabel('Это полный экспорт решения', { exact: true }).check();
+  await page.getByRole('button', { name: 'Добавить решение', exact: true }).click();
+  await page.getByText(/global: конфигурация сохранена, но содержимое непрозрачно или зашифровано/).waitFor();
+  assert.equal(await page.getByRole('button', { name: 'Выбрать global', exact: true }).count(), 0);
+  assert.equal(await page.getByRole('heading', { name: 'Зашифрованный файл', exact: true }).count(), 0);
+  const opaqueDownload = await Promise.all([page.waitForEvent('download'), page.getByRole('link', { name: 'Скачать исходную конфигурацию' }).click()]);
+  assert.deepEqual(await fs.readFile(await opaqueDownload[0].path()), opaque);
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 1000 });
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
@@ -80,8 +96,8 @@ try {
   await fs.mkdir('qa', { recursive: true });
   await page.screenshot({ path: 'qa/config-acquisition-mobile.png', fullPage: true });
   assert.deepEqual(errors, []);
-  await fs.writeFile('qa/config-acquisition-browser.json', JSON.stringify({ synthetic: true, source: 'dev2', resume: true, bundle: true, multipleFiles: true, failedUpload: true, keyboard: true, reflow: [1440, 390] }));
-  console.log('Synthetic browser passed: API selection/reload, bundle/native/multiple upload, exact download, failure, keyboard and reflow.');
+  await fs.writeFile('qa/config-acquisition-browser.json', JSON.stringify({ synthetic: true, source: 'dev2', resume: true, bundle: true, multipleFiles: true, failedUpload: true, paidDependencies: true, encryptedAcceptanceBlocked: true, encryptedOriginalPreserved: true, keyboard: true, reflow: [1440, 390] }));
+  console.log('Synthetic browser passed: acquisition/reload, paid dependency persistence, encrypted acceptance blocked, exact downloads, failure, keyboard and reflow.');
 } finally {
   await browser?.close(); await new Promise(resolve => server.close(resolve)); await fs.rm(directory, { recursive: true, force: true });
 }

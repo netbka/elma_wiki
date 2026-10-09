@@ -37,6 +37,28 @@ parsed separately, preserving original bytes and package/dependency provenance.
 The container is not ELMA-importable. No upload-derived server metadata grants
 a trusted Source identity.
 
+Optional `dependencyEvidence` has schemaVersion 1 and a catalog of at most 100
+unique safe solution codes. Rows contain paid boolean/null, version string/null,
+safe namespaces (at most 100) and observedAt. Only these fields and the optional
+source-catalog/cli-paid-refusal paidEvidence label are retained. Uploaded catalog
+metadata remains an assertion; activation, compatibility and publication readiness
+cannot be supplied by the file. Older bundles and native packages remain valid.
+Configured single-solution results may carry the same optional evidence separately.
+
+Dependency reports preserve required/internal/optional/system declarations and
+distinguish exact structurally parsed source, paid source unavailable, catalog-only
+provider, absent provider, unknown identity and ambiguous providers. Namespace and
+owner-code associations remain candidates. No status certifies Target installation.
+Acquisition catalog context is pinned to project/snapshot/checksum when captured
+into a Solution artifact, survives restart and participates in its review digest.
+Partial-package absence does not delete a provider or previous component.
+
+Opaque native configuration is retained/downloadable but cannot establish an
+editable Solution baseline. The shared acquisition UI explains encryption and
+offers readable per-solution/bundle acquisition. Unknown, missing or malformed
+local component evidence still blocks acceptance. Paid external dependencies alone
+do not turn a readable custom component into an encrypted component.
+
 ## Wiki routes and workflow
 
 All /api/config-source/ routes require an authenticated session. Writes retain

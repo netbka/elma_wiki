@@ -1,0 +1,509 @@
+{
+  "schemaVersion": 1,
+  "task": {
+    "id": "paid-dependencies-wiki-20261009",
+    "title": "Show paid dependencies and precise source acceptance limits",
+    "owner": "Codex",
+    "branch": "feat/paid-dependencies-wiki-20261009",
+    "worktreeName": "paid-dependencies-wiki-20261009",
+    "baseCommit": "9f8f17c9729acf5193f79f38a51f7aa104e97717",
+    "initialCommit": "9f8f17c9729acf5193f79f38a51f7aa104e97717"
+  },
+  "domain": "repository",
+  "summary": "Explain encrypted uploads, preserve paid dependency evidence in exact Solution captures and reviews; locally verified using fresh Dev2 artifacts only. Real full-solution parser and target gates remain blocking.",
+  "target": {
+    "environment": "repository",
+    "host": null
+  },
+  "objects": [
+    {
+      "key": "docs/task-records/paid-dependencies-wiki-20261009/task.json",
+      "kind": "file",
+      "operation": "create",
+      "channels": [
+        "files"
+      ],
+      "files": [
+        "docs/task-records/paid-dependencies-wiki-20261009/task.json"
+      ],
+      "before": null,
+      "after": null
+    },
+    {
+      "key": "docs/contracts/config-source-api.md",
+      "kind": "file",
+      "operation": "update",
+      "channels": [
+        "files"
+      ],
+      "files": [
+        "docs/contracts/config-source-api.md"
+      ],
+      "before": {
+        "sha256": "f382941eaf228c9d61da3ba4f8a1ee5781487dbea91f546057353069e16d7b22",
+        "version": "9f8f17c9729acf5193f79f38a51f7aa104e97717"
+      },
+      "after": {
+        "sha256": "8469fe14dd5b1183bd4535181c0c660757b60c97b074a2a735d9d21cd9fb7f12",
+        "version": "working-tree",
+        "gitBlobOid": "80696d60e5897889a93a6f5e6edd51317c727a38"
+      }
+    },
+    {
+      "key": "docs/task-records/paid-dependencies-wiki-20261009/README.md",
+      "kind": "file",
+      "operation": "create",
+      "channels": [
+        "files"
+      ],
+      "files": [
+        "docs/task-records/paid-dependencies-wiki-20261009/README.md"
+      ],
+      "before": null,
+      "after": {
+        "sha256": "f8cc66f44313b4255abbd609b462890c13ed9dbe16df5185fcfcef55c773c880",
+        "version": "working-tree",
+        "gitBlobOid": "bcbd2cd11ffa11f573d67e1c45ee03999a1873bb"
+      }
+    },
+    {
+      "key": "lib/config-dependency-context.mjs",
+      "kind": "file",
+      "operation": "create",
+      "channels": [
+        "files"
+      ],
+      "files": [
+        "lib/config-dependency-context.mjs"
+      ],
+      "before": null,
+      "after": {
+        "sha256": "c235b35fc72df6a7b0ce27f11c7551cb9dacc9f3ecc0606d64fdc3bdad6b0a6e",
+        "version": "working-tree",
+        "gitBlobOid": "a942b9194c0366c211b79a0a6e8bd7924fe68f1a"
+      }
+    },
+    {
+      "key": "lib/config-source.mjs",
+      "kind": "file",
+      "operation": "update",
+      "channels": [
+        "files"
+      ],
+      "files": [
+        "lib/config-source.mjs"
+      ],
+      "before": {
+        "sha256": "ed333e20903808ed590bb8e763d6211d08751479729c5578596e2125b5c49674",
+        "version": "9f8f17c9729acf5193f79f38a51f7aa104e97717"
+      },
+      "after": {
+        "sha256": "14668201657da055adf1a37fe55e41ca6a904a697671af1074494d4f8ef59170",
+        "version": "working-tree",
+        "gitBlobOid": "b0915e09cccd9edacd1325d8ee074fe2fc53d3e5"
+      }
+    },
+    {
+      "key": "lib/dependency-evidence.mjs",
+      "kind": "file",
+      "operation": "create",
+      "channels": [
+        "files"
+      ],
+      "files": [
+        "lib/dependency-evidence.mjs"
+      ],
+      "before": null,
+      "after": {
+        "sha256": "2876b712bbdc9b60fb37b330e518bc827177305080fb5fc622116d455f8a7369",
+        "version": "working-tree",
+        "gitBlobOid": "2f3390c3057d3f3a6401c01d18d9d8ad995dd9e9"
+      }
+    },
+    {
+      "key": "lib/e365.mjs",
+      "kind": "file",
+      "operation": "update",
+      "channels": [
+        "files"
+      ],
+      "files": [
+        "lib/e365.mjs"
+      ],
+      "before": {
+        "sha256": "3c9be4e450b579938c41c0cecde597ce3823616686bfa516f4d49e04af39f486",
+        "version": "9f8f17c9729acf5193f79f38a51f7aa104e97717"
+      },
+      "after": {
+        "sha256": "8693ba67b7f12f33f25a05e9f55b8f1b2a1aaa4cf64ed0b6ecfd04b049281e27",
+        "version": "working-tree",
+        "gitBlobOid": "d0904dc3a7ff5e65be4af6d1a49089d18a1f48a6"
+      }
+    },
+    {
+      "key": "lib/managed-workspace-store.mjs",
+      "kind": "file",
+      "operation": "update",
+      "channels": [
+        "files"
+      ],
+      "files": [
+        "lib/managed-workspace-store.mjs"
+      ],
+      "before": {
+        "sha256": "1ab496bdc278c37bf104347b092791bc91c36ea5e1c8190a0bda2c8513af2f03",
+        "version": "9f8f17c9729acf5193f79f38a51f7aa104e97717"
+      },
+      "after": {
+        "sha256": "d05f165e6093caad6338ef6d638409b14ed828169413e55c608287dc56f39e7b",
+        "version": "working-tree",
+        "gitBlobOid": "b804ab51882ab89343ea9148077e0f8ba31a69ca"
+      }
+    },
+    {
+      "key": "lib/managed-workspace.mjs",
+      "kind": "file",
+      "operation": "update",
+      "channels": [
+        "files"
+      ],
+      "files": [
+        "lib/managed-workspace.mjs"
+      ],
+      "before": {
+        "sha256": "3708fe8acb99adb3f1a9230984caa86c8df3817fb733f60fdf1df83d07038b2a",
+        "version": "9f8f17c9729acf5193f79f38a51f7aa104e97717"
+      },
+      "after": {
+        "sha256": "a264d6dceec6929eaa6e08fdca6d199535189e087e7d53ed389ebef8b571f23f",
+        "version": "working-tree",
+        "gitBlobOid": "e99eb6021a8181cea06ec385d9e17fc9912a8b51"
+      }
+    },
+    {
+      "key": "lib/solutions.mjs",
+      "kind": "file",
+      "operation": "update",
+      "channels": [
+        "files"
+      ],
+      "files": [
+        "lib/solutions.mjs"
+      ],
+      "before": {
+        "sha256": "609058c06ff4f5b61b7944cf8f383d1b62179b2aa2c5bce2f68abc8062932b1a",
+        "version": "9f8f17c9729acf5193f79f38a51f7aa104e97717"
+      },
+      "after": {
+        "sha256": "65e9b73994f7c5215fc7559a7a402b3cc280a7972a686bea2f483d67dfc440a7",
+        "version": "working-tree",
+        "gitBlobOid": "c736423d43c52c08582021eddec0481ace4c08ca"
+      }
+    },
+    {
+      "key": "storybook/stories/ConfigAcquisition.stories.js",
+      "kind": "file",
+      "operation": "update",
+      "channels": [
+        "files"
+      ],
+      "files": [
+        "storybook/stories/ConfigAcquisition.stories.js"
+      ],
+      "before": {
+        "sha256": "5e334377afccc8706fe7352e69423f931e219bd0871c34ff18bd7ff1a5743cc9",
+        "version": "9f8f17c9729acf5193f79f38a51f7aa104e97717"
+      },
+      "after": {
+        "sha256": "4bee117cf20c554b0e34c7b991f3207926f95e9bef22819065364f0ee7a32e24",
+        "version": "working-tree",
+        "gitBlobOid": "48c2876f90b48657e5dbddb539d1b802845d0f1d"
+      }
+    },
+    {
+      "key": "storybook/stories/ManagedWorkspace.stories.js",
+      "kind": "file",
+      "operation": "update",
+      "channels": [
+        "files"
+      ],
+      "files": [
+        "storybook/stories/ManagedWorkspace.stories.js"
+      ],
+      "before": {
+        "sha256": "00c2ae1e93164fd6544878c51e1e027ab852ffe88e97154c8baae947f77fafdd",
+        "version": "9f8f17c9729acf5193f79f38a51f7aa104e97717"
+      },
+      "after": {
+        "sha256": "55e1ef6b2a803e57678a3144ec28b9a9942bf5ae9eb177de5f37348f8ad77e5a",
+        "version": "working-tree",
+        "gitBlobOid": "39a0deef6c75a2f72f3a3a3587d206d87162b8c1"
+      }
+    },
+    {
+      "key": "test/config-source.test.mjs",
+      "kind": "file",
+      "operation": "update",
+      "channels": [
+        "files"
+      ],
+      "files": [
+        "test/config-source.test.mjs"
+      ],
+      "before": {
+        "sha256": "6edcfb5fe0eb5d650e51908b4591a4c20e901fa896861e8681f5221ead0f400b",
+        "version": "9f8f17c9729acf5193f79f38a51f7aa104e97717"
+      },
+      "after": {
+        "sha256": "ce97a68c2749cca21e0b26d0b9155c683f6651ca5c0ca5c02fae60a467cb035e",
+        "version": "working-tree",
+        "gitBlobOid": "7cda0b15b1221ced8feb050e8456867e11415457"
+      }
+    },
+    {
+      "key": "test/dependency-evidence.test.mjs",
+      "kind": "file",
+      "operation": "create",
+      "channels": [
+        "files"
+      ],
+      "files": [
+        "test/dependency-evidence.test.mjs"
+      ],
+      "before": null,
+      "after": {
+        "sha256": "06ce36ec588b529c292f10746ba5b4a8b3218a6cf86ae9391dd7130002f82b40",
+        "version": "working-tree",
+        "gitBlobOid": "1f1f334f935f939103bbc00de8caaebd20e9984d"
+      }
+    },
+    {
+      "key": "test/managed-workspace.test.mjs",
+      "kind": "file",
+      "operation": "update",
+      "channels": [
+        "files"
+      ],
+      "files": [
+        "test/managed-workspace.test.mjs"
+      ],
+      "before": {
+        "sha256": "8c311df2159507d0d082203253ccf1c3517c7423082b2748acb1820aeb06d7a3",
+        "version": "9f8f17c9729acf5193f79f38a51f7aa104e97717"
+      },
+      "after": {
+        "sha256": "98c7721a64870039b64f841f82a27230607ca89ccc0d1ad847ee54681fea6c32",
+        "version": "working-tree",
+        "gitBlobOid": "ee9fbfb95211accfdee1aba5c7eefbd330afb424"
+      }
+    },
+    {
+      "key": "tools/config-acquisition-browser-check.mjs",
+      "kind": "file",
+      "operation": "update",
+      "channels": [
+        "files"
+      ],
+      "files": [
+        "tools/config-acquisition-browser-check.mjs"
+      ],
+      "before": {
+        "sha256": "0ac0b374f48d472b643a4a685e72bb58d11f6451014e934617d342e270ac8ee5",
+        "version": "9f8f17c9729acf5193f79f38a51f7aa104e97717"
+      },
+      "after": {
+        "sha256": "0770a76105243c34d8cbe727f0ab842762ffe17b205f1101f639f49590ab6705",
+        "version": "working-tree",
+        "gitBlobOid": "3f2d66e7745beec113479aba3e777426529a5c57"
+      }
+    },
+    {
+      "key": "web/managed/acquisition.js",
+      "kind": "file",
+      "operation": "update",
+      "channels": [
+        "files"
+      ],
+      "files": [
+        "web/managed/acquisition.js"
+      ],
+      "before": {
+        "sha256": "ae678dd7f662ca62467a820a6aca6019af4a6978a5f4463781929f83eef2d830",
+        "version": "9f8f17c9729acf5193f79f38a51f7aa104e97717"
+      },
+      "after": {
+        "sha256": "9055cd0acc8daf4d34fd293d83687c011972ab87e74e472a35aedd52227cb325",
+        "version": "working-tree",
+        "gitBlobOid": "13d7caad7fccc8ea37b7936702b4d2b94b87b9dd"
+      }
+    },
+    {
+      "key": "web/managed/dependencies.js",
+      "kind": "file",
+      "operation": "create",
+      "channels": [
+        "files"
+      ],
+      "files": [
+        "web/managed/dependencies.js"
+      ],
+      "before": null,
+      "after": {
+        "sha256": "3bb58ecf2150ef4f2c0b539412564dead41ce8adc0fcc9678ab035eccf54cb06",
+        "version": "working-tree",
+        "gitBlobOid": "dd05f0ebcf3686ea625815773e7e29e3f1908ab3"
+      }
+    },
+    {
+      "key": "web/managed/fixtures.js",
+      "kind": "file",
+      "operation": "update",
+      "channels": [
+        "files"
+      ],
+      "files": [
+        "web/managed/fixtures.js"
+      ],
+      "before": {
+        "sha256": "05ebaf8249ca46dad5650ea016cd71a49505839f2e4504201150ed2a41e1656a",
+        "version": "9f8f17c9729acf5193f79f38a51f7aa104e97717"
+      },
+      "after": {
+        "sha256": "34fe6d1e3091bca01187e97b447251e7c61a707d793fbe9c3f22b6ccbab84792",
+        "version": "working-tree",
+        "gitBlobOid": "a8d70a61eefd9da3e72ca36383b2361b0f56b15b"
+      }
+    },
+    {
+      "key": "web/managed/render.js",
+      "kind": "file",
+      "operation": "update",
+      "channels": [
+        "files"
+      ],
+      "files": [
+        "web/managed/render.js"
+      ],
+      "before": {
+        "sha256": "01268a40d8adf73517f3d94d64c0006530572f03e3dff0bfb79d91522157ccd5",
+        "version": "9f8f17c9729acf5193f79f38a51f7aa104e97717"
+      },
+      "after": {
+        "sha256": "a2fe13a4a4c5b9b1551041804fbdf5a0d6354abee7d971ca18cc0aaacdf91176",
+        "version": "working-tree",
+        "gitBlobOid": "4672e3213e2f0f41dc5e27c19f7a2e19ab6c07ba"
+      }
+    },
+    {
+      "key": "owned-local-ingestion-builds-and-test-fixtures",
+      "kind": "package",
+      "operation": "invoke",
+      "channels": [
+        "files",
+        "cli"
+      ],
+      "files": [],
+      "before": null,
+      "after": {
+        "sha256": "77853fffafdc44d8d9865834a721b88f6b32948ecf975a1c954be7ef022bd882",
+        "version": "local-dev2-ingestion-20261009",
+        "evidence": "dev2-ingestion"
+      },
+      "scope": "Owned ignored .local acquisition stores, dev2 bundle copies, node_modules, synthetic qa screenshots/results, web/assets and Storybook static build. Temporary test stores/servers removed by teardown. No hosted Wiki or native writes.",
+      "reason": "Owned ignored .local acquisition stores, dev2 bundle copies, node_modules, synthetic qa screenshots/results, web/assets and Storybook static build. Temporary test stores/servers removed by teardown. No hosted Wiki or native writes."
+    },
+    {
+      "key": "draft-review-delivery",
+      "kind": "infrastructure",
+      "operation": "invoke",
+      "channels": [
+        "cli",
+        "api"
+      ],
+      "files": [],
+      "before": null,
+      "after": {
+        "sha256": "ff72f80d93a478d6e0945803bd711e724a838e1d3573cf930c32292805d92fe0",
+        "version": "draft-pr-96@7fef519548a136facf9e5323021ad7ed4de3a14d",
+        "evidence": "draft-pr-created"
+      },
+      "reason": "Deliver reviewed repository implementation through task-owned branch and draft PR; no deployment or publication to ELMA/Wiki hosting.",
+      "outcome": {
+        "url": "https://github.com/netbka/elma_wiki/pull/96",
+        "draft": true,
+        "merged": false,
+        "createdHead": "7fef519548a136facf9e5323021ad7ed4de3a14d",
+        "finalReadbackPath": ".local/paid-dependencies-wiki-20261009/final-delivery-readback.json"
+      },
+      "automationObservation": "GitHub reported automatic Vercel branch success. Environment/runtime not verified or exercised; no production deployment requested.",
+      "metadataUpdateEvidence": "draft-pr-updated"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "dev2-ingestion",
+      "path": ".local/paid-dependencies-wiki-20261009/dev2-inspection.json",
+      "sha256": "77853fffafdc44d8d9865834a721b88f6b32948ecf975a1c954be7ef022bd882"
+    },
+    {
+      "id": "unit-tests",
+      "path": ".local/paid-dependencies-wiki-20261009/unit-tests-final.log",
+      "sha256": "b555d00ce244af43debe08e0b2486a273bd524afe60fa904a193aed0a06bb52b"
+    },
+    {
+      "id": "focused-tests",
+      "path": ".local/paid-dependencies-wiki-20261009/focused-tests.log",
+      "sha256": "45234a99aefffe53b20904b52577310102d677c4bdd32acea3475cd3a5c504c4"
+    },
+    {
+      "id": "browser-tests",
+      "path": ".local/paid-dependencies-wiki-20261009/browser-before-wording.json",
+      "sha256": "e91685c71c2b5a62cbf06d3848db58bd237013f8668dcf7b58e597db6415acb4"
+    },
+    {
+      "id": "mobile-screen",
+      "path": ".local/paid-dependencies-wiki-20261009/mobile-before-wording.png",
+      "sha256": "b64b47002a1375025acaebf65a99f60df990c348c0b17ccabf198e5bd9faf953"
+    },
+    {
+      "id": "storybook-build",
+      "path": ".local/paid-dependencies-wiki-20261009/storybook-build-final.log",
+      "sha256": "84c27a4c6798e0b8ea656dbccb60d8aedb8a68c75d68f2baa90b1c7826020687"
+    },
+    {
+      "id": "draft-pr-created",
+      "path": ".local/paid-dependencies-wiki-20261009/draft-pr-created.json",
+      "sha256": "ff72f80d93a478d6e0945803bd711e724a838e1d3573cf930c32292805d92fe0"
+    },
+    {
+      "id": "unit-tests-wording",
+      "path": ".local/paid-dependencies-wiki-20261009/unit-tests-wording.log",
+      "sha256": "53d9763ac4e0e64cebf68ca87c7009723df1296226125c0a84119922f14180fa"
+    },
+    {
+      "id": "browser-wording",
+      "path": "qa/config-acquisition-browser.json",
+      "sha256": "e91685c71c2b5a62cbf06d3848db58bd237013f8668dcf7b58e597db6415acb4"
+    },
+    {
+      "id": "mobile-wording",
+      "path": "qa/config-acquisition-mobile.png",
+      "sha256": "9513d2fd5ec162b835952e1a866da31aaac26489e18cbc1509d4e3e563c369a7"
+    },
+    {
+      "id": "storybook-wording",
+      "path": ".local/paid-dependencies-wiki-20261009/storybook-wording.log",
+      "sha256": "8c24e04a43587690f7c19d59bfca30c41b3bfeb63f6994b07510c22b35a410a2"
+    },
+    {
+      "id": "draft-pr-updated",
+      "path": ".local/paid-dependencies-wiki-20261009/draft-pr-updated.json",
+      "sha256": "17c82a08c17c09a56ad50767a8f613ff0c02ee392244ff88e33d030f55e835df"
+    }
+  ],
+  "checks": [],
+  "scenarios": [],
+  "cleanup": {
+    "status": "not-required"
+  }
+}

@@ -51,6 +51,13 @@ export function managedFixture(mode = 'overview') {
   if (mode === 'change') model.view = 'change';
   if (mode === 'changes') model.view = 'changes';
   if (mode === 'solution') model.view = 'solution';
+  if (mode === 'paid-dependencies') {
+    model.view = 'solution';
+    base.dependencies = { schemaVersion: 1, provenance: 'manual-upload', publicationReady: false, targetVerification: 'not-run', rows: [
+      { category: 'dependencies', required: true, service: 'widgets', targetNamespace: 'synthetic.paid', targetCode: 'form', status: 'paid-source-unavailable',
+        sourceAvailability: 'unavailable', versionCompatibility: 'not-verified', activation: 'unknown', candidates: [{ code: 'synthetic_provider', paid: true, version: '1.0' }] }
+    ] };
+  }
   if (mode === 'no-source') workspace.baselineId = null;
   if (mode === 'needs-fixes') workspace.pending = [{ artifactId: review.artifactId, kind: 'change', revision: 1, stale: false, decision: 'needs-changes', options: review.options }];
   if (mode === 'pending-conflict') workspace.pending = [{ artifactId: review.artifactId, kind: 'reconciliation', revision: 1, stale: false, attention: { conflicts: 1, unknown: 0 }, options: { baselineOwner: 'Команда внедрения' } }];
