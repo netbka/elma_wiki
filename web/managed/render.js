@@ -136,7 +136,8 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
       const visualTarget=el('div');
       const table = el('table'), head = el('tr'); ['Объект', 'Ответственность', 'Состояние',...(actions.explanations?['Просмотр']:[])].forEach(label => head.append(el('th', label))); table.append(head);
       for (const row of state.current) {
-        const tr = el('tr'); tr.append(el('td', row.code), el('td', responsibilityLabel(row)), el('td', row.interventionId ? 'Принятое изменение' : 'Принятая версия'));
+        const label = JSON.parse(row.key).length > 3 ? row.code ? `${row.namespace} · ${row.code} · ${row.kind}` : `${row.namespace} · ${row.kind}` : row.code;
+        const tr = el('tr'); tr.append(el('td', label), el('td', responsibilityLabel(row)), el('td', row.interventionId ? 'Принятое изменение' : 'Принятая версия'));
         if(actions.explanations){
           const cell=el('td');
           if(row.service==='processor'){

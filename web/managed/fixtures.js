@@ -51,6 +51,11 @@ export function managedFixture(mode = 'overview') {
   if (mode === 'change') model.view = 'change';
   if (mode === 'changes') model.view = 'changes';
   if (mode === 'solution') model.view = 'solution';
+  if (mode === 'native-components') {
+    model.view = 'solution';
+    workspace.current = ['permissionSettings','pagePermissions'].map(kind => ({...component('records'),service:'permissionsSettings',namespace:'synthetic',kind,key:JSON.stringify(['permissionsSettings','synthetic',kind,'records'])}));
+    workspace.current.push({...component(''),service:'localizer',namespace:'synthetic',kind:'localization',key:JSON.stringify(['localizer','synthetic','localization',''])});
+  }
   if (mode === 'paid-dependencies') {
     model.view = 'solution';
     base.dependencies = { schemaVersion: 1, provenance: 'manual-upload', publicationReady: false, targetVerification: 'not-run', rows: [
