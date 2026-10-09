@@ -269,8 +269,18 @@
       ],
       "files": [],
       "before": null,
-      "after": null,
-      "reason": "Deliver task branch and stacked draft PR for review; no merge or production publication."
+      "after": {
+        "sha256": "74f6335eb81fb129728a94e7ae167189f10d7c17cf2cb831ab5f6e16274b128f",
+        "version": "draft-pr-99",
+        "evidence": "draft-pr-created.json"
+      },
+      "reason": "Deliver task branch and stacked draft PR for review; no merge or production publication.",
+      "outcome": {
+        "url": "https://github.com/netbka/elma_wiki/pull/99",
+        "draft": true,
+        "merged": false,
+        "createdHead": "7da4cee0c31d61202d7d4f6ebe14a68759dfc102"
+      }
     }
   ],
   "evidence": [
@@ -323,6 +333,16 @@
       "id": "unit-tests-anchor4",
       "path": ".local/dev2-import-unblock-wiki-20261009/unit-tests-anchor4.log",
       "sha256": "752fb30c3800591e05975349e1405681f86f19d64ef7412b857a690dbb694b7d"
+    },
+    {
+      "id": "draft-pr-created.json",
+      "path": ".local/dev2-import-unblock-wiki-20261009/draft-pr-created.json",
+      "sha256": "74f6335eb81fb129728a94e7ae167189f10d7c17cf2cb831ab5f6e16274b128f"
+    },
+    {
+      "id": "record-delivery.py",
+      "path": ".local/dev2-import-unblock-wiki-20261009/record-delivery.py",
+      "sha256": "3f106b0bc980fb820b204d328057e370053d14aa4cd90f155eda65027b7a8a8e"
     }
   ],
   "checks": [],
