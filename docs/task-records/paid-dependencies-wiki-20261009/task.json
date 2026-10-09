@@ -61,9 +61,9 @@
       ],
       "before": null,
       "after": {
-        "sha256": "5c822a100c8d7860e844f5803ea38e6a4a93a68010b9b8d6cc5c40899c7053b0",
+        "sha256": "ed219a0c23b2cbc0c8fae645c8db25f9949b25feefee5f009653cc13116d7f17",
         "version": "working-tree",
-        "gitBlobOid": "1c0ba84eb7fb5e76c0e01fcecbbca65d50bee9e1"
+        "gitBlobOid": "71192695d47103edb6c246e31ccd6d6b4ce5638d"
       }
     },
     {
@@ -411,6 +411,19 @@
       },
       "scope": "Owned ignored .local acquisition stores, dev2 bundle copies, node_modules, synthetic qa screenshots/results, web/assets and Storybook static build. Temporary test stores/servers removed by teardown. No hosted Wiki or native writes.",
       "reason": "Owned ignored .local acquisition stores, dev2 bundle copies, node_modules, synthetic qa screenshots/results, web/assets and Storybook static build. Temporary test stores/servers removed by teardown. No hosted Wiki or native writes."
+    },
+    {
+      "key": "draft-review-delivery",
+      "kind": "infrastructure",
+      "operation": "invoke",
+      "channels": [
+        "cli",
+        "api"
+      ],
+      "files": [],
+      "before": null,
+      "after": null,
+      "reason": "Deliver reviewed repository implementation through task-owned branch and draft PR; no deployment or publication to ELMA/Wiki hosting."
     }
   ],
   "evidence": [

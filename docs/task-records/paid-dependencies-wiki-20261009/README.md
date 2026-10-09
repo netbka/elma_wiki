@@ -39,7 +39,8 @@ compatibility or installation readiness. Native references are preserved.
 
 None of these real full packages is certified as an accepted editable baseline.
 Unsupported service/schema/resource evidence still blocks acceptance. The native
-Dev2 plan also has 32 unresolved required references. Implementing additional
+Dev2 plan also has 32 unresolved required references and, under the current
+ELMA main BOM checks, 19 ambiguous providers. Implementing additional
 evidence-backed service readers and native target prerequisite validation remains
 necessary for full real-solution delivery. No gate was relaxed to hide these gaps.
 No customer code was executed, no ELMA configuration was installed, and hosted
