@@ -45,10 +45,39 @@ Construct `managedWorkspaceStore(directory, projects)` once per private director
 
 - `create(owner, {name, baselineOwner, snapshot})` creates a new UUID workspace from a full snapshot. `snapshot` requires explicit `projectId`, `snapshotId`, `scope` and `scopeConfirmed: true`. Missing snapshot identity never falls back to the project's current selection. Scope is a recorded explicit assertion, not independently proven export completeness or live connectivity.
 - `prepare(id, owner, {kind, snapshot, expectedRevision, sameSourceConfirmed: true, ...attribution})` captures a partial `change` (team/taskRef) or full `reconciliation` (baselineOwner). It persists an immutable original and proposal before returning review evidence. Attribution is pinned during preparation, not supplied again during acceptance. Unsupported evidence remains inspectable but cannot be accepted. Same-Source confirmation is recorded against the accepted baseline ID and included in the reviewed digest. When both the workspace's first known accepted Source and the incoming snapshot have stored connection references, differing references are rejected, even after an intermediate manual baseline. A manual upload has no proven connection identity; its confirmation is an owner assertion, not live verification.
+- Preparation additionally accepts optional `base: {artifactId, revision, confirmed: true}`. This is the explicitly declared original full artifact on which the incoming change/full snapshot was based, separate from the current baseline used for comparison and `sameSourceConfirmed`. The selected artifact must already be accepted in this exact lifecycle root, have explicit full scope and matching snapshot/original checksum, and match its recorded acceptance revision (initial full = 0). Historical accepted full bases remain selectable after reconciliation. Pending, partial, foreign-root and wrong-revision references are rejected; clients cannot supply checksum, Source or declaring actor. This first MR-01 slice does not select a virtual mixed state as a full base.
 - `preview(id, owner, artifactId)` reloads the saved proposal; `accept(id, owner, artifactId, {expectedRevision, reviewedDigest, reviewedBoundaryKeys?, resolutions?})` reuses the existing reducer. Changed workspace revisions make proposals stale rather than silently rebasing earlier decisions. Replays cannot accept an already consumed proposal.
 - `get`, active/archived `list`, `original` and revision-guarded `setArchived` preserve history. Snapshot originals are copied independently, so project selection, reparse and deletion do not mutate or remove the managed baseline/history. This does not grant access to the former project after deletion.
 
 Capture uses `projectStore.snapshot(projectId, owner, snapshotId)` under the project's existing serialization. The source snapshot's checksum, creation time, parser revision/version and non-secret Source reference are retained. The managed engine parses the captured original once with its current parser; that separate parser version and result are persisted, not silently regenerated when the project is reparsed or a proposal is reopened. The adapter does not claim its projection is the source snapshot's original parsed document.
+
+### Explicit change-base evidence — MR-01 / #94
+
+Captured artifacts retain `baseDeclaration` schemaVersion 1. An explicit
+declaration has status `declared`, method `explicit-assertion`, the accepted full
+artifact/revision/checksum, its captured snapshot and scope declaration, trusted
+declaring actor and time. The server verifies membership/integrity/acceptance;
+actual native ancestry remains `ancestryVerified: false`. A user assertion that
+two exports were based on B does not prove independent edits or native authors.
+
+Omitting `base` records `unknown` / `not-declared`. Legacy artifacts with no
+recorded declaration return `unknown` / `not-recorded` in technical review and
+pending/completed-review metadata; reads never rewrite records or infer ancestry.
+Source equality, filename, uploader, team, current baseline, content equality and
+upload order do not promote unknown ancestry. Corrections without a new explicit
+base declaration also remain unknown; previous declarations are not copied by
+guessing. Actual scope is still recorded independently as full/partial.
+
+The declaration is captured before review and included in the existing whole
+artifact digest; it survives acceptance, restart and original project deletion.
+`prepare`, `preview`, `review`, pending state and completed review metadata expose
+the same immutable evidence. Changing it invalidates the reviewed digest.
+Unknown bases remain useful for the existing comparison/review lifecycle, but
+do not establish eligibility for automatic three-way merge or a physical build.
+Existing sequential acceptance semantics are unchanged. Partial absence still
+never deletes other objects; no personal branch, semantic merge, ancestry graph,
+deletion/rename operation, compiler, composed candidate or Target write is
+created by this provenance slice.
 
 State and proposals use one atomic JSON replacement after immutable artifact writes. A failed metadata replacement leaves the previous committed state; uncommitted artifacts are not discoverable. Restart reads the persisted baseline, decisions, proposals and archive status. This is single-process atomic persistence, not multi-process locking or a guarantee against storage-device power loss. A crash can leave unreferenced staging/artifact files; they are never auto-adopted. Operator retention/cleanup remains a follow-up.
 

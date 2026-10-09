@@ -10,6 +10,18 @@ Authority: #52 / SOLUTION_FIRST_PRODUCT_PLAN.md and owner's 2026-10-08 clarifica
 
 The remaining `/api/solutions/:id` lifecycle routes mirror the existing managed engine: get/list, prepare, artifact preview/accept/original, archive/reopen. The collection supports `archived=true`. Internal Workspace/baseline structures remain the engine, not new product concepts.
 
+MR-01 preparation can additionally declare `base: {artifactId, revision,
+confirmed: true}` through the existing `/api/solutions/:id/prepare` route.
+The shared managed store pins that accepted full artifact's original checksum,
+snapshot/Source and scope, attributes the declaring session actor and binds the
+declaration to review evidence. References resolve only inside this Solution;
+another Solution, a legacy upload, a pending proposal or an accepted partial
+cannot stand in for the full base. Omitted/legacy ancestry stays explicitly
+unknown, even with same-Source confirmation. `declared` is not verified native
+ancestry or independent personal contribution. See [change-base evidence](managed-workspace.md#explicit-change-base-evidence--mr-01--94).
+This technical API foundation does not add UI, semantic merging, physical
+composition or release eligibility; those remain separate #94 slices.
+
 Authentication resolves a persistent actor in private `actors/` before issuing a session. The existing verified VK private-message sender address, carried by the signed bot link, determines the stable `vk:` identity; browser text cannot select another sender. OTP/email and explicitly enabled local compatibility logins retain their existing identities. Session expiry/logout/restart does not erase actor records. Tokens, cookies and VK credentials are never stored in actor records.
 
 The server supplies the actor separately from request data. Upload metadata and captured artifacts retain `uploadedBy`. Creation, preparation, acceptance and archive/reopen persist an actor, time and revision atomically with their state in `audit`; `createdBy` is distinct from the upload actor. Scope and same-Source assertions retain the actual declaring actor. Native ELMA provenance and declared responsible team remain separate facts. Discussion/finding attribution uses this actor contract in P4; no roles or membership UI is introduced.
