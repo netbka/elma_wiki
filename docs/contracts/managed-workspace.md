@@ -77,7 +77,50 @@ do not establish eligibility for automatic three-way merge or a physical build.
 Existing sequential acceptance semantics are unchanged. Partial absence still
 never deletes other objects; no personal branch, semantic merge, ancestry graph,
 deletion/rename operation, compiler, composed candidate or Target write is
-created by this provenance slice.
+created by base provenance alone. The bounded deletion slice below adds a
+separate declaration and review gate.
+
+## Bounded captured-component scope and explicit deletion
+
+For a partial change, `prepare` additionally accepts `changeScope: { name,
+members: [componentKey, ...], deletions: [{ key, baseDigest, confirmed: true }],
+confirmed: true }`. `deletions` defaults to an empty list. Keys are exact captured
+component identities, never filenames, labels or parser array positions. A scope
+requires the explicit accepted full `base` declaration above. Every supplied
+partial component must be in scope; each named member must be uniquely proven in
+the declared base or partial capture. Unknown/duplicate component evidence blocks
+the declaration. Scope names describe the assertion, not native export coverage.
+
+The server creates `changeScopeDeclaration` with the exact base artifact,
+acceptance revision, checksum, member digests and original file evidence, partial
+checksum, Source/scope assertions and trusted declaring actor/time. The reducer
+revalidates these bindings before preview/acceptance. Omitted and historical
+scope remains `unknown`; reads never infer or backfill declarations. A declared
+scope can include an absent base member without requesting its deletion.
+
+A deletion must name an existing member of that full base, include its exact
+base digest, be in the declared scope and be absent from the incoming partial.
+It additionally requires the declared base to remain the current baseline and
+the working member to match it. Older bases, intervening edits, unsupported,
+ambiguous, duplicate or contradictory claims are blocked; MR-02 must implement
+actual delete/edit conflict resolution before those cases can advance. Source
+and full/partial declarations are explicit assertions, not verified native
+ancestry. No Source identity is inferred from package strings or upload order.
+
+Preview emits an explicit `component-deleted` row. Acceptance requires the exact
+whole-artifact reviewed digest, current workspace revision and explicit boundary
+review for each deletion. Only these declarations remove working components;
+partial absence alone leaves them unchanged. The original full artifact is
+preserved. Accepted declarations and deletion rows survive restart and original
+project deletion in the existing artifact/review/history stores. Scope evidence
+is available in preview, review and pending/completed technical metadata.
+
+This domain/API slice adds no scope/deletion UI. Automatic merge and physical
+build remain disabled (`automaticMergeEnabled: false`, `buildEnabled: false`);
+a virtual removal cannot qualify as an unchanged physical export. Native part,
+application or server materialization requires its own supported adapters and
+release evidence. Existing process-part responsibility tracking inside complete
+supplied entities remains separate and unchanged.
 
 State and proposals use one atomic JSON replacement after immutable artifact writes. A failed metadata replacement leaves the previous committed state; uncommitted artifacts are not discoverable. Restart reads the persisted baseline, decisions, proposals and archive status. This is single-process atomic persistence, not multi-process locking or a guarantee against storage-device power loss. A crash can leave unreferenced staging/artifact files; they are never auto-adopted. Operator retention/cleanup remains a follow-up.
 
