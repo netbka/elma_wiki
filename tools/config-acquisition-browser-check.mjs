@@ -95,8 +95,25 @@ try {
   }
   await fs.mkdir('qa', { recursive: true });
   await page.screenshot({ path: 'qa/config-acquisition-mobile.png', fullPage: true });
+  const nativeComponents = await zip([['package.json',{code:'native_components',type:'SOLUTION'}],
+    ['babysitter/manifest.json',{Service:'babysitter',entities:[]}],
+    ['permissionsSettings/manifest.json',{entities:['permissionSettings','pagePermissions'].map(kind=>({code:'records',namespace:'synthetic',kind,path:kind+'.json',resources:null}))}],
+    ['permissionsSettings/permissionSettings.json',{Code:'records',settings:{}}],['permissionsSettings/pagePermissions.json',{Code:'records',permissions:{}}],
+    ['localizer/manifest.json',{entities:[{code:'',namespace:'synthetic',kind:'localization',path:'translations.json',resources:[{path:'ru.po'}]}]}],
+    ['localizer/translations.json','null'],['localizer/ru.po','msgid "synthetic"\nmsgstr "пример"']]);
+  await page.goto(base + '/solutions?view=create');
+  await page.getByLabel('Название решения',{exact:true}).fill('Native components');
+  await page.getByLabel('Кто отвечает за исходную версию',{exact:true}).fill('Synthetic owner');
+  await page.getByLabel('Файл .e365',{exact:true}).setInputFiles({name:'native.e365',mimeType:'application/octet-stream',buffer:nativeComponents});
+  await page.getByLabel('Это полный экспорт решения',{exact:true}).check();
+  await page.getByRole('button',{name:'Добавить решение',exact:true}).click();
+  await page.getByRole('heading',{name:'Native components',exact:true}).waitFor();
+  await page.getByRole('link',{name:'Решение',exact:true}).click();
+  for(const label of ['synthetic · records · permissionSettings','synthetic · records · pagePermissions','synthetic · localization']) await page.getByText(label,{exact:true}).waitFor();
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+  await page.screenshot({path:'qa/native-components-mobile.png',fullPage:true});
   assert.deepEqual(errors, []);
-  await fs.writeFile('qa/config-acquisition-browser.json', JSON.stringify({ synthetic: true, source: 'dev2', resume: true, bundle: true, multipleFiles: true, failedUpload: true, paidDependencies: true, encryptedAcceptanceBlocked: true, encryptedOriginalPreserved: true, keyboard: true, reflow: [1440, 390] }));
+  await fs.writeFile('qa/config-acquisition-browser.json', JSON.stringify({ synthetic: true, source: 'dev2', resume: true, bundle: true, multipleFiles: true, failedUpload: true, paidDependencies: true, encryptedAcceptanceBlocked: true, encryptedOriginalPreserved: true, nativeComponentKinds: true, nativeLocalization: true, keyboard: true, reflow: [1440, 390] }));
   console.log('Synthetic browser passed: acquisition/reload, paid dependency persistence, encrypted acceptance blocked, exact downloads, failure, keyboard and reflow.');
 } finally {
   await browser?.close(); await new Promise(resolve => server.close(resolve)); await fs.rm(directory, { recursive: true, force: true });
