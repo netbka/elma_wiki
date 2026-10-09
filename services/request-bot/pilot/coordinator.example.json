@@ -1,0 +1,24 @@
+{
+  "projects": {
+    "wiki": { "repository": "netbka/elma_wiki", "taskKind": "wiki_code", "baseRef": "main" }
+  },
+  "bindings": [],
+  "portal": {
+    "tokenEnv": "REQUEST_PORTAL_KEY",
+    "bindings": [{ "owner": "UNRESOLVED_WIKI_ACTOR", "projects": ["wiki"] }]
+  },
+  "workers": [
+    { "id": "pilot-agent", "tokenEnv": "REQUEST_AGENT_KEY", "kinds": ["triage", "implement"], "projects": ["wiki"] },
+    { "id": "pilot-publisher", "tokenEnv": "REQUEST_PUBLISHER_KEY", "kinds": ["publish"], "projects": ["wiki"] }
+  ],
+  "operatorTokenEnv": "REQUEST_OPERATOR_KEY",
+  "github": {
+    "tokenEnv": "REQUEST_GITHUB_TOKEN",
+    "botLogin": "UNRESOLVED_GITHUB_BOT",
+    "webhookSecretEnv": "REQUEST_GITHUB_WEBHOOK_SECRET"
+  },
+  "leaseMs": 120000,
+  "maxRunMs": 300000,
+  "maxJobs": 4,
+  "maxActive": 1
+}

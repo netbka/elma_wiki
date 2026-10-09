@@ -151,7 +151,7 @@ try {
   assert.ok((await optionalCard.textContent()).includes('Поле note'));
   assert.equal(await optionalCard.getByText('Обязательность поля', { exact: true }).count(), 0);
   assert.equal(await page.getByRole('button', { name: 'Подготовить неизменяемый кандидат', exact: true }).isDisabled(), true);
-  assert.match(await page.locator('.release-shell').textContent(), /Неизвестный сервис/);
+  assert.match(await page.locator('.release-shell').textContent(), /permissionsSettings\/manifest\.json — Неизвестный вид объекта сервиса permissionsSettings/);
   await page.goto(base + '/releases');
   let releaseOld;
   const oldResponse = new Promise(resolve => { releaseOld = resolve; });
