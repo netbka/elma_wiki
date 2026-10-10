@@ -86,6 +86,31 @@ export function managedFixture(mode = 'overview') {
         members: [{ key: component('approval').key, baseDigest: 'a'.repeat(64), incomingDigest: null }, { key: component('contract').key, baseDigest: 'a'.repeat(64), incomingDigest: 'b'.repeat(64) }],
         ancestryVerified: false, automaticMergeEnabled: false, buildEnabled: false };
   }
+  if (mode.startsWith('merge-')) {
+    // Synthetic B/A/C plan: A (accepted) and this change edited the same limit.
+    model.view = 'review'; model.review = review; review.stale = true; workspace.revision = 2;
+    review.baseDeclaration = { schemaVersion: 1, status: 'declared', method: 'explicit-assertion', artifactId: base.id, revision: 0, checksum: base.checksum, scope: 'full', ancestryVerified: false };
+    const ref = (digest, extra = {}) => ({ digest, evidence: [], ...extra });
+    const row = (code, classification, status, proposal, extra = {}) => ({ key: component(code).key, service: 'widgets', namespace: 'synthetic.records', code, kind: 'WIDGET',
+      classification, status, proposal, blockers: [], base: ref('a'.repeat(64), { artifactId: base.id }), current: ref('a'.repeat(64), { team: 'Команда внедрения', interventionId: null }), incoming: null, ...extra });
+    const blocked = mode === 'merge-blocked';
+    const rows = [
+      row('limit', 'divergent', blocked ? 'blocked' : 'resolution-required', null, { current: ref('c'.repeat(64), { team: 'Внутренняя команда', interventionId: 'synthetic-change' }), incoming: ref('d'.repeat(64), { artifactId: review.artifactId }), blockers: blocked ? ['rename-uncertain'] : [] }),
+      row('category', 'incoming-only', 'clear', 'take-incoming', { incoming: ref('e'.repeat(64), { artifactId: review.artifactId }) }),
+      row('contract', 'unchanged', 'clear', 'keep-current')
+    ];
+    const plan = { schemaVersion: 1, method: 'whole-component-three-way', status: blocked ? 'blocked' : 'resolution-required', blockers: blocked ? [{ reason: 'rename-uncertain' }] : [], rows,
+      inputs: { base: { status: 'declared', artifactId: base.id, revision: 0, checksum: base.checksum }, current: { workspaceId: workspace.id, revision: mode === 'merge-stale' ? 3 : 2, baselineId: base.id, digest: 'f'.repeat(64) },
+        incoming: { artifactId: review.artifactId, checksum: 'b'.repeat(64), artifactDigest: review.artifactDigest } },
+      planDigest: '1'.repeat(64), ancestryVerified: false, automaticMergeEnabled: false, acceptanceEnabled: false, buildEnabled: false };
+    const resolution = { schemaVersion: 1, method: 'whole-component-resolution', id: 'synthetic-resolution', sequence: 1, parentId: null, planDigest: mode === 'merge-stale' ? '0'.repeat(64) : plan.planDigest,
+      inputs: { ...plan.inputs, current: { ...plan.inputs.current, revision: 2 } }, decisions: [{ key: rows[0].key, classification: 'divergent', choice: 'take-incoming' }],
+      reason: 'Лимит согласован с финансовым отделом в DEMO-14.', actor, at, ancestryVerified: false, automaticMergeEnabled: false, acceptanceEnabled: false, buildEnabled: false, materialized: false };
+    const head = ['merge-resolved', 'merge-stale'].includes(mode) ? { ...resolution, status: mode === 'merge-stale' ? 'stale' : 'current' } : null;
+    review.merge = { artifactId: review.artifactId, available: true, reason: null, message: null, plan,
+      choices: { divergent: ['keep-current', 'take-incoming'], 'addition-divergent': ['keep-current', 'take-incoming'], 'delete-edit': ['keep-current', 'remove'], 'edit-delete': ['keep-current', 'take-incoming'] },
+      head, history: head ? [head] : [] };
+  }
   if (mode === 'no-source') workspace.baselineId = null;
   if (mode === 'needs-fixes') workspace.pending = [{ artifactId: review.artifactId, kind: 'change', revision: 1, stale: false, decision: 'needs-changes', options: review.options }];
   if (mode === 'pending-conflict') workspace.pending = [{ artifactId: review.artifactId, kind: 'reconciliation', revision: 1, stale: false, attention: { conflicts: 1, unknown: 0 }, options: { baselineOwner: 'Команда внедрения' } }];

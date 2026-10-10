@@ -173,10 +173,70 @@ capture cannot carry a validated scope, so its tombstones are not used. A Source
 declaration bound to an earlier baseline fails as stale. Plan status is
 `blocked`, `resolution-required` or `clear`. Even `clear` is only a proposal.
 
-This slice stops at the plan. It has no API or UI, durable resolutions (P3),
-part-level process merge or generated artifact. Disjoint process-part edits stay
+The plan itself has no acceptance, part-level process merge or generated
+artifact; durable resolutions are described below. Disjoint process-part edits stay
 whole-component `divergent`. Evidence: `node --test test/managed-merge-plan.test.mjs`
 (synthetic store-backed B/A/C fixtures).
+
+## Durable merge resolutions — MR-02 / #94 (PLAN-01 P3)
+
+`resolveManagedMerge(plan, {decisions, reason, actor, parent})` turns one
+reviewed, non-blocked plan into a deeply frozen resolved revision. Every
+`resolution-required` row needs exactly one explicit supported whole-component
+choice; there is no default, upload-order winner, byte merge or part merge.
+Decisions for clear or unknown rows are rejected.
+
+| Classification | Supported choices | Result |
+| --- | --- | --- |
+| `divergent`, `addition-divergent` | `keep-current`, `take-incoming` | A's or C's digest |
+| `delete-edit` (A edited, C tombstone) | `keep-current`, `remove` | A's digest or absent |
+| `edit-delete` (A removed, C edited) | `keep-current`, `take-incoming` | stays absent or C's digest |
+
+Clear rows follow their plan proposal and are listed in `result`, so untouched,
+out-of-scope and scoped-but-absent components keep A's exact digest. Each
+result row references its source (`current` + intervention ID, `incoming` +
+artifact ID, or `absent`) and digest; no bytes are copied or generated. The
+revision stores `planDigest`, the plan's exact B/A/C `inputs`, decisions, a
+`resultDigest`, trimmed reason, trusted actor, time, `sequence`, `parentId` /
+`parentDigest` and `revisionDigest` over all of it. `ancestryVerified`,
+`automaticMergeEnabled`, `acceptanceEnabled`, `buildEnabled` and
+`materialized` stay `false`. Blocked plans (unknown base, duplicate identity,
+ambiguity, rename uncertainty) cannot be resolved; identity is never inferred to
+unblock them. `managedResolutionStatus` returns `corrupt` for a changed stored
+revision, `current` only while the recomputed plan digest matches and `stale`
+otherwise; `assertCurrentManagedResolution` rejects a non-current resolution.
+
+The store keeps resolutions in an append-only `mergeResolutions` list in the
+same atomic workspace record. `merge(id, owner, artifactId)` returns the current
+plan (or `available: false` with `completed`, `superseded`, `archived`,
+`not-a-change` or `plan-unavailable`), the choice table, `head` and full
+history with `current` / `stale` / `superseded` / `corrupt` status. Only
+pending, non-superseded partial changes in an active workspace can be resolved
+— including a change whose ordinary review became stale because A was accepted
+after it was prepared. `resolveMerge(id, owner, artifactId, {expectedRevision,
+planDigest, expectedResolutionId, decisions, reason}, actor)` runs under the
+store queue and requires the current workspace revision, the current plan
+digest and the current head ID (`null` for the first). A changed base, accepted
+change, reconciliation, replacement upload or competing save therefore fails
+with 409 instead of overwriting; earlier revisions are never edited, rebased or
+copied to a replacement change. A resolution does not advance the workspace
+revision, accept the change or alter A. A failed atomic write leaves the
+previous committed history; restart reads it unchanged. At most 50 revisions
+are kept per change.
+
+The shared Solutions API exposes `GET` / `POST
+/api/solutions/:id/artifacts/:artifactId/merge`, and `review` embeds the same
+`merge` object for partial changes. The legacy owner-scoped
+`/api/managed-workspaces` routes are unchanged. The existing review renderer
+shows **Совмещение с принятыми изменениями** (`web/managed/merge.js`) only when a
+declared base yields a non-clear plan or history exists; existing acceptance
+gates are unchanged and a stale review still cannot be accepted.
+
+Applying a resolved revision to the working state, part-level/fine-grained
+resolution, package/dependency reconciliation and physical materialization
+(P6) remain open. Evidence: `node --test test/managed-merge-resolution.test.mjs
+test/managed-merge-view.test.mjs`, the Solutions API case in
+`test/solutions-api.test.mjs` and `npm run test:merge-resolution:browser`.
 
 State and proposals use one atomic JSON replacement after immutable artifact writes. A failed metadata replacement leaves the previous committed state; uncommitted artifacts are not discoverable. Restart reads the persisted baseline, decisions, proposals and archive status. This is single-process atomic persistence, not multi-process locking or a guarantee against storage-device power loss. A crash can leave unreferenced staging/artifact files; they are never auto-adopted. Operator retention/cleanup remains a follow-up.
 
@@ -204,7 +264,7 @@ State/list responses expose `baselineAcceptedAt`; only full baseline creation/ac
 ## Remaining integration gates
 
 - The shared UI provides explicit scope/Source confirmations; uncoached first use and independent product review remain separate gates. Storage receives a trusted owner, not a browser identity assertion.
-- Package-level metadata/dependency reconciliation and finer component adapters where stable identity is proven. An entity projection does not represent a deployable complete package. Partial deletion uses only the bounded tombstone declaration above; general delete/edit resolution and native part deletion remain open (the three-way plan classifies them but does not resolve them).
+- Package-level metadata/dependency reconciliation and finer component adapters where stable identity is proven. An entity projection does not represent a deployable complete package. Partial deletion uses only the bounded tombstone declaration above; whole-component delete/edit choices are recorded as durable resolutions, but applying them to the working state and native part deletion remain open.
 - Candidate handoff must use #11's exact artifact/review contract and cannot construct an archive from this projection.
 - Shared Solution UI, attributed Change discussion, contextual supported code and captured process/form preview are wired. Live candidate/delivery integration, independent human usability and final owner acceptance remain separate gates.
 
@@ -212,6 +272,6 @@ This engine does not generate or publish a deployable package. Separate delivery
 
 ## Evidence
 
-Run `node --test test/managed-workspace-api.test.mjs test/managed-workspace-store.test.mjs test/managed-workspace.test.mjs test/managed-merge-plan.test.mjs test/project-snapshots.test.mjs test/server.test.mjs`.
+Run `node --test test/managed-workspace-api.test.mjs test/managed-workspace-store.test.mjs test/managed-workspace.test.mjs test/managed-merge-plan.test.mjs test/managed-merge-resolution.test.mjs test/project-snapshots.test.mjs test/server.test.mjs`.
 
 Domain tests cover all eight architecture comparison cases, identity/order/path stability, original side-script/resource evidence, immutable history, review binding, stale/mixed artifact rejection and archive/reopen. Storage tests use real synthetic archives, the existing parser and project store, and temporary file-backed storage: restart, complete reconciliation lifecycle, pinned historical snapshots, owner/membership isolation, stale/concurrent decisions, attribution pinning, unsupported evidence, corrupt bytes and failed atomic writes. HTTP tests exercise the same lifecycle through a loopback server, restart/re-authentication, scope/Source assertions, foreign/malformed requests, method/Host/CSRF/JSON/body-size gates, concurrent acceptance and corruption. CI execution evidence is recorded on the PR; syntax checks alone are not a test pass. No browser, uncoached first-use, live delivery or complete #34/#33 acceptance is established by these tests.

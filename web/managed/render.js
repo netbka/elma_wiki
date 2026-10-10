@@ -5,6 +5,7 @@ import { mountRelease } from '../releases/render.js';
 import { hasAcceptedFullExport } from './model.js';
 import { mountAcquisition } from './acquisition.js';
 import { mountDependencies } from './dependencies.js';
+import { mountMergeResolution, mergeResolutionView } from './merge.js';
 import { acceptedFullBases, baseOptionLabel, baseEvidence, scopeEvidence, scopeCandidates, preparationFields } from './change-base.js';
 const el = (tag, text, className) => { const node = document.createElement(tag); if (text !== undefined) node.textContent = text; if (className) node.className = className; return node; };
 let sequence = 0;
@@ -365,12 +366,16 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
       technical(provenance, 'Доказательства базы и состава', { baseDeclaration: review.baseDeclaration ?? null, changeScopeDeclaration: review.changeScopeDeclaration ?? null });
       content.append(provenance);
     }
+    if (!full && review.merge && mergeResolutionView(review.merge).visible)
+      content.append(mountMergeResolution(review.merge, { technical, submit: input => run(() => actions.resolveMerge(review.artifactId, input), workspaceUrl(state.id, 'review', review.artifactId)) }));
     button('Скачать отчёт об ответственности', () => {
       const url = URL.createObjectURL(new Blob([responsibilityReport(state, review)], { type: 'text/plain;charset=utf-8' }));
       const a = el('a'); a.href = url; a.download = 'responsibility-review.txt'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
     }).className = 'secondary';
     if (review.acceptedAt) content.append(el('p', `Принято: ${dateLabel(review.acceptedAt)} · ${review.acceptedDecision?.actor?.login || 'Автор решения не зафиксирован'}`, 'managed-accepted'));
-    if (review.stale) content.append(el('p', 'Это прежнее рассмотрение. Комментарии и исходные ссылки сохранены; новые решения здесь недоступны.', 'managed-note'),
+    if (review.stale) content.append(el('p', !full && review.merge && mergeResolutionView(review.merge).editable
+      ? 'Это рассмотрение подготовлено до последних принятых изменений; принять его нельзя. Решение конфликтов выше сохраняется отдельно и ничего не принимает.'
+      : 'Это прежнее рассмотрение. Комментарии и исходные ссылки сохранены; новые решения здесь недоступны.', 'managed-note'),
       link(review.supersededBy ? 'Открыть актуальное изменение' : 'Обновить состояние', workspaceUrl(state.id, review.supersededBy ? 'review' : null, review.supersededBy), true));
     const gate = el('p', '', 'managed-note'); gate.setAttribute('role', 'status');
     const submit = el('button', full ? 'Принять версию' : 'Принять изменение'); submit.type = 'submit';

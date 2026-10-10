@@ -18,6 +18,7 @@
     "test:solution-delivery:storybook": "node tools/solution-delivery-storybook-check.mjs",
     "test:managed:browser": "node tools/managed-workspace-browser-check.mjs",
     "test:change-base:browser": "node tools/change-base-browser-check.mjs",
+    "test:merge-resolution:browser": "node tools/merge-resolution-browser-check.mjs",
     "test:delivery:browser": "node tools/delivery-browser-check.mjs",
     "test:releases:browser": "node tools/releases-browser-check.mjs",
     "storybook": "npm --prefix storybook run dev",

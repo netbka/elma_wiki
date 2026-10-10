@@ -644,6 +644,7 @@
         "review",
         "accept",
         "reconcile",
+        "resolve-merge",
         "archive",
         "reopen",
         "retry"
@@ -651,7 +652,8 @@
       "renderer": [
         "web/managed/render.js",
         "web/managed/model.js",
-        "web/managed/change-base.js"
+        "web/managed/change-base.js",
+        "web/managed/merge.js"
       ],
       "storyIds": [
         "managed-workspace--empty",
@@ -688,7 +690,11 @@
         "managed-workspace--change-draft",
         "managed-workspace--change-rejected",
         "managed-workspace--base-declared",
-        "managed-workspace--base-unknown"
+        "managed-workspace--base-unknown",
+        "managed-workspace--merge-required",
+        "managed-workspace--merge-resolved",
+        "managed-workspace--merge-stale",
+        "managed-workspace--merge-blocked"
       ],
       "requiredVisibleStates": [
         "empty",
@@ -725,7 +731,11 @@
         "change-draft",
         "change-rejected",
         "base-declared",
-        "base-unknown"
+        "base-unknown",
+        "merge-required",
+        "merge-resolved",
+        "merge-stale",
+        "merge-blocked"
       ],
       "sources": [
         "docs/workflows/solutions.md",
