@@ -37,6 +37,8 @@ try {
   assert.equal(await page.locator('.release-delivery').count(), 1);
   await page.getByLabel('Ограничения: неполное покрытие, отсутствие базы, неизвестное влияние', { exact: true }).fill('Нет предыдущего пакета; ELMA и доставка не проверены.');
   await page.getByRole('button', { name: 'Сохранить условия (снимает принятие кандидата)', exact: true }).click();
+  // The save redraws the page; typing a reason before it lands can lose the text and leave the required field empty.
+  await page.getByText(/ · Условия передачи изменены · /).waitFor({ state: 'attached' });
   for (const filename of ['package.json', 'widgets/manifest.json', 'widgets/form.json']) {
     await page.getByLabel('Причина решения — ' + filename, { exact: true }).fill('Точный состав рассмотрен');
     const card = page.locator('.release-change').filter({ has: page.getByLabel('Причина решения — ' + filename, { exact: true }) });
