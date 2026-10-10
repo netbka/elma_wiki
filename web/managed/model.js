@@ -1,7 +1,7 @@
 export const labels = {
   unchanged: 'Без изменений', 'intervention-added': 'Добавлен объект', 'component-modified': 'Объект изменён',
   'known-change-retained': 'Наше изменение сохранится', 'known-change-incorporated': 'Наше изменение включено в снимок',
-  'external-change': 'Изменение из полного снимка', conflict: 'Нужен выбор версии', ambiguous: 'Недостаточно данных'
+  'external-change': 'Изменение из полного снимка', 'component-deleted': 'Удаление заявлено явно', conflict: 'Нужен выбор версии', ambiguous: 'Недостаточно данных'
 };
 export const elementLabels = { ...labels, 'element-added': 'Добавлен', 'element-removed': 'Удалён', 'element-modified': 'Изменён' };
 export const elementKinds = { node: 'Шаг', transition: 'Переход', variable: 'Переменная', lane: 'Дорожка' };

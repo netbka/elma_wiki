@@ -650,7 +650,8 @@
       ],
       "renderer": [
         "web/managed/render.js",
-        "web/managed/model.js"
+        "web/managed/model.js",
+        "web/managed/change-base.js"
       ],
       "storyIds": [
         "managed-workspace--empty",
@@ -682,7 +683,12 @@
         "managed-workspace--elements-added",
         "managed-workspace--elements-boundary",
         "managed-workspace--elements-conflict",
-        "managed-workspace--elements-unknown"
+        "managed-workspace--elements-unknown",
+        "managed-workspace--change-base",
+        "managed-workspace--change-draft",
+        "managed-workspace--change-rejected",
+        "managed-workspace--base-declared",
+        "managed-workspace--base-unknown"
       ],
       "requiredVisibleStates": [
         "empty",
@@ -714,7 +720,12 @@
         "elements-added",
         "elements-boundary",
         "elements-conflict",
-        "elements-unknown"
+        "elements-unknown",
+        "change-base",
+        "change-draft",
+        "change-rejected",
+        "base-declared",
+        "base-unknown"
       ],
       "sources": [
         "docs/workflows/solutions.md",

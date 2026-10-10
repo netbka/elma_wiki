@@ -2,12 +2,13 @@ const component = (code, team = 'Команда внедрения', changed = f
   interventionId: changed ? 'synthetic-change' : null, digest: 'a'.repeat(64) });
 export function managedFixture(mode = 'overview') {
   const at = '2026-10-07T12:00:00Z', base = { id: 'synthetic-baseline', scope: 'full', checksum: 'a'.repeat(64), snapshot: {
-    projectId: 'synthetic-project', snapshotId: 'synthetic-snapshot', source: null, createdAt: at
+    projectId: 'synthetic-project', snapshotId: 'synthetic-snapshot', checksum: 'a'.repeat(64), source: null, createdAt: at
   }, scopeDeclaration: { scope: 'full', method: 'explicit-assertion', declaredAt: at } };
   const workspace = { id: 'synthetic-workspace', name: 'Согласование договоров', status: 'active', revision: 1,
     baselineId: base.id, baselineOwner: 'Команда внедрения', baselineAcceptedAt: at, artifacts: [base],
     current: [component('contract'), component('approval'), component('comment', 'Внутренняя команда', true)],
-    changes: [{ id: 'synthetic-change' }], reconciliations: [], history: [{ type: 'created' }, { type: 'change-accepted' }], pending: [] };
+    changes: [{ id: 'synthetic-change' }], reconciliations: [], history: [{ type: 'created', baselineId: base.id }, { type: 'change-accepted' }], pending: [] };
+  base.components = ['contract', 'approval'].map(code => ({ key: component(code).key, digest: 'a'.repeat(64) }));
   const review = { kind: mode === 'conflict' ? 'reconciliation' : 'change', revision: 1, artifactId: 'synthetic-review', artifactDigest: 'b'.repeat(64),
     options: mode === 'conflict' ? { baselineOwner: 'Команда внедрения' } : { team: 'Внутренняя команда', taskRef: 'DEMO-12' },
     snapshot: base.snapshot, ambiguities: [], rows: [{ ...component('contract'), classification: 'component-modified', previousTeam: 'Команда внедрения', boundaryCrossing: true }] };
@@ -62,6 +63,28 @@ export function managedFixture(mode = 'overview') {
       { category: 'dependencies', required: true, service: 'widgets', targetNamespace: 'synthetic.paid', targetCode: 'form', status: 'paid-source-unavailable',
         sourceAvailability: 'unavailable', versionCompatibility: 'not-verified', activation: 'unknown', candidates: [{ code: 'synthetic_provider', paid: true, version: '1.0' }] }
     ] };
+  }
+  if (mode.startsWith('change-')) {
+    // A later accepted full update makes the initial export a historical base.
+    const update = { ...structuredClone(base), id: 'synthetic-update', checksum: 'e'.repeat(64),
+      snapshot: { ...base.snapshot, snapshotId: 'synthetic-update-snapshot', checksum: 'e'.repeat(64), createdAt: '2026-10-08T09:00:00Z' } };
+    update.components = [...base.components, { key: component('comment').key, digest: 'e'.repeat(64) }];
+    Object.assign(workspace, { artifacts: [base, update], baselineId: update.id, revision: 3, reconciliations: [{ id: update.id }],
+      history: [...workspace.history, { type: 'baseline-accepted', id: update.id, revision: 2 }] });
+    model.view = 'change';
+    const draft = { revision: 2, owner: 'Внутренняя команда', task: 'DEMO-14 · категория договора', baseId: base.id, scopeEnabled: true,
+      scopeName: 'Категория договора', selected: [component('contract').key], extra: JSON.stringify(['widgets', 'synthetic.records', 'category']), captured: null };
+    if (mode === 'change-draft') model.draft = { ...draft, uncertain: true };
+    if (mode === 'change-rejected') { model.draft = { ...draft, revision: 3 }; model.error = 'Объект состава не найден ни в выбранной базе, ни в загруженном экспорте. Черновик сохранён.'; }
+  }
+  if (mode === 'base-declared' || mode === 'base-unknown') {
+    model.view = 'review'; model.review = review;
+    review.baseDeclaration = mode === 'base-unknown' ? { schemaVersion: 1, status: 'unknown', method: 'not-recorded', ancestryVerified: false }
+      : { schemaVersion: 1, status: 'declared', method: 'explicit-assertion', artifactId: base.id, revision: 0, checksum: base.checksum, scope: 'full', ancestryVerified: false };
+    review.changeScopeDeclaration = mode === 'base-unknown' ? { schemaVersion: 1, status: 'unknown', method: 'not-recorded' }
+      : { schemaVersion: 1, status: 'declared', method: 'explicit-assertion', name: 'Категория договора', deletions: [], baseArtifactId: base.id, baseRevision: 0,
+        members: [{ key: component('approval').key, baseDigest: 'a'.repeat(64), incomingDigest: null }, { key: component('contract').key, baseDigest: 'a'.repeat(64), incomingDigest: 'b'.repeat(64) }],
+        ancestryVerified: false, automaticMergeEnabled: false, buildEnabled: false };
   }
   if (mode === 'no-source') workspace.baselineId = null;
   if (mode === 'needs-fixes') workspace.pending = [{ artifactId: review.artifactId, kind: 'change', revision: 1, stale: false, decision: 'needs-changes', options: review.options }];

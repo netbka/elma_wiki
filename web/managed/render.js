@@ -5,6 +5,7 @@ import { mountRelease } from '../releases/render.js';
 import { hasAcceptedFullExport } from './model.js';
 import { mountAcquisition } from './acquisition.js';
 import { mountDependencies } from './dependencies.js';
+import { acceptedFullBases, baseOptionLabel, baseEvidence, scopeEvidence, scopeCandidates, preparationFields } from './change-base.js';
 const el = (tag, text, className) => { const node = document.createElement(tag); if (text !== undefined) node.textContent = text; if (className) node.className = className; return node; };
 let sequence = 0;
 export function mountManagedWorkspace(model = {}, actions = {}) {
@@ -33,7 +34,7 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
   const technical = (parent, label, data) => { const details = el('details'), code = el('pre', JSON.stringify(data, null, 2)); details.append(el('summary', label), code); parent.append(details); };
   const controls = () => root.querySelectorAll('button,input,select,textarea');
   const lock = () => controls().forEach(node => { node.disabled = busy || blocked || node.dataset.unavailable === 'true'; });
-  const run = async operation => {
+  const run = async (operation, refreshHref = workspaceUrl(state?.id)) => {
     if (busy || blocked) return;
     // Preserve disabled states while awaiting a response, and preserve form values on errors.
     controls().forEach(node => { node.dataset.unavailable = String(node.disabled); });
@@ -43,7 +44,7 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
     catch (e) {
       blocked = e.status === 409 || e.requiresRefresh;
       error.textContent = e.message || 'Не удалось выполнить действие.';
-      if (blocked) error.append(el('p', 'Проверьте актуальное состояние перед повтором. Введённый текст сохранён на этой странице.'), link('Обновить состояние', workspaceUrl(state?.id)));
+      if (blocked) error.append(el('p', 'Проверьте актуальное состояние перед повтором. Введённый текст сохранён на этой странице.'), link('Обновить состояние', refreshHref));
       error.focus();
     } finally { busy = completed; notice.textContent = completed ? 'Сохранено. Открываем обновлённое состояние…' : ''; lock(); }
   };
@@ -128,6 +129,7 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
         const card = el('article', undefined, 'managed-card');
         card.append(el('h3', pending.kind === 'change' ? `${pending.options.team} · ${pending.options.taskRef}` : 'Обновление текущей версии'),
           el('p', pending.stale ? 'Сравнение устарело. Подготовьте его заново.' : 'Изменение сохранено; решение ещё не принято.'),
+          ...(pending.baseDeclaration ? [el('p', baseEvidence(pending.baseDeclaration).title, 'managed-muted')] : []),
           link(pending.stale ? 'Подготовить новое сравнение' : 'Рассмотреть изменения', workspaceUrl(state.id, pending.stale ? pending.kind === 'change' ? 'change' : 'full' : 'review', pending.stale ? null : pending.artifactId)),
           link('Скачать исходный файл', `${api}/${state.id}/artifacts/${pending.artifactId}/original`)); content.append(card);
       }
@@ -214,12 +216,88 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
     const scope = check(form, partial ? 'Это частичный экспорт изменений' : 'Это полный экспорт решения'); scope.required = true;
     const sameSource = state ? check(form, 'Экспорт относится к этому решению и тому же источнику ELMA') : null;
     if (sameSource) sameSource.required = true;
+    // MR-01: an explicit accepted full base and, for a partial change, a named
+    // set of exact captured component keys. Omitting the base keeps it unknown.
+    const bases = state ? acceptedFullBases(state) : [];
+    let baseSelect, baseConfirm, scopeToggle, scopeName, extra, members, memberBoxes = new Map(), syncBase;
+    if (state) {
+      const set = el('fieldset', undefined, 'managed-base'); set.append(el('legend', 'Исходная версия экспорта'),
+        el('p', 'От какой принятой полной версии подготовлен экспорт? Wiki проверяет точные байты выбранной версии, но не происхождение экспорта в ELMA.', 'managed-muted'));
+      const wrap = el('div', undefined, 'managed-field'), caption = el('label', 'Исходная версия (база)'); baseSelect = el('select');
+      baseSelect.id = 'managed-base-' + ++sequence; caption.htmlFor = baseSelect.id; wrap.append(caption, baseSelect); set.append(wrap);
+      const none = el('option', 'Не указывать — происхождение останется неизвестным'); none.value = ''; baseSelect.append(none);
+      for (const base of bases) { const option = el('option', baseOptionLabel(base)); option.value = base.artifactId; baseSelect.append(option); }
+      const baseNote = el('p', '', 'managed-note'); baseNote.setAttribute('role', 'status'); set.append(baseNote);
+      baseConfirm = check(set, 'Подтверждаю: экспорт подготовлен от выбранной версии. Это заявление, а не проверка происхождения');
+      if (partial) {
+        const scopeSet = el('div'); set.append(scopeSet);
+        scopeToggle = check(scopeSet, 'Указать именованный состав изменения (точные ключи объектов)');
+        const scopeBody = el('div'); scopeSet.append(scopeBody);
+        scopeName = field(scopeBody, 'Название состава'); members = el('ul', undefined, 'managed-members');
+        members.setAttribute('aria-label', 'Объекты состава'); scopeBody.append(el('p', 'Объекты выбранной версии и предыдущей загрузки этого изменения:', 'managed-muted'), members);
+        const extraWrap = el('div', undefined, 'managed-field'), extraCaption = el('label', 'Новые объекты: точные ключи, по одному в строке'); extra = el('textarea');
+        extra.id = 'managed-extra-' + ++sequence; extraCaption.htmlFor = extra.id; extra.spellcheck = false; extraWrap.append(extraCaption, extra); scopeBody.append(extraWrap);
+        scopeBody.append(el('p', 'Каждый объект загруженного частичного экспорта должен входить в состав. Объект состава, отсутствующий в экспорте, не удаляется; удаление здесь не задаётся.', 'managed-muted'));
+        scopeToggle.onchange = () => { scopeBody.hidden = !scopeToggle.checked; scopeName.required = scopeToggle.checked; };
+      }
+      form.insertBefore(set, scope.parentElement);
+      syncBase = (keep = []) => {
+        const base = bases.find(row => row.artifactId === baseSelect.value);
+        baseConfirm.parentElement.hidden = !base; baseConfirm.required = !!base; if (!base) baseConfirm.checked = false;
+        baseNote.textContent = !base ? 'База неизвестна. Сравнение пойдёт с текущей версией; автоматическое объединение и сборка недоступны.'
+          : `Выбрана ${base.current ? 'текущая' : 'прежняя'} версия: ревизия ${base.revision}, SHA-256 ${base.checksum}. Происхождение будет заявлено, не проверено.`;
+        if (!scopeToggle) return;
+        scopeToggle.parentElement.hidden = !base; if (!base) scopeToggle.checked = false; scopeToggle.onchange();
+        members.replaceChildren(); memberBoxes = new Map();
+        for (const row of scopeCandidates(base, model.previousReview)) {
+          const item = el('li'), label = el('label', undefined, 'managed-check'), input = el('input'); input.type = 'checkbox'; input.value = row.key; input.checked = keep.includes(row.key);
+          label.append(input, el('span', `${row.name}${row.inBase ? '' : ' · новый в предыдущей загрузке'} `), el('code', row.key)); item.append(label); members.append(item); memberBoxes.set(row.key, input);
+        }
+      };
+      baseSelect.onchange = () => syncBase([...memberBoxes].filter(([, input]) => input.checked).map(([key]) => key));
+      syncBase();
+    }
     content.append(el('p', 'Загруженные файлы доступны всем вошедшим пользователям сервиса.'));
     form.append(el('p', 'Загрузка сохраняет исходный файл. Она ничего не устанавливает в ELMA.', 'managed-muted'));
     const submit = el('button', view === 'create' ? 'Добавить решение' : 'Сохранить и рассмотреть'); submit.type = 'submit'; form.append(submit);
+    // Drafts survive rejected, stale and uncertain submissions, including a
+    // refresh. Confirmations are not restored; they must be given again.
+    const draft = state && actions.draft;
+    const collect = () => ({ revision: state.revision, owner: owner.value, task: task?.value ?? null, baseId: baseSelect.value,
+      scopeEnabled: !!scopeToggle?.checked, scopeName: scopeName?.value ?? '', extra: extra?.value ?? '',
+      selected: [...memberBoxes].filter(([, input]) => input.checked).map(([key]) => key),
+      captured: captured ? { id: captured.id, currentSnapshotId: captured.currentSnapshotId, filename: captured.filename } : null,
+      ...(saved?.uncertain ? { uncertain: true } : {}) });
+    const saved = draft?.read();
+    if (saved) {
+      owner.value = saved.owner ?? owner.value; if (task) task.value = saved.task ?? '';
+      const notes = [];
+      if (saved.baseId && !bases.some(row => row.artifactId === saved.baseId)) notes.push('Ранее выбранная база больше не доступна; выберите базу снова.');
+      else baseSelect.value = saved.baseId || '';
+      syncBase();
+      if (scopeToggle && baseSelect.value) {
+        scopeToggle.checked = !!saved.scopeEnabled; scopeToggle.onchange(); scopeName.value = saved.scopeName || '';
+        const missing = (saved.selected || []).filter(key => !memberBoxes.has(key));
+        for (const key of saved.selected || []) if (memberBoxes.has(key)) memberBoxes.get(key).checked = true;
+        extra.value = [...missing, ...(saved.extra || '').split('\n').filter(Boolean)].join('\n');
+      }
+      if (saved.captured?.id) selectCapture(saved.captured);
+      if (saved.revision !== state.revision) notes.push(`Черновик сохранён при ревизии ${saved.revision}; решение уже изменилось (ревизия ${state.revision}). Проверьте базу и состав перед отправкой.`);
+      if (saved.uncertain) notes.push('Предыдущая отправка могла сохраниться: ответ сервиса не получен. Проверьте раздел «Изменения» перед повтором.');
+      const restored = el('div', undefined, 'managed-note'); restored.setAttribute('role', 'status');
+      restored.append(el('p', 'Восстановлен черновик этой подготовки. Подтверждения нужно отметить заново.'), ...notes.map(text => el('p', text)));
+      if (saved.uncertain) restored.append(link('Открыть изменения', workspaceUrl(state.id, 'changes')));
+      const reset = link('Очистить черновик', workspaceUrl(state.id, view, model.artifact)), go = reset.onclick;
+      reset.onclick = event => { draft.clear(); go?.(event); }; restored.append(reset);
+      form.prepend(restored);
+    }
+    if (draft) form.addEventListener('input', () => draft.write(collect())), form.addEventListener('change', () => draft.write(collect()));
     form.onsubmit = event => { event.preventDefault(); if (!form.reportValidity()) return;
       const selected = file.files[0];
       if (!captured && !selected?.name.toLowerCase().endsWith('.e365')) { error.textContent = 'Выберите файл с расширением .e365.'; error.focus(); return; }
+      const prepared = state ? preparationFields({ partial, bases, baseId: baseSelect.value, baseConfirmed: baseConfirm.checked,
+        scopeEnabled: !!scopeToggle?.checked, scopeName: scopeName?.value || '', selected: collect().selected, extra: extra?.value || '' }) : { fields: {} };
+      if (prepared.error) { error.textContent = prepared.error; error.focus(); return; }
       run(async () => {
         if (!captured && acquisition) {
           const record = pendingAcquisition ||= await actions.acquisition.upload(selected); actions.acquisition.remember?.(record.id);
@@ -234,10 +312,18 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
         evidence.replaceChildren(el('span', 'Исходный файл сохранён.'));
         if (!model.shared) evidence.append(link('Открыть загруженный файл', '/p/' + captured.id + '/'));
         const snapshot = { projectId: captured.id, snapshotId: captured.currentSnapshotId, scope: partial ? 'partial' : 'full', scopeConfirmed: true };
-        if (view === 'create') await actions.create({ name: name.value, baselineOwner: owner.value, snapshot });
-        else await actions.prepare({ kind: partial ? 'change' : 'reconciliation', snapshot, expectedRevision: state.revision, sameSourceConfirmed: true,
-          ...(partial ? { team: owner.value, taskRef: task.value } : { baselineOwner: owner.value }) });
-      });
+        if (view === 'create') return await actions.create({ name: name.value, baselineOwner: owner.value, snapshot });
+        draft?.write(collect());
+        try {
+          await actions.prepare({ kind: partial ? 'change' : 'reconciliation', snapshot, expectedRevision: state.revision, sameSourceConfirmed: true,
+            ...(partial ? { team: owner.value, taskRef: task.value } : { baselineOwner: owner.value }), ...prepared.fields });
+        } catch (e) {
+          // A lost response may have saved the change; never replay it automatically.
+          if (e.requiresRefresh) draft?.write({ ...collect(), uncertain: true });
+          throw e;
+        }
+        draft?.clear();
+      }, state ? workspaceUrl(state.id, view, model.artifact) : undefined);
     };
     content.append(form); return root;
   }
@@ -263,6 +349,22 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
     content.append(el('h2', full ? 'Рассмотреть обновление версии' : 'Рассмотреть изменение'),
       el('p', full ? `После принятия это станет текущей версией. Заявленная ответственность: ${review.options.baselineOwner}.` : `Ответственная команда: ${review.options.team} · ${review.options.taskRef}.`));
     if (review.uploadedBy) content.append(el('p', `Загрузил: ${review.uploadedBy.login}`));
+    if (review.baseDeclaration || review.changeScopeDeclaration) {
+      const provenance = el('section', undefined, 'managed-card managed-provenance'), declared = baseEvidence(review.baseDeclaration);
+      provenance.append(el('h3', 'Исходная версия и состав'), el('p', declared.title),
+        el('p', `Происхождение: ${{ verified: 'подтверждено', declared: 'заявлено, не проверено', unknown: 'неизвестно' }[declared.ancestry]}`, 'managed-note'), el('p', declared.detail, 'managed-muted'));
+      if (!full) {
+        const scoped = scopeEvidence(review.changeScopeDeclaration); provenance.append(el('p', scoped.title), el('p', scoped.detail, 'managed-muted'));
+        if (scoped.members.length) {
+          const list = el('ul'); list.setAttribute('aria-label', 'Заявленный состав');
+          for (const row of scoped.members) { const item = el('li', `${row.name} · ${row.inChange ? 'есть в экспорте' : 'нет в экспорте — остаётся без изменений'}${row.inBase ? '' : ' · новый относительно базы'} `); item.append(el('code', row.key)); list.append(item); }
+          provenance.append(list);
+        }
+        if (scoped.deletions.length) provenance.append(el('p', `Явных удалений: ${scoped.deletions.length}. Каждое требует отдельной проверки ниже.`));
+      }
+      technical(provenance, 'Доказательства базы и состава', { baseDeclaration: review.baseDeclaration ?? null, changeScopeDeclaration: review.changeScopeDeclaration ?? null });
+      content.append(provenance);
+    }
     button('Скачать отчёт об ответственности', () => {
       const url = URL.createObjectURL(new Blob([responsibilityReport(state, review)], { type: 'text/plain;charset=utf-8' }));
       const a = el('a'); a.href = url; a.download = 'responsibility-review.txt'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
