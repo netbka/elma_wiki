@@ -65,6 +65,7 @@ const actions = {
   prepare: async input => { const review = await request(`${api}/${id}/prepare`, { ...input, ...(shared && artifact && ['change', 'full'].includes(view) ? { supersedesArtifactId: artifact } : {}) }); navigate(href(id, 'review', review.artifactId)); },
   accept: async (artifactId, input) => { await request(`${api}/${id}/artifacts/${artifactId}/accept`, input); navigate(href(id)); },
   archive: async input => { await request(`${api}/${id}/archive`, input); navigate(href(id)); },
+  ...(shared ? { resolveMerge: async (artifactId, input) => { await request(`${api}/${id}/artifacts/${artifactId}/merge`, input); navigate(href(id, 'review', artifactId)); } } : {}),
   comment: async (artifactId, input) => { await request(`${api}/${id}/artifacts/${artifactId}/discussion`, input); navigate(href(id, 'review', artifactId)); },
   context: (artifactId, ref) => request(`${api}/${id}/artifacts/${artifactId}/objects/${ref}`),
   // Per-tab preparation draft; storage failures only lose the convenience copy.

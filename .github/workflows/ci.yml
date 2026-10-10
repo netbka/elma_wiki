@@ -49,6 +49,8 @@ jobs:
       - if: runner.os == 'Linux'
         run: npm run test:change-base:browser
       - if: runner.os == 'Linux'
+        run: npm run test:merge-resolution:browser
+      - if: runner.os == 'Linux'
         run: npm run test:config:browser
       - if: runner.os == 'Linux'
         run: npm run test:handoff:browser

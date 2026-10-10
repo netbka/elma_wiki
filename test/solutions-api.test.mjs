@@ -416,3 +416,35 @@ test('selected visual step findings preserve verified source anchors across exac
   assert.deepEqual(discussion.events.at(-1).sourceAnchor, anchor);
   assert.equal(discussion.findings[0].anchorStatus, 'ambiguous');
 });
+
+test('durable merge resolutions are attributed, revision/plan/head guarded and survive restart through the Solutions API', async t => {
+  const { request, post, login, upload, ref, create, restart } = await setup(t);
+  let a = await login('alice@example.org'), b = await login('bob@example.org');
+  const state = await json(await create(a.cookie, await upload(a.cookie, [['div', 0], ['keep', 0]])), 201), route = endpoint + '/' + state.id;
+  const base = { artifactId: state.baselineId, revision: 0, confirmed: true };
+  const prepare = async (cookie, value, team) => json(await post(route + '/prepare', cookie, { kind: 'change', snapshot: ref(await upload(cookie, [['div', value]]), 'partial'),
+    expectedRevision: state.revision, team, taskRef: 'MERGE-' + team, sameSourceConfirmed: true, base }), 201);
+  const first = await prepare(a.cookie, 1, 'A'), second = await prepare(b.cookie, 2, 'C');
+  const current = await json(await post(route + '/artifacts/' + first.artifactId + '/accept', a.cookie, { expectedRevision: state.revision,
+    reviewedDigest: first.artifactDigest, reviewedBoundaryKeys: first.rows.filter(row => row.boundaryCrossing).map(row => row.key), expectedDiscussionRevision: 0 }));
+  const merge = await json(await request(route + '/artifacts/' + second.artifactId + '/merge', b.cookie));
+  assert.equal(merge.plan.status, 'resolution-required');
+  const key = merge.plan.rows.find(row => row.classification === 'divergent').key;
+  const body = (decision, reason) => ({ expectedRevision: current.revision, planDigest: merge.plan.planDigest, expectedResolutionId: null, decisions: { [key]: decision }, reason });
+  assert.equal((await request(route + '/artifacts/' + second.artifactId + '/merge')).status, 404);
+  await json(await post(route + '/artifacts/' + second.artifactId + '/merge', b.cookie, { ...body('take-incoming', 'x'), planDigest: 'f'.repeat(64) }), 409);
+  await json(await post(route + '/artifacts/' + second.artifactId + '/merge', b.cookie, { ...body('take-incoming', 'x'), actor: a.user }), 400);
+  const results = await Promise.all([post(route + '/artifacts/' + second.artifactId + '/merge', a.cookie, body('keep-current', 'Alice keeps A')),
+    post(route + '/artifacts/' + second.artifactId + '/merge', b.cookie, body('take-incoming', 'Bob takes C'))]);
+  assert.deepEqual(results.map(row => row.status).sort(), [200, 409]);
+  const winner = results.find(row => row.status === 200) === results[0] ? a : b;
+  await restart(); a = await login('alice@example.org');
+  const stored = await json(await request(route + '/artifacts/' + second.artifactId + '/merge', a.cookie));
+  assert.equal(stored.history.length, 1); assert.deepEqual(stored.head.actor, winner.user); assert.equal(stored.head.status, 'current');
+  assert.deepEqual(stored.head.inputs, merge.plan.inputs);
+  assert.deepEqual(stored.head.result.find(row => row.key !== key).source, 'current');
+  const review = await json(await request(route + '/artifacts/' + second.artifactId + '/review', a.cookie));
+  assert.equal(review.stale, true); assert.equal(review.merge.head.id, stored.head.id);
+  assert.equal((await json(await request(route, a.cookie))).revision, current.revision, 'resolution does not accept or advance the Solution');
+  assert.equal((await post(route + '/artifacts/' + second.artifactId + '/merge', a.cookie, body('keep-current', 'Replay'))).status, 409);
+});

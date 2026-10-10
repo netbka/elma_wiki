@@ -4,7 +4,7 @@ function story(mode) {
   const explain = async () => { throw Error('Учебный пример: данные не сохраняются. Для следующего состояния выберите другую story.'); };
   const model = managedFixture(mode);
   let draft = model.draft ?? null;
-  const root = mountManagedWorkspace(model, { draft: { read: () => draft, write: value => { draft = value; }, clear: () => { draft = null; } }, upload: explain, create: explain, prepare: explain, accept: explain, archive: explain, comment: explain,
+  const root = mountManagedWorkspace(model, { draft: { read: () => draft, write: value => { draft = value; }, clear: () => { draft = null; } }, upload: explain, create: explain, prepare: explain, accept: explain, archive: explain, comment: explain, resolveMerge: explain,
     context: async id => ({ source: 'widgets/synthetic-contract.json', content: JSON.stringify({ descriptor: { clientScripts: id === 'synthetic-before' ? 'const value = 1;' : 'const value = 2;' } }, null, 2), editable: false,
       limitation: 'Синтетический исходный файл. Код не выполняется.' }),
     navigate: () => { root.querySelector('[role=status]').textContent = 'Учебная навигация: выберите нужное состояние в меню Storybook.'; } });
@@ -50,3 +50,8 @@ export const ChangeDraft = { render: () => story('change-draft') };
 export const ChangeRejected = { render: () => story('change-rejected') };
 export const BaseDeclared = { render: () => story('base-declared') };
 export const BaseUnknown = { render: () => story('base-unknown') };
+export const MergeRequired = { render: () => story('merge-required'), parameters: { docs: { description: { story:
+  'Принятая версия и это изменение правят один объект. Выбор версии обязателен, решение сохраняется с причиной и ничего не принимает.' } } } };
+export const MergeResolved = { render: () => story('merge-resolved') };
+export const MergeStale = { render: () => story('merge-stale') };
+export const MergeBlocked = { render: () => story('merge-blocked') };
