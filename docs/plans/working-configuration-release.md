@@ -148,3 +148,5 @@ Completion of one vertical slice establishes that slice, not all types/scopes. E
 ## MR-04 pure planner implementation
 
 The bounded pure scope/dependency planner and its native-metadata gaps are specified in [release-scope-planner.md](../contracts/release-scope-planner.md). Planning does not enable materialization, release eligibility or provider execution; unknown native units and global coverage remain blockers.
+
+The Wiki-side consumer of pinned native unit/coverage declarations (PLAN-01 P4) is specified in [native-coverage-adapter.md](../contracts/native-coverage-adapter.md). No native coverage contract is published at the inspected elma365 revision, so real declarations fail closed; required native receipts, installation observation and global handlers remain separate P6/P8 prerequisites.
