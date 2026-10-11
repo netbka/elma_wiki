@@ -41,4 +41,16 @@ The result is a frozen build manifest bound to `requestDigest` and `inputsDigest
 
 `node --test test/native-materialization.test.mjs` uses synthetic Contracts-shaped B/A/C archives through the existing store. It covers an unpinned/forged contract never being invoked; a no-edit round trip preserving every byte, resource, unknown manifest field and layout under a different container; a one-edit whole-component replacement, including removal of a resource the new version no longer declares; and two same-base changes with a resolved conflict and coupled client source. It also covers fail-closed output defects (dropped manifest field, changed preserved resource, extra/missing path, mixed coupled source, nested layout, missing/mismatched validation, stale echo, adapter failure) and fail-closed inputs (missing/altered original, missing/unsupported/mismatched compiler, missing/stale coverage, stale dependency plan/profile, corrupt and moved resolution, relocked compiler staling the manifest).
 
-This is synthetic Wiki evidence only. Native materialization and native validation of exact Contracts output remain **evidence-unavailable** until elma365#60 publishes and pins a versioned materialization/validation contract executed by an approved native worker. Removal through validated tombstones is supported by the operation model but is not separately exercised here.
+This is synthetic Wiki evidence only. Removal through validated tombstones is supported by the operation model but is not separately exercised here.
+
+## Open P8 gate: native validation of exact output
+
+The owner accepted this Wiki side of P6 on 2026-10-11 with the native-validation criterion deferred. Native materialization and native validation of exact physical Contracts output are an **open P8 gate** (PLAN-01 P8, #94 MR-07). They depend on netbka/elma365#60 publishing a versioned materialization/validation contract executed by an approved native worker. They are **evidence-unavailable** here, not passed. elma365 `main` was still `a762173` when re-inspected on 2026-10-11.
+
+Until #60 is pinned in `NATIVE_MATERIALIZATION_CONTRACTS` after schema review, and P8 observes native validation of the exact output bytes:
+
+- every real adapter returns `unavailable` and is never invoked, so `releaseEligible` stays false;
+- `SYNTHETIC_MATERIALIZATION_CONTRACT` is used only by `test/native-materialization.test.mjs`. Its output carries `synthetic-evidence-only`, has `evidenceBasis: synthetic` and is never native-valid or release-eligible;
+- no build manifest from this adapter may feed a P7 candidate as native evidence.
+
+Native materialization is not claimed to work.
