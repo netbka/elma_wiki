@@ -107,7 +107,7 @@ capabilities:
     routes: ["AGENTS.md", "docs/SOLUTION_FIRST_PRODUCT_PLAN.md", "docs/SOLUTION_FIRST_EXECUTION.md", "docs/SOLUTION_FIRST_CONTRADICTIONS.md", "docs/workflows/agent-execution.md", "docs/INDEX.md"]
     boundaries: ["tooling"]
   operations:
-    owners: ["deploy/", "compose.yaml", "Dockerfile", "tools/prod-update.mjs", "test/prod-update.test.py"]
+    owners: ["deploy/", "compose.yaml", "Dockerfile", "tools/prod-update.mjs", "tools/prod-auth.mjs", "test/prod-update.test.py", "test/prod-auth.test.mjs"]
     routes: ["deploy/README.md", "docs/runbooks/target-deployment.md"]
     boundaries: ["ops", "security", "tooling"]
   analyst-release-planning:
