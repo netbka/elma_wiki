@@ -24,6 +24,8 @@ Before starting work, clean up finished worktrees:
 4. Verify the resolved absolute removal path matches the inspected secondary worktree, then use `git worktree remove <path>` without force. Respect filesystem approval boundaries; do not recursively delete directories or delete branches as part of routine cleanup. If removal refuses, investigate and preserve the work instead of forcing it.
 5. Run `git worktree prune` to clear stale registration metadata and `git worktree list --porcelain` to verify the result. Report removed worktrees and any retained work needing attention.
 
+Worktree location: every secondary worktree of this repository lives directly under `.worktrees/` at the primary checkout root (`git worktree add .worktrees/<name> -b <branch> origin/main`). Never create one beside the repository, in a temp/tool directory or nested deeper. `.worktrees/` is ignored by Git, Docker and Vercel. `npm run check:worktrees` fails on any registered worktree outside it. Relocate an out-of-place worktree with `git worktree move <path> .worktrees/<name>` only once it is inactive and its owner is not using it; otherwise retain it and report it.
+
 Classify the phase as investigate, design, change, verify or operate and select only boundaries/capabilities actually crossed. Use .agent/capabilities.yaml.
 
 A request to implement/fix/finish means investigate -> change -> focused verification without asking to switch modes. A roadmap item is not an assignment.

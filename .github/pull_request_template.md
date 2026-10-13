@@ -10,7 +10,7 @@ User-visible result or infrastructure outcome:
 
 Not completed / concrete blockers:
 
-Worktrees removed or retained (including ignored artifacts needing preservation):
+Worktrees removed or retained (including ignored artifacts needing preservation; `npm run check:worktrees` result for `.worktrees/` placement):
 
 ## Integration with the product direction
 

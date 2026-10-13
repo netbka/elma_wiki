@@ -13,6 +13,7 @@
     "test:prod": "python test/prod-update.test.py",
     "agent:context": "node tools/agent-workflow.mjs",
     "check:agent": "node tools/agent-workflow.mjs --check",
+    "check:worktrees": "node tools/agent-workflow.mjs --worktrees",
     "test:handoff:browser": "node tools/solution-handoff-browser-check.mjs",
     "test:solution-delivery:browser": "node tools/solution-delivery-browser-check.mjs",
     "test:solution-delivery:storybook": "node tools/solution-delivery-storybook-check.mjs",
