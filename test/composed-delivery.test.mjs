@@ -438,3 +438,44 @@ test('timeout and receipt-less errors on a single-unit candidate never leave uni
     assert.equal(calls.length, 1);
   });
 });
+
+test('an unobserved read-back failure keeps partial and unknown outcomes reserved; only an observed read-back resolves them', async t => {
+  for (const [scenario, failure] of [['partial', 'read-back'], ['partial', 'health'], ['timeout', 'read-back'], ['timeout', 'health']]) await t.test(`${scenario}/${failure}`, async sub => {
+    const calls = [];
+    let broken = false;
+    const adapter = opts => {
+      const value = syntheticAdapter({ ...opts, calls, scenario: scenario === 'partial' ? 'partial' : 'apply' }), deploy = value.deployCandidate.bind(value);
+      const health = value.health.bind(value), readBack = value.readBack.bind(value);
+      if (scenario === 'timeout') value.deployCandidate = async (candidate, options) => { await deploy(candidate, options); throw Object.assign(Error('Synthetic lost response'), { code: 'TIMEOUT' }); };
+      value.health = async () => broken && failure === 'health' ? { ok: false } : health();
+      value.readBack = async code => { if (broken && failure === 'read-back') throw Error('Synthetic transient read-back failure'); return readBack(code); };
+      return value;
+    };
+    const { delivery, composed, candidate, attemptFile } = await setup(sub, { adapters: { synthetic: adapter } });
+    const connection = await delivery.connections.create(executor, target());
+    let attempt = await composed.prepare(candidate.id, executor, { revision: candidate.revision, connectionId: connection.id });
+    attempt = await composed.confirm(candidate.id, attempt.id, executor, confirmation(attempt));
+    const unresolved = scenario === 'partial' ? 'partial-outcome' : 'unknown-outcome', units = attempt.evidence.units.map(unit => unit.status);
+    assert.equal(attempt.state, unresolved);
+    broken = true;
+    await assert.rejects(composed.verify(candidate.id, attempt.id, executor), failure === 'health' ? { statusCode: 503 } : /transient read-back/);
+    // Nothing was observed: the state, units and Target reservation survive, durably.
+    const stored = JSON.parse(await fs.readFile(attemptFile(attempt.id), 'utf8'));
+    assert.equal(stored.state, unresolved);
+    assert.deepEqual(stored.evidence.units.map(unit => unit.status), units);
+    assert.ok(stored.evidence.verificationError);
+    assert.equal(stored.evidence.comparison, null);
+    assert.equal(stored.history.at(-1).state, unresolved);
+    // A healthy Target is still reserved: no new preparation or confirmation can dispatch.
+    broken = false;
+    await assert.rejects(composed.prepare(candidate.id, executor, { revision: candidate.revision, connectionId: connection.id }), error => error.statusCode === 409);
+    await assert.rejects(composed.confirm(candidate.id, attempt.id, executor, { ...confirmation(attempt), idempotencyKey: 'redispatch' }), error => error.statusCode === 409);
+    await assert.rejects(composed.cancel(candidate.id, attempt.id, executor), error => error.statusCode === 409);
+    assert.equal(calls.filter(call => call.units).length, 1);
+    // Only a read-back that observes the same Target settles the outcome and frees the reservation.
+    attempt = await composed.verify(candidate.id, attempt.id, executor);
+    assert.equal(attempt.state, scenario === 'partial' ? 'verification-failed' : 'verified');
+    assert.equal(attempt.evidence.verificationError, undefined);
+    assert.equal(calls.filter(call => call.units).length, 1);
+  });
+});

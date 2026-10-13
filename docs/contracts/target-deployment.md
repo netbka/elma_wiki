@@ -136,7 +136,11 @@ three roots, including unresolved records after restart.
   `unreported` (or `partial-outcome` when receipts show some units applied);
   no unit ever keeps `pending` or `dispatched` once the operation has ended.
   `partial-outcome` holds the Target reservation and allows only read-back. It
-  cannot be confirmed again or cancelled. A restart turns `deploying` into
+  cannot be confirmed again or cancelled. A read-back that fails before the
+  same Target is observed (adapter or health error, invalid response, changed
+  identity) records `verificationError` but keeps `deployed-unverified`,
+  `unknown-outcome` or `partial-outcome` and its reservation; only an observed
+  read-back moves the attempt to `verified` or `verification-failed`. A restart turns `deploying` into
   `unknown-outcome` with pending or dispatched units `unreported`. No outcome is ever
   redispatched. The same idempotency key replays the stored attempt; another
   key is refused. Only a matching whole-inventory read-back yields `verified`.
@@ -161,7 +165,7 @@ Guards enforced server-side:
 - `prepare` requires current acceptance and the frozen candidate, a target-role connection, a reachable Target with confirmed identity, deploy/read-back capabilities and no active attempt for this release. It records identity and the pre-deploy solution inventory hash.
 - `environment: prod` is refused (403). A probed host in `PROTECTED_TARGET_HOSTS` is refused regardless of its name.
 - `confirm` requires `DEPLOY <solution code> <first 12 hex of candidate SHA-256>` and an idempotency key. It checks release revision, candidate ID/hash and acceptance, then re-probes health/identity and re-inspects the Target. Unhealthy/changed identity or drift blocks dispatch. `deploying` is persisted before the adapter is called. Repeating the same key returns the existing attempt; another key on a non-prepared attempt is 409. At most one dispatch per attempt.
-- `verify` requires the exact approved candidate and matching byte hash. It probes healthy, unchanged identity before and after read-back and rechecks candidate/revision/acceptance after the asynchronous operation. Invalid responses or changed identity/revision persist `verification-failed` with no passing comparison. It is allowed from `deployed-unverified`, `unknown-outcome` and `verification-failed`.
+- `verify` requires the exact approved candidate and matching byte hash. It probes healthy, unchanged identity before and after read-back and rechecks candidate/revision/acceptance after the asynchronous operation. Invalid responses or changed identity persist `verificationError` with no passing comparison; an unresolved attempt (`deployed-unverified`, `unknown-outcome`, `partial-outcome`) keeps its state and Target reservation until a read-back observes the same Target, so a failed read never permits redispatch. A revision/candidate change after an observed read-back, or a failure from `verification-failed`, persists `verification-failed`. It is allowed from `deployed-unverified`, `unknown-outcome` and `verification-failed`.
 - `cancel` authorizes the release owner, releases only a prepared attempt's lock and retains history without calling the adapter. It cannot cancel a dispatched operation or resolve an unknown outcome.
 - Connections reject credential-like keys and URLs with embedded credentials. Adapters receive non-secret options only.
 
