@@ -76,7 +76,7 @@ function evidence(resolution, { order = null } = {}) {
   return { coverage, dependencies };
 }
 
-async function setup(t, { changed = [['div', 2], ['outside', 3]], adapters, ...options } = {}) {
+async function setup(t, { base = [['div', 0], ['outside', 0]], changed = [['div', 2], ['outside', 3]], adapters, ...options } = {}) {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'wiki-composed-delivery-'));
   t.after(() => fs.rm(directory, { recursive: true, force: true }));
   const solutions = solutionStore(directory), managed = solutions.managed, projects = projectStore(directory), legacy = releaseStore(directory, projects);
@@ -84,7 +84,7 @@ async function setup(t, { changed = [['div', 2], ['outside', 3]], adapters, ...o
     const project = await solutions.uploads.create(SOLUTION_CATALOG, await zip(entries(rows)), 'synthetic.e365', uploader);
     return { projectId: project.id, snapshotId: project.currentSnapshotId, scope, scopeConfirmed: true };
   };
-  const state = await managed.create(SOLUTION_CATALOG, { name: 'Synthetic contracts', baselineOwner: 'Base', snapshot: await upload([['div', 0], ['outside', 0]], 'full') }, uploader);
+  const state = await managed.create(SOLUTION_CATALOG, { name: 'Synthetic contracts', baselineOwner: 'Base', snapshot: await upload(base, 'full') }, uploader);
   const key = code => state.current.find(row => row.code === code).key;
   const change = await managed.prepare(state.id, SOLUTION_CATALOG, { kind: 'change', snapshot: await upload(changed, 'partial'), expectedRevision: state.revision,
     team: 'C', taskRef: 'SYNTHETIC-C', sameSourceConfirmed: true, base: { artifactId: state.baselineId, revision: 0, confirmed: true },
@@ -272,7 +272,8 @@ test('deploying is durable before dispatch, cancellation is pre-dispatch only, a
   attempt = await composed.confirm(candidate.id, attempt.id, executor, confirmation(attempt));
   assert.equal(observed.state, 'deploying');
   assert.equal(observed.idempotencyKey, 'composed-once');
-  assert.deepEqual(observed.evidence.units.map(unit => unit.status), ['pending', 'pending']);
+  // Persisted in flight: the units were handed to the adapter, not "not started".
+  assert.deepEqual(observed.evidence.units.map(unit => unit.status), ['dispatched', 'dispatched']);
   // Lost response: the same key returns the stored attempt, another key is refused.
   assert.equal((await composed.confirm(candidate.id, attempt.id, executor, confirmation(attempt))).id, attempt.id);
   await assert.rejects(composed.confirm(candidate.id, attempt.id, executor, { ...confirmation(attempt), idempotencyKey: 'another' }), error => error.statusCode === 409);
@@ -289,6 +290,9 @@ test('crash, timeout and unknown outcome recover only by read-back without redis
   attempt = await composed.confirm(candidate.id, attempt.id, executor, confirmation(attempt));
   for (let i = 0; i < 100 && attempt.state === 'deploying'; i++) { await new Promise(resolve => setTimeout(resolve, 10)); attempt = await composed.get(candidate.id, attempt.id, executor); }
   assert.equal(attempt.state, 'unknown-outcome');
+  // Dispatched units are not reported as never started after a timeout.
+  assert.deepEqual(attempt.evidence.units.map(unit => unit.status), ['unreported', 'unreported']);
+  assert.equal(attempt.evidence.operation.result, 'timeout');
   await assert.rejects(composed.confirm(candidate.id, attempt.id, executor, { ...confirmation(attempt), idempotencyKey: 'retry' }), error => error.statusCode === 409);
   await assert.rejects(composed.cancel(candidate.id, attempt.id, executor), error => error.statusCode === 409);
   assert.equal(calls.length, 1);
@@ -406,4 +410,31 @@ test('contextual composed API uses the trusted execution actor and rejects forge
   const [historical] = await json(await request(route, alice.cookie));
   assert.equal(historical.state, 'verified');
   assert.equal(historical.verificationCurrent, false);
+});
+
+test('timeout and receipt-less errors on a single-unit candidate never leave units pending', async t => {
+  for (const mode of ['error', 'timeout', 'timeout-partial']) await t.test(mode, async sub => {
+    const calls = [];
+    const adapter = opts => {
+      const value = syntheticAdapter({ ...opts, calls });
+      value.deployCandidate = async candidate => {
+        calls.push({ units: candidate.units });
+        if (mode === 'error') throw Error('Synthetic native failure without receipts');
+        throw Object.assign(Error('Synthetic timeout'), { code: 'TIMEOUT', ...(mode === 'timeout-partial' ? { receipts: [{ unitId: candidate.units[0], status: 'applied' }] } : {}) });
+      };
+      return value;
+    };
+    const changed = mode === 'timeout-partial' ? undefined : [['div', 2]];
+    const { delivery, composed, candidate } = await setup(sub, { adapters: { synthetic: adapter }, ...(changed ? { base: [['div', 0]], changed } : {}) });
+    const connection = await delivery.connections.create(executor, target());
+    let attempt = await composed.prepare(candidate.id, executor, { revision: candidate.revision, connectionId: connection.id });
+    assert.deepEqual(attempt.evidence.units.map(unit => unit.status), changed ? ['pending'] : ['pending', 'pending']);
+    attempt = await composed.confirm(candidate.id, attempt.id, executor, confirmation(attempt));
+    const expected = { error: ['failed', ['failed']], timeout: ['unknown-outcome', ['unreported']], 'timeout-partial': ['partial-outcome', ['applied', 'unreported']] }[mode];
+    assert.equal(attempt.state, expected[0]);
+    assert.deepEqual(attempt.evidence.units.map(unit => unit.status), expected[1]);
+    assert.deepEqual((await composed.get(candidate.id, attempt.id, executor)).evidence.units.map(unit => unit.status), expected[1]);
+    await assert.rejects(composed.confirm(candidate.id, attempt.id, executor, { ...confirmation(attempt), idempotencyKey: 'retry' }), error => error.statusCode === 409);
+    assert.equal(calls.length, 1);
+  });
 });

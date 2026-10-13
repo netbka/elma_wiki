@@ -119,8 +119,9 @@ three roots, including unresolved records after restart.
   it is refused. The existing PROD refusal, protected hosts, typed confirmation,
   drift and identity checks apply unchanged.
 - **Dispatch and receipts.** `deploying` is persisted before the adapter
-  receives `{bytes, sha256, code, units}`. Per-unit evidence starts `pending`.
-  It records only what the adapter reports (`applied | failed | skipped`);
+  receives `{bytes, sha256, code, units}`. Per-unit evidence starts `pending`
+  (not started) at prepare and is persisted as `dispatched` together with
+  `deploying`, before the adapter call. It records only what the adapter reports (`applied | failed | skipped`);
   anything else is `unreported`. The outcome is:
   - all applied → `deployed-unverified`;
   - all unreported → `unknown-outcome`;
@@ -129,10 +130,14 @@ three roots, including unresolved records after restart.
   - any other mix → the new `partial-outcome` state.
 
   An adapter error without receipts on a multi-unit candidate is
-  `unknown-outcome`, not `failed`, because an earlier unit may have applied.
+  `unknown-outcome`, not `failed`, because an earlier unit may have applied;
+  on a single-unit candidate the only unit is recorded `failed` with the
+  attempt. A timeout is always `unknown-outcome` with every unreported unit
+  `unreported` (or `partial-outcome` when receipts show some units applied);
+  no unit ever keeps `pending` or `dispatched` once the operation has ended.
   `partial-outcome` holds the Target reservation and allows only read-back. It
   cannot be confirmed again or cancelled. A restart turns `deploying` into
-  `unknown-outcome` with pending units `unreported`. No outcome is ever
+  `unknown-outcome` with pending or dispatched units `unreported`. No outcome is ever
   redispatched. The same idempotency key replays the stored attempt; another
   key is refused. Only a matching whole-inventory read-back yields `verified`.
 - **API.** `GET/POST /api/solutions/:id/composed/:candidateId/delivery` accepts
