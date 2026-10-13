@@ -1,4 +1,7 @@
 version: 1
+governance:
+  inherits: "netbka/engineering-platform docs/CONSTITUTION.md and docs/OWNER_INTERVENTION.md by reference; authority order in AGENTS.md"
+  owner-stops: "docs/SOLUTION_FIRST_PRODUCT_PLAN.md#owner-reserved-matters-and-blockers: Wiki owner-reserved triggers and B0-B5 classification of typical stops"
 classification:
   intents:
     investigate: "inspect/reproduce/explain; no runtime change"

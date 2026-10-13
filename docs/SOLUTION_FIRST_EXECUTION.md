@@ -49,7 +49,7 @@ The updated [GitHub audit](audits/github-enterprise-audit-2026-10-08.md) retains
 
 ## Ready, verification and completion
 
-Before changes: record assigned outcome, owning issue, phase, capabilities/boundaries, base/head, existing owners reused and overlaps reserved in #91. Inspect current main and preserve other lanes. A new scope/architecture decision belongs to the owner; technical choices inside accepted invariants belong to the implementing agent.
+Before changes: record assigned outcome, owning issue, phase, capabilities/boundaries, base/head, existing owners reused and overlaps reserved in #91. Inspect current main and preserve other lanes. Owner stops follow [Owner-reserved matters and blockers](SOLUTION_FIRST_PRODUCT_PLAN.md#owner-reserved-matters-and-blockers); technical choices inside accepted invariants belong to the implementing agent.
 
 For a runtime slice: focused tests prove changed invariants and crossed boundaries. Visible state changes update the production renderer and synthetic Storybook in the same task. Verify trigger/ack/pending/success/failure/retry/cancel/return and dependent state; screenshots alone are not behavior evidence. Retest affected layers after integration, without ritual full-suite reruns.
 

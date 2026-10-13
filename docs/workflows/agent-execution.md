@@ -18,7 +18,7 @@ Authority: [AGENTS.md](../../AGENTS.md). This procedure makes its routing and ha
 
 ## Implement and verify
 
-An implementation request authorizes investigation, change and focused verification. Follow the root cause across adjacent capabilities when needed, updating the selected context. Ask only for unresolved material choices or actions covered by the explicit confirmation rules in AGENTS and the relevant runbook.
+An implementation request authorizes investigation, change and focused verification. Follow the root cause across adjacent capabilities when needed, updating the selected context. Stop for the owner only under [Owner-reserved matters and blockers](../SOLUTION_FIRST_PRODUCT_PLAN.md#owner-reserved-matters-and-blockers), which also classifies every other stop; the Source/Target confirmation rules in AGENTS and the relevant runbook still apply.
 
 Choose verification for the changed invariant and materially crossed boundaries. Use the capability's existing tests and workflow. Visible UI changes update the production renderer and affected synthetic Storybook states in the same task, with browser/keyboard/reflow checks where relevant. Source/Target operations retain their explicit candidate, confirmation and read-back gates.
 

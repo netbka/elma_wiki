@@ -86,7 +86,7 @@ A static check or code review cannot satisfy the whole guarantee. Evidence state
 
 An unmet required condition prevents release and identifies the exact remediation: resolve a conflict, add a dependency, provision a licensed module, implement a configuration adapter, correct a build or run a required scenario. Unsupported scope remains an open product-delivery gap, not a successful release with a disclaimer.
 
-Paid modules must be handled through compatible licensed preinstallation or an authorized intact distribution/import path, with preserved references and verified target functionality. Do not remove payment flags, decrypt protected internals, invent entitlement or omit required modules to turn a failure green. Purchasing, credentials and legal distribution decisions remain owner-reserved.
+Paid modules must be handled through compatible licensed preinstallation or an authorized intact distribution/import path, with preserved references and verified target functionality. Do not remove payment flags, decrypt protected internals, invent entitlement or omit required modules to turn a failure green. Purchasing, credentials and legal distribution decisions remain owner-reserved ([`licences-accounts-providers`](#owner-reserved-matters-and-blockers)).
 
 Production promotion is part of the intended product. This product decision itself does not select a live host/candidate, grant credentials, or authorize a PROD write. Existing target-deployment confirmation and recovery rules remain binding. The current GitHub-only task performs no live operation.
 
@@ -122,6 +122,35 @@ These are product targets, not a claim that every mapped UI/API state is impleme
 Execution order is [SOLUTION_FIRST_EXECUTION.md](SOLUTION_FIRST_EXECUTION.md). Detailed merge/materialization/dependency gates are in [the working-configuration plan](plans/working-configuration-release.md), tracked by #94 and native netbka/elma365#60; #11 retains delivery ownership, #47 native history/identity evidence, and #91 coordination.
 
 P0-P5 review implementation and an independently accepted review milestone remain valuable. They do not complete the full merge/build/release product. #59/#41 user review remains deferred by the owner's existing instruction; #38 still requires the actual integrated walkthrough. Neither this document nor CI supplies those observations.
+
+## Owner-reserved matters and blockers
+
+This is the one Wiki home for owner stops. It specializes the inherited [Constitution](https://github.com/netbka/engineering-platform/blob/main/docs/CONSTITUTION.md) and [Owner Intervention Contract](https://github.com/netbka/engineering-platform/blob/main/docs/OWNER_INTERVENTION.md) and does not restate them. Other Wiki documents link here instead of repeating these rules.
+
+The effective owner-reserved set is the generic set ([Constitution §2](https://github.com/netbka/engineering-platform/blob/main/docs/CONSTITUTION.md#2-owner-role) and the owner-reserved parts of §10 and §12) plus only these Wiki triggers. An owner instruction in the current task authorizes the action it names and nothing more.
+
+| ID | Wiki trigger | Kind | Owner source |
+| --- | --- | --- | --- |
+| `product-authority-change` | Changing Wiki product authority: this document, the accepted decisions in [SOLUTION_FIRST_CONTRADICTIONS.md](SOLUTION_FIRST_CONTRADICTIONS.md) or the product boundary in [AGENTS.md](../AGENTS.md#product-boundary) | permanent | #52; owner correction 2026-10-08 in #94 / PR #92 |
+| `elma-environment-write` | Installing, importing or publishing a candidate into any ELMA365 environment, or changing DEV/dev2 data | transitional. `retiresWhen`: an owner-approved change in this repository records a proven Wiki release gate (eligible candidate, exact Target read-back under an owner-approved versioned policy, affected native business acceptance) and the non-production Targets it covers | [AGENTS.md Source and Target connections](../AGENTS.md#source-and-target-connections); first live deploy awaits owner designation of Target and candidate ([target-deployment contract](contracts/target-deployment.md#limitations)); owner permission 2026-10-11 below |
+| `live-selection-and-release` | Selecting a live Source, Target or release destination, and any promotion or production rollout. Wiki has no standing release authorization | transitional. `retiresWhen`: the owner records a standing deploy authorization for Wiki under [Constitution §14](https://github.com/netbka/engineering-platform/blob/main/docs/CONSTITUTION.md#14-release-authority) in this repository, limited to assigned changes and named Wiki targets | [Build and release guarantee](#build-and-release-guarantee) (production promotion selects no live host/candidate); PROD row of [SOLUTION_FIRST_CONTRADICTIONS.md](SOLUTION_FIRST_CONTRADICTIONS.md) |
+| `licences-accounts-providers` | Licences and purchases of paid modules, legal distribution rights, account and credential access, and providers | permanent | [Build and release guarantee](#build-and-release-guarantee) (owner correction #94); [working-configuration plan](plans/working-configuration-release.md) |
+| `paused-work-resumption` | Re-enabling #19 provider execution or restarting #59/#41 human review work | transitional. `retiresWhen`: the owner records changed explicit authority on #19, or on #59/#41, for that work | Owner deferral recorded on #91 (coordinator checkpoint 2026-10-08); [Delivery and acceptance](#delivery-and-acceptance) |
+| `merge-to-main` | Merging to main | transitional. `retiresWhen`: an owner-approved change in this repository records an automatic or standing merge gate for Wiki | Owner instruction 2026-10-13 on the #91 execution campaign: an open PR awaits owner merge; #91 publication records ("merge follows the release gate") |
+
+**DEV/dev2 build-and-validate permission (owner, 2026-10-11).** Agents may build and validate against DEV/dev2 only through a supervisor capability that exposes no secret values. The permission never covers importing, publishing or changing DEV data; those remain `elma-environment-write`.
+
+Typical Wiki stops, by [Owner Intervention class](https://github.com/netbka/engineering-platform/blob/main/docs/OWNER_INTERVENTION.md#2-blocker-classes):
+
+| Stop | Class | Handling |
+| --- | --- | --- |
+| Provider or rate limits, network or service errors | B0/B1 | Retry, wait or use an approved fallback. Never an owner question |
+| CI failures, failing tests, merge conflicts, stale branches, fixable drift | B1 | Fix, refresh from main and rerun. Never reported as a gate |
+| Verified PR awaiting owner merge | not a blocker | Review state. Dependent work starts from the verified head: fetch it, confirm the tip equals the verified SHA, merge it before its own commit and name the contained PR in the stacked PR |
+| Missing native contract or evidence from netbka/elma365#60 | B4 | External evidence: record concrete acquisition attempts, keep dependent evidence `unknown` and blocking, continue other work |
+| Shared production SSH/sudo password ([engineering-platform-archive#82](https://github.com/netbka/engineering-platform-archive/issues/82)) | recorded gap; B2 only when a task needs that access | Registry exception `prod-ssh-password` and gap `prod-root-credential`. A task that does not need production access does not stop on it |
+| An action matching a trigger above or the generic set without current owner authorization | B3, or B2 when the decision is known and only a human step remains | Cite the trigger ID or Constitution section. Continue other authorized work |
+| Constitution §15 incident classes | B5 | Escalate immediately under the incident contract |
 
 ## Non-goals and boundaries
 
