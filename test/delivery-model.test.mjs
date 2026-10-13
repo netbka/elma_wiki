@@ -16,6 +16,10 @@ test('delivery controls follow server states; unavailable and uncertain outcomes
   assert.equal(view('deployed-unverified').canVerify, true); assert.equal(view('deployed-unverified').canPrepare, false);
   assert.equal(view('unknown-outcome').canVerify, true); assert.equal(view('unknown-outcome').canConfirm, false);
   assert.match(view('unknown-outcome').next, /не повторяйте/);
+  // Composed multi-unit partial outcome: read-back only, no confirmation, cancel or new preparation.
+  for (const key of ['canConfirm', 'canCancel', 'canPrepare']) assert.equal(view('partial-outcome')[key], false);
+  assert.equal(view('partial-outcome').canVerify, true); assert.match(view('partial-outcome').next, /повтор операции запрещён/);
+  assert.equal(deliveryTargetResult(release, attempt('partial-outcome')), 'not-run');
   assert.equal(view('deploying').canConfirm, false); assert.equal(view('deploying').canCancel, false);
   assert.equal(view('verified').canVerify, false); assert.match(view('verified').next, /не доказательство/);
   for (const state of ['verification-failed', 'failed', 'blocked', 'cancelled']) assert.equal(view(state).canPrepare, true);

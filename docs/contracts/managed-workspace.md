@@ -265,7 +265,7 @@ State/list responses expose `baselineAcceptedAt`; only full baseline creation/ac
 
 - The shared UI provides explicit scope/Source confirmations; uncoached first use and independent product review remain separate gates. Storage receives a trusted owner, not a browser identity assertion.
 - Package-level metadata/dependency reconciliation and finer component adapters where stable identity is proven. An entity projection does not represent a deployable complete package. Partial deletion uses only the bounded tombstone declaration above; whole-component delete/edit choices are recorded as durable resolutions, but applying them to the working state and native part deletion remain open.
-- Candidate handoff must use #11's exact artifact/review contract and cannot construct an archive from this projection.
+- Candidate handoff must use #11's exact artifact/review contract and cannot construct an archive from this projection. For PLAN-01 P7 composed candidates, the trusted `withResolvedInputs` guard holds this store's queue while the Solution is active, the change is pending and not superseded, there are no open findings, and the current resolution head plus workspace revision and review-event digest equal the candidate binding. It never composes bytes. See [target deployment](target-deployment.md).
 - Shared Solution UI, attributed Change discussion, contextual supported code and captured process/form preview are wired. Live candidate/delivery integration, independent human usability and final owner acceptance remain separate gates.
 
 This engine does not generate or publish a deployable package. Separate delivery/bridge capabilities and their live evidence are documented in [target deployment](target-deployment.md).

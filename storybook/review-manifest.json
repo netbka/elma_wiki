@@ -182,6 +182,7 @@
         "delivery--verified",
         "delivery--mismatch",
         "delivery--unknown",
+        "delivery--partial-outcome",
         "delivery--failed",
         "delivery--blocked",
         "delivery--cancelled",
@@ -202,6 +203,7 @@
         "verified",
         "verification-failed",
         "unknown-outcome",
+        "partial-outcome",
         "failed",
         "blocked",
         "cancelled",
@@ -215,6 +217,8 @@
       "sources": [
         "lib/delivery.mjs",
         "lib/bridge.mjs",
+        "lib/composed-candidates.mjs",
+        "test/composed-delivery.test.mjs",
         "docs/contracts/target-deployment.md"
       ]
     },
