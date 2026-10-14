@@ -171,7 +171,7 @@ Guards enforced server-side:
 
 ## Implemented: operator bridge adapter
 
-The live path keeps the Wiki free of ELMA credentials and outbound connections: an operator runs `elma-dev bridge --target=<dev|test>` (repo `elma-development/commands/bridge.mjs`) on the machine that already has `elma365pm` and the ELMA tokens in `.env`; the worker polls the Wiki and executes jobs.
+The live path keeps the Wiki free of ELMA credentials and outbound connections: an operator runs `elma-dev bridge --target=<main-dev|dev2|test>` (repo `elma-development/commands/bridge.mjs`) on the machine that already has `elma365pm` and the ELMA tokens in `.env`; the worker polls the Wiki and executes jobs.
 
 - `lib/bridge.mjs`: owner-scoped bridges (`POST /api/bridges` issues a `wb_…` token **once**; only its SHA-256 is stored, listing never returns it; max 10 per owner), a file-backed job queue per bridge (`.local/delivery/bridges/`), worker routes authenticated by `Authorization: Bearer <token>` with constant-time hash comparison: `POST /api/bridge/poll` (long-poll ≤ 25 s, records `lastSeen`, reported host/version and worker label), `GET /api/bridge/jobs/:id/artifact` (candidate bytes, only while the job is taken, hash re-checked), `POST /api/bridge/jobs/:id/result`. Removing a bridge invalidates its token and rejects queued jobs. A browser session cannot call worker routes; a worker token cannot call owner routes.
 - Adapter `bridge` (always registered; option `bridgeId`, owner checked on every call): `health` is `ok:false` when the bridge has not polled within 90 s or does not answer a health job in 30 s; `inspectSolution`/`readBack` → job `inspect`/`readBack`. The worker exports with `elma365pm export solution --allow-deps` into a private temporary source directory, packs to an archive outside that source, and hashes every packed entry with one service-ZIP expansion level. Package/service metadata and unknown files stay included; directory exports are a different representation and must not be compared directly with the candidate archive. The bounded standard-library reader requires Python 3 (`ELMA_PYTHON` may select the executable). `deployCandidate` → job `deploy` with the approved `.e365` as artifact (worker: SHA-256 check, `elma365pm unpack`, package code must equal the job's code, `elma365pm import --version-up`). Jobs carry only the solution code and the hash; identity comes from the worker's configured host, so a worker pointed at a protected host is refused by the existing identity guard.
@@ -187,11 +187,22 @@ No import or delivery Verified result was produced. Candidate/import/export
 metadata correspondence remains a live gate; do not exclude metadata to pass.
 See [transport evidence](https://github.com/netbka/elma365/blob/main/docs/bridge-packed-readback-2026-10-08.md).
 
-The legacy worker target `dev` resolves to dev2. The owner's shared business DEV
-is a separate environment used with the partner company, which promotes that
-work to PROD. dev2 is the owner's additional environment for technical work.
-Select by task purpose, verify the actual host, and separately bind the approved
-candidate to its Target. See [server roles](https://github.com/netbka/elma365/blob/main/docs/server-environments.md).
+Bridge target mapping. The owner's shared business DEV is the environment used
+with the partner company, which promotes that work to PROD; dev2 is the owner's
+technical environment. Wiki names both explicitly:
+
+| Wiki predefined Target | `elma-dev bridge --target=` | Delivery |
+|---|---|---|
+| DEV (`preset-dev`) | `main-dev` | refused; health, inspect and export only |
+| DEV2 (`preset-dev2`) | `dev2` | only an owner-designated candidate (`WIKI_TARGET_DEV2_DEPLOY_CANDIDATES`) |
+| PROD | not accepted | refused |
+
+The legacy worker target `dev` historically resolved to dev2; the bridge rejects
+it and Wiki never maps it to either Target. Select by task purpose, verify the
+actual host, and separately bind the approved candidate to its Target. The
+configuration variables and enforcement are in the
+[connections contract](source-target-connections.md#predefined-target-configurations-dev-and-dev2).
+See [server roles](https://github.com/netbka/elma365/blob/main/docs/server-environments.md).
 
 ## Bridge dispatch cancellation and restart
 

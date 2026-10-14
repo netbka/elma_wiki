@@ -99,16 +99,21 @@ export function mountDelivery({ release, client, onAction, onRefresh, onState, i
       }
       for (const connection of view.connections) {
         const card = el('article', undefined, 'card');
-        card.append(el('h3', connection.name), el('p', `${connection.environment.toUpperCase()} · ${connection.adapter}${connection.adapter === 'bridge' ? ` (${view.bridges.find(b => b.id === connection.adapterOptions?.bridgeId)?.name || 'мост удалён'})` : ''} · ${connection.probe?.identity?.host || 'Личность не проверена'}`));
+        const preset = connection.preset;
+        card.append(el('h3', connection.name), el('p', preset
+          ? `Предопределённый Target · ${preset.environmentRole === 'shared-business' ? 'общая бизнес-среда, только чтение' : 'техническая среда'} · мост --target=${preset.bridgeTarget} · ${preset.host || 'узел не задан'} · ${connection.probe?.identity?.host ? 'проверен: ' + connection.probe.identity.host : 'Личность не проверена'}`
+          : `${connection.environment.toUpperCase()} · ${connection.adapter}${connection.adapter === 'bridge' ? ` (${view.bridges.find(b => b.id === connection.adapterOptions?.bridgeId)?.name || 'мост удалён'})` : ''} · ${connection.probe?.identity?.host || 'Личность не проверена'}`));
+        if (preset) card.append(el('p', !preset.available ? `Недоступен: ${preset.reason}` : `Разрешено: ${preset.allowedOperations.join(', ')}${preset.allowedOperations.includes('deploy') ? ` · доставка только кандидата, назначенного владельцем (${preset.designatedCandidates.length ? preset.designatedCandidates.map(sha => sha.slice(0, 12)).join(', ') : 'не назначен'})` : ' · доставка запрещена'}`, preset.available ? 'note' : 'release-error'));
+        if (preset && connection.probe?.identity?.host && connection.probe.hostMatches === false) card.append(el('p', 'Мост сообщает другой узел, чем настроен: операции отклоняются.', 'release-error'));
         if (connection.probe?.protectedHost) card.append(el('p', 'Фактический узел входит в защищённый список: доставка будет отклонена независимо от названия.', 'release-error'));
-        button(card, 'Проверить подключение — ' + connection.name, () => refresh(() => client.probeConnection(connection.id)));
-        if (client?.removeConnection) button(card, 'Удалить подключение — ' + connection.name, () => refresh(() => client.removeConnection(connection.id)));
+        if (!preset || preset.available) button(card, 'Проверить подключение — ' + connection.name, () => refresh(() => client.probeConnection(connection.id)));
+        if (client?.removeConnection && !preset) button(card, 'Удалить подключение — ' + connection.name, () => refresh(() => client.removeConnection(connection.id)));
         root.append(card);
       }
       const picker = field(root, view.synthetic ? 'Учебный стенд для доставки' : 'Подключение Target для доставки', '', 'select');
       const empty = el('option', view.synthetic ? 'Выберите учебный стенд' : 'Выберите подключение Target'); empty.value = ''; picker.append(empty);
       for (const connection of view.connections) {
-        const option = el('option', `${connection.name}${connection.environment === 'prod' ? ' — PROD недоступен' : !view.usable(connection) ? ' — требуется проверка доступности' : ''}`); option.value = connection.id;
+        const option = el('option', `${connection.name}${connection.environment === 'prod' ? ' — PROD недоступен' : connection.preset && !connection.preset.available ? ' — не настроен' : connection.preset && !connection.preset.allowedOperations.includes('deploy') ? ' — только чтение' : !view.usable(connection) ? ' — требуется проверка доступности' : ''}`); option.value = connection.id;
         option.disabled = !view.selectable(connection);
         picker.append(option);
       }

@@ -23,8 +23,22 @@ const bridgeFixture = state => {
   const latest = attempts.at(-1) || null;
   return { release: releaseView(base.release, { attempts: attempts.length, latest: latest && { ...latest, connectionName: connection.name, adapter: 'bridge' } }), data: { capabilities: { mode: 'bridge', liveDelivery: false, bridge: true, adapters: ['bridge'] }, connections: [connection], attempts, bridges: state === 'bridge-no-bridge' ? [] : [bridge] } };
 };
+// Predefined Targets from WIKI_TARGET_* configuration: read-only DEV, DEV2 with one designated
+// candidate and the actor's matching bridge, plus the reason shown when a variable is missing.
+const presetFixture = state => {
+  const base = bridgeFixture('bridge-ready');
+  const sha = 'a'.repeat(64), identity = { host: 'dev2.example.invalid', version: 'elma365pm 1.19.0 / ELMA 2025.5' };
+  const preset = (id, name, environmentRole, bridgeTarget, host, allowedOperations, extra = {}) => ({ id, name, role: 'target', environment: 'dev', adapter: 'bridge', adapterOptions: { bridgeTarget, host }, probe: null,
+    preset: { id, name, environmentRole, bridgeTarget, baseUrl: host && 'https://' + host, host, allowedOperations, designatedCandidates: [], available: true, reason: null, ...extra } });
+  const dev = preset('preset-dev', 'DEV', 'shared-business', 'main-dev', 'dev.example.invalid', ['health', 'inspect', 'export']);
+  const dev2 = state === 'bridge-presets-unconfigured'
+    ? preset('preset-dev2', 'DEV2', 'technical', 'dev2', null, [], { available: false, reason: 'Не задан WIKI_TARGET_DEV2_URL: адрес DEV2 не угадывается' })
+    : { ...preset('preset-dev2', 'DEV2', 'technical', 'dev2', identity.host, ['health', 'inspect', 'export', 'readBack', 'deploy'], { designatedCandidates: [sha] }), probe: { ok: true, protectedHost: false, hostMatches: true, identity } };
+  const bridge = { ...base.data.bridges[0], identity, worker: 'elma-dev bridge @ operator-pc → dev2' };
+  return { release: base.release, data: { ...base.data, connections: [dev, dev2], bridges: [bridge] } };
+};
 function story(state) {
-  const { release, data } = state.startsWith('bridge-') ? bridgeFixture(state) : fixture(state === 'target-reserved' ? 'ready' : state);
+  const { release, data } = state.startsWith('bridge-presets') ? presetFixture(state) : state.startsWith('bridge-') ? bridgeFixture(state) : fixture(state === 'target-reserved' ? 'ready' : state);
   const unavailable = async () => { throw Error('Учебное состояние Storybook: выберите другую story. Здесь операции не запускаются.'); };
   const act = state === 'target-reserved' ? async () => { throw Object.assign(Error('На этом Target уже есть незавершённая доставка. Завершите, проверьте или отмените её подготовку.'), { status: 409 }); } : unavailable;
   return mountRelease({ release, open: unavailable, change: unavailable, preview: unavailable, download: unavailable,
@@ -66,3 +80,5 @@ export const ProtectedTarget = { render: () => story('protected-target') };
 export const BridgeNoBridge = { render: () => story('bridge-no-bridge') };
 export const BridgeOffline = { render: () => story('bridge-offline') };
 export const BridgeDeploying = { render: () => story('bridge-deploying') };
+export const BridgePresets = { render: () => story('bridge-presets') };
+export const BridgePresetsUnconfigured = { render: () => story('bridge-presets-unconfigured') };

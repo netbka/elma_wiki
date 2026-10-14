@@ -20,6 +20,7 @@ import { managedWorkspaceStore } from './lib/managed-workspace-store.mjs';
 import { releaseStore } from './lib/releases.mjs';
 import { deliveryStore, syntheticAdapter } from './lib/delivery.mjs';
 import { bridgeStore } from './lib/bridge.mjs';
+import { targetPresets } from './lib/target-presets.mjs';
 import { demoData } from './lib/demo.mjs';
 import { configSourceClient, configAcquisitions } from './lib/config-source.mjs';
 
@@ -51,6 +52,8 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
   protectedTargetHosts = (process.env.PROTECTED_TARGET_HOSTS || '').split(','),
   // A real export/import through the bridge takes minutes; the default covers a large solution.
   deliveryTimeoutMs = Number(process.env.DELIVERY_TIMEOUT_MS) || 20 * 60 * 1000,
+  // Predefined DEV and DEV2 Targets from non-secret WIKI_TARGET_* variables; PROD has none.
+  presets = targetPresets(process.env, { protectedHosts: protectedTargetHosts }),
   configSource = configSourceClient({ url: process.env.CONFIG_SOURCE_API_URL, token: process.env.CONFIG_SOURCE_API_TOKEN }),
   requests = requestCoordinator(), bugPublisher = bugGitHub() } = {}) {
   const actors = actorStore(directory);
@@ -69,7 +72,7 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
   // The bridge adapter is always available: it only does something once an owner registers a bridge and an
   // operator runs the worker with the token. The service itself still makes no outbound connections.
   const bridges = bridgeStore(directory);
-  delivery = deliveryStore(directory, releases, { solutionHandoffs: solutions.handoffs, composedCandidates: solutions.composed, adapters: { ...(syntheticDelivery ? { synthetic: syntheticAdapter } : {}), bridge: (options, connection) => bridges.adapter(options, connection) }, protectedHosts: protectedTargetHosts, timeoutMs: deliveryTimeoutMs });
+  delivery = deliveryStore(directory, releases, { solutionHandoffs: solutions.handoffs, composedCandidates: solutions.composed, adapters: { ...(syntheticDelivery ? { synthetic: syntheticAdapter } : {}), bridge: (options, connection) => bridges.adapter(options, connection) }, protectedHosts: protectedTargetHosts, timeoutMs: deliveryTimeoutMs, presets, presetAdapter: (preset, connection) => bridges.presetAdapter(preset, connection) });
   let uploading = false;
   const loginBot = createVkLoginBot({ directory, issueLink: auth.issueVkLink });
   const server = http.createServer(async (req, res) => {
