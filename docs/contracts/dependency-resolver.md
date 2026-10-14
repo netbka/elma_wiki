@@ -27,7 +27,7 @@ A receipt locks a prerequisite only when it names that exact reference and has n
 
 Positive results in this repository use `SYNTHETIC_RECEIPT_CONTRACT`. Such locks carry `evidence: 'synthetic'`, the result has `evidenceBasis: 'synthetic'` and a top-level `synthetic-evidence-only` blocker, so a synthetic resolution can never be complete.
 
-`NATIVE_RECEIPT_CONTRACTS` is empty. As of revision `19a46fa`, netbka/elma365#60 lists paid/opaque dependency paths as an adapter deliverable but publishes no versioned receipt schema defining receipt provenance (which adapter/observer signs it), expiry/revocation semantics, or platform/module compatibility rules. Until the native adapter publishes that contract and it is added here with tests, every actual dependency remains `unknown` and blocks release. Purchasing, licence provisioning, credential access and distribution rights remain owner-reserved.
+`NATIVE_RECEIPT_CONTRACTS` is empty. As of revision `19a46fa`, netbka/elma365#60 lists paid/opaque dependency paths as an adapter deliverable but publishes no versioned receipt schema defining receipt provenance (which adapter/observer signs it), expiry/revocation semantics, or platform/module compatibility rules. Until the native adapter publishes that contract and it is added here with tests, every actual dependency remains `unknown` and blocks release. Purchasing, licence provisioning, credential access and distribution rights remain owner-reserved ([`licences-accounts-providers`](../SOLUTION_FIRST_PRODUCT_PLAN.md#owner-reserved-matters-and-blockers)); the missing netbka/elma365#60 receipt contract is B4 external evidence there.
 
 ## Verification
 

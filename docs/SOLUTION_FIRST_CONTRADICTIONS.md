@@ -30,6 +30,7 @@ Authority: [SOLUTION_FIRST_PRODUCT_PLAN.md](SOLUTION_FIRST_PRODUCT_PLAN.md), wit
 | Native historical matching | Equal exported content may match multiple native revisions | Keep #47 bounded identity/author/stale-write gaps; do not guess via time/history markers |
 | Shared handoff vs legacy delivery | Keep correct cross-root 404; add contextual guarded dispatch | Reuse one #11 queue/reservations and trusted operational actor, not shared storage principal |
 | Public/Vercel | Internal product remains priority | Learn secondary; no unassigned Vercel work |
+| Wiki-local owner-stop rules vs inherited portfolio governance | AGENTS inherits the portfolio Constitution and Owner Intervention Contract by reference; Wiki adds only the recorded owner triggers | One section, [Owner-reserved matters and blockers](SOLUTION_FIRST_PRODUCT_PLAN.md#owner-reserved-matters-and-blockers), classifies stops by B0-B5; other documents link to it |
 | VK/agent orchestration | Secondary mechanism advancing the same lifecycle | #19/#89 pilot is not prerequisite for manually creating a working release |
 
 ## Shared-content and retention invariants
