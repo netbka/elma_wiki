@@ -86,7 +86,8 @@ const fixture = (required = false) => zip([
 ]);
 async function setup(t, variables) {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'e365-preset-test-'));
-  t.after(async () => { assert.ok(path.basename(directory).startsWith('e365-preset-test-')); await fs.rm(directory, { recursive: true, force: true }); });
+  // Hooks run in registration order: stop every worker stand-in before its directory is removed.
+  t.after(async () => { await Promise.all([...liveWorkers].map(stop => stop())); assert.ok(path.basename(directory).startsWith('e365-preset-test-')); await fs.rm(directory, { recursive: true, force: true }); });
   const projects = projectStore(directory), bridges = bridgeStore(directory, { onlineMs: 5000, healthTimeoutMs: 1000 });
   let delivery;
   const releases = releaseStore(directory, projects, { deliverySummary: (id, owner) => delivery.summary(id, owner) });
@@ -108,6 +109,7 @@ async function approvedRelease(projects, releases, owner = 'alice') {
 // `elma365pm import --version-up` appending one history entry to package.json and each manifest.
 // `metadata`: 'bytes' (updated bridge, B4 fields), 'hash-only' (older bridge) or a function that
 // rewrites the returned metadataFiles to model a faulty bridge.
+const liveWorkers = new Set();
 const shaOf = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
 function fakeWorker(bridges, token, { target, host, inventory = [], importAppends = false, metadata = 'bytes' }) {
   let state = { inventory: structuredClone(inventory), version: 1, files: new Map() }, running = true, mode = metadata;
@@ -141,7 +143,9 @@ function fakeWorker(bridges, token, { target, host, inventory = [], importAppend
       } catch (error) { await bridges.complete(bridge, job.id, { ok: false, error: error.message }).catch(() => {}); }
     }
   })();
-  return { log, payloads, setMetadata: value => { mode = value; }, stop: async () => { running = false; await loop; } };
+  const stop = async () => { running = false; await loop; liveWorkers.delete(stop); };
+  liveWorkers.add(stop);
+  return { log, payloads, setMetadata: value => { mode = value; }, stop };
 }
 async function online(bridges, id, owner = 'alice') {
   for (const deadline = Date.now() + 5000; Date.now() < deadline; await new Promise(resolve => setTimeout(resolve, 25)))
