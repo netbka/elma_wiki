@@ -82,6 +82,31 @@ test('a dependency record may gain rewritten metadata but keeps its identity', (
   ]) rejectsOnly(compare(change('package.json', mutate)), 'package.json');
 });
 
+test('non-object references and records without identity fields keep their whole value', () => {
+  const pair = (record, mutate) => {
+    const withRecord = files => { const pkg = structuredClone(files.get('package.json')); pkg.dependencies.widgets.push(record()); return pkg; };
+    const before = snapshot(files => files.set('package.json', withRecord(files)));
+    const after = snapshot(files => { const pkg = withRecord(files); mutate(pkg.dependencies.widgets[1]); return files.set('package.json', pkg); });
+    return compareImportNormalizedReadBack(before.inventory, after.inventory, { expectedFiles: before.files, actualFiles: after.files });
+  };
+  // A changed non-object reference is a different target, never import-rewritten metadata.
+  for (const [record, mutate] of [
+    [() => dependency({ dependsOn: 'example_module.records/target' }), record => { record.dependsOn = 'other_module.records/other'; }],
+    [() => dependency({ dependsOn: ['a', 'b'] }), record => { record.dependsOn = ['a', 'c']; }],
+    [() => dependency({ entity: 7 }), record => { record.entity = 8; }],
+    [() => dependency({ data: 'target' }), record => { record.data = ['target']; }],
+    [() => dependency(), record => { record.data = 'target'; }],
+    [() => dependency({ entity: { kind: 'widget' } }), record => { record.entity = { kind: 'other' }; }],
+    [() => ({ version: '1', target: 'a' }), record => { record.target = 'b'; }],
+    [() => ({ version: '1' }), record => { record.version = '2'; }],
+    [() => ({ code: '', version: '1' }), record => { record.version = '2'; }]
+  ]) rejectsOnly(pair(record, mutate), 'package.json');
+  // Value-equal non-object references still allow rewritten metadata beside them.
+  const kept = pair(() => dependency({ dependsOn: 'example_module.records/target', version: '1' }), record => { record.version = '2'; });
+  assert.equal(kept.match, true);
+  assert.deepEqual(kept.normalized.map(item => item.pointer), ['/dependencies/widgets/1/version']);
+});
+
 test('other files, invalid JSON and formatting-only changes fail', () => {
   rejectsOnly(compare(change('widgets/form.json', form => { form.descriptor.clientScripts = 'x'; })), 'widgets/form.json');
   rejectsOnly(compare(change('widgets/form.json', form => { form.history = [entry(1)]; })), 'widgets/form.json');
