@@ -143,6 +143,36 @@ test('changes JSON.parse would lose fail beside an accepted history append', () 
   rejectsOnly(pair('[1, 2]', '[1, 3]'), 'package.json');
 });
 
+test('byte changes that UTF-8 decoding would hide fail beside an accepted history append', () => {
+  // `field` holds raw bytes spliced into otherwise valid package text; invalid sequences must not collapse to U+FFFD.
+  const withBytes = (pkg, field) => {
+    const [head, tail] = JSON.stringify({ ...pkg, field: 'X' }, null, 2).split('"X"');
+    return Buffer.concat([Buffer.from(head), Buffer.from('"'), field, Buffer.from('"'), Buffer.from(tail)]);
+  };
+  const appendedPackage = () => { const pkg = basePackage(); pkg.history.push(entry(3)); return pkg; };
+  const pair = (before, after) => {
+    const a = snapshot(files => files.set('package.json', before)), b = snapshot(files => files.set('package.json', after));
+    return compareImportNormalizedReadBack(a.inventory, b.inventory, { expectedFiles: a.files, actualFiles: b.files });
+  };
+  for (const [before, after] of [
+    [Buffer.from([0xff]), Buffer.from([0xfe])], [Buffer.from([0xc3]), Buffer.from([0xc4])],
+    [Buffer.from([0xed, 0xa0, 0x80]), Buffer.from([0xed, 0xa0, 0x81])], [Buffer.from('ok'), Buffer.from([0x80])]
+  ]) {
+    const result = pair(withBytes(basePackage(), before), withBytes(appendedPackage(), after));
+    rejectsOnly(result, 'package.json');
+    assert.match(result.rejected[0].reason, /not valid UTF-8/);
+    assert.deepEqual(result.normalized, []);
+  }
+  // A byte order mark is not stripped silently.
+  const bom = pair(bytes(basePackage()), Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), bytes(appendedPackage())]));
+  rejectsOnly(bom, 'package.json');
+  assert.deepEqual(bom.normalized, []);
+  // Valid multi-byte UTF-8 still compares by value with only the history append reported.
+  const kept = pair(withBytes(basePackage(), Buffer.from('Синтетика €𝄞')), withBytes(appendedPackage(), Buffer.from('Синтетика €𝄞')));
+  assert.equal(kept.match, true);
+  assert.deepEqual(kept.normalized.map(item => item.pointer), ['/history/2']);
+});
+
 test('other package and manifest fields fail even beside an accepted history append', () => {
   for (const mutate of [pkg => { pkg.title = 'Другое'; }, pkg => { pkg.serverVersion = '2025.4'; }, pkg => { pkg.solution = { isAuthor: false }; }, pkg => { delete pkg.type; }])
     rejectsOnly(compare(change('package.json', pkg => { pkg.history.push(entry(3)); mutate(pkg); })), 'package.json');
