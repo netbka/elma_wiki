@@ -191,7 +191,9 @@
         "delivery--protected-target",
         "delivery--bridge-no-bridge",
         "delivery--bridge-offline",
-        "delivery--bridge-deploying"
+        "delivery--bridge-deploying",
+        "delivery--bridge-presets",
+        "delivery--bridge-presets-unconfigured"
       ],
       "requiredVisibleStates": [
         "unavailable",
@@ -212,11 +214,15 @@
         "protected-target",
         "bridge-no-bridge",
         "bridge-offline",
-        "bridge-deploying"
+        "bridge-deploying",
+        "bridge-presets",
+        "bridge-presets-unconfigured"
       ],
       "sources": [
         "lib/delivery.mjs",
         "lib/bridge.mjs",
+        "lib/target-presets.mjs",
+        "test/target-presets.test.mjs",
         "lib/composed-candidates.mjs",
         "test/composed-delivery.test.mjs",
         "docs/contracts/target-deployment.md"

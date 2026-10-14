@@ -61,3 +61,16 @@ test('stale attempts keep history and cancellation while never authorizing curre
   }
   assert.equal(deliveryPanelView({ ...release, revision: 5 }, { capabilities, attempts: [attempt('deployed-unverified')] }).canVerify, false);
 });
+
+test('predefined DEV is never selectable for delivery; DEV2 needs a configured preset and a matching probed host', () => {
+  const bridgeCapabilities = { mode: 'bridge', liveDelivery: false, bridge: true };
+  const preset = (id, allowedOperations, probe, extra = {}) => ({ id, role: 'target', environment: 'dev', adapter: 'bridge', probe, preset: { id, available: true, allowedOperations, ...extra } });
+  const probe = { ok: true, hostMatches: true, identity: { host: 'dev2.example.invalid' } };
+  const dev = preset('preset-dev', ['health', 'inspect', 'export'], { ...probe, identity: { host: 'dev.example.invalid' } });
+  const dev2 = preset('preset-dev2', ['health', 'inspect', 'export', 'readBack', 'deploy'], probe);
+  const view = deliveryPanelView(release, { capabilities: bridgeCapabilities, connections: [dev, dev2] });
+  assert.equal(view.selectable(dev), false); assert.equal(view.usable(dev), false);
+  assert.equal(view.selectable(dev2), true); assert.equal(view.usable(dev2), true);
+  assert.equal(view.usable({ ...dev2, probe: { ...probe, hostMatches: false } }), false);
+  assert.equal(view.selectable({ ...dev2, preset: { ...dev2.preset, available: false } }), false);
+});

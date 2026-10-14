@@ -118,12 +118,12 @@ try {
     const response = await fetch('/api/releases', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Elma-Wiki-Request': '1' }, body: JSON.stringify(input) });
     if (!response.ok) throw Error('Large fixture creation failed'); return response.json();
   }, { title: 'Много изменений', intent: 'Проверить полную область рецензии', targetIntent: 'Учебный оператор', sourceProjectId: large.id, baselineProjectId: baseline.id });
-  await page.goto(base + '/releases?id=' + largeRelease.id); await page.locator('article').first().waitFor();
-  assert.equal(await page.locator('article').count(), 20);
+  await page.goto(base + '/releases?id=' + largeRelease.id); await page.locator('article.release-change').first().waitFor();
+  assert.equal(await page.locator('article.release-change').count(), 20);
   await page.getByLabel('Причина решения — extra/00.txt', { exact: true }).fill('Несохранённая заметка первой страницы');
   await page.getByRole('button', { name: 'Показать следующие 20 изменений', exact: true }).click();
   await page.getByText('Показано 25 из 25. Все файлы остаются в области рецензии.', { exact: true }).waitFor();
-  assert.equal(await page.locator('article').count(), 25);
+  assert.equal(await page.locator('article.release-change').count(), 25);
   assert.equal(await page.getByLabel('Причина решения — extra/00.txt', { exact: true }).inputValue(), 'Несохранённая заметка первой страницы');
   const malicious = page.locator('article').filter({ hasText: 'extra/00.txt' }); await malicious.locator('summary').click(); await malicious.getByRole('button', { name: 'Показать После', exact: true }).click();
   await malicious.locator('pre').filter({ hasText: '<script>globalThis.releaseXss=true</script>' }).waitFor();

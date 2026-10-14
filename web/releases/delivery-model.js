@@ -9,8 +9,11 @@ export function deliveryPanelView(release, { capabilities, connections = [], att
   const synthetic = capabilities?.mode === 'synthetic' && capabilities.liveDelivery === false;
   const bridge = capabilities?.bridge === true;
   const enabled = synthetic || bridge;
-  const selectable = connection => !!connection && connection.role === 'target' && connection.environment !== 'prod' && connection.probe?.protectedHost !== true && (connection.adapter === 'synthetic' ? synthetic : connection.adapter === 'bridge' ? bridge : false);
-  const usable = connection => !!connection && connection.role === 'target' && connection.environment !== 'prod' && connection.probe?.ok === true && !!connection.probe.identity?.host && connection.probe?.protectedHost !== true && (connection.adapter === 'synthetic' ? synthetic : connection.adapter === 'bridge' ? bridge && bridges.some(b => b.id === connection.adapterOptions?.bridgeId && b.online) : false);
+  // A predefined DEV/DEV2 Target is selectable only when configured and deploy-capable (DEV never is);
+  // the server still requires an owner-designated candidate and resolves the actor's matching bridge.
+  const presetDeploys = connection => !connection.preset || (connection.preset.available === true && connection.preset.allowedOperations?.includes('deploy'));
+  const selectable = connection => !!connection && connection.role === 'target' && connection.environment !== 'prod' && connection.probe?.protectedHost !== true && presetDeploys(connection) && (connection.adapter === 'synthetic' ? synthetic : connection.adapter === 'bridge' ? bridge : false);
+  const usable = connection => !!connection && connection.role === 'target' && connection.environment !== 'prod' && connection.probe?.ok === true && !!connection.probe.identity?.host && connection.probe?.protectedHost !== true && presetDeploys(connection) && (connection.adapter === 'synthetic' ? synthetic : connection.adapter === 'bridge' ? bridge && (connection.preset ? connection.probe.hostMatches === true : bridges.some(b => b.id === connection.adapterOptions?.bridgeId && b.online)) : false);
   const active = attempts.some(a => ['prepared', 'deploying', 'deployed-unverified', 'unknown-outcome', 'partial-outcome'].includes(a.state));
   const approved = release.associationStatus !== 'stale' && release.approval?.revision === release.revision && !!release.candidate && !release.blockers.length;
   const viaBridge = latest?.connection?.adapter === 'bridge';
