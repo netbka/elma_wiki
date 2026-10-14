@@ -118,6 +118,31 @@ test('other files, invalid JSON and formatting-only changes fail', () => {
   assert.deepEqual(result.different, ['widgets/nested/manifest.json']);
 });
 
+test('changes JSON.parse would lose fail beside an accepted history append', () => {
+  // Raw package text with one appended history entry; `field` is spliced in losslessly or lossily.
+  const raw = field => Buffer.from(JSON.stringify({ ...basePackage(), field: 0 }, null, 2).replace('"field": 0', `"field": ${field}`));
+  const appended = field => { const pkg = { ...basePackage(), field: 0 }; pkg.history.push(entry(3)); return Buffer.from(JSON.stringify(pkg, null, 2).replace('"field": 0', `"field": ${field}`)); };
+  const pair = (before, after) => {
+    const a = snapshot(files => files.set('package.json', raw(before))), b = snapshot(files => files.set('package.json', appended(after)));
+    return compareImportNormalizedReadBack(a.inventory, b.inventory, { expectedFiles: a.files, actualFiles: b.files });
+  };
+  for (const [before, after] of [
+    ['9007199254740993', '9007199254740992'], ['12345678901234567891', '12345678901234567892'],
+    ['1.0', '1'], ['1e2', '100'], ['-0', '0'], ['0.1000000000000000000001', '0.1'],
+    ['1, "field": 2', '2'], ['{ "a": 1 }', '{ "a": 0, "a": 1 }']
+  ]) {
+    const result = pair(before, after);
+    rejectsOnly(result, 'package.json');
+    assert.match(result.rejected[0].reason, /not be lossless/);
+    assert.deepEqual(result.normalized, []);
+  }
+  // Round-tripping numbers, keys repeated in different objects and digits or colons inside strings stay comparable.
+  const kept = pair('[9007199254740991, -1.5, 1e+21, "9007199254740993", { "a": ":" }, { "a": 1 }]', '[9007199254740991, -1.5, 1e+21, "9007199254740993", { "a": ":" }, { "a": 1 }]');
+  assert.equal(kept.match, true);
+  assert.deepEqual(kept.normalized.map(item => item.pointer), ['/history/2']);
+  rejectsOnly(pair('[1, 2]', '[1, 3]'), 'package.json');
+});
+
 test('other package and manifest fields fail even beside an accepted history append', () => {
   for (const mutate of [pkg => { pkg.title = 'Другое'; }, pkg => { pkg.serverVersion = '2025.4'; }, pkg => { pkg.solution = { isAuthor: false }; }, pkg => { delete pkg.type; }])
     rejectsOnly(compare(change('package.json', pkg => { pkg.history.push(entry(3)); mutate(pkg); })), 'package.json');
