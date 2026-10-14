@@ -140,6 +140,8 @@ The effective owner-reserved set is the generic set ([Constitution §2](https://
 
 **DEV/dev2 build-and-validate permission (owner, 2026-10-11).** Agents may build and validate against DEV/dev2 only through a supervisor capability that exposes no secret values. The permission never covers importing, publishing or changing DEV data; those remain `elma-environment-write`.
 
+**dev2 acceptance designation (owner, 2026-10-14, [#37](https://github.com/netbka/elma_wiki/issues/37)).** The owner designated dev2 as the non-production Target for PLAN-01 P8 acceptance of the Contracts candidate. It covers install/import of that candidate, its read-back, the affected business checks and reset/recovery on dev2, only through the operator bridge. Shared business DEV and PROD stay excluded. The owner approved the versioned read-back policy `import-normalized-v1` for this acceptance ([target-deployment contract](contracts/target-deployment.md#import-normalized-read-back-policy)). For every other environment and candidate `elma-environment-write` stays owner-reserved, and its `retiresWhen` is unchanged: this designation names no proven release gate.
+
 Typical Wiki stops, by [Owner Intervention class](https://github.com/netbka/engineering-platform/blob/main/docs/OWNER_INTERVENTION.md#2-blocker-classes):
 
 | Stop | Class | Handling |
