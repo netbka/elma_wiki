@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import { READ_BACK_POLICY, compareReadBack } from '../lib/delivery-verification.mjs';
-import { IMPORT_NORMALIZED_POLICY, compareImportNormalizedReadBack } from '../lib/delivery-import-normalization.mjs';
+import { IMPORT_NORMALIZED_POLICY, compareImportNormalizedReadBack, importNormalizedMetadataPaths, readBackMetadataFiles } from '../lib/delivery-import-normalization.mjs';
+import { selectReadBackPolicy } from '../lib/delivery.mjs';
 
 // Synthetic package shaped like an elma365pm export; no customer content.
 const entry = n => ({ version: `00000000-0000-4000-8000-00000000000${n}`, updatedAt: `2026-10-0${n}T00:00:00Z` });
@@ -224,4 +225,46 @@ test('differing metadata needs content bound to the compared hashes', () => {
   assert.throws(() => compareImportNormalizedReadBack(candidate.inventory, actual.inventory, { expectedFiles: candidate.files, actualFiles: forged }), { statusCode: 502 });
   const duplicate = [...actual.inventory, actual.inventory[0]];
   assert.throws(() => compareImportNormalizedReadBack(candidate.inventory, duplicate, { expectedFiles: candidate.files, actualFiles: actual.files }), { statusCode: 502 });
+});
+
+test('read-back requests only package.json and <service>/manifest.json, and accepts their bytes only when they hash to the reported rows', () => {
+  const paths = importNormalizedMetadataPaths(candidate.inventory);
+  assert.deepEqual(paths, ['package.json', 'widgets/manifest.json']);
+  const entryOf = name => ({ path: name, sha256: candidate.inventory.find(row => row.path === name).sha256, contentBase64: candidate.files.get(name).toString('base64') });
+  const good = paths.map(entryOf);
+  const files = readBackMetadataFiles(paths, candidate.inventory, good);
+  assert.deepEqual([...files.keys()], paths);
+  assert.ok(files.get('package.json').equals(candidate.files.get('package.json')));
+  // A requested file absent from the read-back needs no bytes; the comparison reports it missing.
+  const withoutManifest = candidate.inventory.filter(row => row.path !== 'widgets/manifest.json');
+  assert.deepEqual([...readBackMetadataFiles(paths, withoutManifest, [entryOf('package.json')]).keys()], ['package.json']);
+  const other = Buffer.from('{}');
+  const rejects = (metadataFiles, reason, inventory = candidate.inventory) =>
+    assert.throws(() => readBackMetadataFiles(paths, inventory, metadataFiles), error => error.statusCode === 502 && error.code === 'READ_BACK_METADATA' && reason.test(error.reason));
+  rejects(undefined, /hashes only/);
+  rejects(null, /hashes only/);
+  rejects({}, /not a list/);
+  rejects([...good, entryOf('widgets/form.json')], /not a list/);
+  rejects([good[0], entryOf('widgets/form.json')], /widgets\/form\.json was not requested/);
+  rejects([good[0], good[0]], /supplied twice/);
+  rejects([good[0]], /widgets\/manifest\.json bytes are missing/);
+  rejects([good[0], { ...good[1], contentBase64: undefined }], /malformed/);
+  rejects([good[0], 'widgets/manifest.json'], /malformed/);
+  rejects([good[0], { ...good[1], contentBase64: 'not base64!' }], /not base64/);
+  rejects([good[0], { ...good[1], contentBase64: other.toString('base64') }], /do not match/);
+  rejects([good[0], { ...good[1], sha256: crypto.createHash('sha256').update(other).digest('hex'), contentBase64: other.toString('base64') }], /do not match/);
+  rejects(good, /widgets\/manifest\.json is not in the read-back inventory/, withoutManifest);
+});
+
+test('only the coordinator selects import-normalized-v1, for an owner-designated candidate on the available DEV2 preset', () => {
+  const sha = 'a'.repeat(64);
+  const dev2 = (extra = {}) => ({ preset: { id: 'preset-dev2', available: true, designatedCandidates: [sha], ...extra } });
+  assert.deepEqual(selectReadBackPolicy(dev2(), sha), { id: IMPORT_NORMALIZED_POLICY, version: 1, selectedBy: 'dev2-designated-candidate' });
+  assert.equal(selectReadBackPolicy(dev2(), sha.toUpperCase()).id, IMPORT_NORMALIZED_POLICY);
+  const exact = { id: READ_BACK_POLICY, version: 1, selectedBy: 'default' };
+  assert.deepEqual(selectReadBackPolicy(dev2(), 'b'.repeat(64)), exact);
+  assert.deepEqual(selectReadBackPolicy(dev2({ available: false }), sha), exact);
+  assert.deepEqual(selectReadBackPolicy(dev2({ id: 'preset-dev' }), sha), exact);
+  assert.deepEqual(selectReadBackPolicy({ id: 'custom', adapter: 'bridge', readBackPolicy: IMPORT_NORMALIZED_POLICY }, sha), exact);
+  assert.deepEqual(selectReadBackPolicy(undefined, sha), exact);
 });

@@ -59,6 +59,12 @@ Rules enforced in code:
   `confirm` re-reads the configuration, so a withdrawn designation refuses a
   prepared attempt. All other delivery guards still apply, including typed
   confirmation and the composed-candidate native eligibility gate.
+- A designated DEV2 delivery is the only one whose read-back uses
+  `import-normalized-v1`; every other delivery uses `exact-solution-inventory-v1`.
+  The coordinator selects and records the policy
+  ([selection](target-deployment.md#read-back-policy-selection)); its read-back
+  needs the bridge to return package/manifest bytes
+  ([metadata bytes](target-deployment.md#read-back-metadata-bytes)).
 - The predefined connections (`preset-dev`, `preset-dev2`) appear in every
   actor's `/api/connections` list, cannot be removed and are not stored. Each
   actor executes through their own operator bridge: the online bridge whose
