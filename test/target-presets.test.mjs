@@ -85,7 +85,8 @@ const fixture = (required = false) => zip([
 ]);
 async function setup(t, variables) {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'e365-preset-test-'));
-  t.after(async () => { assert.ok(path.basename(directory).startsWith('e365-preset-test-')); await fs.rm(directory, { recursive: true, force: true }); });
+  // Workers registered later still write into the directory: stop them all before removing it.
+  t.after(async () => { await Promise.all([...workers].map(worker => worker.stop())); assert.ok(path.basename(directory).startsWith('e365-preset-test-')); await fs.rm(directory, { recursive: true, force: true }); });
   const projects = projectStore(directory), bridges = bridgeStore(directory, { onlineMs: 5000, healthTimeoutMs: 1000 });
   let delivery;
   const releases = releaseStore(directory, projects, { deliverySummary: (id, owner) => delivery.summary(id, owner) });
@@ -102,6 +103,7 @@ async function approvedRelease(projects, releases, owner = 'alice') {
   return releases.change(release.id, owner, { revision: release.revision, action: 'approve', reason: 'Принимаю неизменённый архив' });
 }
 // In-process stand-in for `elma-dev bridge --target=<name>` pointed at `host`.
+const workers = new Set();
 function fakeWorker(bridges, token, { target, host, inventory = [] }) {
   let state = { inventory: structuredClone(inventory), version: 1 }, running = true;
   const log = [], identity = { host, version: '2025.10.97' };
@@ -119,7 +121,9 @@ function fakeWorker(bridges, token, { target, host, inventory = [] }) {
       } catch (error) { await bridges.complete(bridge, job.id, { ok: false, error: error.message }).catch(() => {}); }
     }
   })();
-  return { log, stop: async () => { running = false; await loop; } };
+  const worker = { log, stop: async () => { running = false; await loop; workers.delete(worker); } };
+  workers.add(worker);
+  return worker;
 }
 async function online(bridges, id, owner = 'alice') {
   for (const deadline = Date.now() + 5000; Date.now() < deadline; await new Promise(resolve => setTimeout(resolve, 25)))
