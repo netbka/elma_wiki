@@ -51,6 +51,6 @@ Until #60 is pinned in `NATIVE_MATERIALIZATION_CONTRACTS` after schema review, a
 
 - every real adapter returns `unavailable` and is never invoked, so `releaseEligible` stays false;
 - `SYNTHETIC_MATERIALIZATION_CONTRACT` is used only by `test/native-materialization.test.mjs`. Its output carries `synthetic-evidence-only`, has `evidenceBasis: synthetic` and is never native-valid or release-eligible;
-- no build manifest from this adapter may feed a P7 candidate as native evidence.
+- no build manifest from this adapter may feed a P7 candidate as native evidence. P7 ([target-deployment.md](target-deployment.md), composed candidates) freezes a manifest only after it re-derives this request from current Solution state. A synthetic or non-eligible candidate reaches only a synthetic training adapter.
 
 Native materialization is not claimed to work.

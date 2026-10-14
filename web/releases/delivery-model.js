@@ -11,18 +11,19 @@ export function deliveryPanelView(release, { capabilities, connections = [], att
   const enabled = synthetic || bridge;
   const selectable = connection => !!connection && connection.role === 'target' && connection.environment !== 'prod' && connection.probe?.protectedHost !== true && (connection.adapter === 'synthetic' ? synthetic : connection.adapter === 'bridge' ? bridge : false);
   const usable = connection => !!connection && connection.role === 'target' && connection.environment !== 'prod' && connection.probe?.ok === true && !!connection.probe.identity?.host && connection.probe?.protectedHost !== true && (connection.adapter === 'synthetic' ? synthetic : connection.adapter === 'bridge' ? bridge && bridges.some(b => b.id === connection.adapterOptions?.bridgeId && b.online) : false);
-  const active = attempts.some(a => ['prepared', 'deploying', 'deployed-unverified', 'unknown-outcome'].includes(a.state));
+  const active = attempts.some(a => ['prepared', 'deploying', 'deployed-unverified', 'unknown-outcome', 'partial-outcome'].includes(a.state));
   const approved = release.associationStatus !== 'stale' && release.approval?.revision === release.revision && !!release.candidate && !release.blockers.length;
   const viaBridge = latest?.connection?.adapter === 'bridge';
   return { latest, current, synthetic, bridge, enabled, selectable, usable, bridges, connections: connections.filter(c => c.role === 'target'),
     canPrepare: enabled && approved && !active,
     canConfirm: enabled && current && latest?.state === 'prepared' && usable(connections.find(c => c.id === latest.connection?.id)),
     canCancel: latest?.state === 'prepared',
-    canVerify: enabled && current && ['deployed-unverified', 'unknown-outcome', 'verification-failed'].includes(latest?.state),
+    canVerify: enabled && current && ['deployed-unverified', 'unknown-outcome', 'partial-outcome', 'verification-failed'].includes(latest?.state),
     confirmation: latest ? `DEPLOY ${latest.solutionCode} ${latest.sha256.slice(0, 12)}` : '',
     next: !enabled ? 'Доставка в ELMA пока недоступна. Используйте приватный пакет передачи.' :
       latest?.state === 'deploying' ? 'Операция выполняется. Обновите состояние; повторный запуск не нужен.' :
       latest && !current ? 'Попытка относится к прежнему кандидату или условиям. Её результат не подтверждает текущий релиз.' :
+      latest?.state === 'partial-outcome' ? 'Часть единиц установки не подтвердила применение. Прочитайте и проверьте состояние Target; повтор операции запрещён, нужен план восстановления.' :
       latest?.state === 'unknown-outcome' ? 'Результат неизвестен. Сначала прочитайте и проверьте состояние стенда; не повторяйте операцию.' :
       latest?.state === 'deployed-unverified' ? 'Прочитайте и сравните результат. Завершение операции ещё не означает совпадение.' :
       latest?.state === 'verified' && latest.verificationCurrent === false ? 'Прежняя проверка не подтверждает текущий кандидат. Сохраните историю и подготовьте новую проверяемую доставку.' :

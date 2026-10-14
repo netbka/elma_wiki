@@ -69,7 +69,7 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
   // The bridge adapter is always available: it only does something once an owner registers a bridge and an
   // operator runs the worker with the token. The service itself still makes no outbound connections.
   const bridges = bridgeStore(directory);
-  delivery = deliveryStore(directory, releases, { solutionHandoffs: solutions.handoffs, adapters: { ...(syntheticDelivery ? { synthetic: syntheticAdapter } : {}), bridge: (options, connection) => bridges.adapter(options, connection) }, protectedHosts: protectedTargetHosts, timeoutMs: deliveryTimeoutMs });
+  delivery = deliveryStore(directory, releases, { solutionHandoffs: solutions.handoffs, composedCandidates: solutions.composed, adapters: { ...(syntheticDelivery ? { synthetic: syntheticAdapter } : {}), bridge: (options, connection) => bridges.adapter(options, connection) }, protectedHosts: protectedTargetHosts, timeoutMs: deliveryTimeoutMs });
   let uploading = false;
   const loginBot = createVkLoginBot({ directory, issueLink: auth.issueVkLink });
   const server = http.createServer(async (req, res) => {
@@ -188,6 +188,32 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
           return res.end(bytes);
         }
         return send(res, releaseId ? 200 : 201, releaseId ? await handoffs.change(id, releaseId, input, session.user) : await handoffs.create(id, input, session.user));
+      }
+      // Frozen composed candidates (PLAN-01 P7). HTTP reads, reviews and delivers
+      // them; freezing build bytes is trusted server code, never a request body.
+      const composedRoute = /^\/api\/solutions\/([^/]+)\/composed(?:\/([^/]+)(?:\/(delivery))?)?$/.exec(pathname);
+      if (composedRoute) {
+        if (!session) return send(res, 404, { error: 'Решение не найдено' });
+        const [, id, candidateId, action] = composedRoute, composed = solutions.composed;
+        if (candidateId) await composed.authorize(id, candidateId); else await solutions.managed.authorize(id, SOLUTION_CATALOG);
+        if (action === 'delivery') {
+          const contextual = delivery.forComposed(id), executionActor = session.user.id;
+          if (req.method === 'GET') return send(res, 200, await contextual.list(candidateId, executionActor));
+          if (req.method !== 'POST') return send(res, 405, { error: 'Метод не поддерживается' });
+          if (req.headers['content-type']?.split(';')[0] !== 'application/json') return send(res, 415, { error: 'Требуется JSON' });
+          const input = JSON.parse((await body(req, 32 * 1024)).toString('utf8'));
+          const keys = { prepare: ['action', 'revision', 'connectionId'], confirm: ['action', 'attemptId', 'idempotencyKey', 'confirmation'], verify: ['action', 'attemptId'], cancel: ['action', 'attemptId'] };
+          if (!input || typeof input !== 'object' || Array.isArray(input) || !Object.hasOwn(keys, input.action) || Object.keys(input).some(key => !keys[input.action].includes(key)))
+            return send(res, 400, { error: 'Invalid contextual delivery request' });
+          if (input.action === 'prepare') return send(res, 201, await contextual.prepare(candidateId, executionActor, input));
+          if (input.action === 'confirm') return send(res, 200, await contextual.confirm(candidateId, input.attemptId, executionActor, input));
+          if (input.action === 'verify') return send(res, 200, await contextual.verify(candidateId, input.attemptId, executionActor));
+          return send(res, 200, await contextual.cancel(candidateId, input.attemptId, executionActor));
+        }
+        if (req.method === 'GET') return send(res, 200, candidateId ? await composed.get(id, candidateId) : await composed.list(id));
+        if (req.method !== 'POST' || !candidateId) return send(res, 405, { error: 'Метод не поддерживается' });
+        if (req.headers['content-type']?.split(';')[0] !== 'application/json') return send(res, 415, { error: 'Требуется JSON' });
+        return send(res, 200, await composed.change(id, candidateId, JSON.parse((await body(req, 32 * 1024)).toString('utf8')), session.user));
       }
       const acceptedExport = /^\/api\/solutions\/([^/]+)\/accepted-export(?:\/(original))?$/.exec(pathname);
       if (acceptedExport) {

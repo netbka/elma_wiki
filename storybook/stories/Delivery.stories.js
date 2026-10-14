@@ -8,7 +8,9 @@ const fixture = state => {
   const absent = ['unavailable', 'ready', 'load-error', 'protected-target'].includes(state);
   const attempt = absent ? null : { id: 'synthetic-attempt', state: state === 'stale' ? 'verified' : state, solutionCode: 'example', releaseRevision: state === 'stale' ? 3 : 4, candidateId: 'candidate', sha256: 'a'.repeat(64), connection, targetIdentity: connection.probe.identity,
     history: [{ state: state === 'stale' ? 'verified' : state, at: '2026-10-07T12:00:00Z', note: 'Учебное состояние, не доказательство работы ELMA' }],
-    evidence: { operation: ['verified', 'deployed-unverified', 'verification-failed', 'stale'].includes(state) ? { nativeResult: 'Учебная операция сообщила об успехе' } : null, comparison: ['verified', 'verification-failed', 'stale'].includes(state) ? { policy: 'exact-solution-inventory-v1', match: state !== 'verification-failed', compared: 1, volatile: [], missing: [], different: state === 'verification-failed' ? ['widgets/form.json'] : [], unexpected: state === 'verification-failed' ? ['permissionsSettings/extra.json'] : [] } : null } };
+    evidence: { operation: ['verified', 'deployed-unverified', 'verification-failed', 'stale'].includes(state) ? { nativeResult: 'Учебная операция сообщила об успехе' } : null, comparison: ['verified', 'verification-failed', 'stale'].includes(state) ? { policy: 'exact-solution-inventory-v1', match: state !== 'verification-failed', compared: 1, volatile: [], missing: [], different: state === 'verification-failed' ? ['widgets/form.json'] : [], unexpected: state === 'verification-failed' ? ['permissionsSettings/extra.json'] : [] } : null,
+      // Synthetic composed candidate: per-unit adapter receipts in import order, not a verified result.
+      ...(state === 'partial-outcome' ? { units: [{ unitId: 'contract-fields', status: 'applied', operationId: 'synthetic-1' }, { unitId: 'contract-approval', status: 'failed', operationId: 'synthetic-2' }, { unitId: 'contract-forms', status: 'unreported', operationId: null }] } : {}) } };
   const delivery = { attempts: attempt ? 1 : 0, latest: attempt && { ...attempt, connectionName: connection.name, adapter: 'synthetic' } };
   return { release: releaseView(record, delivery), data: { capabilities: { mode: state === 'unavailable' ? 'unavailable' : 'synthetic', liveDelivery: false }, connections: [connection], attempts: attempt ? [attempt] : [] } };
 };
@@ -54,6 +56,7 @@ export const Unverified = { render: () => story('deployed-unverified') };
 export const Verified = { render: () => story('verified') };
 export const Mismatch = { render: () => story('verification-failed') };
 export const Unknown = { render: () => story('unknown-outcome') };
+export const PartialOutcome = { render: () => story('partial-outcome') };
 export const Failed = { render: () => story('failed') };
 export const Blocked = { render: () => story('blocked') };
 export const Cancelled = { render: () => story('cancelled') };

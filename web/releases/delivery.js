@@ -152,6 +152,12 @@ export function mountDelivery({ release, client, onAction, onRefresh, onState, i
         if (comparison.unexpected?.length) attempt.append(el('p', 'Лишние файлы: ' + comparison.unexpected.join(', '), 'release-hash'));
       }
       if (latest.evidence.verificationError) attempt.append(el('p', 'Проверка результата не подтверждена. Проверьте личность стенда, ответ и актуальность кандидата; успешное сообщение операции не является доказательством.', 'note'));
+      const unitLabels = { pending: 'не запущена', dispatched: 'передана адаптеру, ответа ещё нет', applied: 'адаптер сообщил о применении', failed: 'ошибка', skipped: 'пропущена', unreported: 'результат не сообщён' };
+      if (latest.evidence.units?.length) {
+        const units = el('ol'); units.setAttribute('aria-label', 'Единицы установки');
+        for (const unit of latest.evidence.units) units.append(el('li', `${unit.unitId}: ${unitLabels[unit.status] || unit.status}`));
+        attempt.append(el('p', 'Ответы по единицам установки в порядке импорта. Это сообщения адаптера, не проверка результата.'), units);
+      }
       if (latest.evidence.operation) attempt.append(el('p', latest.evidence.operation.nativeResult || latest.evidence.operation.error || 'Операция завершилась; требуется проверка результата'));
       if (latest.evidence.rollbackReference) attempt.append(el('p', 'Зафиксировано состояние до операции. Восстановление документов или процессов этим не гарантируется.'));
       root.append(attempt);

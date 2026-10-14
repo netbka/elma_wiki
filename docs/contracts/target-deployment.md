@@ -63,19 +63,109 @@ uses the existing delivery renderer with this contextual client, actor-owned
 connections, typed confirmation, read-back and response-loss recovery. It
 projects `candidateStatus` and `verificationCurrent` into the Target check and
 history; a historical match never passes the current check after invalidation.
-Composed MR-06 candidates and live/native acceptance remain separate work. Existing
+Composed MR-06 candidates use the separate guarded namespace below; live/native acceptance remains separate work. Existing
 Target selection, typed confirmation, PROD refusal and native pilot gates remain
 required; offline approval alone does not authorize an import.
 
+### Composed candidates through the same coordinator (PLAN-01 P7, MR-06)
+
+`lib/composed-candidates.mjs` stores frozen composed candidates in the shared
+root (`shared-solutions/composed-candidates/:id/`, private file modes). There is
+no second coordinator, connection catalog or dispatch path. The existing
+`deliveryStore` resolves a third server-constructed reference namespace,
+`{namespace: 'composed', solutionId, id}`. Its attempts live in
+`delivery/attempts/composed/:candidateId/`. Equal UUIDs never resolve across
+the legacy, shared-original and composed roots. Host reservations scan all
+three roots, including unresolved records after restart.
+
+- **Freeze** (`freeze`, trusted server code only, no HTTP route). The input is
+  one P6 `materializeNative` result plus the P4 coverage, P5 dependency
+  evidence, compiler lock and Target profile it was built from. The store
+  re-derives the materialization request from the current Solution state and
+  its stored originals. It requires `materializationStatus(manifest, request) ===
+  'current'`, a `materialized` manifest with no blockers other than
+  `synthetic-evidence-only`, and output bytes equal to the manifest sha256. The
+  dependency profile must equal the Target profile, and every selected native
+  unit needs an import position. An `unavailable` (unpinned) build, tampered
+  bytes or manifest, a relocked compiler, another profile, or a later resolution
+  or review event is refused with 409.
+- **Binding.** The candidate binds the Solution revision, change artifact,
+  resolution id, revision, result and plan digests, review-event digest, P6
+  request, inputs and manifest digests, coverage and dependency plan digests and
+  Target profile digest. It also records units in native import order, the
+  Target profile `{digest, platformVersion}`, compiler lock, adapter,
+  `evidenceBasis` and `releaseEligible`. Content provenance is kept separately:
+  each original's uploader and the resolution actor. `frozenBy` and the
+  `approval` actor are kept too, and the delivery `executionActorId` is
+  separate again.
+- **Review.** `POST /api/solutions/:id/composed/:candidateId` with
+  `{action: approve | revoke, revision, reason}` approves or revokes the exact
+  frozen bytes for the authenticated actor. Approval is review acceptance, not a
+  deployment permission. `GET /api/solutions/:id/composed[/:candidateId]` shows
+  `inputsStatus` (`current | stale`) and `deliverable`.
+- **Stale inputs.** `withCandidate` holds the Solution queue through
+  `managed.withResolvedInputs` and then the candidate queue. Lock order is
+  delivery → Solution → candidate. A new resolution, a review comment or
+  finding, an archived Solution, an accepted or replaced change or a revoked
+  approval fails the final guarded write of prepare, confirm and verify with
+  409. Historical attempts then report `candidateStatus: stale` and
+  `verificationCurrent: false`.
+- **Eligibility guards at prepare.** A candidate without `evidenceBasis:
+  native` and `releaseEligible: true` reaches only a `synthetic` training
+  adapter; today every candidate is synthetic because P6 output stays
+  non-native until P8. The observed Target `version` must equal the bound
+  profile platform. A candidate with more than one unit requires an adapter
+  with `unitReceipts: true`; the operator bridge does not report receipts, so
+  it is refused. The existing PROD refusal, protected hosts, typed confirmation,
+  drift and identity checks apply unchanged.
+- **Dispatch and receipts.** `deploying` is persisted before the adapter
+  receives `{bytes, sha256, code, units}`. Per-unit evidence starts `pending`
+  (not started) at prepare and is persisted as `dispatched` together with
+  `deploying`, before the adapter call. It records only what the adapter reports (`applied | failed | skipped`);
+  anything else is `unreported`. The outcome is:
+  - all applied → `deployed-unverified`;
+  - all unreported → `unknown-outcome`;
+  - none applied and none unreported → `failed`, or `deployed-unverified` when
+    every unit was only skipped;
+  - any other mix → the new `partial-outcome` state.
+
+  An adapter error without receipts on a multi-unit candidate is
+  `unknown-outcome`, not `failed`, because an earlier unit may have applied;
+  on a single-unit candidate the only unit is recorded `failed` with the
+  attempt. A timeout is always `unknown-outcome` with every unreported unit
+  `unreported` (or `partial-outcome` when receipts show some units applied);
+  no unit ever keeps `pending` or `dispatched` once the operation has ended.
+  `partial-outcome` holds the Target reservation and allows only read-back. It
+  cannot be confirmed again or cancelled. A read-back that fails before the
+  same Target is observed (adapter or health error, invalid response, changed
+  identity) records `verificationError` but keeps `deployed-unverified`,
+  `unknown-outcome` or `partial-outcome` and its reservation; only an observed
+  read-back moves the attempt to `verified` or `verification-failed`. A restart turns `deploying` into
+  `unknown-outcome` with pending or dispatched units `unreported`. No outcome is ever
+  redispatched. The same idempotency key replays the stored attempt; another
+  key is refused. Only a matching whole-inventory read-back yields `verified`.
+- **API.** `GET/POST /api/solutions/:id/composed/:candidateId/delivery` accepts
+  exactly the same actions and keys as the shared-original route. Forged
+  owner, actor, namespace, bytes, units or Solution fields are rejected with
+  400.
+
+The delivery renderer shows the `partial-outcome` state and the per-unit
+receipts in import order (Storybook `delivery--partial-outcome`). No Solution
+composer screen exists yet, and no live, native or business result is claimed:
+`node --test test/composed-delivery.test.mjs` uses synthetic archives, the
+synthetic P6 assembler and the synthetic Target adapter only. The native
+release eligibility of a composed candidate remains blocked on the open P8 gate
+(netbka/elma365#60).
+
 `lib/delivery.mjs` implements attempts behind the adapter interface from the [connections contract](source-target-connections.md). API: `/api/connections` (owner-scoped references, read-only `probe`), `GET/POST /api/releases/:id/delivery` with actions `prepare`, `confirm`, `verify`, `cancel`. Authenticated GET `/api/delivery/capabilities` reports `mode` (`synthetic` or `bridge`), `bridge: true` (the operator-bridge adapter is registered) and the adapter list; `liveDelivery` stays `false` until a live delivery has been verified. Every route authorizes the owner first; connections and attempts live in `.local/delivery/`, private file modes, outside Git.
 
-Attempt states: `prepared -> deploying -> deployed-unverified -> verified | verification-failed`, plus `failed` (adapter error), `unknown-outcome` (timeout or service restart during `deploying`), `blocked` (identity or target state changed after preparation), and `cancelled` (owner cancelled preparation before dispatch). Only a matching read-back produces `verified`. The release's `target` check is `pass` only for a verified attempt bound to its current revision, candidate ID/hash and acceptance. Changing conditions or the candidate makes historical evidence `stale`, including in mutation responses. Synthetic results are training evidence, not ELMA delivery.
+Attempt states: `prepared -> deploying -> deployed-unverified -> verified | verification-failed`, plus `failed` (adapter error), `unknown-outcome` (timeout or service restart during `deploying`), `partial-outcome` (composed candidates only: mixed or incomplete per-unit receipts), `blocked` (identity or target state changed after preparation), and `cancelled` (owner cancelled preparation before dispatch). Only a matching read-back produces `verified`. The release's `target` check is `pass` only for a verified attempt bound to its current revision, candidate ID/hash and acceptance. Changing conditions or the candidate makes historical evidence `stale`, including in mutation responses. Synthetic results are training evidence, not ELMA delivery.
 
 Guards enforced server-side:
 - `prepare` requires current acceptance and the frozen candidate, a target-role connection, a reachable Target with confirmed identity, deploy/read-back capabilities and no active attempt for this release. It records identity and the pre-deploy solution inventory hash.
 - `environment: prod` is refused (403). A probed host in `PROTECTED_TARGET_HOSTS` is refused regardless of its name.
 - `confirm` requires `DEPLOY <solution code> <first 12 hex of candidate SHA-256>` and an idempotency key. It checks release revision, candidate ID/hash and acceptance, then re-probes health/identity and re-inspects the Target. Unhealthy/changed identity or drift blocks dispatch. `deploying` is persisted before the adapter is called. Repeating the same key returns the existing attempt; another key on a non-prepared attempt is 409. At most one dispatch per attempt.
-- `verify` requires the exact approved candidate and matching byte hash. It probes healthy, unchanged identity before and after read-back and rechecks candidate/revision/acceptance after the asynchronous operation. Invalid responses or changed identity/revision persist `verification-failed` with no passing comparison. It is allowed from `deployed-unverified`, `unknown-outcome` and `verification-failed`.
+- `verify` requires the exact approved candidate and matching byte hash. It probes healthy, unchanged identity before and after read-back and rechecks candidate/revision/acceptance after the asynchronous operation. Invalid responses or changed identity persist `verificationError` with no passing comparison; an unresolved attempt (`deployed-unverified`, `unknown-outcome`, `partial-outcome`) keeps its state and Target reservation until a read-back observes the same Target, so a failed read never permits redispatch. A revision/candidate change after an observed read-back, or a failure from `verification-failed`, persists `verification-failed`. It is allowed from `deployed-unverified`, `unknown-outcome` and `verification-failed`.
 - `cancel` authorizes the release owner, releases only a prepared attempt's lock and retains history without calling the adapter. It cannot cancel a dispatched operation or resolve an unknown outcome.
 - Connections reject credential-like keys and URLs with embedded credentials. Adapters receive non-secret options only.
 
