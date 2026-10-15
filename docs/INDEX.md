@@ -32,6 +32,7 @@ Routing, not an always-read checklist.
 | Snapshot/storage | contracts/project-snapshots.md |
 | Shared authenticated Solution catalog and persistent actors | [contracts/shared-solutions.md](contracts/shared-solutions.md) |
 | Current Solution UI and deterministic next action | [workflows/solutions.md](workflows/solutions.md) |
+| Intuitive Solution UI: one fixed pull-from-server path, understanding pages, plain-language change requests, competitor research and vocabulary (proposed) | [plans/intuitive-solution-ui-2026-10-15.md](plans/intuitive-solution-ui-2026-10-15.md) |
 | Two-person uncoached acceptance and isolated synthetic test session | [workflows/uncoached-usability.md](workflows/uncoached-usability.md) |
 | Open issue evidence and outstanding acceptance gates | [audits/open-issues-2026-10-08.md](audits/open-issues-2026-10-08.md) |
 | Lane B native version/process/application evidence and candidate/Target pilot gates | [audits/lane-b-elma-evidence-2026-10-08.md](audits/lane-b-elma-evidence-2026-10-08.md) |

@@ -1,6 +1,6 @@
 # Solution-first contradiction and migration register
 
-Status: active product-convergence register. Updated 2026-10-08.
+Status: active product-convergence register. Updated 2026-10-15.
 Authority: [SOLUTION_FIRST_PRODUCT_PLAN.md](SOLUTION_FIRST_PRODUCT_PLAN.md), with the owner's working-configuration correction #94 / PR #92.
 
 ## Current resolutions
@@ -31,6 +31,7 @@ Authority: [SOLUTION_FIRST_PRODUCT_PLAN.md](SOLUTION_FIRST_PRODUCT_PLAN.md), wit
 | Shared handoff vs legacy delivery | Keep correct cross-root 404; add contextual guarded dispatch | Reuse one #11 queue/reservations and trusted operational actor, not shared storage principal |
 | Public/Vercel | Internal product remains priority | Learn secondary; no unassigned Vercel work |
 | Wiki-local owner-stop rules vs inherited portfolio governance | AGENTS inherits the portfolio Constitution and Owner Intervention Contract by reference; Wiki adds only the recorded owner triggers | One section, [Owner-reserved matters and blockers](SOLUTION_FIRST_PRODUCT_PLAN.md#owner-reserved-matters-and-blockers), classifies stops by B0-B5; other documents link to it |
+| Declared scope/base/responsibility questions in the Add solution / Add change journey vs the owner's 2026-10-15 fixed-path direction | Primary path is pull-from-named-server only: full snapshot, same Source and base derived by the server; no partial, scope, base or responsibility question in the primary UI. Servers offered: DEV (main) and dev2, read-only export. The engine keeps partial/declared-base support for legacy uploads under "Прежние загрузки" | [plans/intuitive-solution-ui-2026-10-15.md](plans/intuitive-solution-ui-2026-10-15.md) UX-01; `workflows/solutions.md` and acquisition contract updated when UX-01 lands |
 | VK/agent orchestration | Secondary mechanism advancing the same lifecycle | #19/#89 pilot is not prerequisite for manually creating a working release |
 
 ## Shared-content and retention invariants
