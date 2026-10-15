@@ -124,3 +124,25 @@ test('UX-03: the review summary counts every row once, names a no-change version
   const grouped = groupDependencies(mixed.dependencies.rows);
   assert.equal(grouped.length, 2); assert.equal(grouped[0].required, true, 'required first'); assert.equal(grouped[1].count, 14);
 });
+
+test('UX-03b decision choices: a closed gate disables acceptance with its reason, discussion enables fixes/comment, accepted or closed or stale reviews offer nothing', async () => {
+  const { decisionChoices, decisionDefault, canCloseWithoutChanges, reviewSummary } = await import('../web/managed/model.js');
+  const partial = managedFixture('review').review;
+  const blocked = decisionChoices(partial);
+  assert.deepEqual(blocked.map(choice => [choice.id, choice.disabled]), [['accept', true], ['request-fixes', false], ['comment', false]]);
+  assert.equal(blocked[0].reason, reviewGate(partial));
+  assert.equal(decisionDefault(blocked), 'request-fixes');
+  const open = decisionChoices(partial, '');
+  assert.equal(open[0].disabled, false); assert.equal(decisionDefault(open), 'accept');
+  const silent = { ...partial, discussion: null };
+  assert.deepEqual(decisionChoices(silent, '').map(choice => choice.id), ['accept']);
+  assert.deepEqual(decisionChoices({ ...partial, acceptedAt: 'x' }), []);
+  assert.deepEqual(decisionChoices({ ...partial, closedAt: 'x' }), []);
+  assert.deepEqual(decisionChoices({ ...partial, stale: true }), []);
+  assert.equal(decisionDefault([{ id: 'accept', disabled: true }]), null);
+  const none = managedFixture('summary-no-changes').review, mixed = managedFixture('summary-mixed').review;
+  assert.equal(canCloseWithoutChanges(none, reviewSummary(none)), true);
+  assert.equal(canCloseWithoutChanges(mixed, reviewSummary(mixed)), false);
+  assert.equal(canCloseWithoutChanges({ ...none, ambiguities: [{ reason: 'x' }] }, reviewSummary({ ...none, ambiguities: [{ reason: 'x' }] })), false);
+  assert.equal(canCloseWithoutChanges(managedFixture('summary-closed').review, reviewSummary(none)), false);
+});

@@ -30,7 +30,7 @@ export function managedFixture(mode = 'overview') {
     if (mode === 'review-accepted') { review.acceptedAt = at; review.acceptedDecision = { actor, boundaryKeys: [finding.anchor.key], resolutions: null }; }
   }
   // UX-03: summary line, chips, ribbon and grouping on a mixed review and on a no-change version.
-  if (mode === 'summary-mixed' || mode === 'summary-no-changes') {
+  if (['summary-mixed', 'summary-no-changes', 'summary-closed'].includes(mode)) {
     const extra = (service, namespace, code, kind, name, classification, extraFields = {}) => ({ code, key: JSON.stringify(service === 'widgets' ? [service, namespace, code] : [service, namespace, kind, code]),
       service, namespace, kind, name, classification, previousTeam: 'Команда внедрения', digest: 'a'.repeat(64), ...extraFields });
     review.kind = 'reconciliation'; review.options = { baselineOwner: 'Команда внедрения' };
@@ -39,7 +39,7 @@ export function managedFixture(mode = 'overview') {
     review.dependencies = { provenance: 'configured-source-capture', rows: [
       ...Array.from({ length: 14 }, () => ({ required: false, service: 'processor', targetNamespace: '_system_catalogs', targetCode: '_my_companies', status: 'provider-not-observed' })),
       { required: true, service: 'widgets', targetNamespace: '_clients', targetCode: '_companies', status: 'component-source-present' }] };
-    review.rows = mode === 'summary-no-changes'
+    review.rows = mode !== 'summary-mixed'
       ? [{ ...component('contract'), classification: 'unchanged' }, { ...component('approval'), classification: 'unchanged' }, extra('permissionsSettings', 'synthetic', 'contract', 'permissionSettings', null, 'unchanged')]
       : [extra('processor', 'contract_management.contracts', 'approval_process', 'template', 'Согласование договора', 'external-change'),
         extra('widgets', 'contract_management.contracts', 'create_form', 'WIDGET', 'Форма создания договора', 'intervention-added', { previousTeam: null }),
@@ -62,10 +62,13 @@ export function managedFixture(mode = 'overview') {
         ...['comment','returnReason'].map(code => ({ id: JSON.stringify(['variable',code]), kind: 'variable', code, name: code, team: conflict ? 'Внутренняя команда' : null, classification: conflict ? 'known-change-incorporated' : 'element-added' }))
       ] } }];
   }
+  // UX-03b: a version closed without changes, and the decision dialog open on a review.
+  if (mode === 'summary-closed') { review.closedAt = at; review.closedDecision = { actor, reason: 'no-difference' }; }
   if (mode === 'archived') { workspace.status = 'archived'; workspace.history.push({ type: 'archived' }); }
   if (mode === 'pending') workspace.pending = [{ artifactId: review.artifactId, kind: review.kind, revision: 1, stale: false, options: review.options }];
   const model = { synthetic: true, shared: true, home: '/solutions', api: '/api/solutions', view: 'overview', workspace };
-  if (['review', 'conflict', 'overlap', 'ambiguous'].includes(mode) || mode.startsWith('review-') || mode.startsWith('elements-') || mode.startsWith('summary-')) Object.assign(model, { view: 'review', review });
+  if (['review', 'conflict', 'overlap', 'ambiguous', 'decision'].includes(mode) || mode.startsWith('review-') || mode.startsWith('elements-') || mode.startsWith('summary-')) Object.assign(model, { view: 'review', review });
+  if (mode === 'decision') model.decisionOpen = true;
   if (['create', 'create-legacy', 'empty', 'list', 'loading', 'load-error'].includes(mode) || mode.startsWith('pull-')) {
     delete model.workspace; model.view = ['create', 'create-legacy'].includes(mode) || mode.startsWith('pull-') ? 'create' : 'list';
     model.rows = mode === 'list' ? [{ ...workspace, baselineSnapshot: base.snapshot, changedComponents: 1, pendingCount: 2, current: undefined, pending: undefined }] : [];

@@ -1,5 +1,6 @@
 import { componentName, dateLabel, labels, elementLabels, elementKinds, responsibilityLabel, responsibilityReport, reviewGate, workspaceSummary, workspaceUrl as buildUrl, solutionNextAction, objectLabel, objectFromKey, groupObjects, reviewSummary, reviewBucket, objectModule } from './model.js';
-import { nouns, grouping, ribbon, facts, reviewSummary as summaryLabels } from './labels.js';
+import { nouns, grouping, ribbon, facts, reviewSummary as summaryLabels, decision as decisionLabels, diagram as diagramLabels } from './labels.js';
+import { decisionChoices, decisionDefault, canCloseWithoutChanges } from './model.js';
 import { mountSnapshotVisual } from '../visual/render.js';
 import { mountExplanation } from '../explanations/render.js';
 import { mountRelease } from '../releases/render.js';
@@ -204,8 +205,8 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
       }
       current.append(visualTarget);
       history.append(el('h2', 'Принятые изменения'), el('p', `Изменений: ${state.changes.length} · Обновлений версии: ${state.reconciliations.length}`));
-      for (const row of state.reviewedChanges || []) history.append(link(row.kind === 'change' ? row.options.taskRef : 'Обновление версии', workspaceUrl(state.id, 'review', row.artifactId)));
-      const events = { created: 'Добавлено решение', 'change-accepted': 'Принято изменение', 'baseline-accepted': 'Принята новая версия', archived: 'Перемещено в архив', reopened: 'Работа возобновлена' };
+      for (const row of state.reviewedChanges || []) history.append(link(`${row.kind === 'change' ? row.options.taskRef : 'Обновление версии'}${row.closedAt ? ` · ${decisionLabels.closedNoChanges}` : ''}`, workspaceUrl(state.id, 'review', row.artifactId)));
+      const events = { created: 'Добавлено решение', 'change-accepted': 'Принято изменение', 'baseline-accepted': 'Принята новая версия', 'closed-no-changes': decisionLabels.closedNoChanges, archived: 'Перемещено в архив', reopened: 'Работа возобновлена' };
       const list = el('ol'); state.history.forEach(row => list.append(el('li', events[row.type] || row.type))); history.append(list);
       const artifacts = el('details'); artifacts.append(el('summary', 'Исходные файлы и технические данные'), el('p', summary.source),
         el('p', `Заявленная ответственность: ${state.baselineOwner}. Авторы публикаций ELMA не установлены.`),
@@ -387,20 +388,24 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
 
   if (view === 'review' && review) {
     const followups = el('div', undefined, 'managed-actions');
-    let selectedSource = null, showSelectedSource = () => {};
+    let selectedSource = null, showSelectedSource = () => {}, diagram = null;
     if (actions.visual) {
       const details=el('details'), target=el('div');
       details.append(el('summary','Посмотреть процесс и форму'),target); content.append(details);
-      let loaded=false;
+      let loaded=null;
       const load=async()=>{
         target.replaceChildren(mountSnapshotVisual({loading:true}));
-        try { target.replaceChildren(mountSnapshotVisual(await actions.visual(review.artifactId), {
+        try { const visual = mountSnapshotVisual(await actions.visual(review.artifactId), {
           explanations: actions.explanations,
           selectAnchor: anchor => { selectedSource = anchor; showSelectedSource(); }
-        })); loaded=true; }
-        catch(e){target.replaceChildren(mountSnapshotVisual({error:e.message},{retry:load}));}
+        }); target.replaceChildren(visual); return visual; }
+        catch(e){target.replaceChildren(mountSnapshotVisual({error:e.message},{retry:load})); loaded=null; return null;}
       };
-      details.ontoggle=()=>{if(details.open&&!loaded)load();};
+      details.ontoggle=()=>{if(details.open&&!loaded)loaded=load();};
+      // UX-03b "Открыть схему": open the captured diagram on one changed process
+      // with its changed steps highlighted. The highlight is a projection of the
+      // review's process parts; native behaviour stays unobserved.
+      diagram = { open: async (object, nodeIds) => { details.open = true; loaded ||= load(); const visual = await loaded; return visual?.focusProcess?.({ object, nodeIds }) ?? false; } };
     }
     const full = review.kind === 'reconciliation', form = el('form'), boundaryKeys = new Set(), resolutions = {};
     content.append(el('h2', full ? 'Рассмотреть обновление версии' : 'Рассмотреть изменение'),
@@ -411,7 +416,18 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
     const rowsWithMeta = review.rows.map(row => ({ ...objectOf(row.key, review.artifactId), ...row }));
     const summary = reviewSummary(review, rowsWithMeta);
     const summaryBlock = el('section', undefined, 'managed-summary');
-    if (summary.noDifference) summaryBlock.append(el('p', facts.noDifference, 'managed-note'), link(actionLabels.refreshAgain, workspaceUrl(state.id, 'full')));
+    // A version with no difference offers two actions and no decision dialog:
+    // close it (server operation, nothing advances) or pull again.
+    const closable = canCloseWithoutChanges(review, summary) && !!actions.close;
+    if (summary.noDifference) {
+      summaryBlock.append(el('p', facts.noDifference, 'managed-note'));
+      const noChangeActions = el('div', undefined, 'managed-actions');
+      if (closable) {
+        noChangeActions.append(el('p', decisionLabels.closeNote, 'managed-muted'));
+        button(actionLabels.closeNoChanges, () => run(() => actions.close(review.artifactId, { expectedRevision: review.revision, reviewedDigest: review.artifactDigest })), noChangeActions);
+      }
+      noChangeActions.append(link(actionLabels.refreshAgain, workspaceUrl(state.id, 'full'), !closable)); summaryBlock.append(noChangeActions);
+    }
     const line = el('p', summary.line, 'managed-summary-line'); line.setAttribute('role', 'status'); summaryBlock.append(line);
     const chips = el('ul', undefined, 'managed-chips'); chips.setAttribute('aria-label', 'Факты');
     const chip = (text, tone) => chips.append(el('li', text, tone));
@@ -452,13 +468,79 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
       const a = el('a'); a.href = url; a.download = 'responsibility-review.txt'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
     }).className = 'secondary';
     if (review.acceptedAt) content.append(el('p', `Принято: ${dateLabel(review.acceptedAt)} · ${review.acceptedDecision?.actor?.login || 'Автор решения не зафиксирован'}`, 'managed-accepted'));
+    if (review.closedAt) content.append(el('p', `${decisionLabels.closedNoChanges}: ${dateLabel(review.closedAt)} · ${review.closedDecision?.actor?.login || 'Автор решения не зафиксирован'}`, 'managed-accepted managed-closed'));
     if (review.stale) content.append(el('p', !full && review.merge && mergeResolutionView(review.merge).editable
       ? 'Это рассмотрение подготовлено до последних принятых изменений; принять его нельзя. Решение конфликтов выше сохраняется отдельно и ничего не принимает.'
       : 'Это прежнее рассмотрение. Комментарии и исходные ссылки сохранены; новые решения здесь недоступны.', 'managed-note'),
       link(review.supersededBy ? 'Открыть актуальное изменение' : 'Обновить состояние', workspaceUrl(state.id, review.supersededBy ? 'review' : null, review.supersededBy), true));
     const gate = el('p', '', 'managed-note'); gate.setAttribute('role', 'status');
-    const submit = el('button', full ? 'Принять версию' : 'Принять изменение'); submit.type = 'submit';
-    const update = () => { gate.textContent = reviewGate(review, [...boundaryKeys], resolutions); submit.disabled = !!gate.textContent; submit.dataset.unavailable = String(submit.disabled); };
+    // UX-03b: one button opens one dialog with the three choices (accept,
+    // request fixes, comment only). A closed gate disables acceptance inside the
+    // dialog and shows its reason; the other two choices stay available so a
+    // reviewer can always say what is wrong. The dialog replaces the former
+    // confirmation checkbox: choosing and confirming is the explicit step.
+    const decide = el('button', actionLabels.decide); decide.type = 'button';
+    const dialog = el('dialog', undefined, 'managed-decision'), dialogForm = el('form'), choicesBox = el('fieldset'), radios = new Map(), notes = new Map();
+    const title = el('h2', actionLabels.decide); title.id = 'managed-decision-' + ++sequence; dialog.setAttribute('aria-labelledby', title.id);
+    const choiceLabels = {
+      accept: [actionLabels.accept, full ? decisionLabels.acceptVersionNote : decisionLabels.acceptChangeNote, full ? decisionLabels.acceptVersion : decisionLabels.acceptChange],
+      'request-fixes': [actionLabels.requestFixes, decisionLabels.requestFixesNote, actionLabels.requestFixes],
+      comment: [actionLabels.commentOnly, decisionLabels.commentOnlyNote, decisionLabels.sendComment] };
+    choicesBox.append(el('legend', decisionLabels.question));
+    const commentLabel = el('label'), commentCaption = el('span', decisionLabels.comment), commentText = el('textarea');
+    commentText.id = title.id + '-text'; commentText.maxLength = 4000; commentLabel.htmlFor = commentText.id; commentLabel.append(commentCaption, commentText);
+    const dialogSubmit = el('button', actionLabels.decide); dialogSubmit.type = 'submit';
+    const cancel = el('button', actionLabels.cancel, 'secondary'); cancel.type = 'button'; cancel.onclick = () => dialog.close();
+    const choiceOf = () => [...radios.entries()].find(([, radio]) => radio.checked)?.[0] ?? null;
+    // Until the reviewer picks a choice, the default follows the gate: opening
+    // the gate (every boundary confirmed, every conflict decided) makes
+    // acceptance the preselected choice again.
+    let chosen = false;
+    const syncDialog = () => {
+      const choice = choiceOf();
+      commentCaption.textContent = choice === 'accept' ? decisionLabels.commentOptional : decisionLabels.comment;
+      commentText.required = choice !== 'accept';
+      dialogSubmit.textContent = choice ? choiceLabels[choice][2] : actionLabels.decide; dialogSubmit.disabled = !choice;
+    };
+    const update = () => {
+      gate.textContent = reviewGate(review, [...boundaryKeys], resolutions);
+      const choices = decisionChoices(review, gate.textContent);
+      for (const choice of choices) {
+        const radio = radios.get(choice.id); if (!radio) continue;
+        radio.disabled = choice.disabled; notes.get(choice.id).textContent = choice.disabled ? choice.reason : choiceLabels[choice.id][1];
+        if (radio.disabled && radio.checked) radio.checked = false;
+      }
+      if (!chosen || !choiceOf()) { const fallback = decisionDefault(choices); for (const radio of radios.values()) radio.checked = false; if (fallback) radios.get(fallback).checked = true; }
+      decide.dataset.unavailable = String(!!gate.textContent); syncDialog();
+    };
+    for (const choice of decisionChoices(review)) {
+      // The note explains the choice but is not its name: it sits outside the
+      // label and is linked with aria-describedby so "Принять" stays "Принять".
+      const row = el('div', undefined, 'managed-choice'), label = el('label'), radio = el('input'), note = el('small', '', 'managed-muted');
+      radio.type = 'radio'; radio.name = 'decision'; radio.value = choice.id; radio.onchange = () => { chosen = true; syncDialog(); };
+      note.id = title.id + '-' + choice.id + '-note'; radio.setAttribute('aria-describedby', note.id);
+      label.append(radio, el('span', choiceLabels[choice.id][0])); row.append(label, note); choicesBox.append(row); radios.set(choice.id, radio); notes.set(choice.id, note);
+    }
+    const dialogActions = el('div', undefined, 'managed-actions'); dialogActions.append(dialogSubmit, cancel);
+    dialogForm.append(title, choicesBox, commentLabel, dialogActions); dialog.append(dialogForm);
+    dialogForm.onsubmit = event => {
+      event.preventDefault();
+      const choice = choiceOf(); if (!choice || !dialogForm.reportValidity()) return;
+      const text = commentText.value.trim();
+      if (choice === 'accept') {
+        if (reviewGate(review, [...boundaryKeys], resolutions) || !form.reportValidity()) { update(); return; }
+        dialog.close();
+        run(() => actions.accept(review.artifactId, { expectedRevision: review.revision, reviewedDigest: review.artifactDigest,
+          ...(review.discussion ? { expectedDiscussionRevision: review.discussion.version } : {}), ...(text ? { comment: text } : {}),
+          ...(full ? { resolutions } : { reviewedBoundaryKeys: [...boundaryKeys] }) }));
+        return;
+      }
+      dialog.close();
+      run(() => actions.comment(review.artifactId, { expectedRevision: state.revision, expectedDiscussionRevision: review.discussion.version,
+        type: choice === 'request-fixes' ? 'reject' : 'comment', text }));
+    };
+    const openDialog = () => { update(); if (!dialog.open) { if (typeof dialog.showModal === 'function') dialog.showModal(); else dialog.open = true; } (choiceOf() ? radios.get(choiceOf()) : commentText).focus(); };
+    decide.onclick = openDialog;
     // UX-03: status ribbon with counts filters the cards; changed objects come
     // first, grouped by module when there is more than one; unchanged objects
     // are one collapsed group. Hidden cards keep their controls; the gate reads
@@ -501,6 +583,15 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
         if (row.elements.rows.length > 100) card.append(el('p', 'Показаны первые 100 частей. Полный список — в отчёте об ответственности.'));
         if (full && row.classification === 'conflict') card.append(el('p', 'Части помогают понять конфликт. Выбор версии применяется ко всему исходному файлу процесса; автоматического объединения нет.'));
       } else if (row.previousTeam || row.team) card.append(el('p', 'Текущая ответственность: ' + (row.previousTeam || row.team)));
+      if (row.elements && diagram) {
+        const changedSteps = row.elements.rows.filter(part => part.kind === 'node' && part.classification !== 'unchanged').map(part => part.code);
+        const diagramNote = el('p', '', 'managed-muted'); diagramNote.setAttribute('role', 'status');
+        const open = button(actionLabels.openDiagram, async () => {
+          open.disabled = true; diagramNote.textContent = '';
+          try { if (!(await diagram.open(row.key, changedSteps))) diagramNote.textContent = diagramLabels.processNotFound; }
+          finally { open.disabled = false; }
+        }, card); open.className = 'secondary'; card.append(diagramNote);
+      }
       if (row.removed) card.append(el('p', 'Объект отсутствует в новом полном снимке. Выбор снимка удалит его из рабочего состояния.'));
       if (!full && row.boundaryCrossing && !review.acceptedAt && !review.stale) {
         const choice = check(card, 'Изменение принятого объекта проверено'); choice.onchange = () => { choice.checked ? boundaryKeys.add(row.key) : boundaryKeys.delete(row.key); update(); };
@@ -545,17 +636,11 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
     if (review.dependencies) form.append(mountDependencies(review.dependencies));
     if (review.ambiguities.length) technical(form, 'Нераспознанные части', review.ambiguities);
     form.append(link('Скачать исходный файл', `${api}/${state.id}/artifacts/${review.artifactId}/original`));
-    if (!review.acceptedAt && !review.stale) {
-      const confirm = check(form, full ? 'Принимаю версию и выбранные решения; установка в ELMA не выполняется' : 'Принимаю рассмотренное изменение'); confirm.required = true;
-      form.append(gate, submit); update();
-      if (review.discussion?.blocking) submit.hidden = true;
-    }
-    form.onsubmit = event => { event.preventDefault(); if (reviewGate(review, [...boundaryKeys], resolutions) || !form.reportValidity()) return;
-      run(() => actions.accept(review.artifactId, { expectedRevision: review.revision, reviewedDigest: review.artifactDigest,
-        ...(review.discussion ? { expectedDiscussionRevision: review.discussion.version } : {}),
-        ...(full ? { resolutions } : { reviewedBoundaryKeys: [...boundaryKeys] }) }));
-    };
+    const decidable = decisionChoices(review).length > 0 && !closable;
+    if (decidable) { form.append(gate, decide); update(); }
+    form.onsubmit = event => { event.preventDefault(); if (decidable) openDialog(); };
     content.append(form);
+    if (decidable) { content.append(dialog); if (model.decisionOpen) { dialog.open = true; update(); } }
     if (review.discussion) {
       const discussion = el('section', undefined, 'change-discussion'); discussion.append(el('h2', 'Комментарии и замечания'));
       const anchorLabels = { current: 'Объект совпадает', stale: 'Объект изменился; исходная ссылка сохранена', removed: 'Объект удалён из полного экспорта', ambiguous: 'Связь с объектом неоднозначна' };
@@ -583,12 +668,11 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
           ...(parentId ? { parentId } : key?.value ? { componentKey: key.value, ...(selectedSource ? { sourceAnchor: selectedSource } : {}) } : {}) }); };
         const submit = el('button', type === 'comment' ? 'Комментарий' : type === 'reply' ? 'Ответить' : type === 'resolve' ? 'Замечание устранено' : 'Открыть замечание', 'secondary'); submit.type = 'submit'; f.append(submit);
         f.onsubmit = event => { event.preventDefault(); if (f.reportValidity()) run(() => send(type)); };
-        if (type === 'comment') button('Нужны изменения', () => { if (f.reportValidity()) run(() => send('reject')); }, f).className = 'secondary';
         parent.append(f);
       };
       if (!review.discussion.findings.length) discussion.append(el('p', 'Комментариев пока нет.'));
       for (const finding of review.discussion.findings) {
-        const card = el('article', undefined, 'managed-card'); card.append(el('h3', finding.type === 'reject' ? finding.status === 'open' ? 'Нужны изменения' : 'Замечание устранено' : 'Комментарий'),
+        const card = el('article', undefined, 'managed-card'); card.append(el('h3', finding.type === 'reject' ? finding.status === 'open' ? decisionLabels.requestedFixes : decisionLabels.fixesDone : 'Комментарий'),
           el('p', `${finding.actor?.login || finding.author} · ${dateLabel(finding.createdAt)}`, 'managed-muted'), el('p', finding.text, 'change-text'));
         if (finding.anchor?.key) card.append(el('p', `${objectLabel(objectOf(finding.anchor.key, review.artifactId)).text} · ${(finding.sourceAnchor ? stepLabels : anchorLabels)[finding.anchorStatus]}`, 'managed-muted'));
         if (finding.sourceAnchor) { card.append(el('p', 'Шаг: ' + finding.sourceAnchor.nodeId)); technical(card, 'Исходная ссылка на шаг', finding.sourceAnchor); }

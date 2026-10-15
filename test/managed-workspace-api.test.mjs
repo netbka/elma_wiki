@@ -216,3 +216,39 @@ test('HTTP Source confirmation is explicit; known different connections cannot b
   assert.equal(manual.sourceDeclaration.declaredBy, 'local');
   assert.equal((await json(await request(id))).revision, state.revision);
 });
+
+test('UX-03b: a no-difference version is closed without advancing anything; a differing version refuses the close; a decision comment becomes the acceptance text', async t => {
+  const { request, post, upload } = await setup(t);
+  const source = { connectionId: 'config-api-dev', solutionRef: 'synthetic_solution' };
+  const base = await upload([['a', 'base']], 'full', { source });
+  let state = await json(await post('', { name: 'Pulled solution', snapshot: base.ref }), 201);
+  const id = '/' + state.id, revisionBefore = state.revision;
+  // Same content pulled again: every object is unchanged, so the version can be closed.
+  const same = await upload([['a', 'base']], 'full', { source });
+  const prepared = await json(await post(id + '/prepare', { kind: 'reconciliation', snapshot: same.ref, expectedRevision: state.revision }), 201);
+  assert.ok(prepared.rows.every(row => row.classification === 'unchanged'));
+  await json(await post(id + '/artifacts/' + prepared.artifactId + '/close', { expectedRevision: state.revision, reviewedDigest: 'f'.repeat(64) }), 409);
+  state = await json(await post(id + '/artifacts/' + prepared.artifactId + '/close', { expectedRevision: state.revision, reviewedDigest: prepared.artifactDigest }));
+  assert.equal(state.revision, revisionBefore, 'closing does not advance the revision');
+  assert.equal(state.reconciliations.length, 0); assert.equal(state.pending.length, 0);
+  assert.deepEqual(state.reviewedChanges.map(row => [row.artifactId, !!row.closedAt, row.acceptedAt]), [[prepared.artifactId, true, null]]);
+  const closed = await json(await request(id + '/artifacts/' + prepared.artifactId + '/review'));
+  assert.ok(closed.closedAt); assert.equal(closed.closedDecision.reason, 'no-difference'); assert.equal(closed.stale, false); assert.equal(closed.acceptedAt, null);
+  assert.equal((await request(id + '/artifacts/' + prepared.artifactId + '/original')).status, 200, 'the closed artifact stays readable');
+  await json(await post(id + '/artifacts/' + prepared.artifactId + '/close', { expectedRevision: state.revision }), 404);
+  // A differing version cannot be closed; it needs a decision. The decision may carry a comment.
+  const next = await upload([['a', 'changed']], 'full', { source });
+  const differing = await json(await post(id + '/prepare', { kind: 'reconciliation', snapshot: next.ref, expectedRevision: state.revision }), 201);
+  await json(await post(id + '/artifacts/' + differing.artifactId + '/close', { expectedRevision: state.revision }), 409);
+  await json(await post(id + '/artifacts/' + differing.artifactId + '/accept', { ...decisions(differing), comment: 'x'.repeat(4001) }), 400);
+  // A no-difference version prepared before a later acceptance is stale: closing it would revert `a`.
+  const stale = await json(await post(id + '/prepare', { kind: 'reconciliation', snapshot: (await upload([['a', 'base']], 'full', { source })).ref, expectedRevision: state.revision }), 201);
+  assert.ok(stale.rows.every(row => row.classification === 'unchanged'));
+  state = await json(await post(id + '/artifacts/' + differing.artifactId + '/accept', { ...decisions(differing), comment: 'Проверено: изменение согласовано' }));
+  assert.equal(state.reconciliations.length, 1);
+  assert.equal((await json(await request(id + '/artifacts/' + stale.artifactId + '/review'))).stale, true);
+  await json(await post(id + '/artifacts/' + stale.artifactId + '/close', { expectedRevision: state.revision, reviewedDigest: stale.artifactDigest }), 409);
+  assert.equal((await json(await request(id))).pending.length, 1, 'the stale version stays pending for a fresh comparison');
+  const accepted = await json(await request(id + '/artifacts/' + differing.artifactId + '/review'));
+  assert.equal(accepted.discussion.events.find(event => event.type === 'approve').text, 'Проверено: изменение согласовано');
+});

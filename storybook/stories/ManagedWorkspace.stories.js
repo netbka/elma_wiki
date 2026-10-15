@@ -4,7 +4,7 @@ function story(mode) {
   const explain = async () => { throw Error('Учебный пример: данные не сохраняются. Для следующего состояния выберите другую story.'); };
   const model = managedFixture(mode);
   let draft = model.draft ?? null;
-  const root = mountManagedWorkspace(model, { draft: { read: () => draft, write: value => { draft = value; }, clear: () => { draft = null; } }, upload: explain, create: explain, prepare: explain, accept: explain, archive: explain, comment: explain, resolveMerge: explain,
+  const root = mountManagedWorkspace(model, { draft: { read: () => draft, write: value => { draft = value; }, clear: () => { draft = null; } }, upload: explain, create: explain, prepare: explain, accept: explain, close: explain, archive: explain, comment: explain, resolveMerge: explain,
     acquisition: { servers: async () => ({ servers: [], configured: true }), catalog: explain, start: explain, get: explain, upload: explain },
     context: async id => ({ source: 'widgets/synthetic-contract.json', content: JSON.stringify({ descriptor: { clientScripts: id === 'synthetic-before' ? 'const value = 1;' : 'const value = 2;' } }, null, 2), editable: false,
       limitation: 'Синтетический исходный файл. Код не выполняется.' }),
@@ -30,6 +30,9 @@ export const Conflict = { render: () => story('conflict') };
 export const SummaryMixed = { render: () => story('summary-mixed'), parameters: { docs: { description: { story:
   'Сначала ответ: строка счётчиков, факты как метки, одно «Подробнее». Лента статусов фильтрует карточки; изменённые объекты сгруппированы по модулям, без изменений — одна свёрнутая группа; зависимости сгруппированы с количеством.' } } } };
 export const SummaryNoChanges = { render: () => story('summary-no-changes') };
+export const SummaryClosed = { render: () => story('summary-closed') };
+export const Decision = { render: () => story('decision'), parameters: { docs: { description: { story:
+  'UX-03b: the one "Решение по версии" button opens one dialog with Принять, Запросить доработку and Только комментарий. A closed gate disables acceptance and shows its reason inside the dialog.' } } } };
 export const Overlap = { render: () => story('overlap') };
 export const Ambiguous = { render: () => story('ambiguous') };
 export const Stale = { render: () => story('stale') };
