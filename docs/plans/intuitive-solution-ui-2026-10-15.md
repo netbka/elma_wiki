@@ -66,16 +66,19 @@ Consequences adopted by this plan (each is an "if" removed from the product):
 | "Принимаю версию…" checkbox plus three buttons | One decision dialog with three verbs (section 6). | None. |
 | Four preview chips and per-card disclaimers | Two chips and one "Подробнее" per page. | None; the distinctions stay in the data and in the disclosure. |
 
-Owner-reserved parts that this plan needs and does not grant itself:
+Owner decisions recorded 2026-10-15 (chat, after PR #126 was opened):
 
-- Naming the Source server(s) the fixed entry may list (`live-selection-and-release`
-  covers "selecting a live Source"). Today the DEV preset allows `inspect` and
-  `export` through the operator bridge and the acquisition API lists `dev` and
-  `dev2`. The plan assumes DEV (main) and dev2 are the only servers offered;
-  the owner confirms by merging this PR or names others.
-- Recording this direction in the product plan and the contradiction register
-  (`product-authority-change`). Section 11 contains the proposed register row;
-  merging this PR by the owner records it.
+- Servers offered by the fixed entry: DEV (main) and dev2, read-only export
+  through the existing acquisition API. Confirmed by the owner. No other server
+  is listed without a new owner decision (`live-selection-and-release`).
+- This direction is recorded in the contradiction register in this PR
+  (`product-authority-change`); see section 11.
+- Human five-second and label tests (R3, UX-09): the owner delegated the
+  classification. Decision: they are design validation, not #59/#41 work, as
+  long as they use Storybook stories with synthetic fixtures, ask single
+  comprehension questions rather than the ten-task protocol, and write nothing
+  into a `#59` observation record. #59/#41 stay deferred and their evidence
+  stays separate.
 
 ## 3. Goal and non-goals
 
@@ -372,15 +375,15 @@ reason to keep the manual upload primary.
 
 | Item | Class | Note |
 | --- | --- | --- |
-| Servers offered in "Загрузить решение" (DEV main, dev2) | B2 under `live-selection-and-release` | Decision known from the 2026-10-15 direction; the owner confirms by merging or names others. Read-only export only; no Target action |
-| Recording the fixed-path direction in product authority | B2 under `product-authority-change` | Proposed register row in section 11; owner merge records it |
-| Human five-second and label tests (R3, UX-09) | B3 under `paused-work-resumption` if read as #59/#41 work; otherwise design validation | Until the owner says which, R3 runs with the implementing agent only and is recorded as coaching-level evidence |
+| Servers offered in "Загрузить решение" (DEV main, dev2) | resolved 2026-10-15 | Owner confirmed. Read-only export only; no Target action |
+| Recording the fixed-path direction in product authority | resolved 2026-10-15 | Register row added in PR #126 (section 11) |
+| Human five-second and label tests (R3, UX-09) | resolved 2026-10-15 | Owner delegated; classified as design validation under the limits in section 2. Not #59/#41 evidence |
 | Merge of each UX PR | `merge-to-main` | Owner merges |
 
-## 11. Proposed contradiction-register row
+## 11. Contradiction-register row
 
-To be added to [SOLUTION_FIRST_CONTRADICTIONS.md](../SOLUTION_FIRST_CONTRADICTIONS.md)
-when the owner merges this plan:
+Added to [SOLUTION_FIRST_CONTRADICTIONS.md](../SOLUTION_FIRST_CONTRADICTIONS.md)
+in PR #126 on the owner's 2026-10-15 confirmation:
 
 | Contradiction | Decision | Source |
 | --- | --- | --- |
