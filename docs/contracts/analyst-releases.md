@@ -35,6 +35,10 @@ Missing/malformed/unknown/opaque parser diagnostics and unresolved solution iden
 
 Every review or condition change invalidates candidate/acceptance. A new candidate invalidates acceptance. Every mutation uses an expected integer revision; concurrent/stale mutations fail with 409 without overwriting another decision. All writes are serialized within the single service process and JSON is atomically renamed. Supported deployment remains one Node process, as for current project/workspace storage; multi-process transactional jobs are outside this slice.
 
+## Optional supported edits (AR-05)
+
+A release may carry optional script edits under the [developer workspace edit contract](developer-workspace.md#supported-edits-in-the-reviewed-release-lifecycle-ar-05-11). They are attached from an exact checked workspace revision of the pinned snapshot, attributed to the session actor, stored separately from the original and reviewed before freeze. An edited candidate (`provenance: supported-edit`) can be reviewed and accepted, but is never handed off or delivered until native materialization exists. Releases without edits keep the unchanged-original behaviour above.
+
 ## Private handoff
 
 POST `/api/releases/:id/bundle` requires current owner acceptance and the expected revision. Recheck source/baseline integrity before issuing the bundle. Its ZIP contains the exact `candidate.e365`, `manifest.json` with comparisons/decisions/check evidence, and Russian `handoff.txt` with intent, limitations, unverified destination, operational checks and recovery limits. No credentials are injected; original archives can themselves contain confidential configuration and remain owner-private.

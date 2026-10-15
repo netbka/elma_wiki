@@ -619,10 +619,14 @@
         "freeze",
         "approve",
         "preview",
-        "bundle"
+        "bundle",
+        "attach-edit",
+        "review-edit",
+        "detach-edit"
       ],
       "renderer": [
         "web/releases/render.js",
+        "web/releases/edits.js",
         "web/releases/model.js",
         "web/releases/comparison.js",
         "web/releases/snapshot-picker.js"
@@ -635,6 +639,9 @@
         "release--candidate",
         "release--prepared",
         "release--handed-off",
+        "release--supported-edit",
+        "release--stale-edit",
+        "release--edited-candidate",
         "release--snapshot-selection",
         "release--snapshot-load-error"
       ],
@@ -646,12 +653,17 @@
         "candidate",
         "prepared",
         "handed-off",
+        "supported-edit",
+        "stale-edit",
+        "edited-candidate",
         "snapshot-selection",
         "snapshot-load-error"
       ],
       "sources": [
         "lib/releases.mjs",
-        "docs/contracts/analyst-releases.md"
+        "lib/supported-edits.mjs",
+        "docs/contracts/analyst-releases.md",
+        "docs/contracts/developer-workspace.md"
       ]
     },
     "managed-workspace": {

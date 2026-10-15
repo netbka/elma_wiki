@@ -69,7 +69,7 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
       operationId: report.id
     }, report.actor) });
   let delivery;
-  const releases = releaseStore(directory, projects, { sharedAccess: true, deliverySummary: (id, owner) => delivery.summary(id, owner) });
+  const releases = releaseStore(directory, projects, { sharedAccess: true, workspaces: workspaceStore(projects), deliverySummary: (id, owner) => delivery.summary(id, owner) });
   // The bridge adapter is always available: it only does something once an owner registers a bridge and an
   // operator runs the worker with the token. The service itself still makes no outbound connections.
   const bridges = bridgeStore(directory);
