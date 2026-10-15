@@ -54,7 +54,7 @@ test('existing classification wording is unchanged and still reachable through m
 });
 
 test('technical keys are detected and the business name wins as the primary label', () => {
-  for (const key of ['019f3cd7-16b4-7f0a-abd9-79db51153a17', '_sep_1f40a8cc-fb2f-4a53-a1e7-402338dafa55', 'form_01a11b42-6c2a-7767-b10f-fdb60bdc6139', 'additional_docs@__directory', '__default', '']) assert.equal(isTechnicalKey(key), true, key);
+  for (const key of ['01900000-0000-7000-8000-000000000001', '_sep_00000000-0000-4000-8000-000000000002', 'form_00000000-0000-7000-8000-000000000003', 'travel_docs@__directory', '__default', '']) assert.equal(isTechnicalKey(key), true, key);
   for (const key of ['contracts', 'approval_process', 'Согласование']) assert.equal(isTechnicalKey(key), false, key);
   assert.deepEqual(displayLabel({ name: 'Согласование', key: 'approval_process' }), { text: 'Согласование', secondary: 'approval_process', technical: false });
   assert.deepEqual(displayLabel({ name: '  ', key: '__default' }), { text: '__default', secondary: '', technical: true });

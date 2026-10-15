@@ -1,0 +1,262 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/netbka/elma365/tools/native-materialization/coverage.schema.json",
+  "title": "elma365-native-coverage@1",
+  "$comment": "Native coverage contract for netbka/elma365#60 (Wiki PLAN-01 P4, MR-04): a capability catalog that states per component service/kind what elma365 can natively materialize, with evidence, and the per-release coverage declaration Wiki lib/native-coverage-adapter.mjs consumes. coverage.mjs validates documents against these $defs (strict: every object rejects unknown fields) and applies the semantic rules in docs/enterprise-development/native-coverage-and-receipts.md. Patterns use JavaScript RegExp syntax. Only the JSON Schema keyword subset of schema-subset.mjs is used. $defs/schemaRevision names this file's revision; the contract document publishes its sha256 (of these LF bytes).",
+  "$defs": {
+    "schemaRevision": {
+      "$comment": "Revision of this schema file within contract version 1. 1.0 = first head of PR #103 (never merged or pinned). 1.1 = first published revision: evidence basis per capability, member, unit and declaration; changesDigest. Never used to validate a document; documents carry only {id, version}.",
+      "const": "1.1"
+    },
+    "contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "version"],
+      "properties": {
+        "id": { "const": "elma365-native-coverage" },
+        "version": { "const": 1 }
+      }
+    },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "gitRevision": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "text": { "type": "string", "minLength": 1, "maxLength": 2048 },
+    "identifier": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:@-]{0,255}$" },
+    "kebab": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+    "componentKey": {
+      "$comment": "Wiki componentIdentity profile 2 key: the JSON array text of [service, namespace, (kind,) code].",
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 1024,
+      "pattern": "^\\[.*\\]$"
+    },
+    "repoPath": {
+      "$comment": "Repository-relative POSIX path of committed evidence: no drive, UNC, leading slash, backslash, empty or dot segment.",
+      "type": "string",
+      "maxLength": 512,
+      "pattern": "^(?![A-Za-z]:)(?!/)(?!.*\\\\)(?!.*//)(?!(?:.*/)?\\.{1,2}(?:/|$))[A-Za-z0-9_.@/-]+$"
+    },
+    "capabilityStatus": {
+      "$comment": "proven-offline: repository tests on committed synthetic fixtures or committed exports prove it without a live Target. unsupported: a test or a policy rule shows it cannot be certified. unknown: no evidence either way. A live-proven status needs a later revision and a native receipt.",
+      "enum": ["proven-offline", "unsupported", "unknown"]
+    },
+    "operation": { "enum": ["replace", "add", "remove"] },
+    "evidenceBasis": {
+      "$comment": "What a proven-offline claim was proven on. native-real-export: a committed export of a real ELMA solution (still offline, never native acceptance). synthetic-fixture: the committed synthetic fixture only; never native evidence. none: not proven.",
+      "enum": ["native-real-export", "synthetic-fixture", "none"]
+    },
+    "provenBasis": { "enum": ["native-real-export", "synthetic-fixture"] },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "path", "name"],
+      "properties": {
+        "kind": { "enum": ["test", "fixture", "task-record", "policy"] },
+        "path": { "$ref": "#/$defs/repoPath" },
+        "name": {
+          "$comment": "Test name (kind test) or rule identifier (kind policy) that must occur in the file; null for a fixture or task record.",
+          "anyOf": [{ "$ref": "#/$defs/text" }, { "type": "null" }]
+        }
+      }
+    },
+    "serializer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "preserve", "evidence"],
+      "properties": {
+        "id": { "$ref": "#/$defs/kebab" },
+        "preserve": { "$ref": "#/$defs/capabilityStatus" },
+        "evidence": { "type": "array", "items": { "$ref": "#/$defs/evidence" } }
+      }
+    },
+    "capability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["service", "kind", "serializers", "preserve", "edit"],
+      "properties": {
+        "service": { "$ref": "#/$defs/identifier" },
+        "kind": { "$ref": "#/$defs/identifier" },
+        "serializers": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/serializer" } },
+        "preserve": {
+          "$comment": "No-edit preservation: build, stage --verify and native pack reproduce every unpacked byte of the component.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "basis", "evidence", "limits"],
+          "properties": {
+            "status": { "$ref": "#/$defs/capabilityStatus" },
+            "basis": { "$ref": "#/$defs/evidenceBasis" },
+            "evidence": { "type": "array", "items": { "$ref": "#/$defs/evidence" } },
+            "limits": { "type": "array", "items": { "$ref": "#/$defs/text" } }
+          }
+        },
+        "edit": {
+          "$comment": "Whole-component materialization of a resolved change (E1 operations) under elma365-manifest-regeneration@1.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "operations", "evidence", "limits"],
+          "properties": {
+            "status": { "$ref": "#/$defs/capabilityStatus" },
+            "operations": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["op", "basis"],
+                "properties": { "op": { "$ref": "#/$defs/operation" }, "basis": { "$ref": "#/$defs/provenBasis" } }
+              }
+            },
+            "evidence": { "type": "array", "items": { "$ref": "#/$defs/evidence" } },
+            "limits": { "type": "array", "items": { "$ref": "#/$defs/text" } }
+          }
+        }
+      }
+    },
+    "capabilityCatalog": {
+      "$comment": "Generated deterministically by generate-coverage.mjs from the evidence table in coverage.mjs and committed as coverage.capabilities.json. catalogDigest = sha256(canonical(catalog without catalogDigest)).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contract", "document", "schemaRevision", "default", "scopes", "importUnit", "liveChecks", "capabilities", "catalogDigest",
+        "publicationReady", "executionEnabled"],
+      "properties": {
+        "contract": { "$ref": "#/$defs/contract" },
+        "document": { "const": "capability-catalog" },
+        "schemaRevision": { "const": "1.1" },
+        "default": {
+          "$comment": "Any service/kind not listed in capabilities.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["preserve", "edit"],
+          "properties": { "preserve": { "const": "unknown" }, "edit": { "const": "unknown" } }
+        },
+        "scopes": {
+          "$comment": "Request scopes (Wiki planReleaseScope request.kind). Only a whole Solution package can be declared; part expansion, application membership and full-server global-domain inventory are not established natively.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["solution", "part", "application", "server"],
+          "properties": {
+            "solution": { "const": "listed-capabilities-only" },
+            "part": { "const": "unsupported" },
+            "application": { "const": "unsupported" },
+            "server": { "const": "unsupported" }
+          }
+        },
+        "importUnit": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["granularity", "importReceipts", "targetPreservation"],
+          "properties": {
+            "granularity": { "$comment": "One import unit per Solution package (.e365); members are every captured component.", "const": "solution-package" },
+            "importReceipts": { "const": "unavailable" },
+            "targetPreservation": { "$comment": "Whether a native import retains unlisted Target objects is not established; no retain-unlisted policy is declared.", "const": "unknown" }
+          }
+        },
+        "liveChecks": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "missing"],
+          "properties": {
+            "status": { "const": "unavailable" },
+            "missing": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/kebab" } }
+          }
+        },
+        "capabilities": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/capability" } },
+        "catalogDigest": { "$ref": "#/$defs/sha256" },
+        "publicationReady": { "const": false },
+        "executionEnabled": { "const": false }
+      }
+    },
+    "member": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["solution", "key", "digest", "evidenceBasis"],
+      "properties": {
+        "solution": { "$ref": "#/$defs/identifier" },
+        "key": { "$ref": "#/$defs/componentKey" },
+        "digest": { "$ref": "#/$defs/sha256" },
+        "evidenceBasis": { "$comment": "synthetic-fixture when the member's preservation or changed operation is proven on the synthetic fixture only. Wiki reads {solution, key, digest}; a consumer must not treat synthetic-fixture as native.", "$ref": "#/$defs/provenBasis" }
+      }
+    },
+    "unsupportedMember": {
+      "$comment": "Wiki reads {solution, key}; service, kind, digest and reason are the native explanation. digest is null only for a removed component.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["solution", "key", "digest", "service", "kind", "reason"],
+      "properties": {
+        "solution": { "$ref": "#/$defs/identifier" },
+        "key": { "$ref": "#/$defs/componentKey" },
+        "digest": { "anyOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] },
+        "service": { "anyOf": [{ "$ref": "#/$defs/identifier" }, { "type": "null" }] },
+        "kind": { "anyOf": [{ "$ref": "#/$defs/identifier" }, { "type": "null" }] },
+        "reason": { "enum": ["unknown-capability", "preserve-unproven", "edit-unsupported", "edit-unproven", "operation-unproven"] }
+      }
+    },
+    "targetPrecondition": {
+      "$comment": "Pinned for later preflight, derived from an observed elma365-dependency-receipt@1 Target profile report on the same profile: empty-target when the Solution code is not installed, existing-target otherwise. No preservation policy or baseline is declared in v1, so Wiki blocks an existing Target (unproven-target-preservation).",
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mode", "evidenceRef", "targetProfileDigest"],
+          "properties": {
+            "mode": { "enum": ["empty-target", "existing-target"] },
+            "evidenceRef": { "$ref": "#/$defs/text" },
+            "targetProfileDigest": { "$ref": "#/$defs/sha256" }
+          }
+        }
+      ]
+    },
+    "unit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "status", "evidenceRef", "evidenceBasis", "members", "unsupportedMembers", "receipt"],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "status": { "$comment": "supported exactly when unsupportedMembers is empty.", "enum": ["supported", "unsupported"] },
+        "evidenceRef": { "$ref": "#/$defs/text" },
+        "evidenceBasis": { "$comment": "synthetic-fixture if any member or supported removal is synthetic-fixture; none without members or removals.", "$ref": "#/$defs/evidenceBasis" },
+        "members": { "type": "array", "items": { "$ref": "#/$defs/member" } },
+        "unsupportedMembers": { "type": "array", "items": { "$ref": "#/$defs/unsupportedMember" } },
+        "targetPrecondition": { "$ref": "#/$defs/targetPrecondition" },
+        "receipt": { "$comment": "Native import receipts need an import worker (P6/P8); null in revision 1.0.", "type": "null" }
+      }
+    },
+    "coverageDeclaration": {
+      "$comment": "The document Wiki adaptNativeCoverage admits: {contract, nativeRevision, adapter, evidenceRef, targetProfileDigest, captures, units, applications, parts, server}. catalogDigest, changesDigest, evidenceBasis, publicationReady and executionEnabled are native additions the consumer must check (changesDigest, evidenceBasis) or may ignore.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contract", "nativeRevision", "adapter", "evidenceRef", "targetProfileDigest", "catalogDigest", "changesDigest", "evidenceBasis",
+        "captures", "units", "applications", "parts", "server", "publicationReady", "executionEnabled"],
+      "properties": {
+        "contract": { "$ref": "#/$defs/contract" },
+        "nativeRevision": { "$ref": "#/$defs/gitRevision" },
+        "adapter": { "$ref": "#/$defs/identifier" },
+        "evidenceRef": { "$ref": "#/$defs/text" },
+        "targetProfileDigest": { "$ref": "#/$defs/sha256" },
+        "catalogDigest": { "$ref": "#/$defs/sha256" },
+        "changesDigest": {
+          "$comment": "sha256(canonical(changes)) over the release changes this declaration was derived for: [{solution, key, op, digest}] (digest of the resulting component, null for remove), sorted by [solution, key]. A consumer recomputes it from its own request and rejects a mismatch.",
+          "$ref": "#/$defs/sha256"
+        },
+        "evidenceBasis": { "$comment": "synthetic-fixture if any unit is; none without any member.", "$ref": "#/$defs/evidenceBasis" },
+        "captures": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["solution", "artifactChecksum"],
+            "properties": {
+              "solution": { "$ref": "#/$defs/identifier" },
+              "artifactChecksum": { "$ref": "#/$defs/sha256" }
+            }
+          }
+        },
+        "units": { "type": "array", "items": { "$ref": "#/$defs/unit" } },
+        "applications": { "$comment": "Application membership is not established natively in 1.0.", "type": "array", "maxItems": 0 },
+        "parts": { "$comment": "Part-to-unit expansion is not established natively in 1.0.", "type": "array", "maxItems": 0 },
+        "server": { "$comment": "Global-domain inventory and executable handlers are not established natively in 1.0.", "type": "null" },
+        "publicationReady": { "const": false },
+        "executionEnabled": { "const": false }
+      }
+    }
+  }
+}
