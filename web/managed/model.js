@@ -1,10 +1,9 @@
-export const labels = {
-  unchanged: 'Без изменений', 'intervention-added': 'Добавлен объект', 'component-modified': 'Объект изменён',
-  'known-change-retained': 'Наше изменение сохранится', 'known-change-incorporated': 'Наше изменение включено в снимок',
-  'external-change': 'Изменение из полного снимка', 'component-deleted': 'Удаление заявлено явно', conflict: 'Нужен выбор версии', ambiguous: 'Недостаточно данных'
-};
-export const elementLabels = { ...labels, 'element-added': 'Добавлен', 'element-removed': 'Удалён', 'element-modified': 'Изменён' };
-export const elementKinds = { node: 'Шаг', transition: 'Переход', variable: 'Переменная', lane: 'Дорожка' };
+import { classificationLabels, elementClassificationLabels, elementKindLabels } from './labels.js';
+// Review classification wording lives in labels.js (UX-00); these names stay for
+// existing importers.
+export const labels = classificationLabels;
+export const elementLabels = elementClassificationLabels;
+export const elementKinds = elementKindLabels;
 export function responsibilityLabel(component) {
   if (!component.responsibility) return component.service === 'processor' ? 'По объекту: ' + component.team + ' · части не установлены' : component.team;
   const counts = new Map();

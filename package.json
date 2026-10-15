@@ -42,7 +42,8 @@
     "test": "node --test test/*.test.mjs",
     "verify": "node verify.mjs",
     "test:browser": "node tools/browser-check.mjs",
-    "test:workspace:browser": "npm run build:editor && node tools/workspace-browser-check.mjs"
+    "test:workspace:browser": "npm run build:editor && node tools/workspace-browser-check.mjs",
+    "check:ui-strings": "node tools/ui-strings.mjs"
   },
   "dependencies": {
     "esbuild": "^0.25.12",

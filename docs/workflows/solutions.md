@@ -58,6 +58,8 @@ Preparation saves conflict/unknown counts as overview hints. Acceptance still re
 
 ## Evidence and limits
 
+Product wording is defined once in `web/managed/labels.js` (plan [intuitive-solution-ui-2026-10-15.md](../plans/intuitive-solution-ui-2026-10-15.md) §7). `npm run check:ui-strings` fails when a renderer adds Russian text outside that map; strings written before the map are listed in `test/fixtures/ui-strings-baseline.json` and move into the map as each screen is reworked.
+
 Thirty-nine shared `managed-workspace--*` stories cover the current tabs, attention/recovery, Change discussion/decision and process-part responsibility, change base/scope and merge-resolution states; nine `solution-visual--*` stories cover reconstructed process/form and bounded scenario states. ViewModel tests verify attention priority and gates; catalog/API/storage/auth tests preserve identity/privacy and lifecycle.
 
 `npm run test:managed:browser` exercises shared creation, attributed Change findings, explicit correction, retained stale anchors, resolution, acceptance history, contextual editor save/check, partial boundary review, full conflict choice, archive/reopen, stale rejection, fetch recovery, keyboard focus and 1920/800/390 reflow. The process case also downloads the report, accepts additions without transferring untouched parts, checks a baseline boundary, blocks cross-team overlap and chooses the whole file during reconciliation. It retains synthetic screenshots and `qa/managed-browser-evidence.json`. Build the editor and Storybook first; CI supplies Chromium when unavailable locally. VK browser verification checks the entry.
