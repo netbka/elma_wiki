@@ -57,7 +57,7 @@ export const reviewSummary = {
 
 // Facts shown as chips
 export const facts = {
-  baseVersion: 'Основа: версия от', baseUnknown: 'Основа: не указана', server: 'Сервер', loadedBy: 'Загрузил',
+  baseVersion: 'Основа: версия от', baseUnknown: 'Основа: не указана', baseSequence: 'Основа записана Wiki по порядку загрузок с того же сервера. Происхождение экспорта в ELMA не проверено.', server: 'Сервер', loadedBy: 'Загрузил',
   diagramFromExport: 'Схема: из экспорта', behaviorNotChecked: 'Поведение в ELMA: не проверено',
   noDifference: 'Эта версия не отличается от текущей', viewed: 'Просмотрено', changedSinceViewed: 'Изменилось после просмотра'
 };
