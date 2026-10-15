@@ -5,8 +5,8 @@
   "$comment": "Request envelope, validation receipt and manifest-regeneration policy for netbka/elma365#60. contract.mjs validates documents against these $defs (strict: every object rejects unknown fields) and then applies the semantic rules in docs/enterprise-development/native-materialization.md. Patterns use JavaScript RegExp syntax. Revisions within version 1 only relax or clarify; $defs/schemaRevision names this file's revision and the contract document publishes its sha256 (of these LF bytes).",
   "$defs": {
     "schemaRevision": {
-      "$comment": "Revision of this schema file within contract version 1. 1.0 = PR #89 (23b476d), 1.1 = E2 (operations may be empty), 1.2 = no-edit envelope (empty release scope), output byte transport, wider hygiene. Never used to validate a document; documents still carry only {id, version}.",
-      "const": "1.2"
+      "$comment": "Revision of this schema file within contract version 1. 1.0 = PR #89 (23b476d), 1.1 = E2 (operations may be empty), 1.2 = no-edit envelope (empty release scope), output byte transport, wider hygiene, 1.3 = opt-in manifest policy version 2 (wikiRequest.manifestPolicy, receipt manifestPolicy version 1 or 2, $defs/manifestRegenerationPolicyV2). Never used to validate a document; documents still carry only {id, version}.",
+      "const": "1.3"
     },
     "contract": {
       "type": "object",
@@ -15,6 +15,16 @@
       "properties": {
         "id": { "const": "elma365-native-materialization" },
         "version": { "const": 1 }
+      }
+    },
+    "manifestPolicyRef": {
+      "$comment": "Identity of the manifest-regeneration policy a request selects and a receipt applied. Version 1 is $defs/manifestRegenerationPolicy, version 2 is $defs/manifestRegenerationPolicyV2.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "version"],
+      "properties": {
+        "id": { "const": "elma365-manifest-regeneration" },
+        "version": { "enum": [1, 2] }
       }
     },
     "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
@@ -237,6 +247,10 @@
           }
         },
         "determinism": { "const": "unpacked-content-v1" },
+        "manifestPolicy": {
+          "$comment": "Optional opt-in (revision 1.3). Absent selects manifest policy version 1, the default. Present, it is bound by requestDigest and the receipt must name the same policy.",
+          "$ref": "#/$defs/manifestPolicyRef"
+        },
         "buildEnabled": { "const": false },
         "publicationReady": { "const": false },
         "executionEnabled": { "const": false }
@@ -370,12 +384,7 @@
           ]
         },
         "checks": { "type": "array", "items": { "$ref": "#/$defs/check" } },
-        "manifestPolicy": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["id", "version"],
-          "properties": { "id": { "const": "elma365-manifest-regeneration" }, "version": { "const": 1 } }
-        },
+        "manifestPolicy": { "$ref": "#/$defs/manifestPolicyRef" },
         "targetProfileDigest": { "$ref": "#/$defs/sha256" },
         "compilerProfileDigest": { "$ref": "#/$defs/sha256" },
         "evidenceRef": { "type": ["string", "null"], "minLength": 1, "maxLength": 2048 },
@@ -391,6 +400,29 @@
         "regeneratedFilePattern": "^[^/]+/manifest\\.json$",
         "mutableManifestFields": ["entities"],
         "entityIdentity": ["namespace", "code"],
+        "changedEntity": "whole-record-from-chosen-source",
+        "unchangedEntity": "deep-equal-relative-order-preserved",
+        "compilerByteChanges": "none",
+        "containerBytes": "recorded-not-compared"
+      }
+    },
+    "manifestRegenerationPolicyV2": {
+      "$comment": "Version 2, selected only by request.manifestPolicy. Rules of version 1 except entity identity: Wiki componentIdentity profile 2. Records of kindKeyedServices (any non-empty string kind) and processor records of kindKeyedProcessorKinds are identified by [service, namespace, kind, code]; other processor records keep [service, namespace, code]. A record without non-empty string namespace and code, or a kindKeyedServices record without a non-empty string kind, has no identity and fails closed; two records with one identity fail as ambiguous.",
+      "const": {
+        "id": "elma365-manifest-regeneration",
+        "version": 2,
+        "preservedFiles": ["package.json"],
+        "regeneratedFilePattern": "^[^/]+/manifest\\.json$",
+        "mutableManifestFields": ["entities"],
+        "entityIdentity": "wiki-component-identity-profile-2",
+        "identityProfile": {
+          "default": ["service", "namespace", "code"],
+          "kindKeyed": ["service", "namespace", "kind", "code"],
+          "kindKeyedServices": ["permissionsSettings", "extensions"],
+          "kindKeyedProcessorKinds": ["template", "custom_activity", "custom_activity_group"],
+          "emptyCodeKinds": { "localizer": ["localization"] }
+        },
+        "unprovenIdentity": "fail-closed",
         "changedEntity": "whole-record-from-chosen-source",
         "unchangedEntity": "deep-equal-relative-order-preserved",
         "compilerByteChanges": "none",
