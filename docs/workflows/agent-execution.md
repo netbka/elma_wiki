@@ -4,7 +4,7 @@ Authority: [AGENTS.md](../../AGENTS.md). This procedure makes its routing and ha
 
 ## Start an assigned task
 
-1. Read AGENTS and `.agent/capabilities.yaml`. Refresh `origin`, inspect open PRs and worktrees, and clean up only proven finished secondary worktrees after checking ignored artifacts. Keep active, dirty, locked or uncertain worktrees. Report what was removed or retained. Run `npm run check:worktrees`: secondary worktrees belong only at `.worktrees/<name>` under the primary checkout root (see AGENTS); report any it lists and relocate them with `git worktree move` only when inactive.
+1. Read AGENTS and `.agent/capabilities.yaml`. Refresh `origin`, inspect open PRs and worktrees, and clean up only proven finished secondary worktrees after checking ignored artifacts. Keep active, dirty or locked worktrees; investigate uncertain work before removal. Apply the task-artifact retention rule in AGENTS: delete obsolete local copies rather than accumulating archives; justify each retained item/group with its current or concrete upcoming task, practical use and deletion trigger. Product data and required recovery backups follow their own contracts. Report what was removed or retained. Run `npm run check:worktrees`: secondary worktrees belong only at `.worktrees/<name>` under the primary checkout root (see AGENTS); report any it lists and relocate them with `git worktree move` only when inactive.
 2. Classify the phase and select the capabilities actually crossed. List available names with `npm run agent:context -- --list`. For example:
 
    ```sh
