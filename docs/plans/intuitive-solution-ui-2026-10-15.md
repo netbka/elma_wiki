@@ -1,8 +1,8 @@
 # Intuitive Solution UI: one fixed path, understanding first, plain-language change requests
 
 Status: proposed plan, not implemented behavior. Written 2026-10-15 from an
-uncoached walkthrough of the deployed Wiki (Solution "DEV — Контрагенты.
-Управление договорами", review artifact `59fe926d…`), a survey of comparable
+uncoached walkthrough of the deployed Wiki (a real Solution of about 400
+objects pulled from DEV and one of its review artifacts), a survey of comparable
 products, and the owner's direction of the same day (section 2). Authority
 stays with [SOLUTION_FIRST_PRODUCT_PLAN.md](../SOLUTION_FIRST_PRODUCT_PLAN.md).
 This plan removes optional paths from the user-facing product and changes
@@ -13,7 +13,7 @@ ELMA write.
 
 Coordinates: #56 (Solution shell and one next action), #59 / #41 (uncoached
 usability and independent visual review, deferred by the owner), #38 (final
-owner acceptance), #94 MR-06 (composer screen, open PR #123), #85
+owner acceptance), #94 MR-06 (composer screen, PR #123, merged), #85
 (contextual bug reports), config-source acquisition API (owner-assigned
 2026-10-08). Capabilities: `managed-workspace-ui`, `solution-visual`,
 `solution-explanations`, `bug-reports`, `source-connections`,
@@ -29,9 +29,9 @@ Observed facts:
 | # | Observation | Effect on the user |
 | --- | --- | --- |
 | W1 | The review page renders every object of the Solution as a card. The reviewed export has 398 objects and 0 changes; the page is ~400 cards reading "Без изменений · Ответственность: P · Было и стало" (~196 000 characters of text). | The one fact that matters ("nothing changed") is never stated. The user scrolls for minutes and cannot answer "what changed?". |
-| W2 | Objects are labeled by internal keys: `_sep_1f40a8cc-…`, `form_01a11b42-…`, `019f3cd7-…`, `additional_docs@__directory`, 32 rows named `__default`. The parsed model already carries business names (`entity.name`); the process preview uses them ("Согласование", "Проверка контрагента"). | The user cannot connect a row to anything they know from ELMA. |
+| W2 | Objects are labeled by internal keys: `_sep_<guid>`, `form_<guid>`, `<guid>`, `travel_docs@__directory`, 32 rows named `__default`. The parsed model already carries business names (`entity.name`); the process preview uses them ("Утверждение", "Проверка бюджета"). | The user cannot connect a row to anything they know from ELMA. |
 | W3 | Responsibility is a single letter "P" on every row and in the header. | Person, team or placeholder? No name, no link. |
-| W4 | Disclaimers are legal/engineering sentences repeated per card ("Заявленная командой ответственность. Авторы публикаций ELMA и договорная ответственность не установлены", "Неизвестная база не даёт права на автоматическое объединение или сборку", "Переход не поддерживается: 453d4cc3-…"). A raw JSON block sits one click from the main flow. | Read as "the system is broken" rather than as a status. |
+| W4 | Disclaimers are legal/engineering sentences repeated per card ("Заявленная командой ответственность. Авторы публикаций ELMA и договорная ответственность не установлены", "Неизвестная база не даёт права на автоматическое объединение или сборку", "Переход не поддерживается: <guid>"). A raw JSON block sits one click from the main flow. | Read as "the system is broken" rather than as a status. |
 | W5 | The dependency section repeats "Зависимость не найдена в полученных данных" ~40 times for a handful of targets. | Noise hides the decision input. |
 | W6 | The Solution tab is a flat 398-row table (Объект / Ответственность / Состояние / Просмотр) without grouping, search or filter. | No way to find "the contract approval process". |
 | W7 | The Changes tab shows one card with two links; no list with author, date, status, comments; no activity feed anywhere. | A team cannot see who did what or what waits on whom. |
@@ -61,7 +61,7 @@ Consequences adopted by this plan (each is an "if" removed from the product):
 | Manual `.e365` upload as the primary way to add a Solution or a change | One entry: choose server, choose solution, "Загрузить решение". Manual upload remains only under "Прежние загрузки" (legacy compatibility, as the product plan already states). | None; the acquisition API already supports "load one/all solutions from DEV/dev2". |
 | Full vs partial scope question | Every pull is a full snapshot of one solution from a named Source. There is no partial path in the primary UI. | The engine keeps partial support internally; the UI never asks. |
 | "Same Solution / same Source" confirmation | Implied by the selected server and solution; shown as a fact, not asked. | Same-Source assertion filled by the server from the connection reference. |
-| Declared base and component scope | The base is always the previous pull of the same solution from the same server. Provenance is never "unknown" on this path. | `baseDeclaration` filled by the server (`method: source-sequence`); existing reducer and digests unchanged. |
+| Declared base and component scope | The base of a pull is the previous accepted full pull of the same solution from the same server, recorded by Wiki as its own pull sequence (`method: source-sequence`). This is a derived sequence base, not verified ancestry: `ancestryVerified` stays false, the three-way partial-merge gate does not open on it, and the review says so (MR-01 in `docs/contracts/managed-workspace.md`: Source equality and upload order never promote unknown ancestry). | `baseDeclaration` filled by the server; existing reducer, digests and ancestry rules unchanged. |
 | Responsibility declaration at upload | Dropped from the entry form. Responsibility is shown from the record of who pulled and who decided; team responsibility is set, when needed, from the change review by a person who knows. | Field stays optional in the API. |
 | "Принимаю версию…" checkbox plus three buttons | One decision dialog with three verbs (section 6). | None. |
 | Four preview chips and per-card disclaimers | Two chips and one "Подробнее" per page. | None; the distinctions stay in the data and in the disclosure. |
@@ -177,7 +177,7 @@ Research still to perform before UX-02 (implementing agent, no owner decision):
 ### 6.2 Solution header and lifecycle stepper (every Solution page)
 
 ```
-Договоры и контрагенты · DEV                  [Ожидает рассмотрения]   Версия от 15 окт., 11:27
+Командировки и расходы · DEV                  [Ожидает рассмотрения]   Версия от 15 окт., 11:27
 О решении · Как работает · Экраны и данные · Изменения · Запросы · Сборка (PR #123, contextual)
 Загрузка ✓ ── Сравнение ● ── Рассмотрение ○ ── Сборка (нет сборщика) ── Проверка ○ ── Выпуск ○
                                                                 [ Рассмотреть изменения ]
@@ -199,8 +199,8 @@ Generated from captured data by the existing explanation engine
    business objects it manages (from applications, directories, process names
    and localization). Editable; empty state says "Опишите, для чего это
    решение" with one button **Написать**.
-2. **Модули** — one card per application (`Договоры`, `Контрагенты`,
-   `Дополнительные документы`…): purpose sentence, counts of processes,
+2. **Модули** — one card per application (`Командировки`, `Авансовые отчёты`,
+   `Сопроводительные документы`…): purpose sentence, counts of processes,
    screens and directories, link **Открыть**.
 3. **Что требует внимания** — the existing attention block and the
    recommended action.
@@ -212,8 +212,8 @@ Generated from captured data by the existing explanation engine
 ### 6.4 Как работает (processes)
 
 The existing process preview promoted to a tab. Left: list of processes grouped
-by module, with business names and a one-line generated purpose ("Согласование
-договора: проверка контрагента, маршрут согласования, подписание"). Right: the
+by module, with business names and a one-line generated purpose ("Утверждение
+командировки: проверка бюджета, маршрут согласования, выдача аванса"). Right: the
 diagram, the step list in plain words, and for the selected step: who does it
 (lane), what they fill in (fields), where it goes next (transitions), and the
 saved explanation. Two chips only: `Схема: из экспорта` and `Поведение в ELMA:
@@ -238,7 +238,7 @@ version shows the review page in this order:
    Без изменений 394". With no changes: "Эта версия не отличается от текущей"
    and the actions **Закрыть без изменений** / **Обновить ещё раз**.
 2. **Facts as chips.** `Основа: версия от 8 окт.` · `Сервер: DEV` ·
-   `Загрузил: Пётр М., 15 окт.` One **Подробнее** opens the full explanation
+   `Загрузил: Иван П., 15 окт.` One **Подробнее** opens the full explanation
    and the existing evidence JSON.
 3. **Decision.** One button **Решение по версии** opening a dialog with
    `Принять`, `Запросить доработку`, `Только комментарий`, a comment field and
@@ -305,7 +305,7 @@ Rejected alternatives are recorded so choices are not re-litigated silently.
 | Comment only | Только комментарий | Комментарий | Explicit that it is not a decision |
 | Change kinds | Изменён / Добавлен / Удалён / Без изменений / Конфликт | Модифицирован, Новый, Удаление заявлено явно | Short, parallel, one word |
 | Conflict | Конфликт · выберите версию | Нужен выбор версии | Noun chip plus imperative |
-| Base | Основа: версия от 8 окт. | База, Происхождение | "База" reads as database; on the fixed path it is always known |
+| Base | Основа: версия от 8 окт. | База, Происхождение | "База" reads as database; on the fixed path it is Wiki's pull sequence after the first pull |
 | Viewed | Просмотрено | Проверено | "Проверено" would claim verification |
 | Build / Verify / Release | Сборка / Проверка / Выпуск | Компиляция, Верификация, Релиз, Деплой | Russian; PR #123 uses Сборка |
 | Before/after | Было / Стало | Diff, Сравнение | Understood in the walkthrough |
@@ -335,7 +335,7 @@ screenshots. Order follows the user's path.
 | ID | Outcome | Files (owners from capabilities.yaml) | Acceptance |
 | --- | --- | --- | --- |
 | UX-00 | Vocabulary module and lint: one exported label map (`web/managed/labels.js`) holding every string of section 7 plus the existing classification wording; `tools/ui-strings.mjs` scans the managed, visual, feedback and explanation renderers and fails on any Cyrillic literal that is neither in the map nor in the committed legacy baseline (`test/fixtures/ui-strings-baseline.json`). The baseline may only shrink: each later package moves the strings it touches into the map and regenerates it with `--update`. `isTechnicalKey`/`displayLabel` give renderers the rule "business name first, key muted". Object-kind labels are provisional until R1. | `web/managed/labels.js`, `web/managed/model.js`, `tools/ui-strings.mjs`, `test/ui-labels.test.mjs`, `test/fixtures/ui-strings-baseline.json`, `package.json` (`check:ui-strings`) | Every label in section 7 exists once; `npm run check:ui-strings` passes; no new inline Russian string can be added to a renderer |
-| UX-01 | Fixed entry: "Загрузить решение" dialog over the existing acquisition routes; server and solution lists; full pull only; same-Source and base filled by the server (`baseDeclaration.method: source-sequence`); "Обновить" in the header; manual upload moved under "Прежние загрузки". | `web/managed/acquisition.js`, `web/managed/render.js`, `web/managed/model.js`, `lib/managed-workspace.mjs` and `server.mjs` (fill scope/base/source from the connection reference; additive), `storybook/stories/ConfigAcquisition.stories.js` | Add-solution and update flows have no scope, base, Source or responsibility questions; a pulled version never shows `Основа: не указана`; legacy upload unchanged and tested |
+| UX-01 | Fixed entry: "Загрузить решение" dialog over the existing acquisition routes; server and solution lists; full pull only; same-Source and base filled by the server (`baseDeclaration.method: source-sequence`); "Обновить" in the header; manual upload moved under "Прежние загрузки". | `web/managed/acquisition.js`, `web/managed/render.js`, `web/managed/model.js`, `lib/managed-workspace.mjs` and `server.mjs` (fill scope/base/source from the connection reference; additive), `storybook/stories/ConfigAcquisition.stories.js` | Add-solution and update flows have no scope, base, Source or responsibility questions; a pulled version shows its sequence base as Wiki-derived (`source-sequence`, ancestry not verified), never as `Основа: не указана` and never as verified ancestry; legacy upload unchanged and tested |
 | UX-02 | Business names first: `componentName` returns `{name, key, kind, module}` from captured entity metadata; kind labels per R1; keys muted; grouping by module and kind available to all tabs. | `web/managed/model.js`, `lib/managed-workspace.mjs` (additive exposure of `entity.name`, kind, module), `web/visual/render.js` | No GUID or `__default` as a primary label in any story; keys searchable |
 | UX-03 | Delivered in two parts. UX-03a (PR after #131): summary line, chips, one "Подробнее", status ribbon, changed-first grouping, collapsed unchanged, grouped dependencies. UX-03b (next): the decision dialog ("Решение по версии" with Принять / Запросить доработку / Только комментарий), a server operation to close a no-change version ("Закрыть без изменений") and "Открыть схему" with highlighted steps, which touches the visual renderer. Original scope: Review page: summary line, chips, decision dialog, status ribbon, changed-first grouping, collapsed unchanged and system objects, grouped dependencies, "Открыть схему" with highlighted steps. | `web/managed/render.js`, `web/managed/model.js`, `web/managed/dependencies.js`, `web/visual/render.js`, `storybook/stories/ManagedWorkspace.stories.js`, `tools/managed-workspace-browser-check.mjs` | `review-no-changes` story shows one sentence and two actions; counts equal row classifications; 398-object fixture renders under 300 DOM rows initially |
 | UX-04 | Header stepper and badge from `solutionNextAction` plus PR #123 composer state; tabs renamed and reordered; "Сборка" stays contextual. Stacked on #123. | `web/managed/render.js`, `web/managed/model.js`, `web/managed/page.js`, stories | One stepper state per row of the product plan's next-action map; unavailable steps disabled with reason |
@@ -345,7 +345,7 @@ screenshots. Order follows the user's path.
 | UX-08 | "Просмотрено" per object with progress and stale badge bound to the review revision. | `web/managed/render.js`, `web/managed/model.js`, `lib/managed-workspace-store.mjs` (per-actor viewed marks) | Mark cleared when the object's digest changes; progress in header |
 | UX-09 | Validation: R3 five-second tests, label card sort on section 7, Storybook review-panel records; then the owner decides on #59 resumption. | `storybook/`, `docs/EXPERIENCE_REVIEW.md` addendum | Any label with under 2 of 3 correct readings is replaced before UX-09 closes |
 
-Dependencies: UX-00 -> UX-01 -> UX-02 -> UX-03 -> UX-04 (after PR #123 merges)
+Dependencies: UX-00 -> UX-01 -> UX-02 -> UX-03 -> UX-04 (PR #123 is merged)
 -> UX-05, UX-06, UX-07 in any order -> UX-08 -> UX-09. Rough size: UX-00 to
 UX-03 about one week of one agent; UX-04 to UX-07 about two weeks; UX-08 two
 days; UX-09 depends on people.

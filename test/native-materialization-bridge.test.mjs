@@ -5,7 +5,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { PassThrough, Readable } from 'node:stream';
 import { bridgeStore, MATERIALIZE_PAYLOAD_KEYS } from '../lib/bridge.mjs';
-import { bridgeMaterializationAdapter, configuredMaterializationAdapter } from '../lib/native-materialization-bridge.mjs';
+import * as bridgeModule from '../lib/native-materialization-bridge.mjs';
+import { configuredMaterializationAdapter, isConfiguredMaterializationAdapter } from '../lib/native-materialization-bridge.mjs';
 import { materializeServer, call, sha, WORKER_REVISION } from './bridge-worker-fixture.mjs';
 
 // Transport of `materialize` jobs over the operator bridge with a synthetic HTTP worker. The envelope is a
@@ -56,8 +57,13 @@ test('invalid timeout or output limit disables the adapter at startup with a sec
   }
   const ok = configuredMaterializationAdapter({ env: { ...full, WIKI_NATIVE_MATERIALIZATION_TIMEOUT_MS: '1000', WIKI_NATIVE_MATERIALIZATION_MAX_OUTPUT_BYTES: '1024' }, bridges, log: assert.fail });
   assert.ok(ok);
-  assert.throws(() => bridgeMaterializationAdapter({ bridges, bridgeId: full.WIKI_NATIVE_MATERIALIZATION_BRIDGE_ID, owner, nativeRevision: WORKER_REVISION, maxOutputBytes: -1 }));
-  assert.throws(() => bridgeMaterializationAdapter({ bridges, bridgeId: full.WIKI_NATIVE_MATERIALIZATION_BRIDGE_ID, owner, nativeRevision: WORKER_REVISION, timeoutMs: 0 }));
+  assert.equal(isConfiguredMaterializationAdapter(ok), true);
+  // The factory taking a caller revision is not exported; a stub store is not a bridge store.
+  assert.equal('bridgeMaterializationAdapter' in bridgeModule, false);
+  const stub = { enqueue: async () => ({}), get: async () => ({}) }, stubLog = [];
+  assert.equal(configuredMaterializationAdapter({ env: full, bridges: stub, log: message => stubLog.push(message) }), null);
+  assert.match(stubLog[0], /no bridge store/);
+  assert.equal(isConfiguredMaterializationAdapter({ ...ok }), false);
 });
 
 test('materialize job: originals by sha256, output upload bound to sha256 and size, receipt returned; never an import', async t => {
@@ -203,7 +209,8 @@ test('job inputs and outputs are bearer- and job-scoped; another owner cannot us
   assert.deepEqual(probe, { anonymous: 401, session: 401, otherBridge: 404, otherUpload: 404, unknownInput: 404, noDigest: 400, wrongType: 415 });
 
   // An adapter configured for an owner who does not own the bridge never enqueues.
-  const foreign = bridgeMaterializationAdapter({ bridges: bridgeStore(env.directory), bridgeId: env.bridge.id, owner: 'other-owner', nativeRevision: WORKER_REVISION });
+  const foreign = configuredMaterializationAdapter({ bridges: bridgeStore(env.directory), log: assert.fail, env: { WIKI_NATIVE_MATERIALIZATION_BRIDGE_ID: env.bridge.id,
+    WIKI_NATIVE_MATERIALIZATION_BRIDGE_OWNER: 'other-owner', WIKI_NATIVE_MATERIALIZATION_REVISION: WORKER_REVISION } });
   const before = (await jobRecords(env.directory, env.bridge.id)).length;
   await assert.rejects(foreign.materialize({ envelope: envelope(), originals: ORIGINALS }), { statusCode: 404 });
   assert.equal((await jobRecords(env.directory, env.bridge.id)).length, before);
