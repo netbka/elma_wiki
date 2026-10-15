@@ -1,4 +1,5 @@
 const el = (tag, text) => { const node = document.createElement(tag); if (text !== undefined) node.textContent = text; return node; };
+import { groupDependencies } from './model.js';
 export const dependencyLabels = {
   'component-source-present': 'Исходник компонента доступен',
   'paid-source-unavailable': 'Платная зависимость: исходник недоступен',
@@ -14,9 +15,11 @@ export function mountDependencies(report) {
   if (!report?.rows) { root.append(el('p', 'Сведения о зависимостях для этой версии не сохранены.')); return root; }
   if (report.provenance === 'manual-upload') root.append(el('p', 'Сведения из загруженного файла; связь с сервером не подтверждена.'));
   if (!report.rows.length) root.append(el('p', 'В пакете нет объявленных зависимостей. Динамические ссылки в коде отдельно не проверены.'));
+  // UX-03: one line per target and status with a count; the same target referenced
+  // from many components no longer repeats.
   const list = el('ul');
-  for (const row of report.rows) {
-    const item = el('li', `${row.required ? 'Обязательная' : 'Опциональная / системная'} · ${row.service || '?'} · ${row.targetNamespace || '?'}/${row.targetCode || '?'}: ${dependencyLabels[row.status] || 'Не установлено'}`);
+  for (const row of groupDependencies(report.rows)) {
+    const item = el('li', `${row.required ? 'Обязательная' : 'Опциональная / системная'} · ${row.service || '?'} · ${row.targetNamespace || '?'}/${row.targetCode || '?'}: ${dependencyLabels[row.status] || 'Не установлено'}${row.count > 1 ? ` · ×${row.count}` : ''}`);
     for (const candidate of row.candidates || []) item.append(el('p', `${candidate.code} · версия: ${candidate.version || 'не установлена'}`));
     list.append(item);
   }

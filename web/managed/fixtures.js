@@ -1,4 +1,6 @@
+const names = { contract: 'Договор', approval: 'Согласование договора', comment: 'Комментарий к договору' };
 const component = (code, team = 'Команда внедрения', changed = false) => ({ code, key: JSON.stringify(['widgets', 'synthetic.records', code]), team,
+  service: 'widgets', namespace: 'synthetic.records', kind: 'WIDGET', name: names[code] || null,
   interventionId: changed ? 'synthetic-change' : null, digest: 'a'.repeat(64) });
 export function managedFixture(mode = 'overview') {
   const at = '2026-10-07T12:00:00Z', base = { id: 'synthetic-baseline', scope: 'full', checksum: 'a'.repeat(64), snapshot: {
@@ -9,6 +11,11 @@ export function managedFixture(mode = 'overview') {
     current: [component('contract'), component('approval'), component('comment', 'Внутренняя команда', true)],
     changes: [{ id: 'synthetic-change' }], reconciliations: [], history: [{ type: 'created', baselineId: base.id }, { type: 'change-accepted' }], pending: [] };
   base.components = ['contract', 'approval'].map(code => ({ key: component(code).key, digest: 'a'.repeat(64) }));
+  // UX-05: attributed activity with two distinct people; the synthetic clock keeps relative times stable.
+  const uploader = { id: 'synthetic-uploader', login: 'uploader@example.org', provider: 'vk-teams' }, reviewer = { id: 'synthetic-reviewer', login: 'reviewer@example.org', provider: 'vk-teams' };
+  workspace.audit = [{ action: 'created', actor: uploader, at: '2026-10-07T09:00:00Z', artifactId: base.id }, { action: 'review-comment', actor: reviewer, at: '2026-10-07T10:30:00Z', artifactId: 'synthetic-review' },
+    { action: 'change-accepted', actor: reviewer, at: at, artifactId: 'synthetic-review' }];
+  const now = Date.parse('2026-10-07T14:00:00Z');
   const review = { kind: mode === 'conflict' ? 'reconciliation' : 'change', revision: 1, artifactId: 'synthetic-review', artifactDigest: 'b'.repeat(64),
     options: mode === 'conflict' ? { baselineOwner: 'Команда внедрения' } : { team: 'Внутренняя команда', taskRef: 'DEMO-12' },
     snapshot: base.snapshot, ambiguities: [], rows: [{ ...component('contract'), classification: 'component-modified', previousTeam: 'Команда внедрения', boundaryCrossing: true }] };
@@ -27,6 +34,25 @@ export function managedFixture(mode = 'overview') {
     review.contexts = [{ key: review.rows[0].key, objectRef: 'd'.repeat(64), beforeArtifactId: 'synthetic-before', afterArtifactId: review.artifactId }];
     if (mode === 'review-accepted') { review.acceptedAt = at; review.acceptedDecision = { actor, boundaryKeys: [finding.anchor.key], resolutions: null }; }
   }
+  // UX-03: summary line, chips, ribbon and grouping on a mixed review and on a no-change version.
+  if (['summary-mixed', 'summary-no-changes', 'summary-closed'].includes(mode)) {
+    const extra = (service, namespace, code, kind, name, classification, extraFields = {}) => ({ code, key: JSON.stringify(service === 'widgets' ? [service, namespace, code] : [service, namespace, kind, code]),
+      service, namespace, kind, name, classification, previousTeam: 'Команда внедрения', digest: 'a'.repeat(64), ...extraFields });
+    review.kind = 'reconciliation'; review.options = { baselineOwner: 'Команда внедрения' };
+    review.snapshot = { ...base.snapshot, source: { connectionId: 'config-api-dev', solutionRef: 'contract_management' } };
+    review.baseDeclaration = { schemaVersion: 1, status: 'declared', method: 'source-sequence', artifactId: base.id, revision: 0, checksum: base.checksum, scope: 'full', ancestryVerified: false };
+    review.dependencies = { provenance: 'configured-source-capture', rows: [
+      ...Array.from({ length: 14 }, () => ({ required: false, service: 'processor', targetNamespace: '_system_catalogs', targetCode: '_my_companies', status: 'provider-not-observed' })),
+      { required: true, service: 'widgets', targetNamespace: '_clients', targetCode: '_companies', status: 'component-source-present' }] };
+    review.rows = mode !== 'summary-mixed'
+      ? [{ ...component('contract'), classification: 'unchanged' }, { ...component('approval'), classification: 'unchanged' }, extra('permissionsSettings', 'synthetic', 'contract', 'permissionSettings', null, 'unchanged')]
+      : [extra('processor', 'contract_management.contracts', 'approval_process', 'template', 'Согласование договора', 'external-change'),
+        extra('widgets', 'contract_management.contracts', 'create_form', 'WIDGET', 'Форма создания договора', 'intervention-added', { previousTeam: null }),
+        extra('applications', 'contract_management', 'currencies', 'directory', 'Валюты', 'component-deleted', { removed: true }),
+        { ...component('contract'), classification: 'conflict' },
+        { ...component('approval'), classification: 'unchanged' }, { ...component('comment'), classification: 'unchanged' },
+        extra('permissionsSettings', 'contract_management', 'contracts', 'permissionSettings', null, 'unchanged')];
+  }
   if (mode === 'conflict') review.rows[0].classification = 'conflict';
   if (mode === 'overlap') review.rows[0].conflict = true;
   if (mode === 'ambiguous') review.ambiguities = [{ reason: 'unknown', source: 'synthetic/unknown.json' }];
@@ -41,17 +67,41 @@ export function managedFixture(mode = 'overview') {
         ...['comment','returnReason'].map(code => ({ id: JSON.stringify(['variable',code]), kind: 'variable', code, name: code, team: conflict ? 'Внутренняя команда' : null, classification: conflict ? 'known-change-incorporated' : 'element-added' }))
       ] } }];
   }
+  // UX-03b: a version closed without changes, and the decision dialog open on a review.
+  if (mode === 'summary-closed') { review.closedAt = at; review.closedDecision = { actor, reason: 'no-difference' }; }
   if (mode === 'archived') { workspace.status = 'archived'; workspace.history.push({ type: 'archived' }); }
   if (mode === 'pending') workspace.pending = [{ artifactId: review.artifactId, kind: review.kind, revision: 1, stale: false, options: review.options }];
   const model = { synthetic: true, shared: true, home: '/solutions', api: '/api/solutions', view: 'overview', workspace };
-  if (['review', 'conflict', 'overlap', 'ambiguous'].includes(mode) || mode.startsWith('review-') || mode.startsWith('elements-')) Object.assign(model, { view: 'review', review });
-  if (['create', 'empty', 'list', 'loading', 'load-error'].includes(mode)) {
-    delete model.workspace; model.view = mode === 'create' ? 'create' : 'list';
+  if (['review', 'conflict', 'overlap', 'ambiguous', 'decision'].includes(mode) || mode.startsWith('review-') || mode.startsWith('elements-') || mode.startsWith('summary-')) Object.assign(model, { view: 'review', review });
+  if (mode === 'decision') model.decisionOpen = true;
+  if (['create', 'create-legacy', 'empty', 'list', 'loading', 'load-error'].includes(mode) || mode.startsWith('pull-')) {
+    delete model.workspace; model.view = ['create', 'create-legacy'].includes(mode) || mode.startsWith('pull-') ? 'create' : 'list';
     model.rows = mode === 'list' ? [{ ...workspace, baselineSnapshot: base.snapshot, changedComponents: 1, pendingCount: 2, current: undefined, pending: undefined }] : [];
   }
+  // UX-01 fixed entry: server + solution, no scope/base/responsibility questions.
+  const pullCatalog = [{ code: 'contract_management', name: 'Договоры и контрагенты' }, { code: 'paid_module', name: 'Платный модуль', paid: true }];
+  const pullRecord = { id: 'synthetic-acquisition', server: 'dev', solution: 'contract_management', state: 'exporting', progress: { completed: 0, total: 1 }, solutions: [] };
+  if (mode === 'create') model.pullCatalog = pullCatalog;
+  if (mode === 'create-legacy') model.legacy = true;
+  if (mode === 'pull-exporting') model.acquisition = pullRecord;
+  if (mode === 'pull-ready') model.acquisition = { ...pullRecord, state: 'ready', progress: { completed: 1, total: 1 }, solutions: [{ code: 'contract_management', project: { id: 'synthetic-project', currentSnapshotId: 'synthetic-snapshot' } }] };
+  if (mode === 'pull-failed') model.acquisition = { ...pullRecord, state: 'failed', error: 'Экспорт не завершён. Начните новую загрузку.' };
+  if (mode === 'pull-unavailable') model.pullUnavailable = true;
+  if (mode === 'update') { base.snapshot.source = { connectionId: 'config-api-dev', solutionRef: 'contract_management' }; model.view = 'full'; }
   if (mode === 'change') model.view = 'change';
   if (mode === 'changes') model.view = 'changes';
-  if (mode === 'solution') model.view = 'solution';
+  if (mode === 'solution') {
+    model.view = 'solution';
+    // UX-02: a second module, a process, data objects and system objects show grouping, names and the collapsed group.
+    const extra = (service, namespace, code, kind, name) => ({ code, key: JSON.stringify(kind && service !== 'widgets' ? [service, namespace, kind, code] : [service, namespace, code]), team: 'Команда внедрения',
+      service, namespace, kind, name, interventionId: null, digest: 'a'.repeat(64) });
+    workspace.current.push(extra('processor', 'contract_management.contracts', 'approval_process', 'template', 'Согласование договора'),
+      extra('applications', 'contract_management', 'contracts', 'application', 'Договоры'),
+      extra('applications', 'contract_management', 'currencies', 'directory', 'Валюты'),
+      extra('permissionsSettings', 'contract_management', 'contracts', 'permissionSettings', null),
+      extra('widgets', 'contract_management', '__default', 'WIDGET', null),
+      extra('localizer', 'contract_management', '', 'localization', null));
+  }
   if (mode === 'native-components') {
     model.view = 'solution';
     workspace.current = ['permissionSettings','pagePermissions'].map(kind => ({...component('records'),service:'permissionsSettings',namespace:'synthetic',kind,key:JSON.stringify(['permissionsSettings','synthetic',kind,'records'])}));
@@ -114,6 +164,20 @@ export function managedFixture(mode = 'overview') {
   if (mode === 'no-source') workspace.baselineId = null;
   if (mode === 'needs-fixes') workspace.pending = [{ artifactId: review.artifactId, kind: 'change', revision: 1, stale: false, decision: 'needs-changes', options: review.options }];
   if (mode === 'pending-conflict') workspace.pending = [{ artifactId: review.artifactId, kind: 'reconciliation', revision: 1, stale: false, attention: { conflicts: 1, unknown: 0 }, options: { baselineOwner: 'Команда внедрения' } }];
+  // UX-04: header stepper states after acceptance. The build step is current only when the
+  // server reported an available builder; a verified delivery leaves release unavailable.
+  if (mode === 'lifecycle-build') model.composed = { candidates: [], build: { available: true } };
+  if (mode === 'lifecycle-verified') workspace.delivery = { supported: true, state: 'verified' };
+  if (mode.startsWith('about-')) {
+    const draft = { text: 'Решение объединяет модули «synthetic».\n\nsynthetic. Экраны: Договор, Согласование договора, Комментарий к договору.\n\nНазначение описано по названиям объектов экспорта. Работа в ELMA не наблюдалась; проверьте и дополните описание.', sources: [], engine: 'declared-names-v1', evidence: 'declared-names', nativeObservation: 'absent' };
+    const purpose = { key: 'solution-purpose', title: workspace.name, fingerprint: 'p'.repeat(64), expectedRevision: 1, version: 0, writable: true, reason: null, related: [], draft, saved: null, history: [] };
+    const entry = { id: 'synthetic-purpose', key: 'solution-purpose', title: workspace.name, fingerprint: 'p'.repeat(64), text: 'Договоры с контрагентами: подготовка, согласование юристами и финансовым отделом, подписание и хранение. Решением пользуются менеджеры по продажам и юристы.', sources: [], actor: uploader, at: '2026-10-07T11:00:00Z' };
+    if (['about-saved', 'about-stale'].includes(mode)) Object.assign(purpose, { version: 1, saved: { ...entry, sourceStatus: mode === 'about-stale' ? 'stale' : 'current' }, history: [entry] });
+    if (mode === 'about-generated') model.aboutEditing = true;
+    if (mode === 'about-error') purpose.loadError = 'Сервис объяснений недоступен.';
+    model.about = { purpose: mode === 'about-error' ? { loadError: purpose.loadError } : purpose };
+  }
+  model.now = now;
   if (mode === 'loading') model.loading = true;
   if (mode === 'load-error') model.error = 'Сервис временно недоступен. Сохранённые пространства не изменены.';
   if (mode === 'stale') { model.view = 'review'; model.stale = true; model.error = 'База изменилась в другой вкладке.'; }

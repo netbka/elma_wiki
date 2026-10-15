@@ -1,0 +1,433 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/netbka/elma365/tools/native-materialization/contract.schema.json",
+  "title": "elma365-native-materialization@1",
+  "$comment": "Request envelope, validation receipt and manifest-regeneration policy for netbka/elma365#60. contract.mjs validates documents against these $defs (strict: every object rejects unknown fields) and then applies the semantic rules in docs/enterprise-development/native-materialization.md. Patterns use JavaScript RegExp syntax. Revisions within version 1 only relax or clarify; $defs/schemaRevision names this file's revision and the contract document publishes its sha256 (of these LF bytes).",
+  "$defs": {
+    "schemaRevision": {
+      "$comment": "Revision of this schema file within contract version 1. 1.0 = PR #89 (23b476d), 1.1 = E2 (operations may be empty), 1.2 = no-edit envelope (empty release scope), output byte transport, wider hygiene, 1.3 = opt-in manifest policy version 2 (wikiRequest.manifestPolicy, receipt manifestPolicy version 1 or 2, $defs/manifestRegenerationPolicyV2). Never used to validate a document; documents still carry only {id, version}.",
+      "const": "1.3"
+    },
+    "contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "version"],
+      "properties": {
+        "id": { "const": "elma365-native-materialization" },
+        "version": { "const": 1 }
+      }
+    },
+    "manifestPolicyRef": {
+      "$comment": "Identity of the manifest-regeneration policy a request selects and a receipt applied. Version 1 is $defs/manifestRegenerationPolicy, version 2 is $defs/manifestRegenerationPolicyV2.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "version"],
+      "properties": {
+        "id": { "const": "elma365-manifest-regeneration" },
+        "version": { "enum": [1, 2] }
+      }
+    },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "gitRevision": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "text": { "type": "string", "minLength": 1, "maxLength": 2048 },
+    "identifier": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:@-]{0,255}$" },
+    "kebab": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+    "count": { "type": "integer", "minimum": 0 },
+    "relativePath": {
+      "$comment": "Archive-relative POSIX path: no drive, UNC, leading slash, backslash, empty or dot segment.",
+      "type": "string",
+      "maxLength": 1024,
+      "pattern": "^(?![A-Za-z]:)(?!/)(?!.*\\\\)(?!.*//)(?!(?:.*/)?\\.{1,2}(?:/|$))[^\\u0000-\\u001f]+$"
+    },
+    "componentRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["solution", "key", "digest"],
+      "properties": {
+        "solution": { "$ref": "#/$defs/identifier" },
+        "key": { "$ref": "#/$defs/text" },
+        "digest": { "$ref": "#/$defs/text" }
+      }
+    },
+    "coverageUnit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "adapter", "members"],
+      "properties": {
+        "id": { "$ref": "#/$defs/text" },
+        "adapter": { "$ref": "#/$defs/text" },
+        "members": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/componentRef" } }
+      }
+    },
+    "dependencyLock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["from", "service", "namespace", "provider", "path", "receiptId", "evidenceRef", "activation", "targetProfileDigest", "bindings", "evidence"],
+      "properties": {
+        "from": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["solution", "key"],
+          "properties": { "solution": { "$ref": "#/$defs/identifier" }, "key": { "$ref": "#/$defs/text" } }
+        },
+        "service": { "$ref": "#/$defs/text" },
+        "namespace": { "$ref": "#/$defs/text" },
+        "code": { "type": ["string", "null"], "maxLength": 512 },
+        "provider": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["code", "version"],
+          "properties": { "code": { "$ref": "#/$defs/text" }, "version": { "type": ["string", "null"], "maxLength": 256 } }
+        },
+        "path": { "enum": ["licensed-preinstallation", "official-distribution"] },
+        "receiptId": { "$ref": "#/$defs/text" },
+        "evidenceRef": { "$ref": "#/$defs/text" },
+        "artifactDigest": { "$ref": "#/$defs/sha256" },
+        "activation": { "enum": ["pending-installation", "verified-preinstalled"] },
+        "targetProfileDigest": { "$ref": "#/$defs/sha256" },
+        "bindings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "kind"],
+            "properties": { "name": { "$ref": "#/$defs/text" }, "kind": { "$ref": "#/$defs/text" } }
+          }
+        },
+        "evidence": { "enum": ["native-receipt", "synthetic"] }
+      }
+    },
+    "componentFile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role", "path", "sha256"],
+      "properties": {
+        "role": { "$ref": "#/$defs/text" },
+        "path": { "$ref": "#/$defs/relativePath" },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "operation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "service", "op", "choice", "sourceArtifactId", "digest", "baseDigest", "files", "coupled"],
+      "properties": {
+        "key": { "$ref": "#/$defs/text" },
+        "service": { "$ref": "#/$defs/identifier" },
+        "op": { "enum": ["add", "replace", "remove"] },
+        "choice": { "$ref": "#/$defs/text" },
+        "sourceArtifactId": { "$ref": "#/$defs/text" },
+        "digest": { "type": ["string", "null"], "minLength": 1, "maxLength": 2048 },
+        "baseDigest": { "type": ["string", "null"], "minLength": 1, "maxLength": 2048 },
+        "files": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/componentFile" } },
+        "coupled": { "type": "boolean" }
+      }
+    },
+    "expectedFile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "action", "sha256", "sourceArtifactId"],
+      "properties": {
+        "path": { "$ref": "#/$defs/relativePath" },
+        "action": { "enum": ["preserve", "replace", "remove", "native-manifest"] },
+        "sha256": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
+        "sourceArtifactId": { "type": ["string", "null"], "minLength": 1, "maxLength": 2048 }
+      }
+    },
+    "wikiRequest": {
+      "$comment": "Exactly the object netbka/elma_wiki lib/native-materialization.mjs prepareMaterializationRequest returns for a ready request.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "method", "inputs", "inputsDigest", "status", "blockers", "evidenceBasis", "operations", "expected", "determinism", "buildEnabled", "publicationReady", "executionEnabled"],
+      "properties": {
+        "schemaVersion": { "const": 1 },
+        "method": { "const": "whole-component-native-materialization" },
+        "inputs": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["solution", "resolution", "base", "originals", "coverage", "dependencies", "compiler", "targetProfile"],
+          "properties": {
+            "solution": { "$ref": "#/$defs/identifier" },
+            "resolution": {
+              "$comment": "Trusted branch ancestry: the stored resolution of the incoming branch over base B.",
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["id", "revisionDigest", "resultDigest", "planDigest"],
+              "properties": {
+                "id": { "$ref": "#/$defs/text" },
+                "revisionDigest": { "$ref": "#/$defs/sha256" },
+                "resultDigest": { "$ref": "#/$defs/sha256" },
+                "planDigest": { "$ref": "#/$defs/sha256" }
+              }
+            },
+            "base": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["artifactId", "checksum"],
+              "properties": { "artifactId": { "$ref": "#/$defs/text" }, "checksum": { "$ref": "#/$defs/sha256" } }
+            },
+            "originals": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["artifactId", "checksum"],
+                "properties": { "artifactId": { "$ref": "#/$defs/text" }, "checksum": { "$ref": "#/$defs/sha256" } }
+              }
+            },
+            "coverage": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["planDigest", "units", "importOrder"],
+              "properties": {
+                "planDigest": { "$ref": "#/$defs/sha256" },
+                "units": { "type": "array", "items": { "$ref": "#/$defs/coverageUnit" } },
+                "importOrder": { "type": "array", "items": { "$ref": "#/$defs/text" } }
+              }
+            },
+            "dependencies": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["planDigest", "locks"],
+              "properties": {
+                "planDigest": { "$ref": "#/$defs/sha256" },
+                "locks": { "type": "array", "items": { "$ref": "#/$defs/dependencyLock" } }
+              }
+            },
+            "compiler": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["contract", "profileDigest", "platformVersion", "evidenceRef", "services"],
+              "properties": {
+                "contract": { "$ref": "#/$defs/text" },
+                "profileDigest": { "$ref": "#/$defs/sha256" },
+                "platformVersion": { "$ref": "#/$defs/text" },
+                "evidenceRef": { "$ref": "#/$defs/text" },
+                "services": { "type": "array", "items": { "$ref": "#/$defs/identifier" } }
+              }
+            },
+            "targetProfile": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["digest", "platformVersion"],
+              "properties": { "digest": { "$ref": "#/$defs/sha256" }, "platformVersion": { "$ref": "#/$defs/text" } }
+            }
+          }
+        },
+        "inputsDigest": { "$ref": "#/$defs/sha256" },
+        "status": { "const": "ready" },
+        "blockers": {
+          "type": "array",
+          "maxItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["reason"],
+            "properties": { "reason": { "const": "synthetic-evidence-only" } }
+          }
+        },
+        "evidenceBasis": { "enum": ["native", "synthetic"] },
+        "operations": { "$comment": "Empty = no-edit mode: every expected file must then be preserve from the base artifact and the output must equal the base unpacked content.", "type": "array", "items": { "$ref": "#/$defs/operation" } },
+        "expected": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["components", "files"],
+          "properties": {
+            "components": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["key", "digest"],
+                "properties": { "key": { "$ref": "#/$defs/text" }, "digest": { "$ref": "#/$defs/text" } }
+              }
+            },
+            "files": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/expectedFile" } }
+          }
+        },
+        "determinism": { "const": "unpacked-content-v1" },
+        "manifestPolicy": {
+          "$comment": "Optional opt-in (revision 1.3). Absent selects manifest policy version 1, the default. Present, it is bound by requestDigest and the receipt must name the same policy.",
+          "$ref": "#/$defs/manifestPolicyRef"
+        },
+        "buildEnabled": { "const": false },
+        "publicationReady": { "const": false },
+        "executionEnabled": { "const": false }
+      }
+    },
+    "materializationRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contract", "request", "originals", "releaseScope"],
+      "properties": {
+        "contract": { "$ref": "#/$defs/contract" },
+        "request": { "$ref": "#/$defs/wikiRequest" },
+        "originals": {
+          "$comment": "Transport manifest of the immutable full original archives. Bytes travel as artifact files originals/<sha256> or HTTP parts named by sha256; never as a host path.",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["artifactId", "sha256", "size"],
+            "properties": {
+              "artifactId": { "$ref": "#/$defs/text" },
+              "sha256": { "$ref": "#/$defs/sha256" },
+              "size": { "type": "integer", "minimum": 1 }
+            }
+          }
+        },
+        "releaseScope": {
+          "$comment": "Explicit release scope: the exact selected native import units and order. Must equal request.inputs.coverage. In no-edit mode (request.operations empty) units and importOrder must be empty: nothing is imported.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["solution", "units", "importOrder"],
+          "properties": {
+            "solution": { "$ref": "#/$defs/identifier" },
+            "units": { "type": "array", "items": { "$ref": "#/$defs/text" } },
+            "importOrder": { "type": "array", "items": { "$ref": "#/$defs/text" } }
+          }
+        }
+      }
+    },
+    "tool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version"],
+      "properties": { "name": { "$ref": "#/$defs/text" }, "version": { "$ref": "#/$defs/text" } }
+    },
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "service", "status", "tool", "artifactSha256", "evidenceRef"],
+      "properties": {
+        "id": { "enum": ["original-digests", "native-layout", "expected-files", "component-digests", "manifest-regeneration", "service-compile", "native-package-check", "native-pack"] },
+        "service": { "type": ["string", "null"], "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:@-]{0,255}$" },
+        "status": { "enum": ["passed", "failed", "unavailable"] },
+        "tool": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/tool" }] },
+        "artifactSha256": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
+        "evidenceRef": { "type": ["string", "null"], "minLength": 1, "maxLength": 2048 }
+      }
+    },
+    "validationReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contract", "requestDigest", "inputsDigest", "worker", "status", "unavailable", "artifacts", "coverage", "checks", "manifestPolicy", "targetProfileDigest", "compilerProfileDigest", "evidenceRef", "publicationReady", "executionEnabled"],
+      "properties": {
+        "contract": { "$ref": "#/$defs/contract" },
+        "requestDigest": { "$ref": "#/$defs/sha256" },
+        "inputsDigest": { "$ref": "#/$defs/sha256" },
+        "worker": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "nativeRevision"],
+          "properties": { "id": { "$ref": "#/$defs/identifier" }, "nativeRevision": { "$ref": "#/$defs/gitRevision" } }
+        },
+        "status": { "enum": ["validated", "failed", "unavailable"] },
+        "unavailable": {
+          "anyOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["reason", "missing", "requiredOperation"],
+              "properties": {
+                "reason": { "$ref": "#/$defs/kebab" },
+                "missing": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/kebab" } },
+                "requiredOperation": { "$ref": "#/$defs/text" }
+              }
+            }
+          ]
+        },
+        "artifacts": {
+          "$comment": "Output archive manifest. Bytes travel out of band, never inline or as a host path: directory artifact receipt.json + artifacts/<sha256>, or one HTTP part per artifact named by its sha256. The consumer accepts bytes only when both sha256 and byte length equal this entry, and rejects absent or extra bytes.",
+          "type": "array",
+          "maxItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["solution", "sha256", "size"],
+            "properties": {
+              "solution": { "$ref": "#/$defs/identifier" },
+              "sha256": { "$ref": "#/$defs/sha256" },
+              "size": { "type": "integer", "minimum": 1 }
+            }
+          }
+        },
+        "coverage": {
+          "anyOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["expectedFiles", "matchedFiles", "unexpectedPaths", "expectedComponents", "matchedComponents", "actions"],
+              "properties": {
+                "expectedFiles": { "$ref": "#/$defs/count" },
+                "matchedFiles": { "$ref": "#/$defs/count" },
+                "unexpectedPaths": { "$ref": "#/$defs/count" },
+                "expectedComponents": { "$ref": "#/$defs/count" },
+                "matchedComponents": { "$ref": "#/$defs/count" },
+                "actions": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["preserve", "replace", "remove", "native-manifest"],
+                  "properties": {
+                    "preserve": { "$ref": "#/$defs/count" },
+                    "replace": { "$ref": "#/$defs/count" },
+                    "remove": { "$ref": "#/$defs/count" },
+                    "native-manifest": { "$ref": "#/$defs/count" }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "checks": { "type": "array", "items": { "$ref": "#/$defs/check" } },
+        "manifestPolicy": { "$ref": "#/$defs/manifestPolicyRef" },
+        "targetProfileDigest": { "$ref": "#/$defs/sha256" },
+        "compilerProfileDigest": { "$ref": "#/$defs/sha256" },
+        "evidenceRef": { "type": ["string", "null"], "minLength": 1, "maxLength": 2048 },
+        "publicationReady": { "const": false },
+        "executionEnabled": { "const": false }
+      }
+    },
+    "manifestRegenerationPolicy": {
+      "const": {
+        "id": "elma365-manifest-regeneration",
+        "version": 1,
+        "preservedFiles": ["package.json"],
+        "regeneratedFilePattern": "^[^/]+/manifest\\.json$",
+        "mutableManifestFields": ["entities"],
+        "entityIdentity": ["namespace", "code"],
+        "changedEntity": "whole-record-from-chosen-source",
+        "unchangedEntity": "deep-equal-relative-order-preserved",
+        "compilerByteChanges": "none",
+        "containerBytes": "recorded-not-compared"
+      }
+    },
+    "manifestRegenerationPolicyV2": {
+      "$comment": "Version 2, selected only by request.manifestPolicy. Rules of version 1 except entity identity: Wiki componentIdentity profile 2. Records of kindKeyedServices (any non-empty string kind) and processor records of kindKeyedProcessorKinds are identified by [service, namespace, kind, code]; other processor records keep [service, namespace, code]. A record without non-empty string namespace and code, or a kindKeyedServices record without a non-empty string kind, has no identity and fails closed; two records with one identity fail as ambiguous.",
+      "const": {
+        "id": "elma365-manifest-regeneration",
+        "version": 2,
+        "preservedFiles": ["package.json"],
+        "regeneratedFilePattern": "^[^/]+/manifest\\.json$",
+        "mutableManifestFields": ["entities"],
+        "entityIdentity": "wiki-component-identity-profile-2",
+        "identityProfile": {
+          "default": ["service", "namespace", "code"],
+          "kindKeyed": ["service", "namespace", "kind", "code"],
+          "kindKeyedServices": ["permissionsSettings", "extensions"],
+          "kindKeyedProcessorKinds": ["template", "custom_activity", "custom_activity_group"],
+          "emptyCodeKinds": { "localizer": ["localization"] }
+        },
+        "unprovenIdentity": "fail-closed",
+        "changedEntity": "whole-record-from-chosen-source",
+        "unchangedEntity": "deep-equal-relative-order-preserved",
+        "compilerByteChanges": "none",
+        "containerBytes": "recorded-not-compared"
+      }
+    }
+  }
+}

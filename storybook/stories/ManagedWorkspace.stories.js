@@ -4,7 +4,9 @@ function story(mode) {
   const explain = async () => { throw Error('Учебный пример: данные не сохраняются. Для следующего состояния выберите другую story.'); };
   const model = managedFixture(mode);
   let draft = model.draft ?? null;
-  const root = mountManagedWorkspace(model, { draft: { read: () => draft, write: value => { draft = value; }, clear: () => { draft = null; } }, upload: explain, create: explain, prepare: explain, accept: explain, archive: explain, comment: explain, resolveMerge: explain,
+  const root = mountManagedWorkspace(model, { draft: { read: () => draft, write: value => { draft = value; }, clear: () => { draft = null; } }, upload: explain, create: explain, prepare: explain, accept: explain, close: explain, archive: explain, comment: explain, resolveMerge: explain,
+    acquisition: { servers: async () => ({ servers: [], configured: true }), catalog: explain, start: explain, get: explain, upload: explain },
+    explanations: { read: explain, save: explain },
     context: async id => ({ source: 'widgets/synthetic-contract.json', content: JSON.stringify({ descriptor: { clientScripts: id === 'synthetic-before' ? 'const value = 1;' : 'const value = 2;' } }, null, 2), editable: false,
       limitation: 'Синтетический исходный файл. Код не выполняется.' }),
     navigate: () => { root.querySelector('[role=status]').textContent = 'Учебная навигация: выберите нужное состояние в меню Storybook.'; } });
@@ -13,12 +15,34 @@ function story(mode) {
 export default { id: 'managed-workspace', title: 'Решение/Изменение и рассмотрение', parameters: { layout: 'fullscreen' } };
 export const Empty = { render: () => story('empty') };
 export const List = { render: () => story('list') };
-export const Create = { render: () => story('create') };
+export const Create = { render: () => story('create'), parameters: { docs: { description: { story:
+  'Единственный вход: сервер и решение, одна кнопка. Scope, источник, база и ответственность не спрашиваются; сервер записывает их из именованного подключения.' } } } };
+export const CreateLegacy = { render: () => story('create-legacy') };
+export const PullExporting = { render: () => story('pull-exporting') };
+export const PullReady = { render: () => story('pull-ready') };
+export const PullFailed = { render: () => story('pull-failed') };
+export const PullUnavailable = { render: () => story('pull-unavailable') };
+export const Update = { render: () => story('update') };
 export const Overview = { render: () => story('overview') };
 export const Pending = { render: () => story('pending') };
 export const Change = { render: () => story('change') };
 export const Review = { render: () => story('review') };
 export const Conflict = { render: () => story('conflict') };
+export const SummaryMixed = { render: () => story('summary-mixed'), parameters: { docs: { description: { story:
+  'Сначала ответ: строка счётчиков, факты как метки, одно «Подробнее». Лента статусов фильтрует карточки; изменённые объекты сгруппированы по модулям, без изменений — одна свёрнутая группа; зависимости сгруппированы с количеством.' } } } };
+export const SummaryNoChanges = { render: () => story('summary-no-changes') };
+export const SummaryClosed = { render: () => story('summary-closed') };
+export const Decision = { render: () => story('decision'), parameters: { docs: { description: { story:
+  'UX-03b: the one "Решение по версии" button opens one dialog with Принять, Запросить доработку and Только комментарий. A closed gate disables acceptance and shows its reason inside the dialog.' } } } };
+export const LifecycleBuild = { render: () => story('lifecycle-build'), parameters: { docs: { description: { story:
+  'UX-04: header badge and lifecycle stepper. Загрузка, Сравнение and Рассмотрение are done, Сборка is the current step because the server reported an available builder, Выпуск is unavailable with its reason.' } } } };
+export const LifecycleVerified = { render: () => story('lifecycle-verified') };
+export const AboutEmpty = { render: () => story('about-empty'), parameters: { docs: { description: { story:
+  'UX-05: О решении with no saved purpose: the empty sentence and one Написать button; module cards and the activity list with two distinct people.' } } } };
+export const AboutGenerated = { render: () => story('about-generated') };
+export const AboutSaved = { render: () => story('about-saved') };
+export const AboutStale = { render: () => story('about-stale') };
+export const AboutError = { render: () => story('about-error') };
 export const Overlap = { render: () => story('overlap') };
 export const Ambiguous = { render: () => story('ambiguous') };
 export const Stale = { render: () => story('stale') };

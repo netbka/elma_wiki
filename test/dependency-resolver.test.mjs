@@ -33,9 +33,9 @@ const resolve = (extra = {}) => resolveDependencyEvidence({ plan: plan(), target
   receipts: [receipt()], bindings: [binding], now: '2026-10-09T00:00:00Z', ...extra });
 const reasonsOf = result => result.rows[0].reasons;
 
-test('absent native receipt contract keeps every dependency unknown and fails closed', () => {
-  assert.deepEqual(NATIVE_RECEIPT_CONTRACTS, []);
-  for (const receiptContract of [null, { id: 'elma365-dependency-receipt', version: 1 }, { ...SYNTHETIC_RECEIPT_CONTRACT, version: 2 }]) {
+test('an unknown or forged receipt contract keeps every dependency unknown and fails closed', () => {
+  assert.deepEqual(NATIVE_RECEIPT_CONTRACTS.map(row => [row.id, row.version]), [['elma365-dependency-receipt', 1]]);
+  for (const receiptContract of [null, { id: 'elma365-dependency-receipt', version: 2 }, { ...SYNTHETIC_RECEIPT_CONTRACT, version: 2 }]) {
     const result = resolve({ receiptContract });
     assert.equal(result.evidenceBasis, 'unknown');
     assert.equal(result.rows[0].status, 'unknown');

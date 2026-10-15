@@ -1,10 +1,9 @@
-export const labels = {
-  unchanged: 'Без изменений', 'intervention-added': 'Добавлен объект', 'component-modified': 'Объект изменён',
-  'known-change-retained': 'Наше изменение сохранится', 'known-change-incorporated': 'Наше изменение включено в снимок',
-  'external-change': 'Изменение из полного снимка', 'component-deleted': 'Удаление заявлено явно', conflict: 'Нужен выбор версии', ambiguous: 'Недостаточно данных'
-};
-export const elementLabels = { ...labels, 'element-added': 'Добавлен', 'element-removed': 'Удалён', 'element-modified': 'Изменён' };
-export const elementKinds = { node: 'Шаг', transition: 'Переход', variable: 'Переменная', lane: 'Дорожка' };
+import { classificationLabels, elementClassificationLabels, elementKindLabels, actions as actionLabels, summaries, kindGroups, displayLabel, isTechnicalKey, ribbon, steps as stepLabels, stepReasons, statuses, activity as activityLabels } from './labels.js';
+// Review classification wording lives in labels.js (UX-00); these names stay for
+// existing importers.
+export const labels = classificationLabels;
+export const elementLabels = elementClassificationLabels;
+export const elementKinds = elementKindLabels;
 export function responsibilityLabel(component) {
   if (!component.responsibility) return component.service === 'processor' ? 'По объекту: ' + component.team + ' · части не установлены' : component.team;
   const counts = new Map();
@@ -34,6 +33,85 @@ export function responsibilityReport(state, review) {
 }
 export function componentName(key) {
   try { const parts = JSON.parse(key); return Array.isArray(parts) ? parts.at(-1) : key; } catch { return key; }
+}
+
+// UX-02: business name first, technical key second. These projections read the
+// component metadata (service, namespace, code, kind, name) and never change
+// identity, digests or classification.
+const keyParts = key => { try { const parts = JSON.parse(key); return Array.isArray(parts) ? parts : null; } catch { return null; } };
+// Metadata recoverable from the key alone ([service, namespace, code] or
+// [service, namespace, kind, code]), for rows known only by key, e.g. objects a review adds.
+export function objectFromKey(key) {
+  const parts = keyParts(key);
+  if (!parts || parts.length < 3) return { key };
+  const [service, namespace] = parts, code = parts.at(-1);
+  return { key, service, namespace, code, ...(parts.length > 3 ? { kind: parts[2] } : {}) };
+}
+// The technical label a row had before UX-02; stays the fallback and the muted secondary text.
+export function objectCode(input = {}) {
+  const row = { ...objectFromKey(input.key), ...Object.fromEntries(Object.entries(input).filter(([, value]) => value != null)) };
+  const parts = keyParts(row.key);
+  if (parts && parts.length > 3) return row.code ? `${row.namespace} · ${row.code} · ${row.kind}` : `${row.namespace} · ${row.kind}`;
+  return row.code || (parts ? parts.at(-1) : row.key) || '';
+}
+export function objectLabel(row = {}) {
+  const code = objectCode(row);
+  const name = typeof row.name === 'string' && row.name.trim() && row.name.trim() !== row.code ? row.name.trim() : '';
+  return displayLabel({ name, key: code });
+}
+const kindOfService = { processor: 'processes', widgets: 'forms', appViews: 'forms', applications: 'data', collections: 'data', settings: 'data',
+  permissions: 'permissions', permissionsSettings: 'permissions', localizer: 'localization' };
+export function objectKind(row = {}) { return kindOfService[row.service] || 'other'; }
+export function objectKindLabel(row = {}) { return kindGroups[objectKind(row)]; }
+// Module = the first segment of the namespace (ELMA workspace code).
+export function objectModule(row = {}) { return typeof row.namespace === 'string' && row.namespace ? row.namespace.split('.')[0] : ''; }
+// Permissions, localization and name-less defaults are system objects: shown collapsed unless changed.
+export function isSystemObject(row = {}) {
+  const kind = objectKind(row);
+  return kind === 'permissions' || kind === 'localization' || row.code === '__default' || (!row.name && isTechnicalKey(objectCode(row)));
+}
+// Groups rows by module, then by kind group in display order; system objects
+// go to their own list. The order of rows inside a group is preserved.
+export function groupObjects(rows = []) {
+  const modules = new Map(), system = [];
+  for (const row of rows) {
+    if (isSystemObject(row)) { system.push(row); continue; }
+    const module = objectModule(row), kind = objectKind(row);
+    if (!modules.has(module)) modules.set(module, new Map());
+    const kinds = modules.get(module);
+    if (!kinds.has(kind)) kinds.set(kind, []);
+    kinds.get(kind).push(row);
+  }
+  const order = Object.keys(kindGroups);
+  return { modules: [...modules].sort(([a], [b]) => a.localeCompare(b, 'ru')).map(([module, kinds]) => ({ module, count: [...kinds.values()].reduce((n, list) => n + list.length, 0),
+    kinds: [...kinds].sort(([a], [b]) => order.indexOf(a) - order.indexOf(b)).map(([kind, list]) => ({ kind, label: kindGroups[kind], rows: list })) })), system };
+}
+// UX-03: one summary of a review. Buckets follow the existing classifications;
+// nothing here changes gates, digests or decisions.
+export const reviewBucket = row => row.conflict || row.classification === 'conflict' ? 'conflicts'
+  : row.classification === 'unchanged' ? 'unchanged' : row.classification === 'intervention-added' ? 'added'
+  : row.classification === 'component-deleted' ? 'removed' : row.classification === 'ambiguous' ? 'unknown' : 'modified';
+export function reviewSummary(review, rows = review?.rows || []) {
+  const counts = { modified: 0, added: 0, removed: 0, conflicts: 0, unchanged: 0, unknown: 0 };
+  for (const row of rows) counts[reviewBucket(row)]++;
+  const changed = rows.length - counts.unchanged;
+  const line = [[ribbon.modified, counts.modified], [ribbon.added, counts.added], [ribbon.removed, counts.removed], [ribbon.conflicts, counts.conflicts], [ribbon.unchanged, counts.unchanged]]
+    .map(([label, count]) => `${label} ${count}`).join(' · ');
+  return { counts, changed, line, total: rows.length,
+    noDifference: rows.length > 0 && changed === 0 && !(review?.ambiguities?.length),
+    unknownParts: review?.ambiguities?.length || 0,
+    dependencyProblems: (review?.dependencies?.rows || []).filter(row => row.status !== 'component-source-present').length };
+}
+// Dependency rows grouped by target and status, with a count, so a target
+// referenced from many components reads as one line.
+export function groupDependencies(rows = []) {
+  const groups = new Map();
+  for (const row of rows) {
+    const id = [row.required ? 'required' : 'optional', row.service || '?', row.targetNamespace || '?', row.targetCode || '?', row.status || ''].join('\u0000');
+    if (!groups.has(id)) groups.set(id, { ...row, count: 0, candidates: row.candidates || [] });
+    groups.get(id).count++;
+  }
+  return [...groups.values()].sort((a, b) => (b.required - a.required) || (a.status === 'component-source-present') - (b.status === 'component-source-present') || b.count - a.count);
 }
 export const dateLabel = value => value ? new Date(value).toLocaleString('ru-RU', { dateStyle: 'medium', timeStyle: 'short' }) : 'Дата не зафиксирована';
 export function workspaceSummary(state) {
@@ -65,29 +143,144 @@ export function hasAcceptedFullExport(state) {
     && baseline.components.every(row => current.get(row.key) === row.digest);
 }
 
-// The domain stays authoritative. This pure projection chooses one next action.
-export function solutionNextAction(state, { error, stale, view } = {}) {
+// The domain stays authoritative. This pure projection chooses one next action
+// (product plan one-next-action map). Composer states are projected only when the
+// server's composed candidates and build capability were actually loaded.
+export function solutionNextAction(state, { error, stale, view, composed } = {}) {
   if (error || stale) return { state: stale ? 'stale' : 'error', summary: 'Проверьте актуальное состояние решения.', label: 'Обновить состояние', view: 'overview' };
-  if (!state) return { state: 'empty', summary: 'Решений пока нет.', label: 'Добавить решение', view: 'create' };
+  if (!state) return { state: 'empty', summary: 'Решений пока нет.', label: actionLabels.loadSolution, view: 'create' };
   if (state.status === 'archived') return { state: 'archived', summary: 'Решение в архиве. Исходные файлы и история сохранены.', label: 'Возобновить работу', action: 'reopen' };
   if (!state.baselineId) return { state: 'no-source', summary: 'Для начала нужен полный экспорт решения.', label: 'Добавить решение', view: 'create' };
   const pending = state.pending || [];
   const problem = pending.find(row => !row.stale && (row.attention?.conflicts || row.attention?.unknown));
   const fixes = pending.find(row => !row.stale && row.decision === 'needs-changes');
   const fresh = problem || fixes || pending.find(row => !row.stale);
+  // A conflicting partial change without a declared base cannot be resolved
+  // three-way; the base is established by preparing the change again.
+  if (problem?.attention.conflicts && problem.kind === 'change' && problem.baseDeclaration?.status === 'unknown')
+    return { state: 'unknown-base', summary: 'В изменении есть конфликт, а его исходная версия не указана. Укажите базу, чтобы сравнить версии.', label: 'Указать базу изменения', view: 'change', artifact: problem.artifactId };
   if (fresh) return {
     state: problem ? problem.attention.conflicts ? 'conflict' : 'unknown' : fixes ? 'needs-fixes' : 'unreviewed',
-    summary: problem ? problem.attention.conflicts ? 'В изменении есть конфликт. Выберите версию при рассмотрении.' : 'Часть изменения не распознана. Проверьте исходные данные.'
+    summary: problem ? problem.attention.conflicts ? 'В изменении есть конфликт. Выберите версию для каждого объекта.' : 'Часть изменения не распознана. Проверьте исходные данные.'
       : fixes ? 'Для изменения запрошены исправления.' : `${pending.length} изменений ожидают рассмотрения.`,
-    label: fixes && !problem ? 'Добавить исправление' : 'Рассмотреть изменение',
+    label: problem?.attention.conflicts ? 'Разрешить конфликт' : fixes && !problem ? 'Добавить исправление' : 'Рассмотреть изменение',
     view: fixes && !problem ? fresh.kind === 'change' ? 'change' : 'full' : 'review', artifact: fresh.artifactId
   };
-  if (pending.length) return { state: 'stale', summary: 'Сравнение устарело после обновления решения.', label: 'Сравнить заново', view: pending[0].kind === 'change' ? 'change' : 'full' };
+  if (pending.length) return { state: 'compare', summary: 'Принятая версия изменилась. Изменения нужно сравнить заново.', label: 'Сравнить изменения', view: pending[0].kind === 'change' ? 'change' : 'full' };
   if (state.openFindings?.length) return { state: 'needs-fixes', summary: 'Есть замечания к принятому изменению.', label: 'Рассмотреть замечания', view: 'review', artifact: state.openFindings[0].artifactId };
   // Delivery states are projected only when the existing delivery capability is supplied.
   if (state.delivery?.supported && state.delivery.state === 'deployed-unverified') return { state: 'test-awaiting-verification', summary: 'Версия отправлена в TEST. Результат ещё не проверен.', label: 'Проверить TEST', view: 'delivery' };
   if (state.delivery?.supported && state.delivery.state === 'verified') return { state: 'verified', summary: 'TEST проверен. Работа завершена.', label: 'Открыть решение', view: 'solution' };
   const accepted = state.changes?.length || state.reconciliations?.length;
-  return accepted ? { state: 'accepted', summary: 'Изменения приняты. Ожидающих решений нет.', label: view === 'solution' ? 'Добавить изменение' : 'Открыть решение', view: view === 'solution' ? 'change' : 'solution' }
-    : { state: 'ready', summary: 'Текущая версия сохранена. Можно добавить изменение.', label: 'Добавить изменение', view: 'change' };
+  if (accepted && composed) {
+    const current = (composed.candidates || []).filter(row => row.inputsStatus === 'current').sort((a, b) => a.createdAt.localeCompare(b.createdAt)).at(-1);
+    // Exact bytes must be approved before a candidate can be verified on a Target.
+    if (current && current.approval?.revision !== current.revision) return { state: 'review-build', summary: 'Конфигурация собрана. Проверьте и примите точные байты сборки перед проверкой на Target.',
+      label: 'Рассмотреть сборку', view: 'compose', candidate: current.id };
+    if (current) return { state: 'verify', summary: current.evidenceBasis === 'native' && current.releaseEligible === true
+      ? 'Конфигурация собрана и принята, но не проверена на Target.' : 'Есть принятая учебная сборка. Её можно проверить только на учебном стенде; это не пакет ELMA и не выпуск.',
+      label: 'Проверить конфигурацию', view: 'compose', candidate: current.id };
+    return composed.build?.available === true
+      ? { state: 'build', summary: 'Изменения приняты. Соберите конфигурацию из принятой версии.', label: 'Собрать конфигурацию', view: 'compose' }
+      : { state: 'build-blocked', summary: 'Изменения приняты. Сборка конфигурации заблокирована: нативная материализация ELMA недоступна.', label: 'Открыть сборку', view: 'compose' };
+  }
+  // The fixed path has one way to create a new version: pull again (`full`).
+  return accepted ? { state: 'accepted', summary: summaries.accepted, label: view === 'solution' ? actionLabels.refresh : 'Открыть решение', view: view === 'solution' ? 'full' : 'solution' }
+    : { state: 'ready', summary: summaries.ready, label: actionLabels.refresh, view: 'full' };
+}
+
+// UX-03b: the choices of the "Решение по версии" dialog. A pure projection of
+// the review: the gate text disables acceptance (with its reason), the
+// discussion decides whether a finding or a comment can be recorded, and an
+// accepted, closed or stale review offers nothing. The first enabled choice is
+// the default; nothing is preselected when every choice is disabled.
+export function decisionChoices(review, gate = reviewGate(review)) {
+  if (!review || review.stale || review.acceptedAt || review.closedAt) return [];
+  const choices = [{ id: 'accept', disabled: !!gate, reason: gate || '' }];
+  if (review.discussion) choices.push({ id: 'request-fixes', disabled: false, reason: '' }, { id: 'comment', disabled: false, reason: '' });
+  return choices;
+}
+export const decisionDefault = choices => choices.find(choice => !choice.disabled)?.id ?? null;
+
+// A version with no difference can be closed without a decision; any changed,
+// added, removed or conflicting object, or an unrecognised part, needs one.
+export function canCloseWithoutChanges(review, summary) {
+  if (!review || review.stale || review.acceptedAt || review.closedAt) return false;
+  return !!summary?.noDifference && !review.ambiguities?.length;
+}
+
+// UX-04: the header badge is a projection of the next-action state; it adds no
+// state of its own. Archived wins; any open conflict or missing base reads as
+// Конфликт; other pending work waits for review; everything after acceptance
+// (build, verify, delivery evidence) is Принято; a fresh or empty Solution is В работе.
+export function solutionStatus(next = {}) {
+  const key = next.state === 'archived' ? 'archived'
+    : ['conflict', 'unknown-base'].includes(next.state) ? 'conflict'
+    : ['unknown', 'unreviewed', 'needs-fixes', 'compare'].includes(next.state) ? 'awaitingReview'
+    : ['accepted', 'build', 'build-blocked', 'review-build', 'verify', 'test-awaiting-verification', 'verified'].includes(next.state) ? 'accepted'
+    : 'working';
+  return { key, label: statuses[key] };
+}
+
+// UX-04: the lifecycle stepper. One row of the product plan's one-next-action
+// map maps to one current step; steps before it are done, steps after it are
+// next. A step the product cannot perform yet is unavailable with a two-word
+// reason (build without a builder, release before P6) and is never shown as
+// working. Error and stale states have no stepper: the page asks to refresh.
+export function lifecycleSteps(state, next = solutionNextAction(state)) {
+  if (!next || ['error', 'stale', 'empty'].includes(next.state)) return [];
+  const order = ['load', 'compare', 'review', 'build', 'verify', 'release'];
+  const current = next.state === 'no-source' ? 'load'
+    : ['ready', 'compare'].includes(next.state) ? 'compare'
+    : ['unreviewed', 'needs-fixes', 'conflict', 'unknown', 'unknown-base'].includes(next.state) ? 'review'
+    : ['accepted', 'build', 'build-blocked', 'review-build'].includes(next.state) ? 'build'
+    : ['verify', 'test-awaiting-verification'].includes(next.state) ? 'verify'
+    : next.state === 'verified' ? 'release'
+    : next.state === 'archived' ? (state?.changes?.length || state?.reconciliations?.length ? 'build' : state?.baselineId ? 'compare' : 'load') : 'compare';
+  // 'accepted' is the review-only projection: the composer was not loaded, so no
+  // builder is known. Release stays unavailable until P6 defines it.
+  const unavailable = { build: ['accepted', 'build-blocked'].includes(next.state) ? stepReasons.noBuilder : '', release: stepReasons.notYet };
+  const index = order.indexOf(current);
+  return order.map((id, position) => {
+    const reason = unavailable[id] || '';
+    const stateOf = reason ? 'unavailable' : position < index ? 'done' : position === index && next.state !== 'archived' ? 'current' : 'next';
+    return { id, label: stepLabels[id], state: stateOf, current: position === index && next.state !== 'archived', reason };
+  });
+}
+
+// UX-05: people are people. A display name and initials projected from the
+// trusted actor record (login is an e-mail or a messenger login; the id is never
+// shown). Pure: no lookups, no claims about the person beyond their login.
+export function actorDisplay(actor) {
+  const login = typeof actor === 'string' ? actor : actor?.login || '';
+  const local = login.includes('@') ? login.slice(0, login.indexOf('@')) : login;
+  const words = local.split(/[\s._-]+/).filter(Boolean).map(word => word[0].toLocaleUpperCase('ru-RU') + word.slice(1));
+  const name = words.join(' ') || (actor?.id ? '…' : '');
+  const initials = words.slice(0, 2).map(word => word[0]).join('').toLocaleUpperCase('ru-RU') || '?';
+  return { name, initials, login };
+}
+export function relativeTime(value, now = Date.now()) {
+  const at = value ? new Date(value).getTime() : NaN;
+  if (!Number.isFinite(at)) return dateLabel(value);
+  const minutes = Math.round((now - at) / 60000);
+  if (minutes < 1) return activityLabels.justNow;
+  if (minutes < 60) return `${minutes} ${activityLabels.minutesAgo}`;
+  if (minutes < 24 * 60) return `${Math.round(minutes / 60)} ${activityLabels.hoursAgo}`;
+  if (minutes < 48 * 60) return activityLabels.yesterday;
+  return dateLabel(value);
+}
+// One card per module: business rows by kind; system objects are counted, not listed.
+export function moduleCards(rows = []) {
+  const grouped = groupObjects(rows);
+  return grouped.modules.map(({ module, count, kinds }) => {
+    const of = kind => kinds.find(row => row.kind === kind)?.rows || [];
+    return { module, name: null, count, processes: of('processes'), forms: of('forms'), data: of('data'), other: of('other'),
+      system: grouped.system.filter(row => objectModule(row) === module).length };
+  });
+}
+// Activity list from the attributed audit records the server already keeps; newest first.
+export function activityFeed(state, limit = 8, now = Date.now()) {
+  return (state?.audit || []).slice(-limit).reverse().map((row, index) => ({
+    id: row.at + ':' + index, action: row.action, label: activityLabels.events[row.action] || row.action,
+    actor: actorDisplay(row.actor), at: row.at, when: relativeTime(row.at, now), artifactId: row.artifactId ?? null }));
 }

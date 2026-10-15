@@ -1,23 +1,183 @@
 {
   "version": 2,
   "capabilities": {
+    "solution-composer": {
+      "entry": "/solutions?id=:id&view=compose",
+      "kind": "implemented",
+      "actions": [
+        "list-candidates",
+        "open-candidate",
+        "approve-exact-bytes",
+        "revoke-approval",
+        "prepare-delivery",
+        "confirm-delivery",
+        "read-back",
+        "refresh-stale-state",
+        "retry-load"
+      ],
+      "renderer": [
+        "web/managed/render.js",
+        "web/managed/composer.js",
+        "web/managed/model.js",
+        "web/releases/delivery.js",
+        "web/releases/delivery-model.js"
+      ],
+      "storyIds": [
+        "solution-composer--build-blocked",
+        "solution-composer--list",
+        "solution-composer--awaiting-approval",
+        "solution-composer--approved",
+        "solution-composer--stale",
+        "solution-composer--missing",
+        "solution-composer--delivery-prepared",
+        "solution-composer--partial-outcome",
+        "solution-composer--unknown-outcome",
+        "solution-composer--verified",
+        "solution-composer--verification-failed",
+        "solution-composer--failed",
+        "solution-composer--load-error",
+        "solution-composer--delivery-load-error",
+        "solution-composer--lost-response",
+        "solution-composer--next-compare",
+        "solution-composer--next-resolve",
+        "solution-composer--next-unknown-base",
+        "solution-composer--next-build-blocked",
+        "solution-composer--next-review-build",
+        "solution-composer--next-verify"
+      ],
+      "requiredVisibleStates": [
+        "build-blocked",
+        "list",
+        "awaiting-approval",
+        "approved",
+        "stale",
+        "missing",
+        "delivery-prepared",
+        "partial-outcome",
+        "unknown-outcome",
+        "verified",
+        "verification-failed",
+        "failed",
+        "load-error",
+        "delivery-load-error",
+        "lost-response",
+        "next-compare",
+        "next-resolve",
+        "next-unknown-base",
+        "next-build-blocked",
+        "next-review-build",
+        "next-verify"
+      ],
+      "sources": [
+        "lib/composed-candidates.mjs",
+        "docs/contracts/target-deployment.md",
+        "test/composed-delivery.test.mjs",
+        "test/solution-composer-view.test.mjs",
+        "tools/solution-composer-storybook-check.mjs"
+      ]
+    },
     "solution-explanations": {
       "entry": "Solution overview and contextual process/step preview",
       "kind": "implemented",
-      "actions": ["explain", "inspect-source", "edit", "save", "compare-new-draft", "refresh-saved-state", "read-history"],
-      "renderer": ["web/explanations/render.js", "web/managed/render.js", "web/visual/render.js"],
-      "storyIds": ["solution-explanation--ready", "solution-explanation--draft", "solution-explanation--saved", "solution-explanation--stale", "solution-explanation--loading", "solution-explanation--error", "solution-explanation--conflict", "solution-explanation--historical", "solution-explanation--regenerated", "solution-explanation--in-solution"],
-      "requiredVisibleStates": ["ready", "draft", "saved", "stale", "loading", "error", "conflict", "historical", "regenerated", "in-solution"],
-      "sources": ["docs/contracts/solution-explanations.md", "lib/solution-explanations.mjs", "test/solution-explanations.test.mjs", "tools/solution-explanations-browser-check.mjs"]
+      "actions": [
+        "explain",
+        "inspect-source",
+        "edit",
+        "save",
+        "compare-new-draft",
+        "refresh-saved-state",
+        "read-history"
+      ],
+      "renderer": [
+        "web/explanations/render.js",
+        "web/managed/render.js",
+        "web/visual/render.js"
+      ],
+      "storyIds": [
+        "solution-explanation--ready",
+        "solution-explanation--draft",
+        "solution-explanation--saved",
+        "solution-explanation--stale",
+        "solution-explanation--loading",
+        "solution-explanation--error",
+        "solution-explanation--conflict",
+        "solution-explanation--historical",
+        "solution-explanation--regenerated",
+        "solution-explanation--in-solution",
+        "solution-explanation--solution-reading-guide",
+        "solution-explanation--process-reading-guide"
+      ],
+      "requiredVisibleStates": [
+        "ready",
+        "draft",
+        "saved",
+        "stale",
+        "loading",
+        "error",
+        "conflict",
+        "historical",
+        "regenerated",
+        "in-solution",
+        "solution-reading-guide",
+        "process-reading-guide"
+      ],
+      "sources": [
+        "docs/contracts/solution-explanations.md",
+        "lib/solution-explanations.mjs",
+        "test/solution-explanations.test.mjs",
+        "tools/solution-explanations-browser-check.mjs"
+      ]
     },
     "bug-reports": {
       "entry": "authenticated Wiki pages: side Bug icon",
       "kind": "implemented",
-      "actions": ["report", "capture-window", "annotate", "attach", "remove", "submit", "retry-or-reconcile", "reject-change"],
-      "renderer": ["web/feedback/render.js"],
-      "storyIds": ["bug-reports--ready", "bug-reports--attachments", "bug-reports--limit", "bug-reports--capture-error", "bug-reports--published", "bug-reports--unknown", "bug-reports--failed", "bug-reports--unconfigured", "bug-reports--reject", "bug-reports--rejected", "bug-reports--blocked", "bug-reports--attachment-failed"],
-      "requiredVisibleStates": ["ready", "attachments", "limit", "capture-error", "published", "unknown", "failed", "unconfigured", "reject", "rejected", "blocked", "attachment-failed"],
-      "sources": ["docs/contracts/bug-reports.md", "lib/bug-reports.mjs", "test/bug-reports.test.mjs", "tools/bug-reports-browser-check.mjs"]
+      "actions": [
+        "report",
+        "capture-window",
+        "annotate",
+        "attach",
+        "remove",
+        "submit",
+        "retry-or-reconcile",
+        "reject-change"
+      ],
+      "renderer": [
+        "web/feedback/render.js"
+      ],
+      "storyIds": [
+        "bug-reports--ready",
+        "bug-reports--attachments",
+        "bug-reports--limit",
+        "bug-reports--capture-error",
+        "bug-reports--published",
+        "bug-reports--unknown",
+        "bug-reports--failed",
+        "bug-reports--unconfigured",
+        "bug-reports--reject",
+        "bug-reports--rejected",
+        "bug-reports--blocked",
+        "bug-reports--attachment-failed"
+      ],
+      "requiredVisibleStates": [
+        "ready",
+        "attachments",
+        "limit",
+        "capture-error",
+        "published",
+        "unknown",
+        "failed",
+        "unconfigured",
+        "reject",
+        "rejected",
+        "blocked",
+        "attachment-failed"
+      ],
+      "sources": [
+        "docs/contracts/bug-reports.md",
+        "lib/bug-reports.mjs",
+        "test/bug-reports.test.mjs",
+        "tools/bug-reports-browser-check.mjs"
+      ]
     },
     "solution-handoff": {
       "entry": "/solutions?id=:id&view=handoff",
@@ -182,7 +342,10 @@
         "delivery--verified",
         "delivery--mismatch",
         "delivery--unknown",
+        "delivery--partial-outcome",
         "delivery--failed",
+        "delivery--partial-install",
+        "delivery--stale-unresolved",
         "delivery--blocked",
         "delivery--cancelled",
         "delivery--stale",
@@ -190,7 +353,9 @@
         "delivery--protected-target",
         "delivery--bridge-no-bridge",
         "delivery--bridge-offline",
-        "delivery--bridge-deploying"
+        "delivery--bridge-deploying",
+        "delivery--bridge-presets",
+        "delivery--bridge-presets-unconfigured"
       ],
       "requiredVisibleStates": [
         "unavailable",
@@ -202,7 +367,10 @@
         "verified",
         "verification-failed",
         "unknown-outcome",
+        "partial-outcome",
         "failed",
+        "partial-install",
+        "stale-unresolved",
         "blocked",
         "cancelled",
         "stale",
@@ -210,11 +378,17 @@
         "protected-target",
         "bridge-no-bridge",
         "bridge-offline",
-        "bridge-deploying"
+        "bridge-deploying",
+        "bridge-presets",
+        "bridge-presets-unconfigured"
       ],
       "sources": [
         "lib/delivery.mjs",
         "lib/bridge.mjs",
+        "lib/target-presets.mjs",
+        "test/target-presets.test.mjs",
+        "lib/composed-candidates.mjs",
+        "test/composed-delivery.test.mjs",
         "docs/contracts/target-deployment.md"
       ]
     },
@@ -600,10 +774,14 @@
         "freeze",
         "approve",
         "preview",
-        "bundle"
+        "bundle",
+        "attach-edit",
+        "review-edit",
+        "detach-edit"
       ],
       "renderer": [
         "web/releases/render.js",
+        "web/releases/edits.js",
         "web/releases/model.js",
         "web/releases/comparison.js",
         "web/releases/snapshot-picker.js"
@@ -616,6 +794,9 @@
         "release--candidate",
         "release--prepared",
         "release--handed-off",
+        "release--supported-edit",
+        "release--stale-edit",
+        "release--edited-candidate",
         "release--snapshot-selection",
         "release--snapshot-load-error"
       ],
@@ -627,12 +808,17 @@
         "candidate",
         "prepared",
         "handed-off",
+        "supported-edit",
+        "stale-edit",
+        "edited-candidate",
         "snapshot-selection",
         "snapshot-load-error"
       ],
       "sources": [
         "lib/releases.mjs",
-        "docs/contracts/analyst-releases.md"
+        "lib/supported-edits.mjs",
+        "docs/contracts/analyst-releases.md",
+        "docs/contracts/developer-workspace.md"
       ]
     },
     "managed-workspace": {
@@ -694,12 +880,39 @@
         "managed-workspace--merge-required",
         "managed-workspace--merge-resolved",
         "managed-workspace--merge-stale",
-        "managed-workspace--merge-blocked"
+        "managed-workspace--merge-blocked",
+        "managed-workspace--create-legacy",
+        "managed-workspace--pull-exporting",
+        "managed-workspace--pull-ready",
+        "managed-workspace--pull-failed",
+        "managed-workspace--pull-unavailable",
+        "managed-workspace--update",
+        "managed-workspace--summary-mixed",
+        "managed-workspace--summary-no-changes",
+        "managed-workspace--summary-closed",
+        "managed-workspace--decision",
+        "managed-workspace--lifecycle-build",
+        "managed-workspace--lifecycle-verified",
+        "managed-workspace--about-empty",
+        "managed-workspace--about-generated",
+        "managed-workspace--about-saved",
+        "managed-workspace--about-stale",
+        "managed-workspace--about-error"
       ],
       "requiredVisibleStates": [
         "empty",
         "list",
         "create",
+        "summary-mixed",
+        "summary-no-changes",
+        "summary-closed",
+        "decision",
+        "create-legacy",
+        "pull-exporting",
+        "pull-ready",
+        "pull-failed",
+        "pull-unavailable",
+        "update",
         "overview",
         "pending",
         "change",
@@ -735,7 +948,14 @@
         "merge-required",
         "merge-resolved",
         "merge-stale",
-        "merge-blocked"
+        "merge-blocked",
+        "lifecycle-build",
+        "lifecycle-verified",
+        "about-empty",
+        "about-generated",
+        "about-saved",
+        "about-stale",
+        "about-error"
       ],
       "sources": [
         "docs/workflows/solutions.md",

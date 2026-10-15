@@ -281,12 +281,16 @@ test('whole-scope read-back rejects changed metadata, unexpected files and dupli
       attempt = await delivery.get(release.id, attempt.id, 'alice');
       assert.equal(attempt.evidence.readBack, null);
       assert.ok(attempt.evidence.verificationError);
-    } else {
-      attempt = await delivery.verify(release.id, attempt.id, 'alice');
-      assert.equal(attempt.evidence.comparison.match, false);
-      if (mode === 'metadata') assert.deepEqual(attempt.evidence.comparison.different, ['package.json']);
-      else assert.deepEqual(attempt.evidence.comparison.unexpected, ['permissionsSettings/stale.json']);
+      // An invalid response observes nothing: the outcome stays unresolved and reserved.
+      assert.equal(attempt.state, 'deployed-unverified');
+      await assert.rejects(delivery.prepare(release.id, 'alice', { revision: release.revision, connectionId: connection.id }), { statusCode: 409 });
+      assert.equal((await releases.get(release.id, 'alice')).checks.find(c => c.id === 'target').result, 'not-run');
+      return;
     }
+    attempt = await delivery.verify(release.id, attempt.id, 'alice');
+    assert.equal(attempt.evidence.comparison.match, false);
+    if (mode === 'metadata') assert.deepEqual(attempt.evidence.comparison.different, ['package.json']);
+    else assert.deepEqual(attempt.evidence.comparison.unexpected, ['permissionsSettings/stale.json']);
     assert.equal(attempt.state, 'verification-failed');
     assert.equal((await releases.get(release.id, 'alice')).checks.find(c => c.id === 'target').result, 'fail');
   });
@@ -307,7 +311,11 @@ test('a matching inventory from a changed Target cannot verify before or during 
     if (duringReadBack) changeOnRead = true; else host = 'another.example.invalid';
     await assert.rejects(delivery.verify(release.id, attempt.id, 'alice'), { statusCode: 409 });
     assert.equal(readCount, duringReadBack ? 1 : 0);
-    assert.equal((await delivery.get(release.id, attempt.id, 'alice')).state, 'verification-failed');
+    // Another host answered: the original Target was not observed, so its outcome stays reserved.
+    const stored = await delivery.get(release.id, attempt.id, 'alice');
+    assert.equal(stored.state, 'deployed-unverified');
+    assert.equal(stored.evidence.verificationError.statusCode, 409);
+    assert.equal(stored.evidence.comparison, null);
   });
 });
 

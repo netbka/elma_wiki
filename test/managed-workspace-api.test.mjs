@@ -163,6 +163,39 @@ test('HTTP concurrent decisions, stale proposals and corrupt originals fail clos
   assert.equal((await json(await request(id))).revision, 1);
 });
 
+test('UX-01 fixed pull path: a full pull from the same named Source needs no confirmation, responsibility or base question', async t => {
+  const { request, post, upload } = await setup(t);
+  const source = { connectionId: 'config-api-dev', solutionRef: 'synthetic_solution' };
+  const base = await upload([['a', 'base']], 'full', { source });
+  // No baselineOwner: the acting person is recorded as the declared responsibility.
+  let state = await json(await post('', { name: 'Pulled solution', snapshot: base.ref }), 201), id = '/' + state.id;
+  assert.ok(typeof state.baselineOwner === 'string' && state.baselineOwner.trim(), 'the acting person is the declared responsibility');
+  const next = await upload([['a', 'changed']], 'full', { source });
+  const prepared = await json(await post(id + '/prepare', { kind: 'reconciliation', snapshot: next.ref, expectedRevision: 0 }), 201);
+  assert.equal(prepared.options.baselineOwner, state.baselineOwner);
+  assert.equal(prepared.sourceDeclaration.method, 'source-sequence');
+  assert.equal(prepared.baseDeclaration.status, 'declared');
+  assert.equal(prepared.baseDeclaration.method, 'source-sequence');
+  assert.equal(prepared.baseDeclaration.artifactId, state.baselineId);
+  assert.equal(prepared.baseDeclaration.revision, 0);
+  assert.equal(prepared.baseDeclaration.ancestryVerified, false);
+  state = await json(await post(id + '/artifacts/' + prepared.artifactId + '/accept', decisions(prepared)));
+  // The next pull is based on the newly accepted version, at its acceptance revision.
+  const third = await upload([['a', 'third']], 'full', { source });
+  const again = await json(await post(id + '/prepare', { kind: 'reconciliation', snapshot: third.ref, expectedRevision: state.revision }), 201);
+  assert.equal(again.baseDeclaration.artifactId, state.baselineId);
+  assert.equal(again.baseDeclaration.revision, state.revision);
+  // A manual upload into a Source-backed Solution still needs the explicit same-Source confirmation; the declared responsibility carries over either way.
+  const manual = await upload([['a', 'manual']], 'full');
+  await json(await post(id + '/prepare', { kind: 'reconciliation', snapshot: manual.ref, expectedRevision: state.revision }), 400);
+  const confirmed = await json(await post(id + '/prepare', { kind: 'reconciliation', snapshot: manual.ref, expectedRevision: state.revision, sameSourceConfirmed: true }), 201);
+  assert.equal(confirmed.baseDeclaration.status, 'unknown');
+  assert.equal(confirmed.sourceDeclaration.method, 'explicit-assertion');
+  // A different named Source is still refused even without a confirmation flag.
+  const other = await upload([['a', 'other']], 'full', { source: { ...source, connectionId: 'config-api-dev2' } });
+  await json(await post(id + '/prepare', { kind: 'reconciliation', snapshot: other.ref, expectedRevision: state.revision }), 409);
+});
+
 test('HTTP Source confirmation is explicit; known different connections cannot be mixed even after a manual baseline refresh', async t => {
   const { request, post, upload } = await setup(t);
   const source = { connectionId: 'synthetic-dev', solutionRef: 'synthetic_solution' };
@@ -182,4 +215,40 @@ test('HTTP Source confirmation is explicit; known different connections cannot b
   assert.equal(manual.sourceDeclaration.method, 'explicit-assertion');
   assert.equal(manual.sourceDeclaration.declaredBy, 'local');
   assert.equal((await json(await request(id))).revision, state.revision);
+});
+
+test('UX-03b: a no-difference version is closed without advancing anything; a differing version refuses the close; a decision comment becomes the acceptance text', async t => {
+  const { request, post, upload } = await setup(t);
+  const source = { connectionId: 'config-api-dev', solutionRef: 'synthetic_solution' };
+  const base = await upload([['a', 'base']], 'full', { source });
+  let state = await json(await post('', { name: 'Pulled solution', snapshot: base.ref }), 201);
+  const id = '/' + state.id, revisionBefore = state.revision;
+  // Same content pulled again: every object is unchanged, so the version can be closed.
+  const same = await upload([['a', 'base']], 'full', { source });
+  const prepared = await json(await post(id + '/prepare', { kind: 'reconciliation', snapshot: same.ref, expectedRevision: state.revision }), 201);
+  assert.ok(prepared.rows.every(row => row.classification === 'unchanged'));
+  await json(await post(id + '/artifacts/' + prepared.artifactId + '/close', { expectedRevision: state.revision, reviewedDigest: 'f'.repeat(64) }), 409);
+  state = await json(await post(id + '/artifacts/' + prepared.artifactId + '/close', { expectedRevision: state.revision, reviewedDigest: prepared.artifactDigest }));
+  assert.equal(state.revision, revisionBefore, 'closing does not advance the revision');
+  assert.equal(state.reconciliations.length, 0); assert.equal(state.pending.length, 0);
+  assert.deepEqual(state.reviewedChanges.map(row => [row.artifactId, !!row.closedAt, row.acceptedAt]), [[prepared.artifactId, true, null]]);
+  const closed = await json(await request(id + '/artifacts/' + prepared.artifactId + '/review'));
+  assert.ok(closed.closedAt); assert.equal(closed.closedDecision.reason, 'no-difference'); assert.equal(closed.stale, false); assert.equal(closed.acceptedAt, null);
+  assert.equal((await request(id + '/artifacts/' + prepared.artifactId + '/original')).status, 200, 'the closed artifact stays readable');
+  await json(await post(id + '/artifacts/' + prepared.artifactId + '/close', { expectedRevision: state.revision }), 404);
+  // A differing version cannot be closed; it needs a decision. The decision may carry a comment.
+  const next = await upload([['a', 'changed']], 'full', { source });
+  const differing = await json(await post(id + '/prepare', { kind: 'reconciliation', snapshot: next.ref, expectedRevision: state.revision }), 201);
+  await json(await post(id + '/artifacts/' + differing.artifactId + '/close', { expectedRevision: state.revision }), 409);
+  await json(await post(id + '/artifacts/' + differing.artifactId + '/accept', { ...decisions(differing), comment: 'x'.repeat(4001) }), 400);
+  // A no-difference version prepared before a later acceptance is stale: closing it would revert `a`.
+  const stale = await json(await post(id + '/prepare', { kind: 'reconciliation', snapshot: (await upload([['a', 'base']], 'full', { source })).ref, expectedRevision: state.revision }), 201);
+  assert.ok(stale.rows.every(row => row.classification === 'unchanged'));
+  state = await json(await post(id + '/artifacts/' + differing.artifactId + '/accept', { ...decisions(differing), comment: 'Проверено: изменение согласовано' }));
+  assert.equal(state.reconciliations.length, 1);
+  assert.equal((await json(await request(id + '/artifacts/' + stale.artifactId + '/review'))).stale, true);
+  await json(await post(id + '/artifacts/' + stale.artifactId + '/close', { expectedRevision: state.revision, reviewedDigest: stale.artifactDigest }), 409);
+  assert.equal((await json(await request(id))).pending.length, 1, 'the stale version stays pending for a fresh comparison');
+  const accepted = await json(await request(id + '/artifacts/' + differing.artifactId + '/review'));
+  assert.equal(accepted.discussion.events.find(event => event.type === 'approve').text, 'Проверено: изменение согласовано');
 });

@@ -1,5 +1,6 @@
 import { relatedForm, checkScenarioStep } from './model.js';
 import { mountExplanation } from '../explanations/render.js';
+import { diagram as diagramLabels } from '../managed/labels.js';
 const el=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n;};
 const svg=(tag,attrs={})=>{const n=document.createElementNS('http://www.w3.org/2000/svg',tag);for(const [k,v] of Object.entries(attrs))n.setAttribute(k,String(v));return n;};
 export function mountSnapshotVisual(model={},actions={}) {
@@ -36,6 +37,10 @@ export function mountSnapshotVisual(model={},actions={}) {
   };
   const catalog=el('div'), content=el('div');root.append(catalog,content);
   const explanationPanels=new Map();
+  // UX-03b: steps named by a review as changed are drawn with a warm fill and
+  // listed once; the highlight is a projection of review evidence, not native
+  // ELMA state. focusProcess() picks the process by its exact object identity.
+  let highlighted=new Set();
   const explanation=(target,label,openSource)=>{
     const key=JSON.stringify(target);
     if(!explanationPanels.has(key)){
@@ -62,7 +67,7 @@ export function mountSnapshotVisual(model={},actions={}) {
       }refresh();
       panel.replaceChildren(el('h3',node.name),source(node.pointer));
       if(actions.explanations)panel.append(explanation({scope:'step',artifactId:model.artifactId,source:process.source,nodeId:node.id},'Объяснить этот шаг',openSource));
-      diagram.querySelectorAll('[data-node]').forEach(n=>n.setAttribute('stroke',n.dataset.node===node.id?'#087451':'#536660'));
+      diagram.querySelectorAll('[data-node]').forEach(n=>n.setAttribute('stroke',n.dataset.node===node.id?'#087451':n.dataset.changed?'#b36b00':'#536660'));
       const relation=relatedForm(process,node.id);
       values[node.id]??={};
       if(relation.form){panel.append(el('p','Связь с формой указана в экспорте'),el('h4',relation.form.name));displayForm(relation.form.tree,panel,simulation,values[node.id]);}
@@ -89,12 +94,15 @@ export function mountSnapshotVisual(model={},actions={}) {
       const end=edge.points.at(-1),before=edge.points.at(-2),angle=Math.atan2(end.y-before.y,end.x-before.x),back={x:end.x-9*Math.cos(angle),y:end.y-9*Math.sin(angle)};
       diagram.append(svg('polygon',{points:`${end.x},${end.y} ${back.x+4*Math.sin(angle)},${back.y-4*Math.cos(angle)} ${back.x-4*Math.sin(angle)},${back.y+4*Math.cos(angle)}`,fill:'#667c72'}));
     }
+    if(highlighted.size){const legend=el('p',diagramLabels.changedSteps+': '+process.nodes.filter(node=>highlighted.has(node.id)).map(node=>node.name).join(', '));legend.className='visual-changed-legend';legend.setAttribute('role','status');content.append(legend);}
     for(const node of process.nodes){
-      const b=el('button',node.name+(node.supported?'':' · Не поддерживается'));b.type='button';b.onclick=()=>select(node);content.append(b);
-      if(!node.position)continue;const p=node.position,g=svg('g',{role:'button',tabindex:0,'aria-label':node.name,'data-node':node.id,stroke:'#536660','stroke-width':2});
+      const changed=highlighted.has(node.id);
+      const b=el('button',node.name+(node.supported?'':' · Не поддерживается')+(changed?' · '+diagramLabels.changedStep:''));b.type='button';b.onclick=()=>select(node);content.append(b);
+      if(!node.position)continue;const p=node.position,g=svg('g',{role:'button',tabindex:0,'aria-label':node.name+(changed?' · '+diagramLabels.changedStep:''),'data-node':node.id,...(changed?{'data-changed':'true'}:{}),stroke:changed?'#b36b00':'#536660','stroke-width':changed?3:2});
       const shape=['start','end'].includes(node.type)?svg('ellipse',{cx:p.x+p.width/2,cy:p.y+p.height/2,rx:p.width/2,ry:p.height/2,fill:'#fff'}):node.type==='gateway'?svg('polygon',{points:`${p.x+p.width/2},${p.y} ${p.x+p.width},${p.y+p.height/2} ${p.x+p.width/2},${p.y+p.height} ${p.x},${p.y+p.height/2}`,fill:'#fff'}):svg('rect',{...p,rx:6,fill:node.supported?'#fff':'#fff2db'});
       const label=svg('text',{x:p.x+p.width/2,y:p.y+p.height/2,'text-anchor':'middle','font-size':12,stroke:'none',fill:'#213b2e'}),limit=Math.max(3,Math.floor(p.width/7));label.textContent=node.name.length>limit?node.name.slice(0,limit-1)+'…':node.name;
       const title=svg('title');title.textContent=node.name;g.append(title);
+      if(changed)shape.setAttribute('fill','#fff3d6');
       g.append(shape,label);g.onclick=()=>select(node);g.onkeydown=e=>{if(['Enter',' '].includes(e.key)){e.preventDefault();select(node);}};diagram.append(g);
     }
     layout.append(diagram,panel);content.append(layout);
@@ -106,5 +114,12 @@ export function mountSnapshotVisual(model={},actions={}) {
       if(result.missing.length)error.textContent='По экспорту требуется: '+result.missing.map(field=>field.name||field.code).join(', ')+'. Введённые значения сохранены.';}
   };
   for(const process of model.processes){const b=el('button',process.name||process.source);b.type='button';b.onclick=()=>show(process);catalog.append(b);}
-  show(model.processes[0]);return root;
+  show(model.processes[0]);
+  root.focusProcess=({object,nodeIds=[]}={})=>{
+    const process=model.processes.find(p=>JSON.stringify(p.object)===object);
+    if(!process)return false;
+    highlighted=new Set(nodeIds);show(process);
+    root.scrollIntoView?.({block:'start'});return true;
+  };
+  return root;
 }

@@ -8,6 +8,50 @@ import { createServer } from '../server.mjs';
 import { vkLoginLinks } from '../lib/vk-login-links.mjs';
 import { visualSource } from '../web/visual/fixtures.js';
 import { zip } from './fixture.mjs';
+import { solutionReadingGuide, processReadingGuide } from '../lib/solution-explanations.mjs';
+
+test('Solution reading guide leads with named tasks, separates marked processes and never invents execution order or inactive status',()=>{
+  const processes=['Обработка учебного документа','Проверка учебного контрагента','Учебное согласование','Получить учебных пользователей из роли',
+    'OLD_Учебный маршрут','TEST ONLY: synthetic probe','AGENT synthetic acceptance'].map(name=>({name}));
+  const text=solutionReadingGuide('Учебное решение',processes,40).join('\n\n');
+  assert.ok(text.indexOf('Какие задачи')<text.indexOf('40 объектов'));
+  assert.match(text,/Контрагенты\n• Проверка учебного контрагента/);
+  const [ordinary,marked]=text.split('Отдельно: названия с пометками OLD / TEST / AGENT');
+  assert.ok(!ordinary.includes('TEST ONLY:'));assert.ok(!ordinary.includes('OLD_'));assert.ok(!ordinary.includes('AGENT synthetic'));
+  assert.match(marked,/OLD_Учебный маршрут/);assert.match(marked,/не доказывает/);
+  assert.match(text,/не является порядком выполнения/);assert.match(text,/по названиям процессов/);
+  assert.match(text,/Ожидающие рассмотрения версии не включены/);
+  assert.ok(!text.includes('переходов'));
+  const empty=solutionReadingGuide('Пустое решение',[],0).join('\n');
+  assert.match(empty,/Попросите ответственного/);assert.match(empty,/0 объектов, 0 процессов/);
+});
+
+test('long process explanation stays readable while retaining every node source and does not invent participants or conditions',async t=>{
+  const {request,json,login,create,upload,ref,post}=await setup(t);
+  const a=await login('alice@example.org'),state=await create(a.cookie);
+  const raw={process:{lanes:{},items:{},transitions:{}},forms:[structuredClone(visualSource.forms[0])]};
+  for(let i=0;i<20;i++)raw.forms[0].content['[content]'][0].values.fields.push({code:'synthetic_field_'+i,name:'Учебное поле '+i,type:'string',required:false});
+  for(let i=0;i<120;i++){
+    const id='synthetic-'+i;
+    raw.process.items[id]={id,type:i===0?'start':i===119?'end':'user',name:'Учебная задача '+i,x:i*100,y:0,width:80,height:50,settings:{formCode:'approval'}};
+    if(i)raw.process.transitions['edge-'+i]={id:'edge-'+i,source:'synthetic-'+(i-1),target:id,path:[{x:0,y:0},{x:100,y:0}]};
+  }
+  const review=await json(await post('/api/solutions/'+state.id+'/prepare',a.cookie,{kind:'change',snapshot:ref(await upload(a.cookie,raw),'partial'),expectedRevision:state.revision,team:'Synthetic',taskRef:'Long synthetic process',sameSourceConfirmed:true}),201);
+  const result=await json(await request(url(state.id,{scope:'process',artifactId:review.artifactId,source}),a.cookie));
+  assert.ok(result.draft.text.length<6000);
+  assert.match(result.draft.text,/Задачи участников/);assert.match(result.draft.text,/Показано 8 из 118/);
+  assert.match(result.draft.text,/не задаёт маршрут выполнения/);
+  assert.match(result.draft.text,/исполнителей и фактический результат нужно подтвердить/);
+  assert.equal(new Set(result.draft.sources.filter(s=>s.pointer.includes('/process/items/')).map(s=>s.nodeId)).size,120);
+  assert.equal(result.draft.sources.length,239,'Overview retains nodes and transitions without repeating form fields');
+  const selected=await json(await request(url(state.id,{scope:'step',artifactId:review.artifactId,source,nodeId:'synthetic-1'}),a.cookie));
+  assert.match(selected.draft.text,/Документ \(обязательное по экспорту\)/);
+  assert.ok(selected.draft.sources.some(s=>s.pointer.includes('/forms/0')));
+  const empty=processReadingGuide({name:'Учебный пустой процесс',nodes:[],edges:[]}).join('\n');
+  assert.match(empty,/нельзя определить, что делает процесс/);
+  const uncertain=processReadingGuide({name:'Учебные длинные названия',nodes:[],edges:[{name:'Длинное учебное название '.repeat(25),target:'missing',supported:false}]}).join('\n');
+  assert.match(uncertain,/… → неизвестный или неоднозначный шаг \(связь не поддерживается\)/,'Shortening names must preserve uncertainty labels');
+});
 
 export const explanationArchive = raw => zip([
   ['package.json',{code:'synthetic_explanation',type:'SOLUTION'}],

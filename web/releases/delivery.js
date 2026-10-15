@@ -56,7 +56,7 @@ export function mountDelivery({ release, client, onAction, onRefresh, onState, i
       const retry = button(root, 'Повторить загрузку доставки', onRefresh || (() => refresh())); retry.dataset.recovery = 'true'; retry.disabled = false; return;
     }
     if (!data) {
-      root.append(el('p', client ? 'Загружаем состояние доставки…' : 'Доставка в ELMA пока недоступна. Используйте приватный пакет передачи.'));
+      root.append(el('p', client ? 'Загружаем состояние доставки…' : release?.candidate?.provenance === 'supported-edit' ? 'Кандидат с правками только для рецензии: он не устанавливается до нативной сборки изменённого пакета (elma365#60).' : 'Доставка в ELMA пока недоступна. Используйте приватный пакет передачи.'));
       return;
     }
     const view = deliveryPanelView(release, data);
@@ -99,16 +99,21 @@ export function mountDelivery({ release, client, onAction, onRefresh, onState, i
       }
       for (const connection of view.connections) {
         const card = el('article', undefined, 'card');
-        card.append(el('h3', connection.name), el('p', `${connection.environment.toUpperCase()} · ${connection.adapter}${connection.adapter === 'bridge' ? ` (${view.bridges.find(b => b.id === connection.adapterOptions?.bridgeId)?.name || 'мост удалён'})` : ''} · ${connection.probe?.identity?.host || 'Личность не проверена'}`));
+        const preset = connection.preset;
+        card.append(el('h3', connection.name), el('p', preset
+          ? `Предопределённый Target · ${preset.environmentRole === 'shared-business' ? 'общая бизнес-среда, только чтение' : 'техническая среда'} · мост --target=${preset.bridgeTarget} · ${preset.host || 'узел не задан'} · ${connection.probe?.identity?.host ? 'проверен: ' + connection.probe.identity.host : 'Личность не проверена'}`
+          : `${connection.environment.toUpperCase()} · ${connection.adapter}${connection.adapter === 'bridge' ? ` (${view.bridges.find(b => b.id === connection.adapterOptions?.bridgeId)?.name || 'мост удалён'})` : ''} · ${connection.probe?.identity?.host || 'Личность не проверена'}`));
+        if (preset) card.append(el('p', !preset.available ? `Недоступен: ${preset.reason}` : `Разрешено: ${preset.allowedOperations.join(', ')}${preset.allowedOperations.includes('deploy') ? ` · доставка только кандидата, назначенного владельцем (${preset.designatedCandidates.length ? preset.designatedCandidates.map(sha => sha.slice(0, 12)).join(', ') : 'не назначен'})` : ' · доставка запрещена'}`, preset.available ? 'note' : 'release-error'));
+        if (preset && connection.probe?.identity?.host && connection.probe.hostMatches === false) card.append(el('p', 'Мост сообщает другой узел, чем настроен: операции отклоняются.', 'release-error'));
         if (connection.probe?.protectedHost) card.append(el('p', 'Фактический узел входит в защищённый список: доставка будет отклонена независимо от названия.', 'release-error'));
-        button(card, 'Проверить подключение — ' + connection.name, () => refresh(() => client.probeConnection(connection.id)));
-        if (client?.removeConnection) button(card, 'Удалить подключение — ' + connection.name, () => refresh(() => client.removeConnection(connection.id)));
+        if (!preset || preset.available) button(card, 'Проверить подключение — ' + connection.name, () => refresh(() => client.probeConnection(connection.id)));
+        if (client?.removeConnection && !preset) button(card, 'Удалить подключение — ' + connection.name, () => refresh(() => client.removeConnection(connection.id)));
         root.append(card);
       }
       const picker = field(root, view.synthetic ? 'Учебный стенд для доставки' : 'Подключение Target для доставки', '', 'select');
       const empty = el('option', view.synthetic ? 'Выберите учебный стенд' : 'Выберите подключение Target'); empty.value = ''; picker.append(empty);
       for (const connection of view.connections) {
-        const option = el('option', `${connection.name}${connection.environment === 'prod' ? ' — PROD недоступен' : !view.usable(connection) ? ' — требуется проверка доступности' : ''}`); option.value = connection.id;
+        const option = el('option', `${connection.name}${connection.environment === 'prod' ? ' — PROD недоступен' : connection.preset && !connection.preset.available ? ' — не настроен' : connection.preset && !connection.preset.allowedOperations.includes('deploy') ? ' — только чтение' : !view.usable(connection) ? ' — требуется проверка доступности' : ''}`); option.value = connection.id;
         option.disabled = !view.selectable(connection);
         picker.append(option);
       }
@@ -143,6 +148,11 @@ export function mountDelivery({ release, client, onAction, onRefresh, onState, i
       }
       if (view.canCancel) button(attempt, 'Отменить подготовку', () => execute({ action: 'cancel', attemptId: latest.id }));
       if (view.canVerify) button(attempt, 'Прочитать и проверить результат', () => execute({ action: 'verify', attemptId: latest.id })).classList.remove('secondary');
+      if (view.canReconcile) button(attempt, 'Сверить состояние Target без подтверждения', () => execute({ action: 'reconcile', attemptId: latest.id })).classList.remove('secondary');
+      const reconciliation = latest.evidence.reconciliation;
+      if (reconciliation?.mode === 'reconcile-only') attempt.append(el('p', reconciliation.outcome === 'not-applied' ? 'Сверка без подтверждения: изменения не применены, Target освобождён. Прежний кандидат не подтверждён.'
+        : reconciliation.outcome === 'stale-applied' ? 'Сверка без подтверждения: на Target применён устаревший кандидат. Target остаётся зарезервированным до решения владельца.'
+        : 'Сверка без подтверждения: частичная установка. Target остаётся зарезервированным; нужен план восстановления.', 'note'));
       const comparison = latest.evidence.comparison;
       if (comparison) {
         attempt.append(el('p', `Сравнено файлов: ${comparison.compared}. Политика проверки: ${comparison.policy || 'прежняя, требуется повторная проверка'}.`));
@@ -152,6 +162,12 @@ export function mountDelivery({ release, client, onAction, onRefresh, onState, i
         if (comparison.unexpected?.length) attempt.append(el('p', 'Лишние файлы: ' + comparison.unexpected.join(', '), 'release-hash'));
       }
       if (latest.evidence.verificationError) attempt.append(el('p', 'Проверка результата не подтверждена. Проверьте личность стенда, ответ и актуальность кандидата; успешное сообщение операции не является доказательством.', 'note'));
+      const unitLabels = { pending: 'не запущена', dispatched: 'передана адаптеру, ответа ещё нет', applied: 'адаптер сообщил о применении', failed: 'ошибка', skipped: 'пропущена', unreported: 'результат не сообщён' };
+      if (latest.evidence.units?.length) {
+        const units = el('ol'); units.setAttribute('aria-label', 'Единицы установки');
+        for (const unit of latest.evidence.units) units.append(el('li', `${unit.unitId}: ${unitLabels[unit.status] || unit.status}`));
+        attempt.append(el('p', 'Ответы по единицам установки в порядке импорта. Это сообщения адаптера, не проверка результата.'), units);
+      }
       if (latest.evidence.operation) attempt.append(el('p', latest.evidence.operation.nativeResult || latest.evidence.operation.error || 'Операция завершилась; требуется проверка результата'));
       if (latest.evidence.rollbackReference) attempt.append(el('p', 'Зафиксировано состояние до операции. Восстановление документов или процессов этим не гарантируется.'));
       root.append(attempt);

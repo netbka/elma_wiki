@@ -20,7 +20,10 @@ try {
   assert.equal(uploaded.status(),201);const project=await uploaded.json();
   const created=await context.request.post(base+'/api/solutions',{headers:{'X-Elma-Wiki-Request':'1'},data:{name:'Synthetic visual',baselineOwner:'Vendor',sharedConfirmed:true,snapshot:{projectId:project.id,snapshotId:project.currentSnapshotId,scope:'full',scopeConfirmed:true}}});
   assert.equal(created.status(),201);const state=await created.json();
-  const next=await context.request.post(base+'/api/solutions/uploads?sharedConfirmed=true',{headers:{'X-Elma-Wiki-Request':'1','Content-Type':'application/octet-stream'},data:archive});
+  // The pulled version edits one step, so the review carries process parts and the diagram can highlight them (UX-03b).
+  const edited=structuredClone(raw);edited.process.items.review.condition='edited after the baseline';
+  const archiveEdited=await zip([['package.json',{code:'synthetic_visual',type:'SOLUTION'}],['processor/manifest.json',{entities:[{code:'approval',namespace:'synthetic',kind:'PROCESS',path:'approval.json'}]}],['processor/approval.json',edited]]);
+  const next=await context.request.post(base+'/api/solutions/uploads?sharedConfirmed=true',{headers:{'X-Elma-Wiki-Request':'1','Content-Type':'application/octet-stream'},data:archiveEdited});
   assert.equal(next.status(),201);const update=await next.json();
   const prepared=await context.request.post(`${base}/api/solutions/${state.id}/prepare`,{headers:{'X-Elma-Wiki-Request':'1'},data:{kind:'reconciliation',expectedRevision:state.revision,baselineOwner:'Vendor',sameSourceConfirmed:true,snapshot:{projectId:update.id,snapshotId:update.currentSnapshotId,scope:'full',scopeConfirmed:true}}});
   assert.equal(prepared.status(),201);const review=await prepared.json();
@@ -76,10 +79,19 @@ try {
   await page.getByLabel('Комментарий к изменению',{exact:true}).fill('Проверка Wiki: возврат требует комментарий; native ELMA не наблюдалась.');
   await page.getByRole('button',{name:'Комментарий',exact:true}).click();
   await page.getByText('Шаг: review',{exact:true}).waitFor();
+  // UX-03b "Открыть схему": the changed process row opens the captured diagram with its changed steps highlighted.
+  await page.getByRole('button',{name:'Открыть схему',exact:true}).first().click();
+  await page.locator('.visual-changed-legend').waitFor();
+  assert.match(await page.locator('.visual-changed-legend').textContent(),/^Изменённые шаги выделены: /);
+  assert.ok(await page.locator('svg [data-changed=true]').count()>0,'changed steps are highlighted on the diagram');
+  assert.equal(await page.locator('svg [data-node=review]').getAttribute('data-changed'),'true','the edited step is highlighted');
   const discussed=await (await context.request.get(`${base}/api/solutions/${state.id}/artifacts/${review.artifactId}/review`)).json();
   assert.equal(discussed.discussion.findings[0].sourceAnchor.nodeId,'review');
   assert.equal(discussed.discussion.findings[0].actor.provider,'local');
-  await page.getByText('Посмотреть процесс и форму',{exact:true}).click();await page.locator('.solution-visual svg').waitFor();
+  // "Открыть схему" already opened the diagram on this render; only open it when it is closed.
+  const visualDetails=page.locator('details').filter({has:page.getByText('Посмотреть процесс и форму',{exact:true})});
+  if(!(await visualDetails.evaluate(node=>node.open)))await visualDetails.locator('summary').click();
+  await page.locator('.solution-visual svg').waitFor();
   await page.locator('svg [data-node=review]').click();
   await fs.mkdir('qa',{recursive:true});await page.screenshot({path:'qa/solution-visual-desktop.png',fullPage:true});
   await page.setViewportSize({width:390,height:844});

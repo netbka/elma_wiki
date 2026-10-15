@@ -27,9 +27,13 @@ try {
   await page.goto(base + '/solutions');
   await page.getByRole('heading', { name: 'Решений пока нет' }).waitFor();
   assert.equal(await page.locator('.managed-content a.button').count(), 1);
-  await page.getByRole('link', { name: 'Добавить решение', exact: true }).focus();
+  await page.getByRole('link', { name: 'Загрузить решение', exact: true }).focus();
   await page.keyboard.press('Enter');
-  await page.getByRole('heading', { name: 'Добавить решение', exact: true }).waitFor();
+  await page.getByRole('heading', { name: 'Загрузить решение', exact: true, level: 1 }).waitFor();
+  // UX-01: the fixed entry is server + solution; this check exercises the legacy file path behind its one link.
+  assert.equal(await page.getByLabel('Это полный экспорт решения', { exact: true }).count(), 0, 'no scope question on the fixed entry');
+  await page.getByRole('link', { name: 'Загрузить файл .e365 вручную', exact: true }).click();
+  await page.getByRole('heading', { name: 'Загрузить .e365', exact: true }).waitFor();
   await page.getByLabel('Название решения', { exact: true }).fill('Учебные договоры');
   await page.getByLabel('Кто отвечает за исходную версию', { exact: true }).fill('Поставщик');
   const baseBytes = await archive([['contract', 'base'], ['untouched', 'base']]);
@@ -42,14 +46,59 @@ try {
   await page.getByRole('button', { name: 'Добавить решение', exact: true }).click();
   await page.getByRole('heading', { name: 'Что требует внимания' }).waitFor();
   const workspaceUrl = page.url(), id = new URL(workspaceUrl).searchParams.get('id'); assert.ok(id);
+  // UX-05: О решении opens with the purpose; the generated draft is edited and saved in place with its author.
+  await page.getByRole('heading', { name: 'Для чего', exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Написать', exact: true }).click();
+  const purposeText = page.getByLabel('Описание решения', { exact: true }); await purposeText.waitFor();
+  assert.match(await purposeText.inputValue(), /Работа в ELMA не наблюдалась/);
+  await purposeText.fill('Учебное решение для согласования договоров.');
+  await page.getByRole('button', { name: 'Сохранить описание', exact: true }).click();
+  await page.getByText('Учебное решение для согласования договоров.', { exact: true }).first().waitFor();
+  await page.getByRole('button', { name: 'Изменить', exact: true }).waitFor();
+  await page.getByRole('heading', { name: 'Модули', exact: true }).waitFor();
+  await page.reload();
+  await page.getByText('Учебное решение для согласования договоров.', { exact: true }).first().waitFor();
+  const activity = page.getByRole('list', { name: 'Последние события', exact: true });
+  await activity.getByText('Описание сохранено', { exact: true }).waitFor(); await activity.getByText('Решение загружено', { exact: true }).waitFor();
+  assert.equal((await (await context.request.get(`${base}/api/solutions/${id}`)).json()).revision, 0, 'saving the purpose does not advance the revision');
+  // UX-03b: pulling the exact current content again is closed without a decision; nothing advances.
+  await page.getByRole('link', { name: 'Обновить', exact: true }).click();
+  await upload(baseBytes, true);
+  await page.getByLabel('Экспорт относится к этому решению и тому же источнику ELMA', { exact: true }).check();
+  await page.getByRole('button', { name: 'Сохранить и рассмотреть', exact: true }).click();
+  await page.getByText('Эта версия не отличается от текущей', { exact: true }).waitFor();
+  assert.equal(await page.getByRole('button', { name: 'Решение по версии', exact: true }).count(), 0, 'a no-change version offers no decision dialog');
+  await page.getByRole('button', { name: 'Закрыть без изменений', exact: true }).click();
+  await page.getByRole('heading', { name: 'Что требует внимания' }).waitFor();
+  const closedState = await (await context.request.get(`${base}/api/solutions/${id}`)).json();
+  assert.equal(closedState.reconciliations.length, 0, 'closing advances nothing'); assert.equal(closedState.pending.length, 0);
+  assert.equal(closedState.reviewedChanges.filter(row => row.closedAt).length, 1);
+  await page.getByRole('link', { name: 'Изменения', exact: true }).click();
+  await page.getByRole('link', { name: 'Обновление версии · Закрыто без изменений', exact: true }).waitFor(); evidence.closedNoChanges = true;
   const prepareChange = async bytes => {
-    await page.goto(workspaceUrl); await page.getByRole('link', { name: 'Добавить изменение', exact: true }).click();
+    // Partial exports are legacy: reachable only from the technical details of the Changes tab.
+    await page.goto(workspaceUrl + '&view=changes'); await page.getByText('Исходные файлы и технические данные', { exact: true }).click();
+    await page.getByRole('link', { name: 'Загрузить частичный экспорт файлом', exact: true }).click();
     await page.getByLabel('Ответственная команда', { exact: true }).fill('Внутренняя команда');
     await page.getByLabel('Что изменили', { exact: true }).fill('SYNTHETIC-1');
     await upload(bytes);
     await page.getByLabel('Экспорт относится к этому решению и тому же источнику ELMA', { exact: true }).check();
     await page.getByRole('button', { name: 'Сохранить и рассмотреть', exact: true }).click();
     await page.getByRole('heading', { name: 'Рассмотреть изменение', exact: true }).waitFor();
+  };
+  // UX-03b: one "Решение по версии" button opens one dialog; the three choices live there.
+  const dialog = () => page.getByRole('dialog', { name: 'Решение по версии' });
+  const openDecision = async () => { await page.getByRole('button', { name: 'Решение по версии', exact: true }).click(); await dialog().waitFor(); return dialog(); };
+  const decide = async (choice, submit, text) => {
+    const d = await openDecision();
+    if (choice) await d.getByRole('radio', { name: choice, exact: true }).check();
+    if (text !== undefined) await d.getByLabel(/^Комментарий/).fill(text);
+    await d.getByRole('button', { name: submit, exact: true }).click();
+  };
+  const acceptBlocked = async () => {
+    const d = await openDecision();
+    assert.equal(await d.getByRole('radio', { name: 'Принять', exact: true }).isDisabled(), true, 'acceptance stays disabled while the gate is closed');
+    await d.getByRole('button', { name: 'Отмена', exact: true }).click(); await dialog().waitFor({ state: 'hidden' });
   };
   await prepareChange(await archive([['contract', 'ours'], ['added', 'ours']]));
   const firstReviewUrl = page.url();
@@ -67,13 +116,17 @@ try {
   await editor.locator('#check').click(); await editor.waitForFunction(() => window.__workspace.getState().check?.typescript === 'passed');
   await editor.close();
   // Empty text cannot submit; uploaded strings stay inert in the production renderer.
-  await page.getByRole('button', { name: 'Нужны изменения', exact: true }).click();
-  assert.equal(await page.getByRole('heading', { name: 'Нужны изменения', exact: true }).count(), 0);
+  await decide('Запросить доработку', 'Запросить доработку', '');
+  assert.equal(await page.getByRole('heading', { name: 'Запрошена доработка', exact: true }).count(), 0);
+  await dialog().getByRole('button', { name: 'Отмена', exact: true }).click(); await dialog().waitFor({ state: 'hidden' });
+  // An object-anchored comment still comes from the discussion entry; the decision dialog speaks about the whole version.
   const anchorKey = JSON.stringify(['widgets', 'synthetic.records', 'contract']);
   await page.getByLabel('К чему относится комментарий').selectOption(anchorKey);
-  await page.getByLabel('Комментарий к изменению', { exact: true }).fill('Нужна причина возврата <img src=x onerror=alert(1)>');
-  await page.getByRole('button', { name: 'Нужны изменения', exact: true }).click();
-  await page.getByRole('heading', { name: 'Нужны изменения', exact: true }).waitFor();
+  await page.getByLabel('Комментарий к изменению', { exact: true }).fill('Замечание к объекту <img src=x onerror=alert(1)>');
+  await page.getByRole('button', { name: 'Комментарий', exact: true }).click();
+  await page.getByRole('heading', { name: 'Комментарий', exact: true }).waitFor();
+  await decide('Запросить доработку', 'Запросить доработку', 'Нужна причина возврата <img src=x onerror=alert(1)>');
+  await page.getByRole('heading', { name: 'Запрошена доработка', exact: true }).waitFor();
   const assertFollowupSeparation = async () => {
     const correction = await page.getByRole('link', { name: 'Добавить исправление', exact: true }).boundingBox();
     const another = await page.getByRole('link', { name: 'Загрузить другую версию', exact: true }).boundingBox();
@@ -83,7 +136,7 @@ try {
   await assertFollowupSeparation();
   await page.setViewportSize({ width: 390, height: 844 }); await assertFollowupSeparation();
   await page.setViewportSize({ width: 1440, height: 1000 });
-  assert.equal(await page.getByRole('button', { name: 'Принять изменение', exact: true }).isVisible(), false);
+  await acceptBlocked();
   assert.equal(await page.locator('.change-discussion img').count(), 0);
   await page.screenshot({ path: 'qa/managed-review-findings.png', fullPage: true });
   await page.getByRole('link', { name: 'Добавить исправление', exact: true }).click();
@@ -94,7 +147,7 @@ try {
   await page.getByRole('button', { name: 'Сохранить и рассмотреть', exact: true }).click();
   await page.getByText(/Объект изменился; исходная ссылка сохранена/).waitFor();
   const correctedReviewUrl = page.url();
-  await page.getByText('Ответить или изменить статус', { exact: true }).click();
+  await page.getByText('Ответить или изменить статус', { exact: true }).last().click();
   await page.getByLabel('Что исправлено или что ещё нужно изменить', { exact: true }).fill('Причина добавлена в исправленный экспорт.');
   await page.getByRole('button', { name: 'Замечание устранено', exact: true }).click();
   await page.getByRole('heading', { name: 'Замечание устранено', exact: true }).waitFor();
@@ -102,28 +155,28 @@ try {
   await page.getByRole('link', { name: 'Открыть актуальное изменение', exact: true }).waitFor();
   assert.equal(await page.getByLabel('Комментарий к изменению', { exact: true }).count(), 0);
   await page.goto(correctedReviewUrl);
-  assert.equal(await page.getByRole('button', { name: 'Принять изменение', exact: true }).isDisabled(), true);
+  await acceptBlocked();
   await page.getByLabel('Изменение принятого объекта проверено', { exact: true }).focus(); await page.keyboard.press('Space');
-  await page.getByLabel('Принимаю рассмотренное изменение', { exact: true }).check();
-  await page.getByRole('button', { name: 'Принять изменение', exact: true }).focus(); await page.keyboard.press('Enter');
+  await page.getByRole('button', { name: 'Решение по версии', exact: true }).focus(); await page.keyboard.press('Enter');
+  await dialog().waitFor(); assert.equal(await dialog().getByRole('radio', { name: 'Принять', exact: true }).isChecked(), true, 'acceptance is the default once the gate opens');
+  await dialog().getByRole('button', { name: 'Принять изменение', exact: true }).focus(); await page.keyboard.press('Enter');
   await page.getByRole('heading', { name: 'Что требует внимания', exact: true }).waitFor(); evidence.keyboard = true;
   assert.equal(await page.evaluate(() => document.activeElement?.tagName), 'H1', 'focus returns to workspace context after acceptance');
   await page.goto(correctedReviewUrl); await page.locator('.managed-accepted').waitFor();
-  assert.equal(await page.getByRole('button', { name: 'Принять изменение', exact: true }).count(), 0);
+  assert.equal(await page.getByRole('button', { name: 'Решение по версии', exact: true }).count(), 0);
   await page.screenshot({ path: 'qa/managed-review-accepted.png', fullPage: true });
   await page.goto(workspaceUrl);
-  await page.getByRole('link', { name: 'Решение', exact: true }).click();
+  await page.getByRole('link', { name: 'Экраны и данные', exact: true }).click();
   await page.getByRole('heading', { name: 'Текущее состояние · 3 объектов', exact: true }).waitFor();
-  await page.getByRole('link', { name: 'Обновить версию', exact: true }).click();
+  await page.getByRole('link', { name: 'Обновить', exact: true }).click();
   await upload(await archive([['contract', 'vendor'], ['untouched', 'base'], ['added', 'ours']]), true);
   await page.getByLabel('Экспорт относится к этому решению и тому же источнику ELMA', { exact: true }).check();
   await page.getByRole('button', { name: 'Сохранить и рассмотреть', exact: true }).click();
   await page.getByRole('heading', { name: 'Рассмотреть обновление версии', exact: true }).waitFor();
-  assert.equal(await page.getByRole('button', { name: 'Принять версию', exact: true }).isDisabled(), true);
+  await acceptBlocked();
   await page.screenshot({ path: 'qa/managed-conflict-desktop.png', fullPage: true });
   await page.getByLabel('Какую версию сохранить', { exact: true }).selectOption('keep-working');
-  await page.getByLabel('Принимаю версию и выбранные решения; установка в ELMA не выполняется', { exact: true }).check();
-  await page.getByRole('button', { name: 'Принять версию', exact: true }).click();
+  await decide(null, 'Принять версию', 'Оставлена наша версия договора');
   await page.getByRole('heading', { name: 'Что требует внимания' }).waitFor();
   let state = await (await context.request.get(`${base}/api/solutions/${id}`)).json();
   assert.equal(state.reconciliations.length, 1); assert.equal(state.current.find(row => row.code === 'untouched').team, 'Поставщик');
@@ -137,7 +190,7 @@ try {
     evidence.viewports.push(size);
   }
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.getByText('Архивировать решение', { exact: true }).click();
+  await page.locator('summary', { hasText: 'В архив' }).click();
   await page.getByLabel('Убрать из активных; сохранить снимки, изменения и историю', { exact: true }).check();
   await page.getByRole('button', { name: 'В архив', exact: true }).click();
   await page.getByRole('button', { name: 'Возобновить работу', exact: true }).waitFor();
@@ -146,14 +199,13 @@ try {
   await page.getByRole('link', { name: 'Архив', exact: true }).click(); await page.getByRole('link', { name: 'Открыть архив', exact: true }).click();
   await page.getByLabel('Возобновить работу с сохранённой базой и историей', { exact: true }).check();
   await page.getByRole('button', { name: 'Возобновить работу', exact: true }).click();
-  await page.getByRole('link', { name: 'Добавить изменение', exact: true }).waitFor(); evidence.lifecycle = true;
+  await page.getByRole('link', { name: 'Обновить', exact: true }).waitFor(); evidence.lifecycle = true;
   await prepareChange(await archive([['second', 'pending']]));
   const staleUrl = page.url(), originalState = await (await context.request.get(`${base}/api/solutions/${id}`)).json();
   await context.request.post(`${base}/api/solutions/${id}/archive`, { headers: { 'X-Elma-Wiki-Request': '1' }, data: { archived: true, expectedRevision: originalState.revision } });
-  await page.getByLabel('Принимаю рассмотренное изменение', { exact: true }).check();
-  await page.getByRole('button', { name: 'Принять изменение', exact: true }).click();
+  await decide(null, 'Принять изменение');
   await page.getByRole('link', { name: 'Обновить состояние', exact: true }).waitFor();
-  assert.equal(await page.getByRole('button', { name: 'Принять изменение', exact: true }).isDisabled(), true); evidence.stale = true;
+  assert.equal(await page.getByRole('button', { name: 'Решение по версии', exact: true }).isDisabled(), true, 'a refused decision locks the page until the state is refreshed'); evidence.stale = true;
   await page.goto(staleUrl); await page.getByRole('link', { name: 'Обновить состояние', exact: true }).waitFor();
   await page.route('**/api/solutions', route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'Учебный сбой загрузки' }) }));
   await page.goto(base + '/solutions'); await page.getByRole('link', { name: 'Повторить загрузку', exact: true }).waitFor();
@@ -185,25 +237,24 @@ try {
   const downloadPromise = page.waitForEvent('download'); await page.getByRole('button', { name: 'Скачать отчёт об ответственности', exact: true }).click();
   const download = await downloadPromise, report = await fs.readFile(await download.path(), 'utf8'); assert.match(report, /Korus/); assert.match(report, /Internal/);
   assert.match(report, /авторы публикаций ELMA.*не установлены/);
-  await page.getByLabel('Принимаю рассмотренное изменение', { exact: true }).check(); await page.getByRole('button', { name: 'Принять изменение', exact: true }).click();
+  await decide(null, 'Принять изменение');
   await page.getByRole('heading', { name: 'Что требует внимания', exact: true }).waitFor();
   processState = await (await context.request.get(base + processRoute)).json();
   assert.equal(processState.current[0].responsibility.elements.find(part => part.code === 'y').team, 'Korus');
   assert.equal(processState.current[0].responsibility.elements.find(part => part.code === 'x').team, 'Internal');
-  await page.getByRole('link', { name: 'Решение', exact: true }).click(); await page.getByText('Internal: 3 · Korus: 1', { exact: true }).waitFor();
+  await page.getByRole('link', { name: 'Экраны и данные', exact: true }).click(); await page.getByText('Internal: 3 · Korus: 1', { exact: true }).waitFor();
   const boundary = structuredClone(additions); boundary.process.items.y.condition = 'reviewed edit';
-  await prepareProcess(boundary, 'change'); assert.equal(await page.getByRole('button', { name: 'Принять изменение', exact: true }).isDisabled(), true);
+  await prepareProcess(boundary, 'change'); await acceptBlocked();
   await page.getByLabel('Изменение принятого объекта проверено', { exact: true }).check();
-  await page.getByLabel('Принимаю рассмотренное изменение', { exact: true }).check(); await page.getByRole('button', { name: 'Принять изменение', exact: true }).click();
+  await decide(null, 'Принять изменение');
   await page.getByRole('heading', { name: 'Что требует внимания', exact: true }).waitFor(); processState = await (await context.request.get(base + processRoute)).json();
   const overlap = structuredClone(boundary); overlap.process.items.x.name = 'Korus изменил шаг';
   await prepareProcess(overlap, 'change', 'Korus');
-  assert.equal(await page.getByRole('button', { name: 'Принять изменение', exact: true }).isDisabled(), true); await page.getByText(/конфликт команд/).waitFor();
+  await acceptBlocked(); await page.getByText(/конфликт команд/).waitFor();
   await page.screenshot({ path: 'qa/managed-elements-overlap.png', fullPage: true });
-  await prepareProcess(overlap, 'reconciliation', 'Korus'); assert.equal(await page.getByRole('button', { name: 'Принять версию', exact: true }).isDisabled(), true);
+  await prepareProcess(overlap, 'reconciliation', 'Korus'); await acceptBlocked();
   await page.getByLabel('Какую версию сохранить', { exact: true }).selectOption('keep-working');
-  await page.getByLabel('Принимаю версию и выбранные решения; установка в ELMA не выполняется', { exact: true }).check();
-  await page.getByRole('button', { name: 'Принять версию', exact: true }).click(); await page.getByRole('heading', { name: 'Что требует внимания', exact: true }).waitFor();
+  await decide(null, 'Принять версию'); await page.getByRole('heading', { name: 'Что требует внимания', exact: true }).waitFor();
   processState = await (await context.request.get(base + processRoute)).json(); assert.equal(processState.current[0].responsibility.elements.find(part => part.code === 'x').team, 'Internal');
   evidence.elementResponsibility = true;
 
@@ -216,16 +267,50 @@ try {
     } catch { res.writeHead(404); res.end(); }
   });
   await new Promise(resolve => stories.listen(0, '127.0.0.1', resolve));
-  for (const mode of ['empty','list','create','overview','pending','change','review','conflict','overlap','ambiguous','stale','archived','loading','load-error','changes','solution','no-source','needs-fixes','pending-conflict','review-comment','review-findings','review-resolved','review-accepted','review-stale-anchor','review-removed-anchor','review-ambiguous-anchor','elements-added','elements-boundary','elements-conflict','elements-unknown']) {
+  for (const mode of ['empty','list','create','overview','pending','change','review','conflict','overlap','ambiguous','stale','archived','loading','load-error','changes','solution','no-source','needs-fixes','pending-conflict','review-comment','review-findings','review-resolved','review-accepted','review-stale-anchor','review-removed-anchor','review-ambiguous-anchor','elements-added','elements-boundary','elements-conflict','elements-unknown','create-legacy','pull-exporting','pull-ready','pull-failed','pull-unavailable','update','summary-mixed','summary-no-changes','summary-closed','decision','lifecycle-build','lifecycle-verified','about-empty','about-generated','about-saved','about-stale','about-error']) {
     await page.goto(`http://127.0.0.1:${stories.address().port}/iframe.html?id=managed-workspace--${mode}&viewMode=story`);
     await page.locator('.managed-shell h1').waitFor();
-    if (['review','conflict','overlap','ambiguous'].includes(mode)) assert.equal(await page.getByRole('button', { name: mode === 'conflict' ? 'Принять версию' : 'Принять изменение', exact: true }).isDisabled(), true, mode);
-    if (mode === 'conflict') { await page.getByLabel('Какую версию сохранить', { exact: true }).selectOption('keep-working'); assert.equal(await page.getByRole('button', { name: 'Принять версию', exact: true }).isDisabled(), false); }
-    if (!mode.startsWith('review-') && !mode.startsWith('elements-') && !['create','change','review','conflict','overlap','ambiguous','archived','loading'].includes(mode)) assert.equal(await page.locator('.managed-content a.button').count(), 1, 'one primary action: ' + mode);
+    if (['review','conflict','overlap','ambiguous'].includes(mode)) await acceptBlocked();
+    if (mode === 'conflict') {
+      await page.getByLabel('Какую версию сохранить', { exact: true }).selectOption('keep-working');
+      const d = await openDecision(); assert.equal(await d.getByRole('radio', { name: 'Принять', exact: true }).isDisabled(), false);
+      assert.equal(await d.getByRole('button', { name: 'Принять версию', exact: true }).isVisible(), true); await d.getByRole('button', { name: 'Отмена', exact: true }).click();
+    }
+    if (mode === 'decision') { await dialog().waitFor(); assert.equal(await dialog().getByRole('radio', { name: 'Принять', exact: true }).isDisabled(), true); assert.equal(await dialog().getByRole('radio', { name: 'Запросить доработку', exact: true }).isChecked(), true); }
+    if (mode === 'summary-no-changes') { await page.getByRole('button', { name: 'Закрыть без изменений', exact: true }).waitFor(); assert.equal(await page.getByRole('button', { name: 'Решение по версии', exact: true }).count(), 0); }
+    if (['lifecycle-build', 'lifecycle-verified', 'overview', 'pending', 'archived'].includes(mode)) {
+      // UX-04: six lifecycle steps, one current while active, unavailable steps carry a reason.
+      const steps = page.getByRole('list', { name: 'Этапы решения', exact: true }).getByRole('listitem');
+      assert.equal(await steps.count(), 6, 'six lifecycle steps: ' + mode);
+      assert.equal(await page.locator('.managed-step[aria-current=step]').count(), mode === 'archived' ? 0 : 1, 'one current step: ' + mode);
+      await page.getByText(/^Выпуск ещё не доступно$/).waitFor();
+      if (mode === 'lifecycle-build') { await page.locator('.managed-step[aria-current=step]').getByText('Сборка', { exact: true }).waitFor(); await page.getByText('Принято', { exact: true }).first().waitFor(); }
+      if (mode === 'overview') await page.locator('.managed-step[aria-disabled=true]').getByText('Сборка', { exact: true }).waitFor();
+      if (mode === 'lifecycle-verified') assert.equal(await page.locator('.managed-step[data-state=done]').count(), 5);
+      if (mode === 'pending') { await page.locator('.managed-step[aria-current=step]').getByText('Рассмотрение', { exact: true }).waitFor(); await page.getByText('Ожидает рассмотрения', { exact: true }).first().waitFor(); }
+      if (mode === 'archived') await page.getByText('В архиве', { exact: true }).first().waitFor();
+    }
+    if (mode.startsWith('about-')) {
+      // UX-05: empty, generated, saved, stale and failed purpose states; two distinct people in the activity list.
+      await page.getByRole('heading', { name: 'Для чего', exact: true }).waitFor(); await page.getByRole('heading', { name: 'Модули', exact: true }).waitFor();
+      const activity = page.getByRole('list', { name: 'Последние события', exact: true });
+      await activity.getByText('Uploader', { exact: true }).waitFor(); assert.equal(await activity.getByText('Reviewer', { exact: true }).count(), 2);
+      if (mode === 'about-empty') { await page.getByText('Опишите, для чего это решение', { exact: true }).waitFor(); await page.getByRole('button', { name: 'Написать', exact: true }).waitFor(); }
+      if (mode === 'about-generated') { assert.match(await page.getByLabel('Описание решения', { exact: true }).inputValue(), /Решение объединяет модули/); assert.equal(await page.getByRole('button', { name: 'Сохранить описание', exact: true }).isDisabled(), false); }
+      if (mode === 'about-saved') { await page.getByText(/^Договоры с контрагентами/).first().waitFor(); await page.getByRole('button', { name: 'Изменить', exact: true }).waitFor(); assert.equal(await page.getByText('Состав решения изменился после сохранения. Проверьте описание.', { exact: true }).count(), 0); }
+      if (mode === 'about-stale') await page.getByText('Состав решения изменился после сохранения. Проверьте описание.', { exact: true }).waitFor();
+      if (mode === 'about-error') { await page.getByRole('alert').filter({ hasText: 'Описание не получено' }).waitFor(); await page.getByRole('button', { name: 'Написать', exact: true }).waitFor(); }
+    }
+    if (mode === 'summary-closed') { await page.getByText(/^Закрыто без изменений:/).waitFor(); assert.equal(await page.getByRole('button', { name: 'Решение по версии', exact: true }).count(), 0); }
+    if (!mode.startsWith('review-') && !mode.startsWith('elements-') && !['create','create-legacy','update','change','review','conflict','overlap','ambiguous','archived','loading','summary-mixed','summary-no-changes','summary-closed','decision'].includes(mode) && !mode.startsWith('pull-')) assert.equal(await page.locator('.managed-content a.button').count(), 1, 'one primary action: ' + mode);
+    if (mode === 'create') { assert.equal(await page.getByRole('button', { name: 'Загрузить', exact: true }).count(), 1, 'one button on the fixed entry'); assert.equal(await page.getByLabel('Это полный экспорт решения', { exact: true }).count(), 0); }
+    if (mode === 'update') { await page.getByRole('button', { name: 'Обновить', exact: true }).waitFor(); assert.equal(await page.getByLabel('Сервер', { exact: true }).isDisabled(), true); }
+    if (mode === 'pull-unavailable') assert.equal(await page.getByRole('button', { name: 'Загрузить', exact: true }).isDisabled(), true);
     if (mode.startsWith('elements-')) { await page.setViewportSize({ width: 390, height: 844 }); await page.getByRole('heading', { name: 'Ответственность частей процесса', exact: true }).waitFor(); }
     if (mode.startsWith('review-')) {
       await page.setViewportSize({ width: 390, height: 844 });
-      if (!['review-comment','review-resolved'].includes(mode)) assert.equal(await page.getByRole('button', { name: 'Принять изменение', exact: true }).isVisible().catch(() => false), false);
+      if (mode === 'review-accepted') assert.equal(await page.getByRole('button', { name: 'Решение по версии', exact: true }).count(), 0);
+      else if (!['review-comment','review-resolved'].includes(mode)) await acceptBlocked();
     }
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), mode);
     await page.screenshot({ path: `qa/managed-story-${mode}.png`, fullPage: true }); evidence.states.push(mode);
