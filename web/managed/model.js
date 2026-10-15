@@ -1,4 +1,4 @@
-import { classificationLabels, elementClassificationLabels, elementKindLabels, actions as actionLabels, summaries, kindGroups, displayLabel, isTechnicalKey, ribbon } from './labels.js';
+import { classificationLabels, elementClassificationLabels, elementKindLabels, actions as actionLabels, summaries, kindGroups, displayLabel, isTechnicalKey, ribbon, steps as stepLabels, stepReasons, statuses } from './labels.js';
 // Review classification wording lives in labels.js (UX-00); these names stay for
 // existing importers.
 export const labels = classificationLabels;
@@ -198,4 +198,43 @@ export const decisionDefault = choices => choices.find(choice => !choice.disable
 export function canCloseWithoutChanges(review, summary) {
   if (!review || review.stale || review.acceptedAt || review.closedAt) return false;
   return !!summary?.noDifference && !review.ambiguities?.length;
+}
+
+// UX-04: the header badge is a projection of the next-action state; it adds no
+// state of its own. Archived wins; any open conflict or missing base reads as
+// Конфликт; other pending work waits for review; everything after acceptance
+// (build, verify, delivery evidence) is Принято; a fresh or empty Solution is В работе.
+export function solutionStatus(next = {}) {
+  const key = next.state === 'archived' ? 'archived'
+    : ['conflict', 'unknown-base'].includes(next.state) ? 'conflict'
+    : ['unknown', 'unreviewed', 'needs-fixes', 'compare'].includes(next.state) ? 'awaitingReview'
+    : ['accepted', 'build', 'build-blocked', 'review-build', 'verify', 'test-awaiting-verification', 'verified'].includes(next.state) ? 'accepted'
+    : 'working';
+  return { key, label: statuses[key] };
+}
+
+// UX-04: the lifecycle stepper. One row of the product plan's one-next-action
+// map maps to one current step; steps before it are done, steps after it are
+// next. A step the product cannot perform yet is unavailable with a two-word
+// reason (build without a builder, release before P6) and is never shown as
+// working. Error and stale states have no stepper: the page asks to refresh.
+export function lifecycleSteps(state, next = solutionNextAction(state)) {
+  if (!next || ['error', 'stale', 'empty'].includes(next.state)) return [];
+  const order = ['load', 'compare', 'review', 'build', 'verify', 'release'];
+  const current = next.state === 'no-source' ? 'load'
+    : ['ready', 'compare'].includes(next.state) ? 'compare'
+    : ['unreviewed', 'needs-fixes', 'conflict', 'unknown', 'unknown-base'].includes(next.state) ? 'review'
+    : ['accepted', 'build', 'build-blocked', 'review-build'].includes(next.state) ? 'build'
+    : ['verify', 'test-awaiting-verification'].includes(next.state) ? 'verify'
+    : next.state === 'verified' ? 'release'
+    : next.state === 'archived' ? (state?.changes?.length || state?.reconciliations?.length ? 'build' : state?.baselineId ? 'compare' : 'load') : 'compare';
+  // 'accepted' is the review-only projection: the composer was not loaded, so no
+  // builder is known. Release stays unavailable until P6 defines it.
+  const unavailable = { build: ['accepted', 'build-blocked'].includes(next.state) ? stepReasons.noBuilder : '', release: stepReasons.notYet };
+  const index = order.indexOf(current);
+  return order.map((id, position) => {
+    const reason = unavailable[id] || '';
+    const stateOf = reason ? 'unavailable' : position < index ? 'done' : position === index && next.state !== 'archived' ? 'current' : 'next';
+    return { id, label: stepLabels[id], state: stateOf, current: position === index && next.state !== 'archived', reason };
+  });
 }

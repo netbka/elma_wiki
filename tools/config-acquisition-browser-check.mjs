@@ -120,7 +120,7 @@ try {
   await page.getByLabel('Это полный экспорт решения',{exact:true}).check();
   await page.getByRole('button',{name:'Добавить решение',exact:true}).click();
   await page.getByRole('heading',{name:'Native components',exact:true}).waitFor();
-  await page.getByRole('link',{name:'Решение',exact:true}).click();
+  await page.getByRole('link', { name: 'Экраны и данные', exact: true }).click();
   // UX-02: permissions and localization are system objects, shown inside one collapsed group.
   await page.getByText(/^Служебные объекты · 3/).click();
   for(const label of ['synthetic · records · permissionSettings','synthetic · records · pagePermissions','synthetic · localization']) await page.getByText(label,{exact:true}).waitFor();
