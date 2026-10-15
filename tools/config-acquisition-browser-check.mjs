@@ -119,6 +119,8 @@ try {
   await page.getByRole('button',{name:'Добавить решение',exact:true}).click();
   await page.getByRole('heading',{name:'Native components',exact:true}).waitFor();
   await page.getByRole('link',{name:'Решение',exact:true}).click();
+  // UX-02: permissions and localization are system objects, shown inside one collapsed group.
+  await page.getByText(/^Служебные объекты · 3/).click();
   for(const label of ['synthetic · records · permissionSettings','synthetic · records · pagePermissions','synthetic · localization']) await page.getByText(label,{exact:true}).waitFor();
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
   await page.screenshot({path:'qa/native-components-mobile.png',fullPage:true});

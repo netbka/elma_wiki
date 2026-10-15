@@ -52,9 +52,15 @@ export const facts = {
   noDifference: 'Эта версия не отличается от текущей', viewed: 'Просмотрено', changedSinceViewed: 'Изменилось после просмотра'
 };
 
-// Object kinds. Provisional until research R1 confirms the labels ELMA Designer
-// shows this company's users; keep in sync with that record when it lands.
+// Object kinds. R1 (2026-10-15, ELMA365 help): ELMA's own Russian nouns are
+// "Решение", "Раздел" (workspace), "Приложение", "Бизнес-процесс", "Страница",
+// "Форма", "Справочник". The owner's word "Модуль" stays for the workspace
+// level; "Экран" stays for forms and pages because users say it. Designer
+// screenshots from the DEV server may still refine these.
 export const objectKinds = { process: 'Процесс', processes: 'Процессы', form: 'Экран', forms: 'Экраны', application: 'Приложение', directory: 'Справочник', data: 'Данные', permissions: 'Права', other: 'Прочее', localization: 'Локализация' };
+// Service -> kind group of the Solution tab, in display order.
+export const kindGroups = { processes: 'Процессы', forms: 'Экраны', data: 'Данные', permissions: 'Права', localization: 'Локализация', other: 'Прочее' };
+export const grouping = { module: 'Модуль', withoutModule: 'Без модуля', objects: 'объектов', showAll: 'показать все', code: 'код' };
 
 // Change request form
 export const requestForm = {

@@ -1,4 +1,6 @@
+const names = { contract: 'Договор', approval: 'Согласование договора', comment: 'Комментарий к договору' };
 const component = (code, team = 'Команда внедрения', changed = false) => ({ code, key: JSON.stringify(['widgets', 'synthetic.records', code]), team,
+  service: 'widgets', namespace: 'synthetic.records', kind: 'WIDGET', name: names[code] || null,
   interventionId: changed ? 'synthetic-change' : null, digest: 'a'.repeat(64) });
 export function managedFixture(mode = 'overview') {
   const at = '2026-10-07T12:00:00Z', base = { id: 'synthetic-baseline', scope: 'full', checksum: 'a'.repeat(64), snapshot: {
@@ -61,7 +63,18 @@ export function managedFixture(mode = 'overview') {
   if (mode === 'update') { base.snapshot.source = { connectionId: 'config-api-dev', solutionRef: 'contract_management' }; model.view = 'full'; }
   if (mode === 'change') model.view = 'change';
   if (mode === 'changes') model.view = 'changes';
-  if (mode === 'solution') model.view = 'solution';
+  if (mode === 'solution') {
+    model.view = 'solution';
+    // UX-02: a second module, a process, data objects and system objects show grouping, names and the collapsed group.
+    const extra = (service, namespace, code, kind, name) => ({ code, key: JSON.stringify(kind && service !== 'widgets' ? [service, namespace, kind, code] : [service, namespace, code]), team: 'Команда внедрения',
+      service, namespace, kind, name, interventionId: null, digest: 'a'.repeat(64) });
+    workspace.current.push(extra('processor', 'contract_management.contracts', 'approval_process', 'template', 'Согласование договора'),
+      extra('applications', 'contract_management', 'contracts', 'application', 'Договоры'),
+      extra('applications', 'contract_management', 'currencies', 'directory', 'Валюты'),
+      extra('permissionsSettings', 'contract_management', 'contracts', 'permissionSettings', null),
+      extra('widgets', 'contract_management', '__default', 'WIDGET', null),
+      extra('localizer', 'contract_management', '', 'localization', null));
+  }
   if (mode === 'native-components') {
     model.view = 'solution';
     workspace.current = ['permissionSettings','pagePermissions'].map(kind => ({...component('records'),service:'permissionsSettings',namespace:'synthetic',kind,key:JSON.stringify(['permissionsSettings','synthetic',kind,'records'])}));

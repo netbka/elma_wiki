@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { managedFixture } from '../web/managed/fixtures.js';
-import { reviewGate, workspaceSummary, componentName, workspaceUrl, solutionNextAction, responsibilityLabel, responsibilityReport, hasAcceptedFullExport } from '../web/managed/model.js';
+import { reviewGate, workspaceSummary, componentName, workspaceUrl, solutionNextAction, responsibilityLabel, responsibilityReport, hasAcceptedFullExport, objectLabel, objectCode, objectKindLabel, objectModule, isSystemObject, groupObjects } from '../web/managed/model.js';
 import { solutionHandoffFixture } from '../web/managed/handoff-fixtures.js';
 
 test('handoff navigation requires a matching accepted full state and stays separate from delivery evidence', () => {
@@ -87,4 +87,22 @@ test('process reports expose precise boundaries and previous teams without claim
   assert.equal(reviewGate(managedFixture('elements-added').review), '');
   const conflict = managedFixture('elements-conflict').review;
   assert.ok(reviewGate(conflict)); assert.equal(reviewGate(conflict, [], { [conflict.rows[0].key]: 'take-snapshot' }), '');
+});
+
+test('UX-02: business name first, technical code second; objects group by module and kind, system objects aside', () => {
+  const widget = { key: JSON.stringify(['widgets', 'contract_management.contracts', 'create_form']), service: 'widgets', namespace: 'contract_management.contracts', code: 'create_form', kind: 'WIDGET', name: 'Форма создания договора' };
+  assert.deepEqual(objectLabel(widget), { text: 'Форма создания договора', secondary: 'create_form', technical: false });
+  assert.deepEqual(objectLabel({ ...widget, name: 'create_form' }), { text: 'create_form', secondary: '', technical: false }, 'a name equal to the code is not repeated');
+  assert.deepEqual(objectLabel({ ...widget, name: null, code: 'form_01a11b42-6c2a-7767-b10f-fdb60bdc6139' }).technical, true, 'a name-less GUID form is marked technical');
+  const permission = { key: JSON.stringify(['permissionsSettings', 'contract_management', 'permissionSettings', 'contracts']), service: 'permissionsSettings', namespace: 'contract_management', code: 'contracts', kind: 'permissionSettings' };
+  assert.equal(objectLabel(permission).text, 'contract_management · contracts · permissionSettings', 'long keys keep the previous technical label');
+  assert.equal(objectCode({ key: '["widgets","x","y"]' }), 'y');
+  assert.equal(objectKindLabel({ service: 'processor' }), 'Процессы'); assert.equal(objectKindLabel({ service: 'applications' }), 'Данные'); assert.equal(objectKindLabel({ service: 'unknown' }), 'Прочее');
+  assert.equal(objectModule(widget), 'contract_management'); assert.equal(objectModule({}), '');
+  assert.equal(isSystemObject(permission), true); assert.equal(isSystemObject({ ...widget, name: null, code: '__default' }), true); assert.equal(isSystemObject(widget), false);
+  const rows = managedFixture('solution').workspace.current, grouped = groupObjects(rows);
+  assert.deepEqual(grouped.modules.map(group => group.module), ['contract_management', 'synthetic']);
+  assert.deepEqual(grouped.modules[0].kinds.map(kind => kind.kind), ['processes', 'data'], 'kinds follow display order');
+  assert.equal(grouped.system.length, 3, 'permissions, __default and localization are system objects');
+  assert.equal(grouped.modules.reduce((n, group) => n + group.count, 0) + grouped.system.length, rows.length, 'every row is shown once');
 });

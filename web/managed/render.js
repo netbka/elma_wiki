@@ -1,4 +1,5 @@
-import { componentName, dateLabel, labels, elementLabels, elementKinds, responsibilityLabel, responsibilityReport, reviewGate, workspaceSummary, workspaceUrl as buildUrl, solutionNextAction } from './model.js';
+import { componentName, dateLabel, labels, elementLabels, elementKinds, responsibilityLabel, responsibilityReport, reviewGate, workspaceSummary, workspaceUrl as buildUrl, solutionNextAction, objectLabel, groupObjects } from './model.js';
+import { nouns, grouping } from './labels.js';
 import { mountSnapshotVisual } from '../visual/render.js';
 import { mountExplanation } from '../explanations/render.js';
 import { mountRelease } from '../releases/render.js';
@@ -35,6 +36,18 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
   };
   const check = (form, label) => { const wrap = el('label', undefined, 'managed-check'), input = el('input'); input.type = 'checkbox'; wrap.append(input, el('span', label)); form.append(wrap); return input; };
   const technical = (parent, label, data) => { const details = el('details'), code = el('pre', JSON.stringify(data, null, 2)); details.append(el('summary', label), code); parent.append(details); };
+  // Business name first; the technical code follows muted. A name-less technical
+  // key is marked so styles can show it as code (UX-02).
+  const objectTitle = (tag, row, extra) => {
+    const label = objectLabel(row), node = el(tag, label.text, label.technical ? 'managed-technical' : undefined);
+    if (label.secondary) node.append(' ', el('small', label.secondary, 'managed-muted managed-code'));
+    if (extra) node.append(' ', el('small', extra, 'managed-muted'));
+    return node;
+  };
+  // Review rows carry only the key; take the display metadata from the current state or the reviewed artifact.
+  const objectOf = (key, artifactId) => state?.current?.find(row => row.key === key)
+    || state?.artifacts?.find(row => row.id === artifactId)?.components?.find(row => row.key === key)
+    || state?.artifacts?.flatMap(row => row.components || []).find(row => row.key === key) || { key };
   const controls = () => root.querySelectorAll('button,input,select,textarea');
   const lock = () => controls().forEach(node => { node.disabled = busy || blocked || node.dataset.unavailable === 'true'; });
   const run = async (operation, refreshHref = workspaceUrl(state?.id)) => {
@@ -151,10 +164,14 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
       const lower = el('div', undefined, 'managed-columns'), current = el('section'), history = el('section');
       current.append(el('h2', `Текущее состояние · ${state.current.length} объектов`));
       const visualTarget=el('div');
+      // UX-02: objects grouped by module and kind with business names; system objects (permissions,
+      // localization, name-less defaults) are one collapsed group. The Solution tab shows the groups;
+      // Overview keeps the flat table inside its disclosure.
+      const grouped = view === 'solution' ? groupObjects(state.current) : null;
+      const objectTable = rows => {
       const table = el('table'), head = el('tr'); ['Объект', 'Ответственность', 'Состояние',...(actions.explanations?['Просмотр']:[])].forEach(label => head.append(el('th', label))); table.append(head);
-      for (const row of state.current) {
-        const label = JSON.parse(row.key).length > 3 ? row.code ? `${row.namespace} · ${row.code} · ${row.kind}` : `${row.namespace} · ${row.kind}` : row.code;
-        const tr = el('tr'); tr.append(el('td', label), el('td', responsibilityLabel(row)), el('td', row.interventionId ? 'Принятое изменение' : 'Принятая версия'));
+      for (const row of rows) {
+        const tr = el('tr'); tr.append(objectTitle('td', row), el('td', responsibilityLabel(row)), el('td', row.interventionId ? 'Принятое изменение' : 'Принятая версия'));
         if(actions.explanations){
           const cell=el('td');
           if(row.service==='processor'){
@@ -173,7 +190,18 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
         }
         table.append(tr);
       }
-      const scroll = el('div', undefined, 'managed-table'); scroll.tabIndex = 0; scroll.setAttribute('role', 'region'); scroll.setAttribute('aria-label', 'Рабочее состояние объектов'); scroll.append(table); current.append(scroll);
+      const scroll = el('div', undefined, 'managed-table'); scroll.tabIndex = 0; scroll.setAttribute('role', 'region'); scroll.setAttribute('aria-label', 'Рабочее состояние объектов'); scroll.append(table); return scroll;
+      };
+      if (!grouped) current.append(objectTable(state.current));
+      else {
+        for (const group of grouped.modules) {
+          const section = el('section', undefined, 'managed-module');
+          section.append(el('h3', `${grouping.module} ${group.module || grouping.withoutModule} · ${group.count}`));
+          for (const kind of group.kinds) { section.append(el('h4', `${kind.label} · ${kind.rows.length}`)); section.append(objectTable(kind.rows)); }
+          current.append(section);
+        }
+        if (grouped.system.length) { const details = el('details'); details.append(el('summary', `${nouns.systemObjects} · ${grouped.system.length} · ${grouping.showAll}`), objectTable(grouped.system)); current.append(details); }
+      }
       current.append(visualTarget);
       history.append(el('h2', 'Принятые изменения'), el('p', `Изменений: ${state.changes.length} · Обновлений версии: ${state.reconciliations.length}`));
       for (const row of state.reviewedChanges || []) history.append(link(row.kind === 'change' ? row.options.taskRef : 'Обновление версии', workspaceUrl(state.id, 'review', row.artifactId)));
@@ -409,7 +437,7 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
     const submit = el('button', full ? 'Принять версию' : 'Принять изменение'); submit.type = 'submit';
     const update = () => { gate.textContent = reviewGate(review, [...boundaryKeys], resolutions); submit.disabled = !!gate.textContent; submit.dataset.unavailable = String(submit.disabled); };
     for (const row of review.rows) {
-      const card = el('section', undefined, 'managed-card'); card.append(el('h3', componentName(row.key)), el('p', row.conflict ? 'Конфликт с изменением другой команды' : labels[row.classification] || row.classification));
+      const card = el('section', undefined, 'managed-card'); card.append(objectTitle('h3', objectOf(row.key, review.artifactId)), el('p', row.conflict ? 'Конфликт с изменением другой команды' : labels[row.classification] || row.classification));
       if (row.elements) {
         card.append(el('h4', 'Ответственность частей процесса'),
           el('p', 'Заявленная командой ответственность. Авторы публикаций ELMA и договорная ответственность не установлены.', 'managed-muted'));
@@ -482,7 +510,7 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
         const f = el('form'), caption = el('label', label), text = el('textarea'); text.id = 'change-comment-' + ++sequence; text.required = true; text.maxLength = 4000; caption.htmlFor = text.id; f.append(caption, text);
         let key;
         if (!parentId) { key = el('select'); key.setAttribute('aria-label', 'К чему относится комментарий'); const all = el('option', 'К изменению'); all.value = ''; key.append(all);
-          review.rows.forEach(row => { const option = el('option', componentName(row.key)); option.value = row.key; key.append(option); }); f.append(key);
+          review.rows.forEach(row => { const label = objectLabel(objectOf(row.key, review.artifactId)); const option = el('option', label.secondary ? `${label.text} · ${label.secondary}` : label.text); option.value = row.key; key.append(option); }); f.append(key);
           const sourceCaption = el('p', '', 'managed-muted'); sourceCaption.setAttribute('role', 'status'); f.append(sourceCaption);
           showSelectedSource = () => {
             if (selectedSource) {
@@ -507,7 +535,7 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
       for (const finding of review.discussion.findings) {
         const card = el('article', undefined, 'managed-card'); card.append(el('h3', finding.type === 'reject' ? finding.status === 'open' ? 'Нужны изменения' : 'Замечание устранено' : 'Комментарий'),
           el('p', `${finding.actor?.login || finding.author} · ${dateLabel(finding.createdAt)}`, 'managed-muted'), el('p', finding.text, 'change-text'));
-        if (finding.anchor?.key) card.append(el('p', `${componentName(finding.anchor.key)} · ${(finding.sourceAnchor ? stepLabels : anchorLabels)[finding.anchorStatus]}`, 'managed-muted'));
+        if (finding.anchor?.key) card.append(el('p', `${objectLabel(objectOf(finding.anchor.key, review.artifactId)).text} · ${(finding.sourceAnchor ? stepLabels : anchorLabels)[finding.anchorStatus]}`, 'managed-muted'));
         if (finding.sourceAnchor) { card.append(el('p', 'Шаг: ' + finding.sourceAnchor.nodeId)); technical(card, 'Исходная ссылка на шаг', finding.sourceAnchor); }
         for (const reply of finding.replies) card.append(el('p', `${reply.actor?.login || reply.author}: ${reply.text}`, 'change-text'));
         if (finding.resolution) card.append(el('p', `${finding.resolution.actor?.login || finding.resolution.author}: ${finding.resolution.text}`, 'change-text'));
