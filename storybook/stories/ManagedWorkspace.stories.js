@@ -6,6 +6,7 @@ function story(mode) {
   let draft = model.draft ?? null;
   const root = mountManagedWorkspace(model, { draft: { read: () => draft, write: value => { draft = value; }, clear: () => { draft = null; } }, upload: explain, create: explain, prepare: explain, accept: explain, close: explain, archive: explain, comment: explain, resolveMerge: explain,
     acquisition: { servers: async () => ({ servers: [], configured: true }), catalog: explain, start: explain, get: explain, upload: explain },
+    explanations: { read: explain, save: explain },
     context: async id => ({ source: 'widgets/synthetic-contract.json', content: JSON.stringify({ descriptor: { clientScripts: id === 'synthetic-before' ? 'const value = 1;' : 'const value = 2;' } }, null, 2), editable: false,
       limitation: 'Синтетический исходный файл. Код не выполняется.' }),
     navigate: () => { root.querySelector('[role=status]').textContent = 'Учебная навигация: выберите нужное состояние в меню Storybook.'; } });
@@ -36,6 +37,12 @@ export const Decision = { render: () => story('decision'), parameters: { docs: {
 export const LifecycleBuild = { render: () => story('lifecycle-build'), parameters: { docs: { description: { story:
   'UX-04: header badge and lifecycle stepper. Загрузка, Сравнение and Рассмотрение are done, Сборка is the current step because the server reported an available builder, Выпуск is unavailable with its reason.' } } } };
 export const LifecycleVerified = { render: () => story('lifecycle-verified') };
+export const AboutEmpty = { render: () => story('about-empty'), parameters: { docs: { description: { story:
+  'UX-05: О решении with no saved purpose: the empty sentence and one Написать button; module cards and the activity list with two distinct people.' } } } };
+export const AboutGenerated = { render: () => story('about-generated') };
+export const AboutSaved = { render: () => story('about-saved') };
+export const AboutStale = { render: () => story('about-stale') };
+export const AboutError = { render: () => story('about-error') };
 export const Overlap = { render: () => story('overlap') };
 export const Ambiguous = { render: () => story('ambiguous') };
 export const Stale = { render: () => story('stale') };

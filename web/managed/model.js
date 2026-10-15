@@ -1,4 +1,4 @@
-import { classificationLabels, elementClassificationLabels, elementKindLabels, actions as actionLabels, summaries, kindGroups, displayLabel, isTechnicalKey, ribbon, steps as stepLabels, stepReasons, statuses } from './labels.js';
+import { classificationLabels, elementClassificationLabels, elementKindLabels, actions as actionLabels, summaries, kindGroups, displayLabel, isTechnicalKey, ribbon, steps as stepLabels, stepReasons, statuses, activity as activityLabels } from './labels.js';
 // Review classification wording lives in labels.js (UX-00); these names stay for
 // existing importers.
 export const labels = classificationLabels;
@@ -237,4 +237,41 @@ export function lifecycleSteps(state, next = solutionNextAction(state)) {
     const stateOf = reason ? 'unavailable' : position < index ? 'done' : position === index && next.state !== 'archived' ? 'current' : 'next';
     return { id, label: stepLabels[id], state: stateOf, current: position === index && next.state !== 'archived', reason };
   });
+}
+
+// UX-05: people are people. A display name and initials projected from the
+// trusted actor record (login is an e-mail or a messenger login; the id is never
+// shown). Pure: no lookups, no claims about the person beyond their login.
+export function actorDisplay(actor) {
+  const login = typeof actor === 'string' ? actor : actor?.login || '';
+  const local = login.includes('@') ? login.slice(0, login.indexOf('@')) : login;
+  const words = local.split(/[\s._-]+/).filter(Boolean).map(word => word[0].toLocaleUpperCase('ru-RU') + word.slice(1));
+  const name = words.join(' ') || (actor?.id ? '…' : '');
+  const initials = words.slice(0, 2).map(word => word[0]).join('').toLocaleUpperCase('ru-RU') || '?';
+  return { name, initials, login };
+}
+export function relativeTime(value, now = Date.now()) {
+  const at = value ? new Date(value).getTime() : NaN;
+  if (!Number.isFinite(at)) return dateLabel(value);
+  const minutes = Math.round((now - at) / 60000);
+  if (minutes < 1) return activityLabels.justNow;
+  if (minutes < 60) return `${minutes} ${activityLabels.minutesAgo}`;
+  if (minutes < 24 * 60) return `${Math.round(minutes / 60)} ${activityLabels.hoursAgo}`;
+  if (minutes < 48 * 60) return activityLabels.yesterday;
+  return dateLabel(value);
+}
+// One card per module: business rows by kind; system objects are counted, not listed.
+export function moduleCards(rows = []) {
+  const grouped = groupObjects(rows);
+  return grouped.modules.map(({ module, count, kinds }) => {
+    const of = kind => kinds.find(row => row.kind === kind)?.rows || [];
+    return { module, name: null, count, processes: of('processes'), forms: of('forms'), data: of('data'), other: of('other'),
+      system: grouped.system.filter(row => objectModule(row) === module).length };
+  });
+}
+// Activity list from the attributed audit records the server already keeps; newest first.
+export function activityFeed(state, limit = 8, now = Date.now()) {
+  return (state?.audit || []).slice(-limit).reverse().map((row, index) => ({
+    id: row.at + ':' + index, action: row.action, label: activityLabels.events[row.action] || row.action,
+    actor: actorDisplay(row.actor), at: row.at, when: relativeTime(row.at, now), artifactId: row.artifactId ?? null }));
 }

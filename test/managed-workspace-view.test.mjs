@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { managedFixture } from '../web/managed/fixtures.js';
-import { solutionStatus, lifecycleSteps, reviewGate, workspaceSummary, componentName, workspaceUrl, solutionNextAction, responsibilityLabel, responsibilityReport, hasAcceptedFullExport, objectLabel, objectCode, objectKindLabel, objectModule, isSystemObject, groupObjects, reviewSummary, reviewBucket, groupDependencies } from '../web/managed/model.js';
+import { dateLabel, moduleCards, activityFeed, relativeTime, solutionStatus, lifecycleSteps, reviewGate, workspaceSummary, componentName, workspaceUrl, solutionNextAction, responsibilityLabel, responsibilityReport, hasAcceptedFullExport, objectLabel, objectCode, objectKindLabel, objectModule, isSystemObject, groupObjects, reviewSummary, reviewBucket, groupDependencies } from '../web/managed/model.js';
 import { solutionHandoffFixture } from '../web/managed/handoff-fixtures.js';
 
 test('handoff navigation requires a matching accepted full state and stays separate from delivery evidence', () => {
@@ -171,4 +171,20 @@ test('UX-04: the header badge and stepper project every row of the next-action m
   for (const [model] of cases) assert.equal(project(model).steps.filter(step => step.current).length, model.workspace.status === 'archived' ? 0 : 1);
   assert.deepEqual(lifecycleSteps(ready.workspace, { state: 'stale' }), []);
   assert.deepEqual(lifecycleSteps(null, solutionNextAction(null)), []);
+});
+
+test('UX-05: module cards count business rows by kind, the activity list names people and relative times, and the fixture shows two distinct actors', () => {
+  const cards = moduleCards(managedFixture('solution').workspace.current);
+  assert.deepEqual(cards.map(card => [card.module, card.processes.length, card.forms.length, card.data.length, card.system]), [['contract_management', 1, 0, 2, 3], ['synthetic', 0, 3, 0, 0]]);
+  const model = managedFixture('about-saved'), feed = activityFeed(model.workspace, 8, model.now);
+  assert.deepEqual(feed.map(row => [row.label, row.actor.name, row.actor.initials, row.when]),
+    [['Изменение принято', 'Reviewer', 'R', '2 ч назад'], ['Комментарий', 'Reviewer', 'R', '4 ч назад'], ['Решение загружено', 'Uploader', 'U', '5 ч назад']]);
+  assert.equal(new Set(feed.map(row => row.actor.name)).size, 2);
+  assert.equal(activityFeed({ audit: [] }).length, 0);
+  const now = Date.parse('2026-10-15T12:00:00Z');
+  assert.equal(relativeTime('2026-10-15T11:59:40Z', now), 'только что');
+  assert.equal(relativeTime('2026-10-14T10:00:00Z', now), 'вчера');
+  assert.equal(relativeTime('2026-10-01T13:00:00Z', now), dateLabel('2026-10-01T13:00:00Z'));
+  assert.equal(model.about.purpose.saved.sourceStatus, 'current'); assert.equal(managedFixture('about-stale').about.purpose.saved.sourceStatus, 'stale');
+  assert.equal(managedFixture('about-empty').about.purpose.saved, null); assert.equal(managedFixture('about-generated').aboutEditing, true);
 });

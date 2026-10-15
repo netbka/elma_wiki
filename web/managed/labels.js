@@ -127,6 +127,23 @@ export const feedback = {
 // Changed steps on the process diagram (UX-03b "Открыть схему")
 export const diagram = { changedSteps: 'Изменённые шаги выделены', changedStep: 'изменён', processNotFound: 'Схема этого процесса не найдена в экспорте' };
 
+// "О решении" (UX-05): purpose paragraph, module cards, activity list
+export const about = {
+  purposeIntro: 'Решение объединяет модули', purposeLimits: 'Назначение описано по названиям объектов экспорта. Работа в ELMA не наблюдалась; проверьте и дополните описание.',
+  noModules: 'Объекты решения не отнесены к модулям.', moduleNoNames: 'Названия объектов в экспорте не указаны.',
+  processesList: 'Процессы', screensList: 'Экраны', dataList: 'Данные',
+  draftNote: 'Черновик подготовлен по данным экспорта. Проверьте и дополните.', loading: 'Готовим описание…', savedBy: 'Сохранил', edit: 'Изменить', save: 'Сохранить описание',
+  text: 'Описание решения', stale: 'Состав решения изменился после сохранения. Проверьте описание.', history: 'История описания',
+  archivedReadOnly: 'Решение в архиве. Описание доступно для чтения.', loadFailed: 'Описание не получено', blocked: 'Сохранение заблокировано до обновления. Ваш текст остаётся на странице.',
+  moduleCounts: { processes: 'процессов', forms: 'экранов', data: 'данных', other: 'прочих' }, noActivity: 'Событий пока нет'
+};
+export const activity = {
+  events: { created: 'Решение загружено', prepared: 'Версия подготовлена', 'review-comment': 'Комментарий', 'review-reject': 'Запрошена доработка', 'review-resolve': 'Замечание устранено',
+    'change-accepted': 'Изменение принято', 'baseline-accepted': 'Версия принята', 'closed-no-changes': 'Закрыто без изменений', 'merge-resolved': 'Решение по совмещению сохранено',
+    'explanation-saved': 'Описание сохранено', archived: 'В архив', reopened: 'Работа возобновлена' },
+  justNow: 'только что', minutesAgo: 'мин назад', hoursAgo: 'ч назад', yesterday: 'вчера'
+};
+
 // Empty states
 export const empty = { purpose: 'Опишите, для чего это решение', solutions: 'Решений пока нет', requests: 'Запросов пока нет', comments: 'Комментариев пока нет' };
 

@@ -46,6 +46,21 @@ try {
   await page.getByRole('button', { name: 'Добавить решение', exact: true }).click();
   await page.getByRole('heading', { name: 'Что требует внимания' }).waitFor();
   const workspaceUrl = page.url(), id = new URL(workspaceUrl).searchParams.get('id'); assert.ok(id);
+  // UX-05: О решении opens with the purpose; the generated draft is edited and saved in place with its author.
+  await page.getByRole('heading', { name: 'Для чего', exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Написать', exact: true }).click();
+  const purposeText = page.getByLabel('Описание решения', { exact: true }); await purposeText.waitFor();
+  assert.match(await purposeText.inputValue(), /Работа в ELMA не наблюдалась/);
+  await purposeText.fill('Учебное решение для согласования договоров.');
+  await page.getByRole('button', { name: 'Сохранить описание', exact: true }).click();
+  await page.getByText('Учебное решение для согласования договоров.', { exact: true }).first().waitFor();
+  await page.getByRole('button', { name: 'Изменить', exact: true }).waitFor();
+  await page.getByRole('heading', { name: 'Модули', exact: true }).waitFor();
+  await page.reload();
+  await page.getByText('Учебное решение для согласования договоров.', { exact: true }).first().waitFor();
+  const activity = page.getByRole('list', { name: 'Последние события', exact: true });
+  await activity.getByText('Описание сохранено', { exact: true }).waitFor(); await activity.getByText('Решение загружено', { exact: true }).waitFor();
+  assert.equal((await (await context.request.get(`${base}/api/solutions/${id}`)).json()).revision, 0, 'saving the purpose does not advance the revision');
   // UX-03b: pulling the exact current content again is closed without a decision; nothing advances.
   await page.getByRole('link', { name: 'Обновить', exact: true }).click();
   await upload(baseBytes, true);
@@ -175,7 +190,7 @@ try {
     evidence.viewports.push(size);
   }
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.getByText('Архивировать решение', { exact: true }).click();
+  await page.locator('summary', { hasText: 'В архив' }).click();
   await page.getByLabel('Убрать из активных; сохранить снимки, изменения и историю', { exact: true }).check();
   await page.getByRole('button', { name: 'В архив', exact: true }).click();
   await page.getByRole('button', { name: 'Возобновить работу', exact: true }).waitFor();
@@ -252,7 +267,7 @@ try {
     } catch { res.writeHead(404); res.end(); }
   });
   await new Promise(resolve => stories.listen(0, '127.0.0.1', resolve));
-  for (const mode of ['empty','list','create','overview','pending','change','review','conflict','overlap','ambiguous','stale','archived','loading','load-error','changes','solution','no-source','needs-fixes','pending-conflict','review-comment','review-findings','review-resolved','review-accepted','review-stale-anchor','review-removed-anchor','review-ambiguous-anchor','elements-added','elements-boundary','elements-conflict','elements-unknown','create-legacy','pull-exporting','pull-ready','pull-failed','pull-unavailable','update','summary-mixed','summary-no-changes','summary-closed','decision','lifecycle-build','lifecycle-verified']) {
+  for (const mode of ['empty','list','create','overview','pending','change','review','conflict','overlap','ambiguous','stale','archived','loading','load-error','changes','solution','no-source','needs-fixes','pending-conflict','review-comment','review-findings','review-resolved','review-accepted','review-stale-anchor','review-removed-anchor','review-ambiguous-anchor','elements-added','elements-boundary','elements-conflict','elements-unknown','create-legacy','pull-exporting','pull-ready','pull-failed','pull-unavailable','update','summary-mixed','summary-no-changes','summary-closed','decision','lifecycle-build','lifecycle-verified','about-empty','about-generated','about-saved','about-stale','about-error']) {
     await page.goto(`http://127.0.0.1:${stories.address().port}/iframe.html?id=managed-workspace--${mode}&viewMode=story`);
     await page.locator('.managed-shell h1').waitFor();
     if (['review','conflict','overlap','ambiguous'].includes(mode)) await acceptBlocked();
@@ -274,6 +289,17 @@ try {
       if (mode === 'lifecycle-verified') assert.equal(await page.locator('.managed-step[data-state=done]').count(), 5);
       if (mode === 'pending') { await page.locator('.managed-step[aria-current=step]').getByText('Рассмотрение', { exact: true }).waitFor(); await page.getByText('Ожидает рассмотрения', { exact: true }).first().waitFor(); }
       if (mode === 'archived') await page.getByText('В архиве', { exact: true }).first().waitFor();
+    }
+    if (mode.startsWith('about-')) {
+      // UX-05: empty, generated, saved, stale and failed purpose states; two distinct people in the activity list.
+      await page.getByRole('heading', { name: 'Для чего', exact: true }).waitFor(); await page.getByRole('heading', { name: 'Модули', exact: true }).waitFor();
+      const activity = page.getByRole('list', { name: 'Последние события', exact: true });
+      await activity.getByText('Uploader', { exact: true }).waitFor(); assert.equal(await activity.getByText('Reviewer', { exact: true }).count(), 2);
+      if (mode === 'about-empty') { await page.getByText('Опишите, для чего это решение', { exact: true }).waitFor(); await page.getByRole('button', { name: 'Написать', exact: true }).waitFor(); }
+      if (mode === 'about-generated') { assert.match(await page.getByLabel('Описание решения', { exact: true }).inputValue(), /Решение объединяет модули/); assert.equal(await page.getByRole('button', { name: 'Сохранить описание', exact: true }).isDisabled(), false); }
+      if (mode === 'about-saved') { await page.getByText(/^Договоры с контрагентами/).first().waitFor(); await page.getByRole('button', { name: 'Изменить', exact: true }).waitFor(); assert.equal(await page.getByText('Состав решения изменился после сохранения. Проверьте описание.', { exact: true }).count(), 0); }
+      if (mode === 'about-stale') await page.getByText('Состав решения изменился после сохранения. Проверьте описание.', { exact: true }).waitFor();
+      if (mode === 'about-error') { await page.getByRole('alert').filter({ hasText: 'Описание не получено' }).waitFor(); await page.getByRole('button', { name: 'Написать', exact: true }).waitFor(); }
     }
     if (mode === 'summary-closed') { await page.getByText(/^Закрыто без изменений:/).waitFor(); assert.equal(await page.getByRole('button', { name: 'Решение по версии', exact: true }).count(), 0); }
     if (!mode.startsWith('review-') && !mode.startsWith('elements-') && !['create','create-legacy','update','change','review','conflict','overlap','ambiguous','archived','loading','summary-mixed','summary-no-changes','summary-closed','decision'].includes(mode) && !mode.startsWith('pull-')) assert.equal(await page.locator('.managed-content a.button').count(), 1, 'one primary action: ' + mode);

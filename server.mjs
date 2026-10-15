@@ -256,7 +256,7 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
         const store = solutions.managed;
         if (id) await store.authorize(id, SOLUTION_CATALOG);
         if (req.method === 'GET' && action === 'explanations') {
-          const keys = ['scope', 'artifactId', 'source', 'nodeId'];
+          const keys = ['scope', 'artifactId', 'source', 'nodeId', 'module'];
           if ([...url.searchParams.keys()].some(key => !keys.includes(key) || url.searchParams.getAll(key).length !== 1)) return send(res, 400, { error: 'Некорректный запрос объяснения' });
           return send(res, 200, await store.explanation(id, SOLUTION_CATALOG, Object.fromEntries(url.searchParams)));
         }
