@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { managedFixture } from '../web/managed/fixtures.js';
-import { reviewGate, workspaceSummary, componentName, workspaceUrl, solutionNextAction, responsibilityLabel, responsibilityReport, hasAcceptedFullExport, objectLabel, objectCode, objectKindLabel, objectModule, isSystemObject, groupObjects } from '../web/managed/model.js';
+import { reviewGate, workspaceSummary, componentName, workspaceUrl, solutionNextAction, responsibilityLabel, responsibilityReport, hasAcceptedFullExport, objectLabel, objectCode, objectFromKey, objectKindLabel, objectModule, isSystemObject, groupObjects } from '../web/managed/model.js';
 import { solutionHandoffFixture } from '../web/managed/handoff-fixtures.js';
 
 test('handoff navigation requires a matching accepted full state and stays separate from delivery evidence', () => {
@@ -97,6 +97,10 @@ test('UX-02: business name first, technical code second; objects group by module
   const permission = { key: JSON.stringify(['permissionsSettings', 'contract_management', 'permissionSettings', 'contracts']), service: 'permissionsSettings', namespace: 'contract_management', code: 'contracts', kind: 'permissionSettings' };
   assert.equal(objectLabel(permission).text, 'contract_management · contracts · permissionSettings', 'long keys keep the previous technical label');
   assert.equal(objectCode({ key: '["widgets","x","y"]' }), 'y');
+  assert.equal(objectLabel({ key: permission.key }).text, 'contract_management · contracts · permissionSettings', 'a row known only by its key (an object a review adds) is labelled from the key');
+  assert.deepEqual(objectFromKey(permission.key), { key: permission.key, service: 'permissionsSettings', namespace: 'contract_management', code: 'contracts', kind: 'permissionSettings' });
+  assert.equal(objectModule(objectFromKey(widget.key)), 'contract_management');
+  assert.deepEqual(objectFromKey('not-json'), { key: 'not-json' });
   assert.equal(objectKindLabel({ service: 'processor' }), 'Процессы'); assert.equal(objectKindLabel({ service: 'applications' }), 'Данные'); assert.equal(objectKindLabel({ service: 'unknown' }), 'Прочее');
   assert.equal(objectModule(widget), 'contract_management'); assert.equal(objectModule({}), '');
   assert.equal(isSystemObject(permission), true); assert.equal(isSystemObject({ ...widget, name: null, code: '__default' }), true); assert.equal(isSystemObject(widget), false);

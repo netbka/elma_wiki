@@ -1,4 +1,4 @@
-import { componentName, dateLabel, labels, elementLabels, elementKinds, responsibilityLabel, responsibilityReport, reviewGate, workspaceSummary, workspaceUrl as buildUrl, solutionNextAction, objectLabel, groupObjects } from './model.js';
+import { componentName, dateLabel, labels, elementLabels, elementKinds, responsibilityLabel, responsibilityReport, reviewGate, workspaceSummary, workspaceUrl as buildUrl, solutionNextAction, objectLabel, objectFromKey, groupObjects } from './model.js';
 import { nouns, grouping } from './labels.js';
 import { mountSnapshotVisual } from '../visual/render.js';
 import { mountExplanation } from '../explanations/render.js';
@@ -47,7 +47,7 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
   // Review rows carry only the key; take the display metadata from the current state or the reviewed artifact.
   const objectOf = (key, artifactId) => state?.current?.find(row => row.key === key)
     || state?.artifacts?.find(row => row.id === artifactId)?.components?.find(row => row.key === key)
-    || state?.artifacts?.flatMap(row => row.components || []).find(row => row.key === key) || { key };
+    || state?.artifacts?.flatMap(row => row.components || []).find(row => row.key === key) || objectFromKey(key);
   const controls = () => root.querySelectorAll('button,input,select,textarea');
   const lock = () => controls().forEach(node => { node.disabled = busy || blocked || node.dataset.unavailable === 'true'; });
   const run = async (operation, refreshHref = workspaceUrl(state?.id)) => {
