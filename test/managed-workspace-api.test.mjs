@@ -241,8 +241,14 @@ test('UX-03b: a no-difference version is closed without advancing anything; a di
   const differing = await json(await post(id + '/prepare', { kind: 'reconciliation', snapshot: next.ref, expectedRevision: state.revision }), 201);
   await json(await post(id + '/artifacts/' + differing.artifactId + '/close', { expectedRevision: state.revision }), 409);
   await json(await post(id + '/artifacts/' + differing.artifactId + '/accept', { ...decisions(differing), comment: 'x'.repeat(4001) }), 400);
+  // A no-difference version prepared before a later acceptance is stale: closing it would revert `a`.
+  const stale = await json(await post(id + '/prepare', { kind: 'reconciliation', snapshot: (await upload([['a', 'base']], 'full', { source })).ref, expectedRevision: state.revision }), 201);
+  assert.ok(stale.rows.every(row => row.classification === 'unchanged'));
   state = await json(await post(id + '/artifacts/' + differing.artifactId + '/accept', { ...decisions(differing), comment: 'Проверено: изменение согласовано' }));
   assert.equal(state.reconciliations.length, 1);
+  assert.equal((await json(await request(id + '/artifacts/' + stale.artifactId + '/review'))).stale, true);
+  await json(await post(id + '/artifacts/' + stale.artifactId + '/close', { expectedRevision: state.revision, reviewedDigest: stale.artifactDigest }), 409);
+  assert.equal((await json(await request(id))).pending.length, 1, 'the stale version stays pending for a fresh comparison');
   const accepted = await json(await request(id + '/artifacts/' + differing.artifactId + '/review'));
   assert.equal(accepted.discussion.events.find(event => event.type === 'approve').text, 'Проверено: изменение согласовано');
 });
