@@ -8,6 +8,11 @@ if sys.platform == 'win32':
 spec = importlib.util.spec_from_file_location('prod_update', pathlib.Path(__file__).parents[1] / 'deploy/prod-update.py')
 m = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(m)
+# The local transport is imported without Paramiko or a network; only its pure helpers are tested.
+sys.modules.setdefault('paramiko', types.SimpleNamespace())
+ssh_spec = importlib.util.spec_from_file_location('prod_ssh', pathlib.Path(__file__).parents[1] / 'deploy/prod-ssh.py')
+ssh = importlib.util.module_from_spec(ssh_spec)
+ssh_spec.loader.exec_module(ssh)
 
 def container():
     return {'Id': 'old-id', 'Config': {'Image': 'old-image', 'Env': ['PUBLIC_BASE_URL=https://wiki.example.org',
@@ -95,5 +100,26 @@ class ProductionUpdateTests(unittest.TestCase):
     def test_partial_container_creation_failure_restores_original(self): self.exercise('create')
     def test_health_failure_restores_and_checks_original(self): self.exercise('health')
     def test_success_preserves_volume_and_verifies_https_routes(self): self.exercise('success')
+
+class SshTransportTests(unittest.TestCase):
+    stage = '/home/wiki-deploy/wiki-update-0123'
+
+    def test_key_file_mode_never_offers_or_pipes_a_password(self):
+        config = {'user': 'wiki-deploy', 'keyFile': '/keys/deploy', 'useAgent': False, 'password': 'left-over'}
+        kwargs = ssh.connect_kwargs(config)
+        self.assertNotIn('password', kwargs)
+        self.assertEqual((kwargs['key_filename'], kwargs['allow_agent'], kwargs['look_for_keys']), ('/keys/deploy', False, False))
+        self.assertEqual(ssh.remote_command(self.stage, config), 'sudo -n python3 ' + self.stage + '/update.py')
+
+    def test_agent_mode_uses_the_agent_only(self):
+        kwargs = ssh.connect_kwargs({'user': 'wiki-deploy', 'keyFile': None, 'useAgent': True, 'password': None})
+        self.assertEqual((kwargs['key_filename'], kwargs['allow_agent']), (None, True))
+        self.assertNotIn('password', kwargs)
+
+    def test_deprecated_password_fallback_is_unchanged(self):
+        config = {'user': 'wiki-deploy', 'keyFile': None, 'useAgent': False, 'password': 'synthetic'}
+        kwargs = ssh.connect_kwargs(config)
+        self.assertEqual((kwargs['password'], kwargs['allow_agent']), ('synthetic', False))
+        self.assertTrue(ssh.remote_command(self.stage, config).startswith('sudo -S -p "" python3 '))
 
 if __name__ == '__main__': unittest.main()
