@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { requestCoordinator } from './lib/request-coordinator.mjs';
 import { bugReportStore, bugGitHub, bugLimits } from './lib/bug-reports.mjs';
+import { requestFields } from './lib/change-requests.mjs';
 import { readData } from './lib/store.mjs';
 import { limits } from './lib/e365.mjs';
 import { createAuth } from './lib/auth.mjs';
@@ -126,6 +127,53 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
         }
         return send(res, 404, { error: 'Загрузка не найдена' });
       }
+      const changeRequestMatch = /^\/api\/solutions\/([^/]+)\/change-requests(?:\/([^/]+)(?:\/(events|publish|retry))?)?$/.exec(pathname);
+      if (changeRequestMatch) {
+        if (!session) return send(res, 401, { error: 'Войдите в сервис' });
+        const [, solutionId, id, action] = changeRequestMatch, store = solutions.managed;
+        await store.authorize(solutionId, SOLUTION_CATALOG);
+        const getRequest = async () => {
+          const row = (await store.changeRequests(solutionId, SOLUTION_CATALOG, session.user)).find(value => value.id === id);
+          if (!row) throw Object.assign(Error('Change request not found'), { statusCode: 404 });
+          return row;
+        };
+        const publication = async row => {
+          try {
+            const report = await bugs.get(row.id, session.user);
+            if (report.kind !== 'change-request' || report.context.solutionId !== solutionId || report.context.changeRequestId !== row.id)
+              throw Object.assign(Error('Publication ID already used by another report'), { statusCode: 409 });
+            return report;
+          }
+          catch (error) { if (error.statusCode !== 404) throw error; return null; }
+        };
+        if (req.method === 'GET' && !action) {
+          if (id) { const row = await getRequest(); return send(res, 200, { ...row, publication: await publication(row) }); }
+          return send(res, 200, { requests: await store.changeRequests(solutionId, SOLUTION_CATALOG, session.user), publication: bugs.config() });
+        }
+        if (req.method !== 'POST' || id && !action) return send(res, 405, { error: 'Метод не поддерживается' });
+        if (req.headers['content-type']?.split(';')[0] !== 'application/json') return send(res, 415, { error: 'Требуется JSON' });
+        const input = JSON.parse((await body(req, action === 'publish' ? bugLimits.bodyBytes : 32 * 1024)).toString('utf8'));
+        if (!id) return send(res, 201, await store.createChangeRequest(solutionId, SOLUTION_CATALOG, input, session.user));
+        if (action === 'events') return send(res, 200, await store.changeRequestEvent(solutionId, SOLUTION_CATALOG, id, input, session.user));
+        const row = await getRequest();
+        // Publication uses the existing durable bug-report receipt. Once saved,
+        // explicit retry reconciles that immutable payload without redispatch.
+        if (action === 'retry') {
+          requestFields(input, []);
+          if (!await publication(row)) return send(res, 409, { error: 'Confirm publication before retrying' });
+          return send(res, 200, await bugs.retry(row.id, session.user));
+        }
+        requestFields(input, ['publishConfirmed', 'attachments']);
+        const report = { id: row.id, kind: 'change-request', title: row.title,
+          text: [row.text, row.reason && `Reason: ${row.reason}`, `Kind: ${row.kind}; urgency: ${row.urgency}`].filter(Boolean).join('\n\n'),
+          context: { route: '/solutions', solutionId,
+            artifactId: row.target.artifactId, changeRequestId: row.id }, attachments: input.attachments, publishConfirmed: input.publishConfirmed };
+        // Never submit inside the managed queue: the reject path holds the bug
+        // queue while it waits on the managed one, and GitHub I/O would stall
+        // every Solution. A Solution archived after this check keeps the receipt.
+        await store.assertActive(solutionId, SOLUTION_CATALOG);
+        return send(res, 200, await bugs.submit(report, session.user));
+      }
       const bugMatch = /^\/api\/bug-reports(?:\/([^/]+)(?:\/(retry)|\/attachments\/([^/]+))?)?$/.exec(pathname);
       if (bugMatch) {
         if (!session) return send(res, 401, { error: 'Войдите в сервис' });
@@ -140,6 +188,7 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
         if (req.method !== 'POST' || attachmentId || id && action !== 'retry') return send(res, 405, { error: 'Метод не поддерживается' });
         if (req.headers['content-type']?.split(';')[0] !== 'application/json') return send(res, 415, { error: 'Требуется JSON' });
         const input = JSON.parse((await body(req, id ? 1024 : bugLimits.bodyBytes)).toString('utf8'));
+        if (!id && input?.kind === 'change-request') return send(res, 400, { error: 'Use the Solution change-request publication route' });
         if (id && (!input || typeof input !== 'object' || Array.isArray(input) || Object.keys(input).length)) return send(res, 400, { error: 'Некорректный повтор' });
         return send(res, id ? 200 : 201, id ? await bugs.retry(id, session.user) : await bugs.submit(input, session.user));
       }

@@ -28,6 +28,8 @@ The server supplies the actor separately from request data. Upload metadata and 
 
 ## Change review and contextual code
 
+Solution-scoped [change requests](change-requests.md) provide a separate local request/event record and authenticated API. They preserve captured object/step anchors and attributed status/comments without changing configuration revisions or review acceptance. The form, list tab and contextual UI entry points are still pending under UX-07.
+
 Contextual Solution/process/step explanations use the same authenticated actors,
 captured originals and atomic managed storage. They are separate documentation,
 not comments, accepted changes or deployment evidence. See

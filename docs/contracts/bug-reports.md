@@ -12,6 +12,8 @@ Before submission, the user explicitly agrees to publishing the title, descripti
 
 ## API and publication states
 
+The UX-07 [change-request backend](change-requests.md) reuses this store and transport for explicit-consent publication of durable Solution requests. Its authenticated contextual route constructs the immutable `change-request` payload; direct bug creation cannot supply that kind. Bug/reject validation and publication behavior remain unchanged.
+
 - `GET /api/bug-reports`: configured destination and public limits, never credentials.
 - `POST /api/bug-reports`: immutable client UUID, report fields, exact attachment payload and explicit publication consent. Same actor/UUID/payload reuses the existing receipt; different content or actor is rejected.
 - `GET /api/bug-reports/:id`: authenticated persisted report and attachment metadata.

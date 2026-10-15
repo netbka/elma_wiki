@@ -1,5 +1,7 @@
 # ELMA Wiki current state
 
+UX-07 backend foundation (not deployed): Solution-scoped immutable requests, captured object/step anchors, attributed/version-guarded status/comments, accepted-version completion links and explicit-consent publication through the existing bug-report transport. Synthetic HTTP/restart/transport evidence only. The form, list tab, object chips and field anchors remain pending; UX-07 is not complete. See [change-request contract](contracts/change-requests.md).
+
 Last repository verification: 2026-10-07.
 
 PLAN-01 (P1-P7), MR-08, AR-05, the materialization transport and the 2026-10-14 dev2 delivery entries below reconciled against main `139d8fc` on 2026-10-15 by reading merged code, tests and contracts. Merged is not deployed: no entry below records a hosted rollout, a live ELMA operation or native business acceptance unless it says so.
