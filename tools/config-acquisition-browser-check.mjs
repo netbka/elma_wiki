@@ -38,8 +38,12 @@ try {
   await page.getByLabel('Решение', { exact: true }).selectOption('synthetic_solution');
   assert.equal(await page.locator('.managed-content button:not([hidden])').count(), 1, 'one button');
   await page.getByRole('button', { name: 'Загрузить', exact: true }).click();
-  // Reloading mid-export resumes the same acquisition and still ends on the new Solution.
+  // Reloading mid-export resumes the same acquisition; the ready export waits for one Продолжить click and only then becomes the Solution.
   await page.waitForURL(/acquisition=/); await page.reload();
+  await page.getByRole('button', { name: 'Продолжить', exact: true }).waitFor();
+  assert.equal(await page.getByRole('button', { name: 'Продолжить', exact: true }).isDisabled(), false, 'the resumed export can be continued');
+  assert.equal(new URL(page.url()).searchParams.get('id'), null, 'a reload alone creates no Solution');
+  await page.getByRole('button', { name: 'Продолжить', exact: true }).click();
   await page.waitForURL(/[?&]id=/);
   assert.equal(sourceServer, 'dev2');
   await page.getByRole('heading', { name: 'synthetic_solution', exact: true, level: 1 }).waitFor();
