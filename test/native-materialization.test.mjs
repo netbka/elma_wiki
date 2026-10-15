@@ -13,6 +13,7 @@ import { dependencyReport } from '../lib/dependency-evidence.mjs';
 import { prepareMaterializationRequest, materializeNative, materializationStatus, INSPECTED_NATIVE_MATERIALIZATION,
   NATIVE_MATERIALIZATION_CONTRACTS, SYNTHETIC_MATERIALIZATION_CONTRACT } from '../lib/native-materialization.mjs';
 import { zip } from './fixture.mjs';
+import { materializeServer } from './bridge-worker-fixture.mjs';
 import { E1_SOURCE, E1_SCHEMA_INTACT, E1_REQUIRED_CHECKS, buildE1Envelope, validateE1Request, validateE1Receipt } from '../lib/native-materialization-e1.mjs';
 
 // Synthetic Contracts-shaped B/A/C archives. Every component carries a declared
@@ -383,14 +384,24 @@ test('E1: malformed, mismatched, unknown-version or unavailable receipts fail cl
   const relabelled = { ...e1Receipt(request, Buffer.from('x')), unavailable, artifacts: [], coverage: null, checks: [] };
   assert.equal(validateE1Receipt(relabelled, request).state, 'invalid');
   assert.equal(validateE1Receipt(null, request).state, 'invalid');
+  // Output transport binding: sha256 and size of the returned bytes.
+  const bytes = Buffer.from('synthetic output'), bound = e1Receipt(request, bytes);
+  assert.equal(validateE1Receipt(bound, request, { artifacts: [{ solution: request.inputs.solution, bytes }] }).state, 'validated');
+  const binding = (receipt, artifacts) => reasons(validateE1Receipt(receipt, request, { artifacts }).errors);
+  assert.deepEqual(binding(bound, [{ bytes: Buffer.from('tampered output!') }]), ['artifact-digest-mismatch']);
+  assert.deepEqual(binding({ ...bound, artifacts: [{ ...bound.artifacts[0], size: bytes.length + 1 }] }, [{ bytes }]), ['artifact-size-mismatch']);
+  assert.deepEqual(binding(bound, []), ['artifact-bytes-missing']);
 
   const cases = [
     // Pre-E1 response shape from a worker claiming E1.
     [{ response: (result, out) => out }, 'native-receipt-invalid', 'failed'],
     [{ receipt: row => ({ ...row, worker: { ...row.worker, nativeRevision: 'b'.repeat(40) } }) }, 'native-worker-revision-mismatch', 'failed'],
-    // A self-consistent receipt for different bytes than the worker returned.
+    // A self-consistent receipt for different bytes than the worker returned fails the
+    // receipt's sha256 binding; the same digest with a different size fails its size binding.
     [{ receipt: row => ({ ...row, artifacts: [{ ...row.artifacts[0], sha256: '0'.repeat(64) }],
-      checks: row.checks.map(check => check.artifactSha256 ? { ...check, artifactSha256: '0'.repeat(64) } : check) }) }, 'native-validation-mismatch', 'materialized'],
+      checks: row.checks.map(check => check.artifactSha256 ? { ...check, artifactSha256: '0'.repeat(64) } : check) }) }, 'native-receipt-invalid', 'failed'],
+    [{ receipt: row => ({ ...row, artifacts: [{ ...row.artifacts[0], size: row.artifacts[0].size + 1 }] }) }, 'native-receipt-invalid', 'failed'],
+    [{ response: result => ({ ...result, artifacts: [] }) }, 'native-receipt-invalid', 'failed'],
     [{ receipt: row => ({ ...row, status: 'failed', checks: row.checks.map(check => check.id === 'native-package-check' ? { ...check, status: 'failed' } : check) }) }, 'native-validation-failed', 'failed'],
     [{ receipt: row => ({ ...row, status: 'unavailable', unavailable, artifacts: [], coverage: null, checks: [], evidenceRef: null }) }, 'native-worker-unavailable', 'unavailable'],
     [{ fail: true }, 'native-materialization-failed', 'failed']
@@ -426,4 +437,48 @@ test('E1: requests the contract rejects are blocked before the worker is called'
   assert.ok(errors({ ...envelope, workerUrl: 'https://worker.example.org' }).includes('unknown-field'));
   assert.ok(errors({ ...envelope, contract: { ...E1, version: 2 } }).includes('invalid-value'));
   assert.ok(errors({ ...envelope, request: { ...request, inputsDigest: '0'.repeat(64) } }).includes('inputs-digest-mismatch'));
+});
+
+// E1 over the operator bridge: the configured production adapter, a synthetic HTTP
+// worker around the test-only assembler, and Wiki's own receipt/output checks.
+test('E1 over the operator bridge: validated output is materialized; tampered size, wrong bytes and timeout fail closed', async t => {
+  const { request, originals } = await e1Scenario(t);
+  const assemble = syntheticAdapter();
+  const env = await materializeServer(t, { owner, timeoutMs: 6000 });
+  const answers = [];
+  const worker = env.worker({ handle: async ({ envelope, originals: fetched }) => {
+    const answer = answers.shift() ?? (row => row);
+    if (answer === 'skip') return { skip: true };
+    const out = await assemble.materialize({ request: envelope.request, originals: fetched });
+    const bytes = out.artifacts[0].bytes;
+    return answer({ receipt: e1Receipt(envelope.request, bytes), bytes });
+  } });
+  assert.equal(env.adapter.nativeRevision, E1_SOURCE.revision);
+
+  const ok = await materializeNative({ request, originals, adapter: env.adapter, now: NOW });
+  assert.equal(ok.manifest.status, 'materialized', JSON.stringify(ok.manifest.blockers));
+  assert.equal(ok.manifest.adapter.id, 'operator-bridge-materialize');
+  assert.equal(ok.manifest.receipt.status, 'validated'); assert.equal(ok.manifest.validation.matches, true);
+  assert.equal(ok.artifacts[0].sha256, ok.manifest.artifacts[0].sha256);
+  // Synthetic inputs stay synthetic through the real transport.
+  assert.deepEqual(reasons(ok.manifest.blockers), ['synthetic-evidence-only']); assert.equal(ok.manifest.releaseEligible, false);
+
+  const failures = [
+    // The receipt names a size other than the uploaded bytes.
+    [answer => ({ ...answer, receipt: { ...answer.receipt, artifacts: [{ ...answer.receipt.artifacts[0], size: answer.bytes.length + 1 }] } }), 'artifact-size-mismatch'],
+    // The upload is refused (declared digest of other bytes), so the validated receipt has no bytes.
+    [answer => ({ ...answer, declaredSha256: '0'.repeat(64) }), 'artifact-bytes-missing'],
+    // Self-consistent receipt for bytes other than the uploaded archive.
+    [answer => ({ ...answer, bytes: Buffer.concat([answer.bytes, Buffer.from('tail')]) }), 'artifact-digest-mismatch']
+  ];
+  for (const [answer, reason] of failures) {
+    answers.push(answer);
+    const result = await materializeNative({ request, originals, adapter: env.adapter, now: NOW });
+    assert.equal(result.manifest.status, 'failed', reason); assert.deepEqual(result.artifacts, []);
+    assert.ok(result.manifest.blockers.find(row => row.reason === 'native-receipt-invalid')?.errors.includes(reason), reason + ' -> ' + JSON.stringify(result.manifest.blockers));
+  }
+  answers.push('skip');
+  const lost = await materializeNative({ request, originals, adapter: env.adapter, now: NOW });
+  assert.equal(lost.manifest.status, 'failed'); assert.deepEqual(lost.artifacts, []);
+  assert.ok(reasons(lost.manifest.blockers).includes('native-outcome-unknown'));
 });
