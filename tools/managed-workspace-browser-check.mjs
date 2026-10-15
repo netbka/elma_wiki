@@ -307,6 +307,10 @@ try {
       await page.getByRole('heading', { name: 'Для чего', exact: true }).waitFor(); await page.getByRole('heading', { name: 'Модули', exact: true }).waitFor();
       const activity = page.getByRole('list', { name: 'Последние события', exact: true });
       await activity.getByText('Uploader', { exact: true }).waitFor(); assert.equal(await activity.getByText('Reviewer', { exact: true }).count(), 2);
+      // A code-less module card is titled "Без модуля" and offers no Объяснить button; a real module does.
+      const orphan = page.locator('.managed-about .managed-card').filter({ has: page.getByRole('heading', { name: 'Без модуля', exact: true }) });
+      assert.equal(await orphan.count(), 1, 'one code-less module card: ' + mode); assert.equal(await orphan.getByRole('button', { name: 'Объяснить', exact: true }).count(), 0, 'no Explain for a code-less module');
+      assert.equal(await page.locator('.managed-about .managed-card').filter({ has: page.getByRole('heading', { name: 'synthetic', exact: true }) }).getByRole('button', { name: 'Объяснить', exact: true }).count(), 1);
       if (mode === 'about-empty') { await page.getByText('Опишите, для чего это решение', { exact: true }).waitFor(); await page.getByRole('button', { name: 'Написать', exact: true }).waitFor(); }
       if (mode === 'about-generated') { assert.match(await page.getByLabel('Описание решения', { exact: true }).inputValue(), /Решение объединяет модули/); assert.equal(await page.getByRole('button', { name: 'Сохранить описание', exact: true }).isDisabled(), false); }
       if (mode === 'about-saved') { await page.getByText(/^Командировки сотрудников/).first().waitFor(); await page.getByRole('button', { name: 'Изменить', exact: true }).waitFor(); assert.equal(await page.getByText('Состав решения изменился после сохранения. Проверьте описание.', { exact: true }).count(), 0); }
