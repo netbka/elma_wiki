@@ -67,6 +67,7 @@ export function mountFlows({ state, visuals = {}, selected = null }, actions = {
         const summary = processSummary(process);
         card.append(el('p', summary.tasks.length ? `${flowLabels.tasks}: ${summary.tasks.join(', ')}${summary.more ? ` ${grouping.andMore} ${summary.more}` : ''}. ${summary.steps} ${flowLabels.steps}.` : `${flowLabels.noTasks}. ${summary.steps} ${flowLabels.steps}.`));
       } else if (value?.error) card.append(el('p', `${flowLabels.diagramUnavailable}: ${value.error}`, 'managed-muted'));
+      else if (value?.processLimit) card.append(el('p', `${flowLabels.diagramNotBuilt} · ${flowLabels.tooManyProcesses}`, 'managed-muted'));
       const button = el('button', `${flowLabels.view}: ${row.code || objectLabel(row).text}`, 'secondary'); button.type = 'button'; button.onclick = () => open(row, card);
       if (!captured) button.disabled = true;
       card.append(button); section.append(card); cards.push({ row, card });
@@ -106,7 +107,7 @@ export function mountScreens({ state, visuals = {} }, actions = {}) {
     if (object?.fields?.length) { const details = el('details'); details.append(el('summary', `${flowLabels.fields} · ${object.fields.length}`), fieldTable(object.fields)); article.append(details); }
     else if (object) article.append(el('p', flowLabels.fieldsUnknown, 'managed-muted'));
     // The projection was not read (failed read, or none loaded for a captured artifact): the card says so.
-    else if (captured && (!value || value.error)) article.append(el('p', value?.error ? `${flowLabels.fieldsUnavailable}: ${value.error}` : flowLabels.fieldsUnavailable, 'managed-muted'));
+    else if (captured && (!value || value.error)) article.append(el('p', flowLabels.fieldsUnavailable, 'managed-muted'));
     cards.push({ row, card: article }); return article;
   };
   const grouped = groupObjects(rows.filter(row => objectKind(row) !== 'processes'));

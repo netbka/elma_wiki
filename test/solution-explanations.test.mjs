@@ -193,3 +193,19 @@ test('removed steps retain their explanation in the Solution catalogue; duplicat
   assert.equal(catalogue.related[0].text,'Историческое объяснение удаляемого шага');
   assert.ok(catalogue.related[0].sources[0].componentKey);
 });
+
+test('past the 50-process bound the solution explanation says what was not shown and a process explanation names the limit',async t=>{
+  const {request,json,post,login,ref}=await setup(t);
+  const a=await login('alice@example.org');
+  const many=Array.from({length:51},(_,i)=>['p'+i,visualSource]);
+  const bytes=await zip([['package.json',{code:'synthetic_many',type:'SOLUTION'}],
+    ['processor/manifest.json',{entities:many.map(([code])=>({code,namespace:'travel',kind:'PROCESS',name:'Процесс '+code,path:code+'.json'}))}],
+    ...many.map(([code,source])=>['processor/'+code+'.json',source])]);
+  const project=await json(await request('/api/solutions/uploads?filename=many.e365',a.cookie,{method:'POST',headers:{'X-Elma-Wiki-Request':'1','Content-Type':'application/octet-stream'},body:bytes}),201);
+  const state=await json(await post('/api/solutions',a.cookie,{name:'Большое решение',baselineOwner:'Vendor',snapshot:ref(project,'full')}),201);
+  const overview=await json(await request(url(state.id,{scope:'solution'}),a.cookie));
+  assert.match(overview.draft.text,/Не показаны: 51 процессов сверх предела обзора/);
+  assert.ok(!overview.draft.text.includes('Поддерживаемые процессы не установлены'),'the limit is not reported as an absence of processes');
+  const process=await request(url(state.id,{scope:'process',artifactId:state.baselineId,source:'processor/p0.json'}),a.cookie);
+  assert.equal(process.status,422);assert.match((await process.json()).error,/не более 50 процессов/);
+});
