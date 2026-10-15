@@ -1,7 +1,7 @@
 # Solution-first execution plan
 
 Authority: [SOLUTION_FIRST_PRODUCT_PLAN.md](SOLUTION_FIRST_PRODUCT_PLAN.md), including the owner's 2026-10-08 working-configuration correction (#94 / PR #92).
-Coordination: #52 / #91. This plan records required product work; individual workers claim bounded outcomes, not the whole roadmap. Current task: GitHub-only documentation and handoff; no live execution.
+Coordination: #52 / #91. This plan records required product work; individual workers claim bounded outcomes, not the whole roadmap. Implementation status below was reconciled against main `58bb84f` on 2026-10-15. It records merged code with synthetic evidence. It does not record deployment, live execution or native acceptance; see [STATE.md](STATE.md).
 
 ## Goal
 
@@ -32,6 +32,19 @@ P6 may ship in bounded increments but is not optional in the full product. #94 o
 | MR-06 | Composed candidate integration with guarded delivery | MR-03/04/05; reuse #90 handoff design and #11 single reservation/coordinator |
 | MR-07 | Actual isolated native acceptance of the combined Contracts scenario | MR-06; both changes operate together and native source/runtime/business outputs match |
 | MR-08 | Controlled next-server/production promotion and recovery | MR-07 plus concrete operational permission; target-specific evidence, drift/retry/partial-failure handling |
+
+Status on main `58bb84f` (2026-10-15; synthetic evidence only, nothing deployed or run live):
+
+| Slice | Status | Evidence |
+| --- | --- | --- |
+| MR-01 | Implemented: declared bases, bounded scope, evidence-bound deletion, base/scope UI. Ancestry stays unverified | PRs #95, #103, #110 (PLAN-01 P1) |
+| MR-02 | Implemented: conservative whole-component three-way plan and durable, digest-bound resolutions with UI. No byte/part merge | PRs #107, #111 (P2, P3) |
+| MR-03 | Wiki request/validation adapter implemented; owner accepted it on 2026-10-11 with native validation deferred to P8. Native materialization is unavailable: no worker exists, and Wiki has not pinned `elma365-native-materialization@1` (netbka/elma365 PR #89) | PR #113 (P6) |
+| MR-04 | Pure planner and native-coverage adapter implemented, not wired. Real declarations fail closed because no native coverage contract is pinned | PRs #104, #109 (P4) |
+| MR-05 | Pure dependency/Target-profile resolver implemented, not wired. Real receipts fail closed because no native receipt contract exists | PR #108 (P5) |
+| MR-06 | Composed candidates through the single #11 coordinator implemented with synthetic build and Target only. No composer screen | PR #117 (P7) |
+| MR-07 | Open (PLAN-01 P8). dev2 is designated for the Contracts candidate (PR #118); DEV/DEV2 presets and `import-normalized-v1` read-back are wired (PRs #119, #120). Blocked: the bridge worker returns only `{inventory, version}`, so read-back fails closed; no native materialization worker exists | none live |
+| MR-08 | Not started; requires MR-07 and concrete operational permission | none |
 
 Detailed contracts, negative cases, evidence and team boundaries: [working-configuration-release.md](plans/working-configuration-release.md).
 

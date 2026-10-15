@@ -1,6 +1,7 @@
 # Рабочая конфигурация: сравнение, слияние, сборка и выпуск
 
 Дата: 8 октября 2026. Продуктовая цель подтверждена прямым уточнением владельца; архитектура ниже является планом реализации, не утверждением о готовом merge/composer.
+Статус на main `58bb84f` (15 октября 2026): PLAN-01 P1-P7 слиты, см. [статус реализации](#implementation-status-on-main-58bb84f). Это синтетические доказательства, а не развертывание или native-приемка.
 Authority: [действующий продуктовый контракт](../SOLUTION_FIRST_PRODUCT_PLAN.md). Владельцы: Wiki #94, delivery #11, native identity #47, координация #91; native-сборка [elma365#60](https://github.com/netbka/elma365/issues/60).
 
 ## 1. Обязательный результат
@@ -14,7 +15,7 @@ Wiki получает полную исходную конфигурацию и 
 Проверка выполнена через GitHub, без local/live execution. Wiki main: `9f8f17c9729acf5193f79f38a51f7aa104e97717`; native tools: `c0a494b25b08b9f9c76f496d7355329498f6df43`.
 
 - [Wiki managed engine](../contracts/managed-workspace.md): полный baseline, partial overlays, трехсторонняя сверка, устойчивые identity, исходные bytes, responsibility и revision-bound решения. Current limitation: whole-file conflict choice, а не general fine-grained merge/materialization.
-- [Solution handoff](../../lib/solutions.mjs): физический оригинальный full-export и привязка к актуальному review; composed candidate пока отсутствует.
+- [Solution handoff](../../lib/solutions.mjs): физический оригинальный full-export и привязка к актуальному review; composed candidate пока отсутствует (на 8 октября; с PR #117 существует синтетический composed candidate, см. статус ниже).
 - [Lane B](../audits/lane-b-elma-evidence-2026-10-08.md): существующий delivery нужно подключить к shared handoff без потери guards; legacy 404 нельзя просто отменить.
 - [Native GUIDE](https://github.com/netbka/elma365/blob/c0a494b25b08b9f9c76f496d7355329498f6df43/tools/config-workspace/GUIDE.md): workspace build/stage, полный native layout, widget compiler, package check/pack и dependency planner. Документ запрещает считать произвольное наложение экспортов merge и директорию модуля готовым пакетом. Эти ограничения остаются до доказанного нового пути.
 - [Native acceptance](https://github.com/netbka/elma365/blob/c0a494b25b08b9f9c76f496d7355329498f6df43/docs/enterprise-development/acceptance.md): полная затронутая родительская бизнес-цепочка, фактические формы/действия, исходный и исполняемый код, документные результаты, версии и восстановление. Использовать этот стандарт, а не придумывать более слабую приемку Wiki.
@@ -55,7 +56,7 @@ B - полный исходный снимок. A - изменение перв�
 
 `immutable originals + explicit bases -> semantic changes -> conflict/resolution record -> reviewed merged revision -> materialization request -> native artifacts -> isolated verification -> frozen release -> target attempt/read-back`.
 
-Proposed internal records, not yet implemented:
+Internal records (proposed on 8 October; on main `58bb84f` change base, merge plan, resolved revision, build request/manifest and composed candidate exist with synthetic evidence; a native build result and release-level business evidence do not):
 
 | Record | Содержание |
 | --- | --- |
@@ -154,3 +155,28 @@ The Wiki-side consumer of pinned native unit/coverage declarations (PLAN-01 P4) 
 The thin Wiki materialization adapter (PLAN-01 P6, MR-03) is specified in [native-materialization.md](../contracts/native-materialization.md). It binds the current P3 resolution, P4 units, P5 locks, compiler lock and exact originals into a request and verifies native output. No native materialization contract is pinned at the inspected elma365 revision, so it returns `unavailable`; physical Contracts output and native validation remain evidence-unavailable, recorded as an open P8 gate that depends on netbka/elma365#60.
 
 Composed candidate and guarded delivery integration (PLAN-01 P7, MR-06) extends the single #11 coordinator with a `composed` reference namespace. See [target-deployment.md](../contracts/target-deployment.md), composed candidates. A frozen candidate binds the exact P6 build, P4 units and order, P5 locks, Target profile and review events. Stale inputs block the final guarded write, reservations span all roots, and per-unit receipts are truthful, including `partial-outcome`. An unknown outcome is never redispatched. All evidence is synthetic. Composed candidates stay non-native and reach only a synthetic training Target until P8 pins native materialization and validation.
+
+## Implementation status on main 58bb84f
+
+Reconciled on 2026-10-15 against merged code, tests and contracts. Every item has synthetic evidence only. Nothing here is a hosted rollout, a live ELMA operation or native acceptance.
+
+| Slice | Status on main | PRs |
+| --- | --- | --- |
+| MR-01 | Declared base, bounded component scope, evidence-bound deletion, base/scope UI. Ancestry stays `ancestryVerified: false` | #95, #103, #110 (P1) |
+| MR-02 | Whole-component three-way plan, durable chained resolutions, review UI. No byte/part merge; automatic merge, acceptance and build stay disabled | #107 (P2), #111 (P3) |
+| MR-03 | Wiki request/validation adapter; returns `unavailable` without a pinned native contract. Owner accepted the Wiki side on 2026-10-11 with native validation deferred to P8 | #113 (P6) |
+| MR-04 | Pure planner and native-coverage adapter, not wired; real declarations fail closed | #104, #109 (P4) |
+| MR-05 | Pure dependency/Target-profile resolver, not wired; real receipts fail closed | #108 (P5) |
+| MR-06 | Frozen composed candidates through the single #11 coordinator: `/api/solutions/:id/composed`, per-unit receipts, `partial-outcome`. Synthetic build and Target only; no composer screen | #117 (P7) |
+| MR-07 | Open: PLAN-01 P8 | dev2 designation #118; presets #119; `import-normalized-v1` read-back #120 |
+| MR-08 | Not started | none |
+
+### What blocks P8
+
+On 2026-10-14 the owner designated dev2 as the non-production Target for P8 acceptance of the Contracts candidate. The designation covers only install/import, read-back, affected business checks and reset/recovery through the operator bridge ([recorded designation](../SOLUTION_FIRST_PRODUCT_PLAN.md#owner-reserved-matters-and-blockers)). The Target choice is no longer an owner stop. The remaining blockers are engineering work:
+
+- **Bridge read-back bytes.** The netbka/elma365 bridge worker (`elma-development/commands/bridge.mjs`) answers `readBack` with `{inventory, version}` only. Every DEV2 read-back under `import-normalized-v1` therefore fails closed until the worker returns `metadataFiles` ([required fields](../contracts/target-deployment.md#read-back-metadata-bytes)).
+- **Native materialization worker.** No worker exists that turns a resolved Contracts revision into physical native output, so no designated candidate exists to deploy.
+- **Contract adoption.** netbka/elma365 PR #89 published `elma365-native-materialization@1` (request envelope, validation receipt and manifest-regeneration policy; its validator is pure). Wiki has not reviewed and pinned it: `NATIVE_MATERIALIZATION_CONTRACTS` is empty and the inspected elma365 revision in code is `a762173`. Adoption is Wiki work after schema review.
+
+After these, the candidate SHA-256 must be listed in `WIKI_TARGET_DEV2_DEPLOY_CANDIDATES` on the running service. Then P8 needs observed live evidence: install, read-back, the affected parent business route and reset/recovery on dev2.
