@@ -103,7 +103,9 @@
         "solution-explanation--conflict",
         "solution-explanation--historical",
         "solution-explanation--regenerated",
-        "solution-explanation--in-solution"
+        "solution-explanation--in-solution",
+        "solution-explanation--solution-reading-guide",
+        "solution-explanation--process-reading-guide"
       ],
       "requiredVisibleStates": [
         "ready",
@@ -115,7 +117,9 @@
         "conflict",
         "historical",
         "regenerated",
-        "in-solution"
+        "in-solution",
+        "solution-reading-guide",
+        "process-reading-guide"
       ],
       "sources": [
         "docs/contracts/solution-explanations.md",
