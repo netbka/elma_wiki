@@ -7,7 +7,8 @@ const id = query.get('id'), view = query.get('view') || (id ? 'overview' : 'list
 const shared = location.pathname === '/solutions', home = shared ? '/solutions' : '/workspaces';
 const api = shared ? '/api/solutions' : '/api/managed-workspaces';
 const href = (id, view, artifact) => workspaceUrl(id, view, artifact, home);
-const config = { shared, home, api, artifact };
+// `mode=file` opens the legacy manual .e365 form instead of the fixed pull entry.
+const config = { shared, home, api, artifact, legacy: query.get('mode') === 'file' };
 const handoffId = query.get('handoff');
 const handoffApi = `${api}/${encodeURIComponent(id)}/handoffs`;
 const composedApi = `${api}/${encodeURIComponent(id)}/composed`, candidateId = query.get('candidate');
@@ -118,8 +119,13 @@ try {
     try { previousReview = await request(`${api}/${encodeURIComponent(id)}/artifacts/${encodeURIComponent(artifact)}/review`); } catch { previousReview = null; }
   }
   const acquisition = shared && query.get('acquisition') ? await request('/api/config-source/acquisitions/' + encodeURIComponent(query.get('acquisition'))) : null;
-  root.replaceChildren(mountManagedWorkspace({ ...config, workspace, view, review, rows, handoff, handoffs, exportEvidence, handoffReason, acquisition, previousReview, composed }, actions));
-  document.title = (workspace?.name || (view === 'create' ? 'Добавить решение' : 'Решения')) + ' · E365';
+  // The fixed entry needs a configured Source API; an unconfigured one is shown as unavailable, never guessed.
+  let pullUnavailable = false;
+  if (shared && !config.legacy && (view === 'create' || view === 'full')) {
+    try { pullUnavailable = (await request('/api/config-source/servers')).configured === false; } catch { pullUnavailable = true; }
+  }
+  root.replaceChildren(mountManagedWorkspace({ ...config, workspace, view, review, rows, handoff, handoffs, exportEvidence, handoffReason, acquisition, previousReview, composed, pullUnavailable }, actions));
+  document.title = (workspace?.name || (view === 'create' ? 'Загрузить решение' : 'Решения')) + ' · E365';
   root.querySelector('h1')?.focus({ preventScroll: true });
 } catch (error) {
   root.replaceChildren(mountManagedWorkspace({ ...config, workspace, view, error: error.message, stale: error.status === 409 }, actions));

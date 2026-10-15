@@ -14,7 +14,8 @@ const bytes = await zip([['config-bundle.json', { format: 'elma-config-bundle', 
   solutions: [{ code: 'synthetic_solution', status: 'exported', path: 'solutions/synthetic_solution.e365', sha256: hash, bytes: native.length }, { code: 'paid', status: 'excluded-paid' }] }],
   ['solutions/synthetic_solution.e365', native]]);
 let sourceServer, poll = 0;
-const configSource = { catalog: async server => ({ solutions: [{ code: 'synthetic_solution', name: 'Учебное решение' }, { code: 'paid', paid: true }] }),
+const configSource = { servers: async () => ({ servers: ['dev', 'dev2'] }),
+  catalog: async server => ({ solutions: [{ code: 'synthetic_solution', name: 'Учебное решение' }, { code: 'paid', paid: true }] }),
   start: async input => { sourceServer = input.server; return { id: crypto.randomUUID() }; },
   status: async () => ++poll < 2 ? { state: 'running', progress: { completed: 0, total: 1 } } : { state: 'ready', result: { bytes: bytes.length, sha256: crypto.createHash('sha256').update(bytes).digest('hex') } },
   artifact: async () => bytes };
@@ -27,23 +28,36 @@ try {
   const context = await browser.newContext(), page = await context.newPage(), errors = [];
   page.on('pageerror', error => errors.push(error.message));
   assert.equal((await context.request.post(base + '/auth/local', { headers: { 'X-Elma-Wiki-Request': '1' } })).status(), 200);
+  // UX-01 fixed entry: server + solution + one button; no name, scope, Source, base or responsibility question.
   await page.goto(base + '/solutions?view=create');
-  await page.getByText('Загрузить из ELMA / выбрать решение из конфигурации', { exact: true }).click();
-  await page.getByLabel('Источник ELMA', { exact: true }).selectOption('dev2');
-  await page.getByRole('button', { name: 'Показать решения сервера' }).click();
-  await page.getByLabel('Что загрузить').selectOption('synthetic_solution');
-  assert.equal(await page.getByLabel('Что загрузить').locator('option[value=paid]').isDisabled(), true);
-  await page.getByRole('button', { name: 'Загрузить из ELMA', exact: true }).click();
-  await page.waitForURL(/acquisition=/); const resume = page.url(); await page.reload();
-  await page.getByRole('button', { name: 'Выбрать synthetic_solution' }).waitFor();
-  assert.ok(await page.getByText(/Платная зависимость: исходник недоступен/).isVisible());
+  await page.getByRole('heading', { name: 'Загрузить решение', exact: true, level: 1 }).waitFor();
+  for (const label of ['Название решения', 'Кто отвечает за исходную версию', 'Это полный экспорт решения', 'Файл .e365']) assert.equal(await page.getByLabel(label, { exact: true }).count(), 0, 'no question: ' + label);
+  await page.getByLabel('Сервер', { exact: true }).selectOption('dev2');
+  await page.getByLabel('Решение', { exact: true }).locator('option[value=synthetic_solution]').waitFor({ state: 'attached' });
+  assert.equal(await page.getByLabel('Решение', { exact: true }).locator('option[value=paid]').isDisabled(), true);
+  await page.getByLabel('Решение', { exact: true }).selectOption('synthetic_solution');
+  assert.equal(await page.locator('.managed-content button:not([hidden])').count(), 1, 'one button');
+  await page.getByRole('button', { name: 'Загрузить', exact: true }).click();
+  // Reloading mid-export resumes the same acquisition; the ready export waits for one Продолжить click and only then becomes the Solution.
+  await page.waitForURL(/acquisition=/); await page.reload();
+  await page.getByRole('button', { name: 'Продолжить', exact: true }).waitFor();
+  assert.equal(await page.getByRole('button', { name: 'Продолжить', exact: true }).isDisabled(), false, 'the resumed export can be continued');
+  assert.equal(new URL(page.url()).searchParams.get('id'), null, 'a reload alone creates no Solution');
+  await page.getByRole('button', { name: 'Продолжить', exact: true }).click();
+  await page.waitForURL(/[?&]id=/);
   assert.equal(sourceServer, 'dev2');
-  await page.getByRole('button', { name: 'Выбрать synthetic_solution' }).focus(); await page.keyboard.press('Enter');
-  await page.getByLabel('Название решения', { exact: true }).fill('Учебная загрузка');
-  await page.getByLabel('Кто отвечает за исходную версию', { exact: true }).fill('Учебная команда');
-  await page.getByLabel('Это полный экспорт решения', { exact: true }).check();
-  await page.getByRole('button', { name: 'Добавить решение', exact: true }).click();
-  await page.getByRole('heading', { name: 'Учебная загрузка', exact: true }).waitFor();
+  await page.getByRole('heading', { name: 'synthetic_solution', exact: true, level: 1 }).waitFor();
+  assert.equal(await page.getByText(/Основа: не указана|происхождение неизвестно/).count(), 0, 'a pulled version has a known Source');
+  await page.getByRole('link', { name: 'Обновить', exact: true }).click();
+  await page.getByRole('button', { name: 'Обновить', exact: true }).waitFor();
+  assert.equal(await page.getByLabel('Сервер', { exact: true }).isDisabled(), true, 'update is fixed to the Solution server');
+  assert.equal(await page.getByLabel('Экспорт относится к этому решению и тому же источнику ELMA', { exact: true }).count(), 0, 'no same-Source question');
+  poll = 0;
+  await page.getByRole('button', { name: 'Обновить', exact: true }).click();
+  await page.getByRole('heading', { name: 'Рассмотреть обновление версии', exact: true }).waitFor();
+  assert.ok(await page.getByText(/База заявлена: ревизия 0/).isVisible(), 'the base is the previous pull');
+  await page.goto(base + '/solutions');
+  await page.getByRole('link', { name: 'Открыть решение', exact: true }).click();
   await page.getByText('Зависимости исходного файла 1', { exact: true }).click();
   assert.ok(await page.getByText(/Платная зависимость: исходник недоступен/).isVisible());
   const other = await fixture({ code: 'other_solution' });
@@ -51,7 +65,7 @@ try {
     solutions: [['synthetic_solution', native], ['other_solution', other]].map(([code, bytes]) => ({ code, status: 'exported', path: 'solutions/' + code + '.e365',
       sha256: crypto.createHash('sha256').update(bytes).digest('hex'), bytes: bytes.length })) }],
     ['solutions/synthetic_solution.e365', native], ['solutions/other_solution.e365', other]]);
-  await page.goto(base + '/solutions?view=create');
+  await page.goto(base + '/solutions?view=create&mode=file');
   await page.getByLabel('Название решения', { exact: true }).fill('Прямая загрузка конфигурации');
   await page.getByLabel('Кто отвечает за исходную версию', { exact: true }).fill('Учебная команда');
   await page.getByLabel('Файл .e365', { exact: true }).setInputFiles({ name: 'configuration.e365', mimeType: 'application/octet-stream', buffer: multiple });
@@ -61,7 +75,7 @@ try {
   await page.getByRole('button', { name: 'Выбрать other_solution' }).click();
   await page.getByRole('button', { name: 'Добавить решение', exact: true }).click();
   await page.getByRole('heading', { name: 'Прямая загрузка конфигурации', exact: true }).waitFor();
-  await page.goto(base + '/solutions?view=create');
+  await page.goto(base + '/solutions?view=create&mode=file');
   await page.getByText('Загрузить из ELMA / выбрать решение из конфигурации', { exact: true }).click();
   await page.getByLabel('Архив конфигурации или файлы решений .e365').setInputFiles({ name: 'all.e365', mimeType: 'application/octet-stream', buffer: bytes });
   await page.getByRole('button', { name: 'Прочитать архив' }).click();
@@ -77,7 +91,7 @@ try {
   await page.getByLabel('Архив конфигурации или файлы решений .e365').setInputFiles({ name: 'bad.e365', mimeType: 'application/octet-stream', buffer: Buffer.from('bad') });
   await page.getByRole('button', { name: 'Прочитать архив' }).click();
   await page.locator('.config-acquisition [role=alert]').filter({ hasText: /ZIP|архив|Файл/i }).waitFor();
-  await page.goto(base + '/solutions?view=create');
+  await page.goto(base + '/solutions?view=create&mode=file');
   await page.getByLabel('Название решения', { exact: true }).fill('Зашифрованный файл');
   await page.getByLabel('Кто отвечает за исходную версию', { exact: true }).fill('Учебная команда');
   const opaque = await zip([['package.json', { code: 'global', type: 'CONFIGURATION', paidPackage: true }], ['data', Buffer.from([0, 255])]]);
@@ -101,7 +115,7 @@ try {
     ['permissionsSettings/permissionSettings.json',{Code:'records',settings:{}}],['permissionsSettings/pagePermissions.json',{Code:'records',permissions:{}}],
     ['localizer/manifest.json',{entities:[{code:'',namespace:'synthetic',kind:'localization',path:'translations.json',resources:[{path:'ru.po'}]}]}],
     ['localizer/translations.json','null'],['localizer/ru.po','msgid "synthetic"\nmsgstr "пример"']]);
-  await page.goto(base + '/solutions?view=create');
+  await page.goto(base + '/solutions?view=create&mode=file');
   await page.getByLabel('Название решения',{exact:true}).fill('Native components');
   await page.getByLabel('Кто отвечает за исходную версию',{exact:true}).fill('Synthetic owner');
   await page.getByLabel('Файл .e365',{exact:true}).setInputFiles({name:'native.e365',mimeType:'application/octet-stream',buffer:nativeComponents});

@@ -47,7 +47,7 @@ export const ribbon = { modified: 'Изменено', added: 'Добавлено
 
 // Facts shown as chips
 export const facts = {
-  baseVersion: 'Основа: версия от', baseUnknown: 'Основа: не указана', server: 'Сервер', loadedBy: 'Загрузил',
+  baseVersion: 'Основа: версия от', baseUnknown: 'Основа: не указана', baseSequence: 'Основа записана Wiki по порядку загрузок с того же сервера. Происхождение экспорта в ELMA не проверено.', server: 'Сервер', loadedBy: 'Загрузил',
   diagramFromExport: 'Схема: из экспорта', behaviorNotChecked: 'Поведение в ELMA: не проверено',
   noDifference: 'Эта версия не отличается от текущей', viewed: 'Просмотрено', changedSinceViewed: 'Изменилось после просмотра'
 };
@@ -65,6 +65,25 @@ export const requestForm = {
 
 // Pull-from-server dialog states
 export const loading = { exporting: 'Выгружаем с сервера…', parsing: 'Разбираем…', ready: 'Готово', failed: 'Не удалось', serverUnavailable: 'Сервер недоступен', loadingSolution: 'Загружаем решение…' };
+
+// The one fixed entry: choose a server and a solution, pull everything.
+export const pull = {
+  intro: 'Выберите сервер и решение. Wiki выгрузит полный экспорт и сохранит его как текущую версию.',
+  updateIntro: 'Wiki выгрузит текущую версию этого решения с сервера и сравнит её с принятой.',
+  chooseSolution: 'Выберите решение', loadingCatalog: 'Получаем список решений…', paid: 'недоступно',
+  received: 'Получено решений', unavailableSolutions: 'Недоступные решения',
+  opaque: 'Содержимое решения зашифровано или непрозрачно. Выберите другое решение.',
+  failed: 'Загрузка не завершена. Повторите попытку.', serverNotConfigured: 'Сервер недоступен. Повторите позже или обратитесь к администратору.',
+  catalogFailed: 'Список решений не получен.', saved: 'Экспорт сохранён. Открываем решение…', resume: 'Экспорт готов. Нажмите «Продолжить», чтобы открыть решение.',
+  continueLabel: 'Продолжить', manualFile: 'Загрузить файл .e365 вручную', legacyChange: 'Загрузить частичный экспорт файлом',
+  serverNames: { dev: 'DEV', dev2: 'dev2' }
+};
+
+// Next-action summaries changed by the fixed path
+export const summaries = {
+  ready: 'Текущая версия сохранена. Её можно обновить с сервера.',
+  accepted: 'Изменения приняты. Ожидающих решений нет.'
+};
 
 // Gate reasons shown on a disabled decision button
 export const gates = { chooseConflictVersions: 'Сначала выберите версию для конфликтов' };
