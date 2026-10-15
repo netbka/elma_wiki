@@ -13,3 +13,4 @@ node_modules/
 **/*.tar
 **/*.tar.gz
 **/*.log
+.worktrees/
