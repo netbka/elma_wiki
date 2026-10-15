@@ -10,7 +10,7 @@ import { readArchive } from '../lib/e365.mjs';
 import { adaptNativeCoverage, SYNTHETIC_COVERAGE_CONTRACT } from '../lib/native-coverage-adapter.mjs';
 import { resolveDependencyEvidence, SYNTHETIC_RECEIPT_CONTRACT } from '../lib/dependency-resolver.mjs';
 import { dependencyReport } from '../lib/dependency-evidence.mjs';
-import { prepareMaterializationRequest, materializeNative, materializationStatus, INSPECTED_NATIVE_MATERIALIZATION,
+import { prepareMaterializationRequest, materializeNative, materializationStatus, isMaterializationManifest, INSPECTED_NATIVE_MATERIALIZATION,
   NATIVE_MATERIALIZATION_CONTRACTS, SYNTHETIC_MATERIALIZATION_CONTRACT } from '../lib/native-materialization.mjs';
 import { zip } from './fixture.mjs';
 import { materializeServer } from './bridge-worker-fixture.mjs';
@@ -643,9 +643,18 @@ test('native contracts: current evidence still blocks; a fully valid synthetic d
   const { manifest } = await materializeNative({ request, originals, adapter: e1Adapter({ kind: 'widget' }), now: NOW, coverage: evidence.coverage });
   assert.deepEqual(manifest.blockers.find(row => row.reason === 'native-installation-evidence-incomplete').missing, ['native-import-receipt', 'native-installation-observation']);
 
-  // A coverage bound to other changes, or a different Target profile, is not this request's evidence.
-  const stale = await nativeRequest(env, c, resolution, { ...evidence, coverage: { ...evidence.coverage, changesDigest: 'b'.repeat(64) } });
+  // A coverage checked against other changes, or a different Target profile, is not this request's evidence.
+  const stale = await nativeRequest(env, c, resolution, await nativeEvidence(resolution, []));
   assert.ok(reasons(stale.blockers).includes('stale-native-changes-binding'));
+  // Hand-built evidence claiming native, locked or complete is refused and treated as absent.
+  const forged = await nativeRequest(env, c, resolution, { ...evidence, coverage: { ...evidence.coverage }, dependencies: { ...evidence.dependencies, resolutionComplete: true } });
+  assert.ok(reasons(forged.blockers).includes('unverified-native-coverage')); assert.ok(reasons(forged.blockers).includes('unverified-dependency-resolution'));
+  assert.equal(forged.status, 'blocked'); assert.equal(forged.evidenceBasis, 'unknown');
+  // A copied request claiming native evidence is not this module's request: never native, never eligible.
+  const copied = await materializeNative({ request: structuredClone(request), originals, adapter: e1Adapter({ kind: 'widget' }), now: NOW, coverage: evidence.coverage });
+  assert.notEqual(copied.manifest.evidenceBasis, 'native'); assert.equal(copied.manifest.releaseEligible, false);
+  assert.ok(reasons(copied.manifest.blockers).includes('unverified-materialization-request'));
+  assert.equal(isMaterializationManifest(manifest), true); assert.equal(isMaterializationManifest({ ...manifest, releaseEligible: true }), false);
   const otherProfile = await nativeRequest(env, c, resolution, { ...evidence, targetProfile: { ...evidence.targetProfile, digest: 'c'.repeat(64) } });
   assert.ok(reasons(otherProfile.blockers).includes('stale-dependency-profile'));
 });
@@ -660,7 +669,7 @@ test('native contracts: an operation proven on the synthetic fixture only keeps 
   assert.equal(evidence.coverage.evidenceBasis, 'synthetic');
   const request = await nativeRequest(env, c, resolution, evidence);
   assert.equal(request.evidenceBasis, 'synthetic');
-  // Even if a coverage result claimed native, the catalog's synthetic-fixture add keeps it synthetic.
+  // A hand-built coverage claiming native is refused, never native.
   const claimed = await nativeRequest(env, c, resolution, { ...evidence, coverage: { ...evidence.coverage, evidenceBasis: 'native', adapterBlockers: [] } });
-  assert.equal(claimed.evidenceBasis, 'synthetic');
+  assert.ok(reasons(claimed.blockers).includes('unverified-native-coverage')); assert.notEqual(claimed.evidenceBasis, 'native');
 });

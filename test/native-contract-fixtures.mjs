@@ -3,13 +3,16 @@
 // observedTargetProfileReport, receiptsFromProfile) so Wiki tests can build schema-valid
 // documents. Every value is fictional; no real Target, licence, export or worker is used.
 import crypto from 'node:crypto';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import { CAPABILITY_CATALOG, OBSERVATION_JOB, RECEIPT_CONTRACT, RECEIPT_MAX_AGE_MS, deriveCoverageDeclaration, inventoryDigest,
   receiptId } from '../lib/elma365-native-contracts.mjs';
-import { bridgeTargetProfileObserver } from '../lib/native-materialization-bridge.mjs';
+import { bridgeStore } from '../lib/bridge.mjs';
+import { configuredTargetProfileObserver } from '../lib/native-materialization-bridge.mjs';
 
 export const hex = (c, n = 64) => c.repeat(n);
 export const WORKER = Object.freeze({ id: 'synthetic-native-worker', nativeRevision: hex('f', 40) });
-export const BRIDGE_ID = '00000000-0000-4000-8000-000000000001';
 export const sha = value => crypto.createHash('sha256').update(value).digest('hex');
 const canonical = value => JSON.stringify(value, (_, row) => row && typeof row === 'object' && !Array.isArray(row)
   ? Object.fromEntries(Object.keys(row).sort().map(key => [key, row[key]])) : row);
@@ -59,17 +62,38 @@ export function observedReport({ targetId = 'synthetic-target', environment = 's
   return report;
 }
 
-/** An in-memory bridge store whose worker answers `targetProfile` jobs with `respond(payload)`. */
-export function fakeBridges({ respond, jobKinds = ['health', 'targetProfile'] } = {}) {
+/** A real bridgeStore() in a temporary directory with one registered bridge and an in-process
+ * synthetic worker that answers one `targetProfile` job per serve() with `respond(payload)`.
+ * `env` is the configuration a deployment would set for it. */
+export async function bridgeWorker({ respond = () => { throw Error('no job expected'); }, jobKinds = ['health', 'targetProfile'] } = {}) {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'wiki-target-profile-'));
+  const store = bridgeStore(directory), { bridge, token } = await store.create('synthetic-owner', { name: 'Synthetic worker' });
+  const worker = await store.authenticate(`Bearer ${token}`);
+  await store.poll(worker, { capabilities: { jobKinds } });
   const jobs = [];
-  return { jobs, async get(id, owner) { if (id !== BRIDGE_ID || owner !== 'synthetic-owner') throw Error('Мост не найден'); return { id, capabilities: { jobKinds } }; },
-    async enqueue(bridgeId, kind, payload) { jobs.push({ bridgeId, kind, payload: structuredClone(payload) }); return respond(payload); } };
+  const serve = async () => {
+    for (let attempt = 0; attempt < 200; attempt++) {
+      const job = await store.poll(worker, { waitMs: 50 });
+      if (!job) continue;
+      jobs.push(job);
+      await store.complete(worker, job.id, { ok: true, result: await respond(job.payload) });
+      return job;
+    }
+    throw Error('No job arrived');
+  };
+  const env = { WIKI_NATIVE_MATERIALIZATION_BRIDGE_ID: bridge.id, WIKI_NATIVE_MATERIALIZATION_BRIDGE_OWNER: 'synthetic-owner',
+    WIKI_NATIVE_MATERIALIZATION_REVISION: WORKER.nativeRevision };
+  return { store, bridge, worker, env, jobs, serve, close: () => fs.rm(directory, { recursive: true, force: true }) };
 }
 
-/** Admitted bridge observation of `observedReport(options)`, echoing the job's run id. */
-export async function observe(options = {}, { patch = report => report } = {}) {
-  const observer = bridgeTargetProfileObserver({ bridges: fakeBridges({ respond: payload => ({ report: patch(observedReport({ targetId: payload.targetId,
-    environment: payload.environment, runId: payload.runId, ...options })) }) }), bridgeId: BRIDGE_ID, owner: 'synthetic-owner', nativeRevision: WORKER.nativeRevision });
-  return observer.observe({ targetId: options.targetId ?? 'synthetic-target', environment: options.environment ?? 'synthetic-test',
-    requirements: options.requirements ?? [] });
+/** Bridge observation of `observedReport(options)` through a real store, echoing the job's run id. */
+export async function observe(options = {}, { patch = report => report, env = {} } = {}) {
+  const worker = await bridgeWorker({ respond: payload => ({ report: patch(observedReport({ targetId: payload.targetId,
+    environment: payload.environment, runId: payload.runId, ...options })) }) });
+  try {
+    const observer = configuredTargetProfileObserver({ env: { ...worker.env, ...env }, bridges: worker.store, log: () => {} });
+    const [result] = await Promise.all([observer.observe({ targetId: options.targetId ?? 'synthetic-target', environment: options.environment ?? 'synthetic-test',
+      requirements: options.requirements ?? [] }), worker.serve()]);
+    return result;
+  } finally { await worker.close(); }
 }

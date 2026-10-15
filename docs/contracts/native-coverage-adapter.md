@@ -43,6 +43,10 @@ Admitted declarations are merged. The same unit, component, application, part, d
 - `evidenceBasis`: `synthetic`, `native` or `unknown`.
 - `changesDigest`: `changesDigest(changes)` of the changes native declarations were checked against.
 
+The result is registered as produced by this module (`isNativeCoverageResult`). `prepareMaterializationRequest` and `materializeNative` accept coverage only from here, so a copy or a hand-built object claiming native or complete coverage is refused (`unverified-native-coverage`).
+
+Catalog matching is exact on `service`/`kind`. A real Contracts export records manifest kinds such as `widget`, `template`, `permissionSettings`, `page` and `appView`, the same casing the catalog uses for its listed kinds, so nothing is case-normalized (`WIDGET` is `unknown-capability`). The real export's `appViews` kind is `appView`, while the catalog lists `appViews`/`collection`; such components stay `unknown-capability` until the native catalog lists that kind.
+
 ## Verification
 
 `node --test test/native-coverage-adapter.test.mjs test/native-coverage-receipts.test.mjs test/release-scope-planner.test.mjs test/dependency-evidence.test.mjs` covers: the vendored bytes, digests and catalog; schema drift failing closed; a valid widgets declaration being native yet blocked by today's missing Target precondition or preservation; the changes binding; synthetic-fixture evidence staying synthetic and not being relabelable; over-claiming, self-inconsistent, stale and host-path declarations; a forged contract version and a Wiki-fixture-shaped body under the pinned id; a parser-generated capture without a declaration staying unknown; minimal supported unit; application membership and digest-bound part expansion to whole units; diamond, component cycle and coupled-unit cycle; unsupported/unbound members; nonempty-Target preservation and baseline drift; duplicate providers; stale capture/profile/unit digests and unpinned revisions; unknown globals and missing domain handling under full-server scope; immutability and order independence. This is synthetic repository evidence, not native or live verification. No visible UI changed.

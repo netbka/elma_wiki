@@ -12,9 +12,12 @@ import { adaptNativeCoverage } from '../lib/native-coverage-adapter.mjs';
 import { resolveDependencyEvidence, NATIVE_RECEIPT_CONTRACTS } from '../lib/dependency-resolver.mjs';
 import { planReleaseScope } from '../lib/release-scope-planner.mjs';
 import { dependencyReport } from '../lib/dependency-evidence.mjs';
-import { bridgeStore, TARGET_PROFILE_PAYLOAD_KEYS } from '../lib/bridge.mjs';
-import { bridgeTargetProfileObserver, observedTargetProfileReport } from '../lib/native-materialization-bridge.mjs';
-import { hex, sha, WORKER, BRIDGE_ID, nativeDeclaration, installed, observedReport, fakeBridges, observe } from './native-contract-fixtures.mjs';
+import { bridgeStore, isBridgeStore, TARGET_PROFILE_PAYLOAD_KEYS } from '../lib/bridge.mjs';
+import * as bridgeModule from '../lib/native-materialization-bridge.mjs';
+import { configuredTargetProfileObserver, observedTargetProfileReport } from '../lib/native-materialization-bridge.mjs';
+import { isNativeCoverageResult } from '../lib/native-coverage-adapter.mjs';
+import { isDependencyResolution } from '../lib/dependency-resolver.mjs';
+import { hex, sha, WORKER, nativeDeclaration, installed, observedReport, bridgeWorker, observe } from './native-contract-fixtures.mjs';
 
 // Synthetic fixtures only: fictional Solutions, Target names, receipts and worker.
 const PROFILE = hex('a');
@@ -214,23 +217,27 @@ test('the observer admits only attested, valid, matching reports of an advertisi
     assert.equal(result.status, 'invalid', reason); assert.equal(result.observation, null);
     assert.ok(result.errors.includes(reason), `${reason}: ${result.errors}`);
   }
-  const bridges = fakeBridges({ jobKinds: ['health', 'materialize'], respond: assert.fail });
-  const quiet = bridgeTargetProfileObserver({ bridges, bridgeId: BRIDGE_ID, owner: 'synthetic-owner', nativeRevision: WORKER.nativeRevision });
-  assert.deepEqual(await quiet.observe({ targetId: 'synthetic-target', environment: 'synthetic-test' }),
-    { status: 'unavailable', reason: 'target-profile-observation-not-advertised', observation: null });
-  assert.deepEqual(bridges.jobs, []);
-  await assert.rejects(bridgeTargetProfileObserver({ bridges, bridgeId: BRIDGE_ID, owner: 'other-owner', nativeRevision: WORKER.nativeRevision })
-    .observe({ targetId: 'synthetic-target', environment: 'synthetic-test' }));
-  await assert.rejects(quiet.observe({ targetId: 'https://host', environment: 'synthetic-test' }), /Configured Target/);
+  const silent = await bridgeWorker({ jobKinds: ['health', 'materialize'] });
+  try {
+    const quiet = configuredTargetProfileObserver({ env: silent.env, bridges: silent.store, log: assert.fail });
+    assert.deepEqual(await quiet.observe({ targetId: 'synthetic-target', environment: 'synthetic-test' }),
+      { status: 'unavailable', reason: 'target-profile-observation-not-advertised', observation: null });
+    assert.equal(await silent.store.poll(silent.worker), null, 'no job was enqueued');
+    await assert.rejects(configuredTargetProfileObserver({ env: { ...silent.env, WIKI_NATIVE_MATERIALIZATION_BRIDGE_OWNER: 'other-owner' }, bridges: silent.store, log: () => {} })
+      .observe({ targetId: 'synthetic-target', environment: 'synthetic-test' }));
+    await assert.rejects(quiet.observe({ targetId: 'https://host', environment: 'synthetic-test' }), /Configured Target/);
+  } finally { await silent.close(); }
   // The offline report is honestly unavailable and yields no observation.
   const unavailable = { contract: { ...NATIVE }, document: 'target-profile-report', worker: { ...WORKER }, status: 'unavailable', targetId: 'synthetic-target',
     environment: 'synthetic-test', targetProfileDigest: null, platformVersion: null, observedAt: '2026-10-15T00:00:00.000Z', changedAt: null, inventoryDigest: null,
     installedSolutions: [], receipts: [], observation: null, evidenceRef: null, publicationReady: false, executionEnabled: false,
     unavailable: { reason: 'live-target-access-unavailable', missing: ['target-profile-digest'], requiredOperation: 'read-only target-profile-observation job' } };
-  const offline = bridgeTargetProfileObserver({ bridges: fakeBridges({ respond: () => ({ report: unavailable }) }), bridgeId: BRIDGE_ID, owner: 'synthetic-owner',
-    nativeRevision: WORKER.nativeRevision });
-  const outcome = await offline.observe({ targetId: 'synthetic-target', environment: 'synthetic-test' });
-  assert.equal(outcome.status, 'unavailable'); assert.equal(outcome.observation, null);
+  const unavailableWorker = await bridgeWorker({ respond: () => ({ report: unavailable }) });
+  try {
+    const offline = configuredTargetProfileObserver({ env: unavailableWorker.env, bridges: unavailableWorker.store, log: assert.fail });
+    const [outcome] = await Promise.all([offline.observe({ targetId: 'synthetic-target', environment: 'synthetic-test' }), unavailableWorker.serve()]);
+    assert.equal(outcome.status, 'unavailable'); assert.equal(outcome.observation, null);
+  } finally { await unavailableWorker.close(); }
   assert.equal(validateDependencyReceipt({}).valid, false);
 });
 
@@ -256,7 +263,8 @@ test('the bridge store carries targetProfile as a read-only job: no artifact, no
   await store.complete(worker, job.id, { ok: true, result: { report } });
   assert.deepEqual((await good).report, report);
   // End to end through the real store: the observer admits the worker's attested report.
-  const observer = bridgeTargetProfileObserver({ bridges: store, bridgeId: bridge.id, owner: 'synthetic-owner', nativeRevision: WORKER.nativeRevision });
+  const observer = configuredTargetProfileObserver({ bridges: store, log: assert.fail, env: { WIKI_NATIVE_MATERIALIZATION_BRIDGE_ID: bridge.id,
+    WIKI_NATIVE_MATERIALIZATION_BRIDGE_OWNER: 'synthetic-owner', WIKI_NATIVE_MATERIALIZATION_REVISION: WORKER.nativeRevision } });
   const pending = observer.observe({ targetId: 'synthetic-target', environment: 'synthetic-test', requirements: [need] });
   // The observer reads the bridge before enqueueing; let it queue the job first.
   let queued = null;
@@ -267,4 +275,50 @@ test('the bridge store carries targetProfile as a read-only job: no artifact, no
   const outcome = await pending;
   assert.equal(outcome.status, 'observed');
   assert.equal(resolveNative({ observation: outcome.observation }).evidenceBasis, 'native-receipt');
+});
+
+test('stub stores, caller-chosen worker revisions and hand-built results are refused', async () => {
+  // Only a store created by bridgeStore() is a bridge; the observer factory taking a revision is not exported.
+  const stub = { get: async () => ({ capabilities: { jobKinds: ['targetProfile'] } }), enqueue: async () => ({ report: observedReport() }) };
+  assert.equal(isBridgeStore(stub), false);
+  const env = { WIKI_NATIVE_MATERIALIZATION_BRIDGE_ID: '00000000-0000-4000-8000-000000000001', WIKI_NATIVE_MATERIALIZATION_BRIDGE_OWNER: 'synthetic-owner',
+    WIKI_NATIVE_MATERIALIZATION_REVISION: WORKER.nativeRevision };
+  const logged = [];
+  assert.equal(configuredTargetProfileObserver({ env, bridges: stub, log: message => logged.push(message) }), null);
+  assert.match(logged[0], /no bridge store/);
+  assert.equal(configuredTargetProfileObserver({ env: {}, bridges: stub, log: assert.fail }), null, 'unconfigured by default');
+  assert.equal(configuredTargetProfileObserver({ env: { ...env, WIKI_NATIVE_MATERIALIZATION_REVISION: 'main' }, bridges: stub, log: () => {} }), null);
+  assert.equal('bridgeTargetProfileObserver' in bridgeModule, false);
+  // The expected revision is the configured one: a caller argument is ignored, and a report from
+  // the worker the caller names instead of the configured one is refused.
+  const other = hex('e', 40);
+  const named = await observe({ installedSolutions: [installed('vendor_module')], requirements: [need], worker: { ...WORKER, nativeRevision: other } });
+  assert.equal(named.status, 'invalid'); assert.ok(named.errors.includes('native-worker-revision-mismatch'));
+  const worker = await bridgeWorker({ respond: payload => ({ report: observedReport({ runId: payload.runId, worker: { ...WORKER, nativeRevision: other } }) }) });
+  try {
+    const observer = configuredTargetProfileObserver({ env: worker.env, bridges: worker.store, nativeRevision: other, log: assert.fail });
+    assert.equal(observer.nativeRevision, WORKER.nativeRevision);
+    const [outcome] = await Promise.all([observer.observe({ targetId: 'synthetic-target', environment: 'synthetic-test' }), worker.serve()]);
+    assert.deepEqual(outcome.errors, ['native-worker-revision-mismatch']);
+  } finally { await worker.close(); }
+  // Results are branded by the producing module; copies are not.
+  const artifacts = [capture([WIDGET])];
+  const coverage = adapt(artifacts, nativeDeclaration({ captures: artifacts, targetProfileDigest: PROFILE }));
+  assert.equal(isNativeCoverageResult(coverage), true);
+  assert.equal(isNativeCoverageResult({ ...coverage }), false); assert.equal(isNativeCoverageResult(structuredClone(coverage)), false);
+  const { observation } = await observe({ installedSolutions: [installed('vendor_module')], requirements: [need] });
+  const resolution = resolveNative({ observation });
+  assert.equal(isDependencyResolution(resolution), true);
+  assert.equal(isDependencyResolution({ ...resolution, resolutionComplete: true }), false);
+});
+
+test('catalog kinds match the casing of real exports exactly: widget, never WIDGET', () => {
+  // A real Contracts export manifest records kinds such as widget, template and permissionSettings,
+  // exactly as the catalog keys them; matching is exact and nothing is case-normalized.
+  assert.ok(CAPABILITY_CATALOG.capabilities.some(row => row.service === 'widgets' && row.kind === 'widget'));
+  assert.ok(CAPABILITY_CATALOG.capabilities.some(row => row.service === 'processor' && row.kind === 'template'));
+  const upper = { ...WIDGET, kind: 'WIDGET' }, artifacts = [capture([upper])];
+  const doc = nativeDeclaration({ captures: artifacts, targetProfileDigest: PROFILE });
+  assert.deepEqual(doc.units[0].unsupportedMembers.map(row => row.reason), ['unknown-capability']);
+  assert.equal(nativeDeclaration({ captures: [capture([WIDGET])], targetProfileDigest: PROFILE }).units[0].status, 'supported');
 });
