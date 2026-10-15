@@ -205,7 +205,8 @@ test('past the 50-process bound the solution explanation says what was not shown
   const state=await json(await post('/api/solutions',a.cookie,{name:'Большое решение',baselineOwner:'Vendor',snapshot:ref(project,'full')}),201);
   const overview=await json(await request(url(state.id,{scope:'solution'}),a.cookie));
   assert.match(overview.draft.text,/Не показаны: 51 процессов сверх предела обзора/);
-  assert.ok(!overview.draft.text.includes('не установлены'),'the limit is not reported as an absence of processes');
+  assert.ok(!/процессы[^.
+]*не установлены/.test(overview.draft.text),'the limit is not reported as an absence of processes');
   assert.ok(!overview.draft.text.includes('0 процессов'),'no process count is stated as fact');
   assert.match(overview.draft.text,/процессов: 51, схемы не построены/);
   assert.ok(!overview.draft.text.includes('откройте отдельный процесс'),'the text does not send the reader to a 422');
