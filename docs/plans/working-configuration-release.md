@@ -191,7 +191,7 @@ Still open:
 - **Contracts section ownership.** The Contracts package has a section-ownership conflict (elma365 E3) that needs an owner/composition decision before a combined candidate can validate.
 - **Real dev2 exports.** Real dev2 exports of the Contracts baseline and changes have not been captured as Wiki inputs.
 - **Native coverage and dependency contracts (P4/P5).** No native coverage or receipt contract exists yet (in progress in elma365), so real coverage and dependency evidence still fail closed.
-- **Manifest policy v2.** E1 manifest policy v1 requires unchanged entity records to stay deep-equal and in order. A v2 policy is pending.
+- **Manifest policy v2.** Published by elma365 #104 (E1 schema 1.3). Wiki selects it for releases that change a profile-2 identity (process templates, custom activities and groups, permission and extension records, namespace localization) and applies its manifest rules to the output. This is synthetic evidence only; the coverage catalog still marks every such edit `unsupported` (no processor compiler), so none of them is native yet.
 - **Process-runtime compiler.** None is published, so a changed process runtime cannot be compiled natively.
 
 After these, the candidate SHA-256 must be listed in `WIKI_TARGET_DEV2_DEPLOY_CANDIDATES` on the running service. Then P8 needs observed live evidence: install, read-back, the affected parent business route and reset/recovery on dev2.
