@@ -4,7 +4,8 @@
 // with the shared label map (web/managed/labels.js) and the committed baseline
 // of legacy inline strings. A string that is in neither fails the check, so no
 // new product text can appear outside the label map. The baseline may only
-// shrink: `--update` rewrites it from the current sources after a migration.
+// shrink: `--update` rewrites it from the current sources after a migration and
+// refuses strings it did not list before unless `--allow-new` is passed.
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, resolve, relative } from 'node:path';
@@ -23,32 +24,46 @@ export const rendererFiles = [
 const cyrillic = /[Ѐ-ӿ]/;
 
 // Minimal JS tokenizer: returns the static text of every string literal and of
-// every static segment of a template literal. Comments and regular expressions
-// are skipped so prose in comments is not counted as product text.
+// every static segment of a template literal, including literals nested inside
+// `${...}` interpolations, which are scanned recursively. Comments are skipped so
+// prose in comments is not counted as product text. Regular expression literals
+// are not recognised; none of the scanned files has one with a quote or backtick.
+const escapes = { n: '\n', t: '\t', r: '\r', b: '\b', f: '\f', v: '\v', 0: '\0' };
+const unescape = text => text.replace(/\\(.)/gs, (_, c) => escapes[c] ?? c);
+
 export function stringLiterals(source) {
-  const out = []; let i = 0; const n = source.length;
-  const push = text => { const value = text.replace(/\\(.)/g, '$1').trim(); if (value) out.push(value); };
-  while (i < n) {
-    const ch = source[i], next = source[i + 1];
-    if (ch === '/' && next === '/') { i = source.indexOf('\n', i); if (i < 0) break; continue; }
-    if (ch === '/' && next === '*') { i = source.indexOf('*/', i + 2); if (i < 0) break; i += 2; continue; }
-    if (ch === '\'' || ch === '"') {
-      let j = i + 1, text = '';
-      while (j < n && source[j] !== ch) { if (source[j] === '\\') { text += source[j] + source[j + 1]; j += 2; } else text += source[j++]; }
-      push(text); i = j + 1; continue;
+  const out = []; const n = source.length;
+  const push = text => { const value = unescape(text).trim(); if (value) out.push(value); };
+  const quoted = (i, quote) => {
+    let j = i, text = '';
+    while (j < n && source[j] !== quote) { if (source[j] === '\\') { text += source[j] + source[j + 1]; j += 2; } else text += source[j++]; }
+    push(text); return j + 1;
+  };
+  // Template body from i (after the backtick); returns the index after the closing backtick.
+  const template = i => {
+    let text = '';
+    while (i < n && source[i] !== '`') {
+      if (source[i] === '$' && source[i + 1] === '{') { push(text); text = ''; i = code(i + 2, true); continue; }
+      if (source[i] === '\\') { text += source[i] + source[i + 1]; i += 2; } else text += source[i++];
     }
-    if (ch === '`') {
-      let j = i + 1, text = '', depth = 0;
-      while (j < n) {
-        if (depth === 0 && source[j] === '`') break;
-        if (depth === 0 && source[j] === '$' && source[j + 1] === '{') { push(text); text = ''; depth = 1; j += 2; continue; }
-        if (depth > 0) { if (source[j] === '{') depth++; else if (source[j] === '}') depth--; j++; continue; }
-        if (source[j] === '\\') { text += source[j] + source[j + 1]; j += 2; } else text += source[j++];
-      }
-      push(text); i = j + 1; continue;
+    push(text); return i + 1;
+  };
+  // Code from i; inside an interpolation, returns the index after its closing brace.
+  const code = (i, interpolation) => {
+    let depth = 0;
+    while (i < n) {
+      const ch = source[i], next = source[i + 1];
+      if (ch === '/' && next === '/') { i = source.indexOf('\n', i); if (i < 0) return n; continue; }
+      if (ch === '/' && next === '*') { i = source.indexOf('*/', i + 2); if (i < 0) return n; i += 2; continue; }
+      if (ch === '\'' || ch === '"') { i = quoted(i + 1, ch); continue; }
+      if (ch === '`') { i = template(i + 1); continue; }
+      if (interpolation && ch === '{') depth++;
+      if (interpolation && ch === '}') { if (depth === 0) return i + 1; depth--; }
+      i++;
     }
-    i++;
-  }
+    return n;
+  };
+  code(0, false);
   return out;
 }
 
@@ -94,10 +109,18 @@ export async function checkStrings() {
 async function main() {
   const mode = process.argv[2] || '--check';
   if (mode === '--update') {
-    const scanned = scanRenderers(), labels = await labelValues(), out = {};
+    const scanned = scanRenderers(), labels = await labelValues(), previous = readBaseline(), out = {}, added = [];
     for (const [file, values] of Object.entries(scanned)) {
       if (file === relative(root, labelsPath).replace(/\\/g, '/')) continue;
+      const known = new Set(previous[file] || []);
       const rest = values.filter(value => !labels.has(value)); if (rest.length) out[file] = rest;
+      for (const value of rest) if (!known.has(value)) added.push(`${file}: ${JSON.stringify(value)}`);
+    }
+    // The baseline only shrinks: new inline text belongs in labels.js. `--allow-new`
+    // records it deliberately, and the fixture diff shows it in review.
+    if (added.length && !process.argv.includes('--allow-new')) {
+      for (const line of added) console.error(`new inline product text; move it into web/managed/labels.js or pass --allow-new: ${line}`);
+      process.exit(1);
     }
     writeFileSync(baselinePath, JSON.stringify(out, null, 2) + '\n');
     console.log(`baseline written: ${Object.values(out).reduce((n, rows) => n + rows.length, 0)} legacy strings in ${Object.keys(out).length} files`);

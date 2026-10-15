@@ -28,8 +28,8 @@ export function mountSolutionPull(actions = {}, model = {}, onReady = async () =
     server.value = fixedServer || ''; server.disabled = true;
     const option = el('option', source.solutionRef); option.value = source.solutionRef; option.selected = true; solution.append(option); solution.disabled = true;
   }
-  let busy = false, names = new Map();
-  const lock = value => { busy = value; submit.disabled = value || !solution.value; if (!source) { server.disabled = value; solution.disabled = value || solution.options.length <= 1; } };
+  let busy = false, names = new Map(), resumable = false;
+  const lock = value => { busy = value; submit.disabled = value || (!solution.value && !resumable); if (!source) { server.disabled = value; solution.disabled = value || solution.options.length <= 1; } };
   const fail = message => { error.textContent = message; status.textContent = ''; retry.hidden = false; };
   const catalog = async () => {
     if (source || !actions.catalog) return;
@@ -55,14 +55,18 @@ export function mountSolutionPull(actions = {}, model = {}, onReady = async () =
     status.textContent = pull.saved;
     await onReady({ project: row.project, code: row.code, name: names.get(row.code) || row.code });
   };
-  const monitor = async record => {
+  // A reload resumes the saved export but never turns it into a Solution by
+  // itself: the ready export waits for one Продолжить click (contract
+  // config-source-api.md), so two tabs on the same acquisition cannot both create one.
+  const resume = record => { resumable = true; status.textContent = pull.resume; submit.textContent = pull.continueLabel; submit.disabled = false; form.onsubmit = event => { event.preventDefault(); run(() => finish(record)); }; };
+  const monitor = async (record, resumed = false) => {
     show(record); actions.remember?.(record.id);
     while (record.state === 'exporting' || record.state === 'parsing') {
       await new Promise(resolve => setTimeout(resolve, 1500));
       if (!root.isConnected) return;
       record = await actions.get(record.id); show(record);
     }
-    if (record.state === 'ready') await finish(record); else fail(record.error || pull.failed);
+    if (record.state !== 'ready') fail(record.error || pull.failed); else if (resumed) resume(record); else await finish(record);
   };
   const run = async operation => {
     if (busy) return; lock(true); error.textContent = ''; retry.hidden = true;
@@ -78,9 +82,9 @@ export function mountSolutionPull(actions = {}, model = {}, onReady = async () =
   if (model.unavailable) { fail(pull.serverNotConfigured); server.disabled = true; solution.disabled = true; submit.disabled = true; }
   else if (initial) {
     show(initial);
-    if (initial.state === 'ready') { status.textContent = pull.resume; submit.textContent = pull.continueLabel; submit.disabled = false; form.onsubmit = event => { event.preventDefault(); run(() => finish(initial)); }; }
+    if (initial.state === 'ready') resume(initial);
     else if (initial.state === 'failed') fail(initial.error || pull.failed);
-    else if (!synthetic) queueMicrotask(() => run(() => monitor(initial)));
+    else if (!synthetic) queueMicrotask(() => run(() => monitor(initial, true)));
     else submit.disabled = true;
   } else if (source) submit.disabled = !fixedServer;
   else { submit.disabled = true; if (!synthetic) queueMicrotask(() => run(catalog)); else if (model.catalog) { for (const row of model.catalog) { const option = el('option', row.name || row.code); option.value = row.code; option.disabled = row.paid === true; solution.append(option); names.set(row.code, row.name || row.code); } } }
