@@ -206,9 +206,24 @@ test('past the 50-process bound the solution explanation says what was not shown
   const overview=await json(await request(url(state.id,{scope:'solution'}),a.cookie));
   assert.match(overview.draft.text,/Не показаны: 51 процессов сверх предела обзора/);
   assert.ok(!/процессы[^.]*не установлены/.test(overview.draft.text),'the limit is not reported as an absence of processes');
-  assert.ok(!overview.draft.text.includes('0 процессов'),'no process count is stated as fact');
-  assert.match(overview.draft.text,/процессов: 51, схемы не построены/);
+  assert.ok(!/(^|[^\d])0 процессов/.test(overview.draft.text),'no zero process count is stated as fact');
+  assert.match(overview.draft.text,/процессов: 51, из них без схемы: 51/);
+  assert.ok(!overview.draft.text.includes('Какие задачи отражены'),'no empty task section');
+  assert.ok(!overview.draft.text.includes('нажмите «Посмотреть процесс»'),'no diagram instruction when nothing was projected');
+  assert.match(overview.draft.text,/Схемы этого файла не построены/);
   assert.ok(!overview.draft.text.includes('откройте отдельный процесс'),'the text does not send the reader to a 422');
   const process=await request(url(state.id,{scope:'process',artifactId:state.baselineId,source:'processor/p0.json'}),a.cookie);
   assert.equal(process.status,422);assert.match((await process.json()).error,/не более 50 процессов/);
+  // Mixed lifecycle: an accepted partial change brings p0–p2 in a small file; only the other 48 stay unshown.
+  const few=many.slice(0,3);
+  const small=await zip([['package.json',{code:'synthetic_many',type:'SOLUTION'}],
+    ['processor/manifest.json',{entities:few.map(([code])=>({code,namespace:'travel',kind:'PROCESS',name:'Процесс '+code,path:code+'.json'}))}],
+    ...few.map(([code,source])=>['processor/'+code+'.json',source])]);
+  const partial=await json(await request('/api/solutions/uploads?filename=few.e365',a.cookie,{method:'POST',headers:{'X-Elma-Wiki-Request':'1','Content-Type':'application/octet-stream'},body:small}),201);
+  const review=await json(await post('/api/solutions/'+state.id+'/prepare',a.cookie,{kind:'change',snapshot:ref(partial,'partial'),expectedRevision:state.revision,team:'Internal',taskRef:'Split',sameSourceConfirmed:true}),201);
+  await json(await post('/api/solutions/'+state.id+'/artifacts/'+review.artifactId+'/accept',a.cookie,{expectedRevision:state.revision,reviewedDigest:review.artifactDigest,reviewedBoundaryKeys:review.rows.filter(row=>row.boundaryCrossing).map(row=>row.key)}));
+  const mixed=await json(await request(url(state.id,{scope:'solution'}),a.cookie));
+  assert.match(mixed.draft.text,/процессов: 51, из них без схемы: 48/);assert.match(mixed.draft.text,/Не показаны: 48 процессов/);
+  assert.match(mixed.draft.text,/Какие задачи отражены/);assert.match(mixed.draft.text,/• Процесс p0/);assert.match(mixed.draft.text,/нажмите «Посмотреть процесс»/);
+  assert.ok(!mixed.draft.text.includes('Схемы этого файла не построены'));
 });
