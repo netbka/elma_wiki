@@ -493,6 +493,22 @@ test('E1 over the operator bridge: validated output is materialized; tampered si
     assert.equal(result.manifest.status, 'failed', reason); assert.deepEqual(result.artifacts, []);
     assert.ok(result.manifest.blockers.find(row => row.reason === 'native-receipt-invalid')?.errors.includes(reason), reason + ' -> ' + JSON.stringify(result.manifest.blockers));
   }
+  // A failed native check: the worker uploads the archive it built and returns a `failed`
+  // receipt that lists it. Wiki accepts the upload and maps it to failed, never eligible.
+  answers.push(answer => ({ ...answer, receipt: { ...answer.receipt, status: 'failed',
+    checks: answer.receipt.checks.map(check => check.id === 'native-package-check' ? { ...check, status: 'failed' } : check) } }));
+  const failed = await materializeNative({ request, originals, adapter: env.adapter, now: NOW });
+  assert.equal(worker.seen.at(-1).upload.status, 200);
+  assert.equal(failed.manifest.status, 'failed'); assert.deepEqual(failed.artifacts, []);
+  assert.deepEqual(reasons(failed.manifest.blockers), ['native-validation-failed', 'synthetic-evidence-only']);
+  assert.equal(failed.manifest.receipt.status, 'failed'); assert.equal(failed.manifest.releaseEligible, false);
+  // The same failed receipt without the uploaded bytes is invalid.
+  answers.push(answer => ({ receipt: { ...answer.receipt, status: 'failed',
+    checks: answer.receipt.checks.map(check => check.id === 'native-package-check' ? { ...check, status: 'failed' } : check) } }));
+  const unbound = await materializeNative({ request, originals, adapter: env.adapter, now: NOW });
+  assert.ok(unbound.manifest.blockers.find(row => row.reason === 'native-receipt-invalid')?.errors.includes('missing-artifact-bytes'));
+  assert.equal(unbound.manifest.status, 'failed'); assert.equal(unbound.manifest.releaseEligible, false);
+
   answers.push('skip');
   const lost = await materializeNative({ request, originals, adapter: env.adapter, now: NOW });
   assert.equal(lost.manifest.status, 'failed'); assert.deepEqual(lost.artifacts, []);
