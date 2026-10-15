@@ -22,7 +22,8 @@ No new production host is inferred.
 `PROD_PASS` (password login, with the same password piped to `sudo`) is a
 **deprecated fallback allowed only until 2026-11-30** (engineering-platform EP-031,
 owner decision engineering-platform#82). It is used only when no key or agent is
-configured, and every run then prints a deprecation warning. When a key is
+configured, and every run then prints a deprecation warning. From 2026-12-01
+(local date) `tools/prod-auth.mjs` refuses password login and asks for a key. When a key is
 configured, a leftover `PROD_PASS` is ignored and reported.
 
 ```sh

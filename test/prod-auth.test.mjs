@@ -38,10 +38,21 @@ test('a missing key file or a multi-line value is refused', () => {
 });
 
 test('password-only configuration is a deprecated, dated fallback', () => {
-  const auth = selectAuth({ PROD_PASS: 'synthetic' }, root);
+  const auth = selectAuth({ PROD_PASS: 'synthetic' }, root, new Date(2026, 9, 15));
   assert.equal(auth.mode, 'password');
   assert.equal(auth.password, 'synthetic');
   assert.match(auth.warnings.join('\n'), new RegExp(`deprecated.*${PASSWORD_FALLBACK_UNTIL}`));
+});
+
+test('the password fallback is allowed through its last local day and refused afterwards', () => {
+  for (const day of [new Date(2026, 10, 29, 23, 59, 59), new Date(2026, 10, 30, 0, 0, 0), new Date(2026, 10, 30, 23, 59, 59)]) {
+    assert.equal(selectAuth({ PROD_PASS: 'synthetic' }, root, day).mode, 'password', day.toString());
+  }
+  for (const day of [new Date(2026, 11, 1, 0, 0, 0), new Date(2027, 5, 1)]) {
+    assert.throws(() => selectAuth({ PROD_PASS: 'synthetic' }, root, day), /Password SSH login ended after 2026-11-30/, day.toString());
+  }
+  // Key mode is unaffected by the date.
+  assert.equal(selectAuth({ PROD_SSH_AGENT: '1', PROD_PASS: 'left-over' }, root, new Date(2027, 0, 1)).password, null);
 });
 
 test('no credential configuration asks for a key, not a password', () => {
