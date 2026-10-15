@@ -549,9 +549,9 @@ test('E1 1.2 no-edit: a zero-change request carries an empty release scope and o
   assert.equal(out.manifest.status, 'failed');
 });
 
-// The hygiene lists of elma365 contract.test.mjs at E1_SOURCE.commit (schema revision 1.2).
+// The hygiene lists of elma365 contract.test.mjs (unchanged from schema revision 1.2 to 1.3).
 test('E1 1.2 hygiene: embedded host paths, URLs and credentials are rejected; identifiers and API routes stay valid', () => {
-  assert.equal(E1_SCHEMA_INTACT, true); assert.equal(E1_SCHEMA_REVISION, '1.2'); assert.equal(E1_SOURCE.schemaRevision, '1.2');
+  assert.equal(E1_SCHEMA_INTACT, true); assert.equal(E1_SCHEMA_REVISION, '1.3'); assert.equal(E1_SOURCE.schemaRevision, '1.3');
   const at = value => reasons(e1HygieneErrors(value));
   for (const value of ['evidence in C:\\git\\Elma\\.local\\run', 'stage at /home/runner/work/x', 'copied from \\\\fileserver\\exports', 'kept under ~/exports',
     'see (file:///tmp/report)', 'written to /tmp', 'path=D:/exports/x', 'path:C:\\git\\x', 'dir:/home/user/x', 'evidence:/var/log',
@@ -685,4 +685,24 @@ test('native contracts: an operation proven on the synthetic fixture only keeps 
   // A hand-built coverage claiming native is refused, never native.
   const claimed = await nativeRequest(env, c, resolution, { ...evidence, coverage: { ...evidence.coverage, evidenceBasis: 'native', adapterBlockers: [] } });
   assert.ok(reasons(claimed.blockers).includes('unverified-native-coverage')); assert.notEqual(claimed.evidenceBasis, 'native');
+});
+
+// E1 1.3 (elma365 #104): opt-in manifest policy 2. Wiki emits policy 1 only.
+test('E1 1.3: v1 traffic is unchanged; a receipt naming policy 2 or a request selecting it is refused', async t => {
+  assert.deepEqual([E1_SOURCE.pullRequest, E1_SOURCE.commit, E1_SOURCE.sha256],
+    [104, '3d819be5cfbb24c490d323ad845da050f01d6a5e', '6cab239e81fb33bfadc3e667ab7f171feb4405cf10c6e8103141900b1729cb9c']);
+  const { request, originals } = await e1Scenario(t);
+  assert.equal(Object.hasOwn(request, 'manifestPolicy'), false, 'Wiki requests select no policy (version 1)');
+  const envelope = buildE1Envelope(request, originals);
+  assert.deepEqual(validateE1Request(envelope, { originals }).errors, []);
+  const out = await syntheticAdapter().materialize({ request, originals });
+  const bytes = out.artifacts[0].bytes, receipt = e1Receipt(request, bytes), artifacts = [{ solution: request.inputs.solution, bytes }];
+  assert.equal(validateE1Receipt(receipt, request, { artifacts }).state, 'validated');
+  const v2 = { ...receipt, manifestPolicy: { id: 'elma365-manifest-regeneration', version: 2 } };
+  assert.ok(validateE1Receipt(v2, request, { artifacts }).errors.some(row => row.reason === 'manifest-policy-mismatch'));
+  const selecting = { ...request, manifestPolicy: { id: 'elma365-manifest-regeneration', version: 2 } };
+  const errors = validateE1Request({ ...envelope, request: selecting }, { originals }).errors.map(row => row.reason);
+  assert.ok(errors.includes('manifest-policy-unsupported'), errors.join());
+  const explicit = { ...request, manifestPolicy: { id: 'elma365-manifest-regeneration', version: 1 } };
+  assert.deepEqual(validateE1Request({ ...envelope, request: explicit }, { originals }).errors, []);
 });

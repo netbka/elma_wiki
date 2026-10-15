@@ -136,7 +136,7 @@
           }
         ],
         "limits": [
-          "Manifest-regeneration policy v1 identifies entities by [service, namespace, code]; Wiki identity profile 2 adds the kind for this service, so a changed entity is unlocatable and the receipt fails (policy v2 needed)."
+          "Manifest-regeneration policy v1 (the default) identifies entities by [service, namespace, code]; Wiki identity profile 2 adds the kind for this service, so a changed entity is unlocatable and the receipt fails. Opt-in policy v2 (request.manifestPolicy version 2, schema revision 1.3) uses the profile-2 identity and certifies the regenerated manifest offline on synthetic fixtures only; Wiki does not select it yet and no live check ran."
         ]
       }
     },
@@ -169,7 +169,7 @@
           }
         ],
         "limits": [
-          "Manifest-regeneration policy v1 identifies entities by [service, namespace, code]; Wiki identity profile 2 adds the kind for this service, so a changed entity is unlocatable and the receipt fails (policy v2 needed)."
+          "Manifest-regeneration policy v1 (the default) identifies entities by [service, namespace, code]; Wiki identity profile 2 adds the kind for this service, so a changed entity is unlocatable and the receipt fails. Opt-in policy v2 (request.manifestPolicy version 2, schema revision 1.3) uses the profile-2 identity and certifies the regenerated manifest offline on synthetic fixtures only; Wiki does not select it yet and no live check ran."
         ]
       }
     },
@@ -202,7 +202,7 @@
           }
         ],
         "limits": [
-          "Manifest-regeneration policy v1 identifies entities by [service, namespace, code]; Wiki identity profile 2 adds the kind for this service, so a changed entity is unlocatable and the receipt fails (policy v2 needed)."
+          "Manifest-regeneration policy v1 (the default) identifies entities by [service, namespace, code]; Wiki identity profile 2 adds the kind for this service, so a changed entity is unlocatable and the receipt fails. Opt-in policy v2 (request.manifestPolicy version 2, schema revision 1.3) uses the profile-2 identity and certifies the regenerated manifest offline on synthetic fixtures only; Wiki does not select it yet and no live check ran."
         ]
       }
     },
@@ -235,7 +235,7 @@
           }
         ],
         "limits": [
-          "Manifest-regeneration policy v1 identifies entities by [service, namespace, code]; Wiki identity profile 2 adds the kind for this service, so a changed entity is unlocatable and the receipt fails (policy v2 needed)."
+          "Manifest-regeneration policy v1 (the default) identifies entities by [service, namespace, code]; Wiki identity profile 2 adds the kind for this service, so a changed entity is unlocatable and the receipt fails. Opt-in policy v2 (request.manifestPolicy version 2, schema revision 1.3) uses the profile-2 identity and certifies the regenerated manifest offline on synthetic fixtures only; Wiki does not select it yet and no live check ran."
         ]
       }
     },
@@ -268,7 +268,7 @@
           }
         ],
         "limits": [
-          "Manifest-regeneration policy v1 identifies entities by [service, namespace, code]; Wiki identity profile 2 adds the kind for this service, so a changed entity is unlocatable and the receipt fails (policy v2 needed)."
+          "Manifest-regeneration policy v1 (the default) identifies entities by [service, namespace, code]; Wiki identity profile 2 adds the kind for this service, so a changed entity is unlocatable and the receipt fails. Opt-in policy v2 (request.manifestPolicy version 2, schema revision 1.3) uses the profile-2 identity and certifies the regenerated manifest offline on synthetic fixtures only; Wiki does not select it yet and no live check ran."
         ]
       }
     },
@@ -329,7 +329,7 @@
           }
         ],
         "limits": [
-          "Manifest-regeneration policy v1 identifies entities by [service, namespace, code]; Wiki identity profile 2 adds the kind for this service, so a changed entity is unlocatable and the receipt fails (policy v2 needed)."
+          "Manifest-regeneration policy v1 (the default) identifies entities by [service, namespace, code]; Wiki identity profile 2 adds the kind for this service, so a changed entity is unlocatable and the receipt fails. Opt-in policy v2 (request.manifestPolicy version 2, schema revision 1.3) uses the profile-2 identity and certifies the regenerated manifest offline on synthetic fixtures only; Wiki does not select it yet and no live check ran."
         ]
       }
     },
@@ -362,7 +362,7 @@
           }
         ],
         "limits": [
-          "Manifest-regeneration policy v1 identifies entities by [service, namespace, code]; Wiki identity profile 2 adds the kind for this service, so a changed entity is unlocatable and the receipt fails (policy v2 needed)."
+          "Manifest-regeneration policy v1 (the default) identifies entities by [service, namespace, code]; Wiki identity profile 2 adds the kind for this service, so a changed entity is unlocatable and the receipt fails. Opt-in policy v2 (request.manifestPolicy version 2, schema revision 1.3) uses the profile-2 identity and certifies the regenerated manifest offline on synthetic fixtures only; Wiki does not select it yet and no live check ran."
         ]
       }
     },
@@ -395,7 +395,7 @@
           }
         ],
         "limits": [
-          "Manifest-regeneration policy v1 identifies entities by [service, namespace, code]; Wiki identity profile 2 adds the kind for this service, so a changed entity is unlocatable and the receipt fails (policy v2 needed)."
+          "Manifest-regeneration policy v1 (the default) identifies entities by [service, namespace, code]; Wiki identity profile 2 adds the kind for this service, so a changed entity is unlocatable and the receipt fails. Opt-in policy v2 (request.manifestPolicy version 2, schema revision 1.3) uses the profile-2 identity and certifies the regenerated manifest offline on synthetic fixtures only; Wiki does not select it yet and no live check ran."
         ]
       }
     },
@@ -478,11 +478,16 @@
             "kind": "policy",
             "path": "tools/native-materialization/contract.mjs",
             "name": "unlocatable-source-entity"
+          },
+          {
+            "kind": "test",
+            "path": "tools/native-materialization/samebase.test.mjs",
+            "name": "manifest policy 2 certifies the process template change that policy 1 refuses"
           }
         ],
         "limits": [
-          "Manifest-regeneration policy v1 identifies entities by [service, namespace, code]; Wiki identity profile 2 adds the kind for this service, so a changed entity is unlocatable and the receipt fails (policy v2 needed).",
-          "Process runtime has no supported compiler in this repository."
+          "Manifest-regeneration policy v1 (the default) identifies entities by [service, namespace, code]; Wiki identity profile 2 adds the kind for this service, so a changed entity is unlocatable and the receipt fails. Opt-in policy v2 (request.manifestPolicy version 2, schema revision 1.3) uses the profile-2 identity and certifies the regenerated manifest offline on synthetic fixtures only; Wiki does not select it yet and no live check ran.",
+          "Process runtime has no supported compiler in this repository: edit stays unsupported until a live processor service-compile exists, even under policy v2."
         ]
       }
     },
@@ -627,5 +632,5 @@
   ],
   "publicationReady": false,
   "executionEnabled": false,
-  "catalogDigest": "52d87cd1d06b30635ff3fdc329a0ca1cdeb1e6c291dc88c8e4345bb585cf81ca"
+  "catalogDigest": "1f926e601b7a163ceb13609f3ba9c9f0dd281f37e8b611063109b3a4df7bb53d"
 }

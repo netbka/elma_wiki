@@ -35,7 +35,7 @@ const adapt = (artifacts, declaration, extra = {}) => adaptNativeCoverage({ requ
 const allReasons = result => [...reasons(result.adapterBlockers), ...reasons(result.plan.blockers)];
 const blockerOf = (result, reason) => result.adapterBlockers.find(row => row.reason === reason);
 
-test('both schemas and the catalog are vendored byte for byte from the elma365 #103 merge commit', async () => {
+test('both schemas are vendored from the elma365 #103 merge commit and the catalog from #104', async () => {
   assert.deepEqual(NATIVE_CONTRACT_SOURCE, { repository: 'netbka/elma365', pullRequest: 103, issue: 60, merged: true, revision: 'c202d6980e4bfaacf449a6b3b829b8c6580287a7' });
   for (const [source, file] of [[COVERAGE_SOURCE, 'elma365-native-coverage-1.schema.json'], [RECEIPT_SOURCE, 'elma365-dependency-receipt-1.schema.json'],
     [CAPABILITY_CATALOG_SOURCE, 'elma365-native-coverage-1.capabilities.json']]) {
@@ -45,7 +45,8 @@ test('both schemas and the catalog are vendored byte for byte from the elma365 #
   }
   assert.equal(COVERAGE_SOURCE.schemaRevision, '1.1'); assert.equal(RECEIPT_SOURCE.schemaRevision, '1.1');
   assert.equal(COVERAGE_SCHEMA_INTACT, true); assert.equal(RECEIPT_SCHEMA_INTACT, true);
-  assert.equal(CAPABILITY_CATALOG.catalogDigest, '52d87cd1d06b30635ff3fdc329a0ca1cdeb1e6c291dc88c8e4345bb585cf81ca');
+  assert.equal(CAPABILITY_CATALOG.catalogDigest, '1f926e601b7a163ceb13609f3ba9c9f0dd281f37e8b611063109b3a4df7bb53d');
+  assert.deepEqual([CAPABILITY_CATALOG_SOURCE.pullRequest, CAPABILITY_CATALOG_SOURCE.revision], [104, '3d819be5cfbb24c490d323ad845da050f01d6a5e']);
   assert.deepEqual(validateCapabilityCatalog(CAPABILITY_CATALOG), { valid: true, errors: [] });
   assert.deepEqual(NATIVE_RECEIPT_CONTRACTS[0].semantics, RECEIPT_SEMANTICS);
   assert.deepEqual(NATIVE_RECEIPT_CONTRACTS[0].semantics, { provenance: 'elma365-worker-read-only-observation-v1',
