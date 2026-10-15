@@ -21,6 +21,7 @@ import { releaseStore } from './lib/releases.mjs';
 import { deliveryStore, syntheticAdapter } from './lib/delivery.mjs';
 import { INSPECTED_NATIVE_MATERIALIZATION, NATIVE_MATERIALIZATION_CONTRACTS } from './lib/native-materialization.mjs';
 import { bridgeStore } from './lib/bridge.mjs';
+import { configuredMaterializationAdapter } from './lib/native-materialization-bridge.mjs';
 import { targetPresets } from './lib/target-presets.mjs';
 import { demoData } from './lib/demo.mjs';
 import { configSourceClient, configAcquisitions } from './lib/config-source.mjs';
@@ -61,7 +62,7 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
   // Predefined DEV and DEV2 Targets from non-secret WIKI_TARGET_* variables; PROD has none.
   presets = targetPresets(process.env, { protectedHosts: protectedTargetHosts }),
   configSource = configSourceClient({ url: process.env.CONFIG_SOURCE_API_URL, token: process.env.CONFIG_SOURCE_API_TOKEN }),
-  requests = requestCoordinator(), bugPublisher = bugGitHub() } = {}) {
+  requests = requestCoordinator(), bugPublisher = bugGitHub(), materializationEnv = process.env } = {}) {
   const actors = actorStore(directory);
   const base = new URL(baseUrl), auth = createAuth({ baseUrl, allowLocal, sendEmail, sendVk, now, onLogin: actors.resolve }), portals = portalStore(directory, { sharedAccess: true }), projects = projectStore(directory, { sharedAccess: true }), oldDemo = demoData(), sample = oldDemo.servers.showcase, demo = {entities:sample.entities,solution:sample.solutions[0],coverage:'structural',parserVersion:'2.0.0',inventory:[],provenance:{},synthetic:true};
   const solutions = solutionStore(directory);
@@ -78,6 +79,9 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
   // The bridge adapter is always available: it only does something once an owner registers a bridge and an
   // operator runs the worker with the token. The service itself still makes no outbound connections.
   const bridges = bridgeStore(directory);
+  // Native materialization over the bridge is opt-in through explicit WIKI_NATIVE_MATERIALIZATION_* variables
+  // (bridge ID, owner, pinned worker revision). Without them it is null and materializeNative stays `unavailable`.
+  const nativeMaterialization = configuredMaterializationAdapter({ env: materializationEnv, bridges });
   delivery = deliveryStore(directory, releases, { solutionHandoffs: solutions.handoffs, composedCandidates: solutions.composed, adapters: { ...(syntheticDelivery ? { synthetic: syntheticAdapter } : {}), bridge: (options, connection) => bridges.adapter(options, connection) }, protectedHosts: protectedTargetHosts, timeoutMs: deliveryTimeoutMs, presets, presetAdapter: (preset, connection) => bridges.presetAdapter(preset, connection) });
   let uploading = false;
   const loginBot = createVkLoginBot({ directory, issueLink: auth.issueVkLink });
@@ -347,9 +351,10 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
       }
       // Operator bridge worker: bearer token (hash-compared), never a browser session. Bodies stay small;
       // the candidate artifact is streamed separately and only while its job is taken.
-      const bridgeWorkerMatch = /^\/api\/bridge\/(poll|jobs\/([^/]+)\/(artifact|result))$/.exec(pathname);
+      // A materialize job fetches its inputs by sha256 and uploads one output archive; both are job-scoped.
+      const bridgeWorkerMatch = /^\/api\/bridge\/(poll|jobs\/([^/]+)\/(artifact|result|output|inputs\/([0-9a-f]{64})))$/.exec(pathname);
       if (bridgeWorkerMatch) {
-        const [,,jobId,jobAction] = bridgeWorkerMatch, bridge = await bridges.authenticate(req.headers.authorization);
+        const [,,jobId,jobAction,inputSha256] = bridgeWorkerMatch, bridge = await bridges.authenticate(req.headers.authorization);
         if (!jobId) {
           if (req.method !== 'POST') return send(res,405,{error:'Метод не поддерживается'});
           const input = JSON.parse((await body(req,16*1024)).toString('utf8') || '{}');
@@ -360,6 +365,19 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
           const bytes = await bridges.artifact(bridge, jobId);
           res.writeHead(200,{'Content-Type':'application/octet-stream','Content-Length':bytes.length,'Cache-Control':'no-store'});
           return res.end(bytes);
+        }
+        if (inputSha256) {
+          if (req.method !== 'GET') return send(res,405,{error:'Метод не поддерживается'});
+          const { bytes, sha256, size } = await bridges.input(bridge, jobId, inputSha256);
+          res.writeHead(200,{'Content-Type':'application/octet-stream','Content-Length':size,'X-Content-Sha256':sha256,'Cache-Control':'no-store'});
+          return res.end(bytes);
+        }
+        if (jobAction === 'output') {
+          if (req.method !== 'PUT') return send(res,405,{error:'Метод не поддерживается'});
+          if (req.headers['content-type']?.split(';')[0] !== 'application/octet-stream') return send(res,415,{error:'Требуется application/octet-stream'});
+          const declared = { sha256: String(req.headers['x-content-sha256'] || ''), size: /^\d+$/.test(req.headers['content-length'] || '') ? Number(req.headers['content-length']) : null };
+          // Streamed to a private temp file with incremental sha256/size; never buffered in memory.
+          return send(res,200,await bridges.writeOutput(bridge, jobId, declared, req));
         }
         if (req.method !== 'POST') return send(res,405,{error:'Метод не поддерживается'});
         const input = JSON.parse((await body(req,2*1024*1024)).toString('utf8'));
@@ -533,6 +551,7 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
     }
   });
   server.loginBot = loginBot;
+  server.nativeMaterialization = nativeMaterialization;
   if (loginBot) {
     server.once('listening', () => { void loginBot.run(); });
     server.once('close', () => loginBot.stop());
