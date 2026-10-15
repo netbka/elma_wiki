@@ -25,9 +25,11 @@ const adapt = (artifacts, extra = {}) => adaptNativeCoverage({ request: { kind: 
 const reasons = result => [...result.adapterBlockers, ...result.plan.blockers].map(row => row.reason);
 const codes = rows => rows.map(row => JSON.parse(row.key).at(-1));
 
-test('no native contract is pinned; current captures stay unknown and never native-complete', async () => {
-  assert.deepEqual(NATIVE_COVERAGE_CONTRACTS, []);
-  assert.equal(INSPECTED_NATIVE_CONTRACT.status, 'unavailable');
+test('only the pinned elma365 coverage contract is native; current captures without a declaration stay unknown', async () => {
+  assert.deepEqual(NATIVE_COVERAGE_CONTRACTS.map(row => [row.id, row.version]), [['elma365-native-coverage', 1]]);
+  assert.equal(INSPECTED_NATIVE_CONTRACT.status, 'partial');
+  assert.deepEqual([...INSPECTED_NATIVE_CONTRACT.missing], ['application-membership', 'part-to-unit-expansion', 'global-domain-inventory',
+    'global-domain-executable-handlers', 'target-preservation-policy', 'native-import-receipts']);
   const parsed = await parseManagedArtifact(await fixture(), { scope: 'full' });
   const result = adaptNativeCoverage({ request: { kind: 'solution', solution: parsed.solution }, artifacts: [parsed], targetProfile: PROFILE });
   assert.ok(reasons(result).includes('native-coverage-unavailable'));
@@ -38,9 +40,14 @@ test('no native contract is pinned; current captures stay unknown and never nati
   assert.equal(result.nativeEvidence.complete, false);
   assert.equal(result.publicationReady, false);
   assert.equal(result.executionEnabled, false);
-  const forged = declaration([parsed], { contract: { id: 'elma365-native-coverage', version: 1 } });
+  // An unpublished version is forged; the pinned id with a Wiki-fixture-shaped body fails the vendored contract.
+  const forged = declaration([parsed], { contract: { id: 'elma365-native-coverage', version: 2 } });
   assert.ok(reasons(adaptNativeCoverage({ request: { kind: 'solution', solution: parsed.solution }, artifacts: [parsed], targetProfile: PROFILE,
     declarations: [forged] })).includes('unknown-native-coverage-contract'));
+  const shaped = adaptNativeCoverage({ request: { kind: 'solution', solution: parsed.solution }, artifacts: [parsed], targetProfile: PROFILE,
+    declarations: [declaration([parsed], { contract: { id: 'elma365-native-coverage', version: 1 } })] });
+  assert.ok(reasons(shaped).includes('invalid-native-coverage-declaration'));
+  assert.equal(shaped.evidenceBasis, 'unknown');
 });
 
 test('minimal supported unit plans Wiki accounting but stays synthetic and natively unverified', () => {

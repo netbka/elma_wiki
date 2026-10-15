@@ -10,11 +10,17 @@ import { readArchive } from '../lib/e365.mjs';
 import { adaptNativeCoverage, SYNTHETIC_COVERAGE_CONTRACT } from '../lib/native-coverage-adapter.mjs';
 import { resolveDependencyEvidence, SYNTHETIC_RECEIPT_CONTRACT } from '../lib/dependency-resolver.mjs';
 import { dependencyReport } from '../lib/dependency-evidence.mjs';
-import { prepareMaterializationRequest, materializeNative, materializationStatus, INSPECTED_NATIVE_MATERIALIZATION,
+import { prepareMaterializationRequest, materializeNative, materializationStatus, isMaterializationManifest, INSPECTED_NATIVE_MATERIALIZATION,
   NATIVE_MATERIALIZATION_CONTRACTS, SYNTHETIC_MATERIALIZATION_CONTRACT } from '../lib/native-materialization.mjs';
 import { zip } from './fixture.mjs';
 import { materializeServer } from './bridge-worker-fixture.mjs';
-import { E1_SOURCE, E1_SCHEMA_INTACT, E1_SCHEMA_REVISION, E1_REQUIRED_CHECKS, buildE1Envelope, validateE1Request, validateE1Receipt, validateE1ReceiptArtifacts, e1HygieneErrors } from '../lib/native-materialization-e1.mjs';
+import { changesFromRequest, wikiTargetProfile } from '../lib/elma365-native-contracts.mjs';
+import { observedTargetProfileReport } from '../lib/native-materialization-bridge.mjs';
+import { nativeDeclaration, installed as installedSolution, observe as observeTargetProfile } from './native-contract-fixtures.mjs';
+import { E1_SOURCE, E1_SCHEMA_INTACT, E1_SCHEMA_REVISION, E1_REQUIRED_CHECKS, E1_MANIFEST_POLICY, E1_MANIFEST_POLICY_V2, buildE1Envelope, validateE1Request, validateE1Receipt,
+  validateE1ReceiptArtifacts, e1HygieneErrors, e1ManifestPolicyOf, e1EntityIdentity, checkE1ManifestRegeneration } from '../lib/native-materialization-e1.mjs';
+import { CAPABILITY_CATALOG } from '../lib/elma365-native-contracts.mjs';
+import { policyScenario, policyAdapter, editions as policyEditions, keyOf as policyKey, TEMPLATE, SETTINGS, PAGE, WIDGET } from './manifest-policy-fixtures.mjs';
 
 // Synthetic Contracts-shaped B/A/C archives. Every component carries a declared
 // resource; `div` also carries coupled client source. The manifest keeps an
@@ -25,29 +31,30 @@ const NOW = '2026-10-10T12:00:00.000Z';
 const PROFILE = { targetId: 'synthetic-target', environment: 'isolated', digest: 'synthetic-profile', platformVersion: '2025.4', changedAt: '2026-10-01T00:00:00.000Z' };
 const COMPILER = { contract: 'synthetic-compiler', profileDigest: 'c'.repeat(64), platformVersion: '2025.4', evidenceRef: 'synthetic-compiler-evidence', services: ['widgets'] };
 const sha = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
-const record = (code, value) => ({ code, namespace: 'contracts', kind: 'WIDGET', path: code + '.json', nativeHistory: [{ v: 1 }],
+const record = (code, value, kind = 'WIDGET') => ({ code, namespace: 'contracts', kind, path: code + '.json', nativeHistory: [{ v: 1 }],
   ...(value === 'no-resource' ? {} : { resources: [{ path: 'resources/' + code + '.po' }] }) });
-const entries = rows => [
+const entries = (rows, kind) => [
   ['package.json', { code: 'synthetic_contracts', type: 'SOLUTION' }],
-  ['widgets/manifest.json', { nativeUnknown: { keep: true }, entities: rows.map(([code, value]) => record(code, value)) }],
+  ['widgets/manifest.json', { nativeUnknown: { keep: true }, entities: rows.map(([code, value]) => record(code, value, kind)) }],
   ...rows.flatMap(([code, value]) => [
     ['widgets/' + code + '.json', { descriptor: { clientScripts: `const value = ${JSON.stringify(value)};` }, unknownNativeField: code }],
     ...(value === 'no-resource' ? [] : [['widgets/resources/' + code + '.po', `msgid "${code}"\nmsgstr "${value}"\n`]]),
     ...(code === 'div' ? [['widgets/div.json.client.ts', `export const value = ${JSON.stringify(value)};\n`]] : [])])
 ];
-const archive = rows => zip(entries(rows));
+const archive = (rows, kind) => zip(entries(rows, kind));
 
-async function setup(t, rows) {
+async function setup(t, rows, { kind } = {}) {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'wiki-materialization-'));
   t.after(() => fs.rm(directory, { recursive: true, force: true }));
   const projects = projectStore(directory), store = managedWorkspaceStore(directory, projects);
   const upload = async (rows, scope) => {
-    const project = await projects.create(owner, await archive(rows));
+    const project = await projects.create(owner, await archive(rows, kind));
     return { projectId: project.id, snapshotId: project.currentSnapshotId, scope, scopeConfirmed: true };
   };
   const state = await store.create(owner, { name: 'Synthetic contracts', baselineOwner: 'Base', snapshot: await upload(rows, 'full') }, actor);
   const base = { artifactId: state.baselineId, revision: 0, confirmed: true };
-  const key = code => state.current.find(row => row.code === code).key;
+  // A component new in a partial capture has no current row; its identity is [service, namespace, code].
+  const key = code => state.current.find(row => row.code === code)?.key ?? JSON.stringify(['widgets', 'contracts', code]);
   const scope = codes => ({ name: 'Synthetic scope', members: codes.map(key), confirmed: true, deletions: [] });
   const prepare = async (rows, team, codes) => (await store.prepare(state.id, owner, { kind: 'change', snapshot: await upload(rows, 'partial'),
     expectedRevision: (await store.get(state.id, owner)).revision, team, taskRef: 'SYNTHETIC-' + team, sameSourceConfirmed: true, base, changeScope: scope(codes) }, actor));
@@ -89,7 +96,7 @@ function evidence(resolution, { stale = [], profile = PROFILE } = {}) {
 const identity = row => JSON.stringify([row.namespace, row.code, row.kind]);
 function syntheticAdapter({ tamper = files => files, validation = (sha256, request) => ({ status: 'passed', validator: 'synthetic-validator', evidenceRef: 'synthetic-validation',
   artifactSha256: sha256, contract: SYNTHETIC_MATERIALIZATION_CONTRACT, targetProfileDigest: request.inputs.targetProfile.digest, compilerProfileDigest: request.inputs.compiler.profileDigest }),
-  echo = request => request.inputsDigest, fail = false, nest = false } = {}) {
+  echo = request => request.inputsDigest, fail = false, nest = false, kind = 'WIDGET' } = {}) {
   const calls = [];
   return { calls, id: 'synthetic-assembler', contract: SYNTHETIC_MATERIALIZATION_CONTRACT, nativeRevision: 'e'.repeat(40),
     async materialize({ request, originals }) {
@@ -104,7 +111,7 @@ function syntheticAdapter({ tamper = files => files, validation = (sha256, reque
       for (const file of request.expected.files) if (file.action === 'remove') files.delete(file.path);
       for (const service of new Set(request.operations.map(op => op.service))) {
         const manifestPath = service + '/manifest.json', manifest = JSON.parse(files.get(manifestPath));
-        const recordFor = (artifactId, key) => JSON.parse(read.get(artifactId).get(manifestPath)).entities.find(row => identity(row) === identity({ namespace: JSON.parse(key)[1], code: JSON.parse(key)[2], kind: 'WIDGET' }));
+        const recordFor = (artifactId, key) => JSON.parse(read.get(artifactId).get(manifestPath)).entities.find(row => identity(row) === identity({ namespace: JSON.parse(key)[1], code: JSON.parse(key)[2], kind }));
         for (const op of request.operations.filter(op => op.service === service)) {
           const at = manifest.entities.findIndex(row => identity(row) === identity(recordFor(request.inputs.base.artifactId, op.key) ?? {}));
           if (op.op === 'remove') manifest.entities.splice(at, 1);
@@ -545,9 +552,9 @@ test('E1 1.2 no-edit: a zero-change request carries an empty release scope and o
   assert.equal(out.manifest.status, 'failed');
 });
 
-// The hygiene lists of elma365 contract.test.mjs at E1_SOURCE.commit (schema revision 1.2).
+// The hygiene lists of elma365 contract.test.mjs (unchanged from schema revision 1.2 to 1.3).
 test('E1 1.2 hygiene: embedded host paths, URLs and credentials are rejected; identifiers and API routes stay valid', () => {
-  assert.equal(E1_SCHEMA_INTACT, true); assert.equal(E1_SCHEMA_REVISION, '1.2'); assert.equal(E1_SOURCE.schemaRevision, '1.2');
+  assert.equal(E1_SCHEMA_INTACT, true); assert.equal(E1_SCHEMA_REVISION, '1.3'); assert.equal(E1_SOURCE.schemaRevision, '1.3');
   const at = value => reasons(e1HygieneErrors(value));
   for (const value of ['evidence in C:\\git\\Elma\\.local\\run', 'stage at /home/runner/work/x', 'copied from \\\\fileserver\\exports', 'kept under ~/exports',
     'see (file:///tmp/report)', 'written to /tmp', 'path=D:/exports/x', 'path:C:\\git\\x', 'dir:/home/user/x', 'evidence:/var/log',
@@ -567,4 +574,267 @@ test('E1 1.2 hygiene: embedded host paths, URLs and credentials are rejected; id
     'ns:module@1.0.0/x', 'ns:module@1.0.0', 'POST /pub/v1/app/x', '/api/apps/v1', 'GET /api/apps/v1/items?limit=1', 'route:/pub/v1/app/x', 'key:value',
     'unit div:widgets', 'svc:widgets@Contracts', 'role:admin@company', 'owner role:admin@company.', 'ns:module@1.0.0.beta'])
     assert.deepEqual(at(value), [], value);
+});
+
+// elma365 #103 contracts (P4/P5): native coverage and dependency receipts pinned at the merge commit.
+const NATIVE_PROFILE = 'a'.repeat(64);
+const VENDOR = { service: 'widgets', namespace: 'vendor', code: 'signer', provider: { code: 'vendor_module', version: '2.1.0' } };
+const VENDOR_BINDING = { name: 'VENDOR_API', kind: 'secret-reference', reference: 'secret-ref:synthetic/vendor-api', targetProfileDigest: NATIVE_PROFILE };
+// Native coverage over the resolved revision, bound to the request's own changes, and receipts
+// only from an admitted bridge observation. `today` mirrors current evidence: no observed
+// Target profile report, so no Target precondition and no receipt.
+async function nativeEvidence(resolution, changes, { today = false } = {}) {
+  // A 4-part key is Wiki identity profile 2 [service, namespace, kind, code]; 3-part keys here are widgets.
+  const components = resolution.result.filter(row => row.digest).map(row => {
+    const parts = JSON.parse(row.key), [service, namespace] = parts;
+    return { key: row.key, service, namespace, code: parts.at(-1), kind: parts.length === 4 ? parts[2] : 'widget', digest: row.digest };
+  });
+  const dependencies = dependencyReport([]);
+  dependencies.rows = [{ category: 'dependencies', service: 'widgets', targetNamespace: 'vendor', targetCode: 'signer', source: { service: 'widgets', namespace: 'contracts', code: 'div' },
+    status: 'paid-source-unavailable', candidates: [{ code: 'vendor_module', version: '2.1.0', paid: true }] }];
+  const capture = { solution: 'synthetic_contracts', scope: 'full', checksum: resolution.resultDigest, components, ambiguities: [], unclassifiedFiles: [], dependencies };
+  const observed = today ? null : await observeTargetProfile({ targetProfileDigest: NATIVE_PROFILE, platformVersion: '2025.4', observedAt: NOW,
+    installedSolutions: [installedSolution('vendor_module')], requirements: [VENDOR] });
+  const report = observed ? observedTargetProfileReport(observed.observation) : null;
+  const coverage = adaptNativeCoverage({ request: { kind: 'solution', solution: 'synthetic_contracts' }, artifacts: [capture], targetProfile: { digest: NATIVE_PROFILE }, changes,
+    declarations: [nativeDeclaration({ captures: [capture], changes, targetProfileDigest: NATIVE_PROFILE, targetReport: report })] });
+  const dependencyEvidence = resolveDependencyEvidence({ plan: coverage.plan, receiptContract: { id: 'elma365-dependency-receipt', version: 1 },
+    observation: observed?.observation ?? null, bindings: [VENDOR_BINDING], now: '2026-10-10T18:00:00.000Z' });
+  const targetProfile = report ? wikiTargetProfile(report) : { targetId: 'synthetic-target', environment: 'synthetic-target', digest: NATIVE_PROFILE, platformVersion: '2025.4', changedAt: NOW };
+  return { coverage, dependencies: dependencyEvidence, targetProfile };
+}
+const nativeRequest = async (env, change, resolution, evidence) => {
+  const state = await env.store.get(env.state.id, owner), artifact = await env.store.artifact(env.state.id, owner, change.artifactId);
+  const ids = [...new Set([state.baselineId, change.artifactId, ...state.artifacts.map(row => row.id)])];
+  return prepareMaterializationRequest({ state, artifact, resolution, ...evidence, compiler: COMPILER, originals: await env.originals(ids) });
+};
+
+test('native contracts: current evidence still blocks; a fully valid synthetic declaration and verified receipts reach native but are never release-eligible', async t => {
+  const env = await setup(t, [['div', 0], ['aonly', 0], ['outside', 0]], { kind: 'widget' });
+  const c = await env.prepare([['div', 2]], 'C', ['div']);
+  const resolution = await env.resolve(c);
+  // The request's own changes, as elma365 changesFromRequest reads them.
+  const probe = await prepareFor(env, c, resolution);
+  const changes = changesFromRequest(probe);
+  assert.deepEqual(changes.map(row => [row.op, JSON.parse(row.key).at(-1)]), [['replace', 'div']]);
+
+  // Today: no observed Target profile, so no Target precondition and no verified receipt.
+  const today = await nativeRequest(env, c, resolution, await nativeEvidence(resolution, changes, { today: true }));
+  assert.equal(today.status, 'blocked');
+  assert.ok(today.blockers.find(row => row.reason === 'native-coverage-incomplete')?.reasons.includes('unknown-target-precondition'));
+  assert.ok(today.blockers.find(row => row.reason === 'dependency-resolution-incomplete')?.reasons.includes('unobserved-target-profile'));
+  assert.equal(today.evidenceBasis, 'unknown');
+
+  // Fully valid synthetic inputs under the pinned native contracts.
+  const evidence = await nativeEvidence(resolution, changes);
+  assert.equal(evidence.coverage.evidenceBasis, 'native'); assert.equal(evidence.dependencies.evidenceBasis, 'native-receipt');
+  assert.deepEqual(evidence.dependencies.locks.map(row => row.evidence), ['native-receipt']);
+  const request = await nativeRequest(env, c, resolution, evidence);
+  assert.equal(request.status, 'ready', JSON.stringify(request.blockers));
+  assert.equal(request.evidenceBasis, 'native'); assert.deepEqual(request.blockers, []);
+  const originals = await env.originals(request.inputs.originals.map(row => row.artifactId));
+  assert.deepEqual(validateE1Request(buildE1Envelope(request, originals), { originals }).errors, []);
+
+  // Through the configured bridge adapter (real store, configured worker revision) and a synthetic
+  // worker, native materialization is accepted, yet release needs native import and installation evidence.
+  const assemble = syntheticAdapter({ kind: 'widget' });
+  const bridge = await materializeServer(t, { owner, timeoutMs: 6000 });
+  bridge.worker({ handle: async ({ envelope, originals: fetched }) => {
+    const bytes = (await assemble.materialize({ request: envelope.request, originals: fetched })).artifacts[0].bytes;
+    return { receipt: e1Receipt(envelope.request, bytes), bytes };
+  } });
+  // A hand-made adapter with the E1 contract and a 40-hex revision is never native.
+  const unconfigured = await materializeNative({ request, originals, adapter: e1Adapter({ kind: 'widget' }), now: NOW, coverage: evidence.coverage });
+  assert.equal(unconfigured.manifest.status, 'materialized'); assert.equal(unconfigured.manifest.evidenceBasis, 'unknown');
+  assert.ok(reasons(unconfigured.manifest.blockers).includes('unconfigured-native-adapter')); assert.equal(unconfigured.manifest.releaseEligible, false);
+  const spread = await materializeNative({ request, originals, adapter: { ...bridge.adapter }, now: NOW, coverage: evidence.coverage });
+  assert.notEqual(spread.manifest.evidenceBasis, 'native'); assert.equal(spread.manifest.releaseEligible, false);
+  for (const coverage of [evidence.coverage, null]) {
+    const { manifest } = await materializeNative({ request, originals, adapter: bridge.adapter, now: NOW, coverage });
+    assert.equal(manifest.status, 'materialized', JSON.stringify(manifest.blockers));
+    assert.equal(manifest.evidenceBasis, 'native');
+    assert.equal(manifest.releaseEligible, false);
+    assert.ok(reasons(manifest.blockers).includes('native-installation-evidence-incomplete'));
+    assert.equal(manifest.publicationReady, false); assert.equal(manifest.executionEnabled, false);
+  }
+  const { manifest } = await materializeNative({ request, originals, adapter: bridge.adapter, now: NOW, coverage: evidence.coverage });
+  assert.deepEqual(manifest.blockers.find(row => row.reason === 'native-installation-evidence-incomplete').missing, ['native-import-receipt', 'native-installation-observation']);
+
+  // A coverage checked against other changes, or a different Target profile, is not this request's evidence.
+  const stale = await nativeRequest(env, c, resolution, await nativeEvidence(resolution, []));
+  assert.ok(reasons(stale.blockers).includes('stale-native-changes-binding'));
+  // Hand-built evidence claiming native, locked or complete is refused and treated as absent.
+  const forged = await nativeRequest(env, c, resolution, { ...evidence, coverage: { ...evidence.coverage }, dependencies: { ...evidence.dependencies, resolutionComplete: true } });
+  assert.ok(reasons(forged.blockers).includes('unverified-native-coverage')); assert.ok(reasons(forged.blockers).includes('unverified-dependency-resolution'));
+  assert.equal(forged.status, 'blocked'); assert.equal(forged.evidenceBasis, 'unknown');
+  // A copied request claiming native evidence is not this module's request: never native, never eligible.
+  const copied = await materializeNative({ request: structuredClone(request), originals, adapter: bridge.adapter, now: NOW, coverage: evidence.coverage });
+  assert.notEqual(copied.manifest.evidenceBasis, 'native'); assert.equal(copied.manifest.releaseEligible, false);
+  assert.ok(reasons(copied.manifest.blockers).includes('unverified-materialization-request'));
+  assert.equal(isMaterializationManifest(manifest), true); assert.equal(isMaterializationManifest({ ...manifest, releaseEligible: true }), false);
+  const otherProfile = await nativeRequest(env, c, resolution, { ...evidence, targetProfile: { ...evidence.targetProfile, digest: 'c'.repeat(64) } });
+  assert.ok(reasons(otherProfile.blockers).includes('stale-dependency-profile'));
+});
+
+test('native contracts: an operation proven on the synthetic fixture only keeps the request synthetic', async t => {
+  const env = await setup(t, [['div', 0], ['outside', 0]], { kind: 'widget' });
+  const c = await env.prepare([['div', 0], ['added', 1]], 'C', ['div', 'added']);
+  const resolution = await env.resolve(c);
+  const changes = changesFromRequest(await prepareFor(env, c, resolution));
+  assert.deepEqual(changes.map(row => row.op), ['add']);
+  const evidence = await nativeEvidence(resolution, changes);
+  assert.equal(evidence.coverage.evidenceBasis, 'synthetic');
+  const request = await nativeRequest(env, c, resolution, evidence);
+  assert.equal(request.evidenceBasis, 'synthetic');
+  // A hand-built coverage claiming native is refused, never native.
+  const claimed = await nativeRequest(env, c, resolution, { ...evidence, coverage: { ...evidence.coverage, evidenceBasis: 'native', adapterBlockers: [] } });
+  assert.ok(reasons(claimed.blockers).includes('unverified-native-coverage')); assert.notEqual(claimed.evidenceBasis, 'native');
+});
+
+// E1 1.3 (elma365 #104): opt-in manifest policy 2. Wiki selects it only for profile-2 identities.
+const POLICY_1 = { id: 'elma365-manifest-regeneration', version: 1 }, POLICY_2 = { id: 'elma365-manifest-regeneration', version: 2 };
+test('E1 1.3: a widget-only release selects no policy and stays policy 1; its receipt must name policy 1', async t => {
+  assert.deepEqual([E1_SOURCE.pullRequest, E1_SOURCE.commit, E1_SOURCE.sha256],
+    [104, '3d819be5cfbb24c490d323ad845da050f01d6a5e', '6cab239e81fb33bfadc3e667ab7f171feb4405cf10c6e8103141900b1729cb9c']);
+  assert.deepEqual([E1_MANIFEST_POLICY, E1_MANIFEST_POLICY_V2], [POLICY_1, POLICY_2]);
+  const { request, originals } = await e1Scenario(t);
+  assert.equal(Object.hasOwn(request, 'manifestPolicy'), false, 'a widget-only request selects no policy (version 1)');
+  assert.equal(e1ManifestPolicyOf(request).version, 1);
+  const envelope = buildE1Envelope(request, originals);
+  assert.deepEqual(validateE1Request(envelope, { originals }).errors, []);
+  const out = await syntheticAdapter().materialize({ request, originals });
+  const bytes = out.artifacts[0].bytes, receipt = e1Receipt(request, bytes), artifacts = [{ solution: request.inputs.solution, bytes }];
+  assert.equal(validateE1Receipt(receipt, request, { artifacts }).state, 'validated');
+  assert.ok(validateE1Receipt({ ...receipt, manifestPolicy: POLICY_2 }, request, { artifacts }).errors.some(row => row.reason === 'manifest-policy-mismatch'));
+  // Explicit version 1 is the same policy; policy 2 accepts a 3-part widget key as its own identity.
+  for (const manifestPolicy of [POLICY_1, POLICY_2])
+    assert.deepEqual(validateE1Request({ ...envelope, request: { ...request, manifestPolicy } }, { originals }).errors, []);
+  // An unknown policy is outside the schema.
+  assert.ok(reasons(validateE1Request({ ...envelope, request: { ...request, manifestPolicy: { ...POLICY_2, version: 3 } } }, { originals }).errors).includes('invalid-value'));
+});
+
+test('E1 1.3 policy 2: a process template change selects policy 2, is accepted by E1 and materializes, still synthetic only', async t => {
+  const scenario = await policyScenario({ base: policyEditions.base, change: policyEditions.process });
+  t.after(scenario.cleanup);
+  const { request, originals } = scenario;
+  assert.equal(request.status, 'ready', JSON.stringify(request.blockers));
+  assert.deepEqual(request.manifestPolicy, POLICY_2);
+  assert.deepEqual(request.operations.map(op => [op.op, op.key]), [['replace', policyKey(TEMPLATE)]]);
+  // The policy is part of the request, so it is bound by requestDigest but not by inputsDigest.
+  const { manifestPolicy, ...unselected } = request;
+  assert.notEqual(sha(canonicalJson(request)), sha(canonicalJson(unselected)));
+  const envelope = buildE1Envelope(request, originals);
+  assert.deepEqual(validateE1Request(envelope, { originals }).errors, []);
+  const adapter = policyAdapter();
+  const { manifest, artifacts } = await materializeNative({ request, originals, adapter, now: NOW });
+  assert.equal(adapter.calls.length, 1); assert.deepEqual(adapter.calls[0].request.manifestPolicy, POLICY_2);
+  assert.equal(manifest.status, 'materialized', JSON.stringify(manifest.blockers));
+  assert.deepEqual(reasons(manifest.blockers), ['synthetic-evidence-only']); assert.equal(manifest.releaseEligible, false);
+
+  // Policy 1 cannot certify this output: the template and the process record share namespace and code.
+  const read = async bytes => new Map(await readArchive(Buffer.from(bytes)));
+  const [base, output] = [await read(originals.get(request.inputs.base.artifactId)), await read(artifacts[0].bytes)];
+  const incoming = await read(originals.get(scenario.artifact.id));
+  const manifestOf = files => JSON.parse(files.get('processor/manifest.json'));
+  const check = policy => reasons(checkE1ManifestRegeneration({ service: 'processor', base: manifestOf(base), output: manifestOf(output), policy,
+    operations: request.operations, sources: new Map([[scenario.artifact.id, manifestOf(incoming)]]) }));
+  assert.deepEqual(check(2), []);
+  assert.ok(check(1).includes('ambiguous-entity'), check(1).join());
+  assert.deepEqual(reasons(checkE1ManifestRegeneration({ service: 'processor', base: {}, output: {}, operations: [], policy: 3 })), ['unknown-manifest-policy']);
+
+  // A receipt issued under policy 1 is never accepted for a policy 2 request.
+  const v1Receipt = await materializeNative({ request, originals, adapter: policyAdapter({ receipt: row => ({ ...row, manifestPolicy: POLICY_1 }) }), now: NOW });
+  assert.equal(v1Receipt.manifest.status, 'failed');
+  assert.ok(v1Receipt.manifest.blockers.find(row => row.reason === 'native-receipt-invalid').errors.includes('manifest-policy-mismatch'));
+});
+
+test('E1 1.3 policy 2: operation keys must re-derive from a profile-2 identity before any work', async t => {
+  const scenario = await policyScenario({ base: policyEditions.base, change: policyEditions.process });
+  t.after(scenario.cleanup);
+  const { request, originals } = scenario, envelope = buildE1Envelope(request, originals);
+  const withKey = key => ({ ...envelope, request: { ...request, operations: request.operations.map(op => ({ ...op, key })) } });
+  const invalid = key => reasons(validateE1Request(withKey(key), { originals }).errors);
+  for (const key of [JSON.stringify(['processor', 'contracts', 'process', 'approval']), // 4-part key of a non-keyed processor kind
+    JSON.stringify(['widgets', 'contracts', 'template', 'approval']), // another service
+    JSON.stringify(['permissionsSettings', 'contracts', null, 'archive']), // Wiki's key of a kindless permission record
+    'not json'])
+    assert.ok(invalid(key).includes('operation-identity-invalid'), key + ' -> ' + invalid(key).join());
+  // The 3-part key is the profile-2 identity of the unchanged `process` record, so its shape is valid;
+  // which record changed is then bound by Wiki's component digests and the manifest rule.
+  assert.deepEqual(invalid(JSON.stringify(['processor', 'contracts', 'approval'])), []);
+  // A request the contract rejects is blocked; the worker is never called.
+  const adapter = policyAdapter();
+  const { manifest } = await materializeNative({ request: { ...request, operations: withKey('not json').request.operations }, originals, adapter, now: NOW });
+  assert.equal(manifest.status, 'blocked'); assert.deepEqual(adapter.calls, []);
+  assert.ok(manifest.blockers.find(row => row.reason === 'native-request-contract-invalid').errors.includes('operation-identity-invalid'));
+  // Identity profile 2 itself.
+  const identity = (service, record) => e1EntityIdentity(service, record, 2);
+  assert.deepEqual(identity('permissionsSettings', { namespace: 'contracts', code: 'archive' }), { reason: 'unproven-entity-identity' });
+  assert.deepEqual(identity('permissionsSettings', { namespace: 'contracts', code: 'a', kind: 'futureKind' }), { key: JSON.stringify(['permissionsSettings', 'contracts', 'futureKind', 'a']) });
+  assert.deepEqual(identity('processor', { namespace: 'contracts', code: 'a', kind: 'process' }), { key: JSON.stringify(['processor', 'contracts', 'a']) });
+  assert.deepEqual(identity('localizer', { namespace: 'contracts', code: '', kind: 'localization' }), { key: JSON.stringify(['localizer', 'contracts', 'localization', '']) });
+  assert.deepEqual(identity('widgets', { namespace: 'contracts', code: '' }), { reason: 'unproven-entity-identity' });
+  assert.deepEqual(e1EntityIdentity('widgets', {}, 3), { reason: 'unknown-manifest-policy' });
+});
+
+test('E1 1.3 policy 2: Wiki applies the policy to the regenerated manifest; reordered, changed or kindless records fail', async t => {
+  const scenario = await policyScenario({ base: policyEditions.base, change: policyEditions.permissions });
+  t.after(scenario.cleanup);
+  const { request, originals } = scenario;
+  assert.equal(request.status, 'ready', JSON.stringify(request.blockers)); assert.deepEqual(request.manifestPolicy, POLICY_2);
+  // Two records with one namespace and code, told apart only by kind: replaced and added.
+  assert.deepEqual(request.operations.map(op => [op.op, op.key]), [['replace', policyKey(SETTINGS)], ['add', policyKey(PAGE)]]);
+  const ok = await materializeNative({ request, originals, adapter: policyAdapter(), now: NOW });
+  assert.equal(ok.manifest.status, 'materialized', JSON.stringify(ok.manifest.blockers));
+  const editManifest = (service, change) => files => {
+    const path = service + '/manifest.json', manifest = JSON.parse(files.get(path));
+    change(manifest.entities); files.set(path, Buffer.from(JSON.stringify(manifest))); return files;
+  };
+  const cases = [
+    // Order alone changes no component digest: only the manifest rule catches it.
+    [editManifest('permissionsSettings', rows => rows.reverse()), 'entity-order-changed'],
+    [editManifest('permissionsSettings', rows => { rows.push({ code: 'archive', namespace: 'contracts', path: 'archive.json' }); }), 'unproven-entity-identity'],
+    [editManifest('permissionsSettings', rows => { rows.push({ ...rows[0] }); }), 'ambiguous-entity'],
+    [editManifest('permissionsSettings', rows => { const at = rows.findIndex(row => row.kind === 'permissionSettings'); rows[at] = { ...rows[at], nativeHistory: [{ v: 9 }] }; }), 'entity-not-from-source'],
+    [editManifest('permissionsSettings', rows => { const at = rows.findIndex(row => row.kind === 'applicationDirectoriesPermissions'); rows[at] = { ...rows[at], nativeHistory: [{ v: 9 }] }; }), 'unchanged-entity-modified'],
+    [editManifest('permissionsSettings', rows => { rows.splice(rows.findIndex(row => row.kind === 'applicationDirectoriesPermissions'), 1); }), 'unchanged-entity-missing']
+  ];
+  for (const [tamper, detail] of cases) {
+    const { manifest, artifacts } = await materializeNative({ request, originals, adapter: policyAdapter({ tamper }), now: NOW });
+    assert.equal(manifest.status, 'failed', detail); assert.deepEqual(artifacts, []);
+    const found = manifest.blockers.filter(row => row.reason === 'manifest-regeneration-violation').map(row => row.detail);
+    assert.ok(found.includes(detail), detail + ' -> ' + JSON.stringify(manifest.blockers));
+  }
+  // Policy 1 requests keep their existing checks only: a reordered widget manifest is still Wiki-valid there.
+  const v1 = await e1Scenario(t);
+  const reordered = await materializeNative({ request: v1.request, originals: v1.originals, now: NOW,
+    adapter: e1Adapter({ tamper: editManifest('widgets', rows => rows.reverse()) }) });
+  assert.equal(reordered.manifest.status, 'materialized', JSON.stringify(reordered.manifest.blockers));
+});
+
+test('E1 1.3 policy 2: a mixed release selects policy 2; native coverage still refuses a process template edit', async t => {
+  const mixed = await policyScenario({ base: policyEditions.base, change: policyEditions.mixed });
+  t.after(mixed.cleanup);
+  assert.deepEqual(mixed.request.manifestPolicy, POLICY_2);
+  const widget = await policyScenario({ base: policyEditions.base, change: policyEditions.widget });
+  t.after(widget.cleanup);
+  assert.equal(Object.hasOwn(widget.request, 'manifestPolicy'), false);
+  for (const { request, originals } of [mixed, widget]) {
+    const { manifest } = await materializeNative({ request, originals, adapter: policyAdapter(), now: NOW });
+    assert.equal(manifest.status, 'materialized', JSON.stringify(manifest.blockers)); assert.equal(manifest.releaseEligible, false);
+  }
+
+  // Under the pinned native coverage catalog a process template edit stays `unsupported`
+  // (no processor compiler), so selecting policy 2 never makes it native.
+  assert.equal(CAPABILITY_CATALOG.capabilities.find(row => row.service === 'processor' && row.kind === 'template').edit.status, 'unsupported');
+  const scenario = await policyScenario({ base: [{ ...TEMPLATE, value: 0 }, { ...WIDGET, value: 0 }], change: policyEditions.process });
+  t.after(scenario.cleanup);
+  const changes = changesFromRequest(scenario.request);
+  const native = await scenario.prepare(await nativeEvidence(scenario.resolution, changes));
+  assert.equal(native.status, 'blocked'); assert.deepEqual(native.manifestPolicy, POLICY_2);
+  assert.deepEqual(native.blockers.find(row => row.reason === 'unsupported-native-operation'),
+    { reason: 'unsupported-native-operation', key: policyKey(TEMPLATE), op: 'replace', problem: 'edit-unsupported' });
+  const adapter = policyAdapter();
+  const { manifest } = await materializeNative({ request: native, originals: scenario.originals, adapter, now: NOW });
+  assert.equal(manifest.status, 'blocked'); assert.deepEqual(adapter.calls, []); assert.equal(manifest.releaseEligible, false);
 });

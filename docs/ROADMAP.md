@@ -11,7 +11,7 @@ Coordination only. Work starts from the owner request or assigned issue.
   - the Contracts section-ownership conflict (elma365 E3) needs an owner/composition decision;
   - real dev2 exports of the Contracts baseline and changes;
   - P4/P5 native coverage and dependency receipt contracts (in progress in elma365); until then real coverage and dependency evidence fail closed;
-  - manifest regeneration policy v2;
+  - manifest regeneration policy v2 (Wiki selects it for profile-2 identities; live evidence and catalog support pending);
   - a process-runtime compiler;
   - then a designated candidate SHA-256 in `WIKI_TARGET_DEV2_DEPLOY_CANDIDATES` on the running service, and the live evidence gate G2: install, read-back, affected business checks and reset/recovery on dev2.
 - Source -> Workspace -> Target E2E implementation - plans/source-target-e2e.md.
