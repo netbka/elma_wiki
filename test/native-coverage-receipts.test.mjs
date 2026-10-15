@@ -175,7 +175,7 @@ test('a verified receipt from an admitted bridge observation locks the dependenc
   assert.deepEqual(result.blockers, []);
   assert.deepEqual(result.locks.map(row => [row.path, row.evidence, row.activation, row.targetProfileDigest]),
     [['licensed-preinstallation', 'native-receipt', 'verified-preinstalled', PROFILE]]);
-  assert.deepEqual(result.targetProfile, { targetId: 'synthetic-target', environment: 'synthetic-test', digest: PROFILE });
+  assert.deepEqual(result.targetProfile, { targetId: 'synthetic-target', environment: 'synthetic-target', digest: PROFILE });
   assert.equal(result.resolutionComplete, true);
   assert.equal(result.publicationReady, false); assert.equal(result.executionEnabled, false);
   // Expired after one day; an observation that is not verified stays assertion-only.
@@ -221,22 +221,25 @@ test('the observer admits only attested, valid, matching reports of an advertisi
   const silent = await bridgeWorker({ jobKinds: ['health', 'materialize'] });
   try {
     const quiet = configuredTargetProfileObserver({ env: silent.env, bridges: silent.store, log: assert.fail });
-    assert.deepEqual(await quiet.observe({ targetId: 'synthetic-target', environment: 'synthetic-test' }),
+    assert.deepEqual(await quiet.observe({ targetId: 'synthetic-target', environment: 'synthetic-target' }),
       { status: 'unavailable', reason: 'target-profile-observation-not-advertised', observation: null });
     assert.equal(await silent.store.poll(silent.worker), null, 'no job was enqueued');
     await assert.rejects(configuredTargetProfileObserver({ env: { ...silent.env, WIKI_NATIVE_MATERIALIZATION_BRIDGE_OWNER: 'other-owner' }, bridges: silent.store, log: () => {} })
-      .observe({ targetId: 'synthetic-target', environment: 'synthetic-test' }));
-    await assert.rejects(quiet.observe({ targetId: 'https://host', environment: 'synthetic-test' }), /Configured Target/);
+      .observe({ targetId: 'synthetic-target', environment: 'synthetic-target' }));
+    await assert.rejects(quiet.observe({ targetId: 'https://host', environment: 'synthetic-target' }), /Configured Target/);
+    // The configured Target id is sent as both targetId and environment; a caller cannot name another Target.
+    await assert.rejects(quiet.observe({ targetId: 'other-target', environment: 'other-target' }), /Configured Target only/);
+    await assert.rejects(quiet.observe({ environment: 'prod' }), /Configured Target only/);
   } finally { await silent.close(); }
   // The offline report is honestly unavailable and yields no observation.
   const unavailable = { contract: { ...NATIVE }, document: 'target-profile-report', worker: { ...WORKER }, status: 'unavailable', targetId: 'synthetic-target',
-    environment: 'synthetic-test', targetProfileDigest: null, platformVersion: null, observedAt: '2026-10-15T00:00:00.000Z', changedAt: null, inventoryDigest: null,
+    environment: 'synthetic-target', targetProfileDigest: null, platformVersion: null, observedAt: '2026-10-15T00:00:00.000Z', changedAt: null, inventoryDigest: null,
     installedSolutions: [], receipts: [], observation: null, evidenceRef: null, publicationReady: false, executionEnabled: false,
     unavailable: { reason: 'live-target-access-unavailable', missing: ['target-profile-digest'], requiredOperation: 'read-only target-profile-observation job' } };
   const unavailableWorker = await bridgeWorker({ respond: () => ({ report: unavailable }) });
   try {
     const offline = configuredTargetProfileObserver({ env: unavailableWorker.env, bridges: unavailableWorker.store, log: assert.fail });
-    const [outcome] = await Promise.all([offline.observe({ targetId: 'synthetic-target', environment: 'synthetic-test' }), unavailableWorker.serve()]);
+    const [outcome] = await Promise.all([offline.observe({ targetId: 'synthetic-target', environment: 'synthetic-target' }), unavailableWorker.serve()]);
     assert.equal(outcome.status, 'unavailable'); assert.equal(outcome.observation, null);
   } finally { await unavailableWorker.close(); }
   assert.equal(validateDependencyReceipt({}).valid, false);
@@ -248,7 +251,7 @@ test('the bridge store carries targetProfile as a read-only job: no artifact, no
   const store = bridgeStore(directory), { bridge, token } = await store.create('synthetic-owner', { name: 'Synthetic' });
   const worker = await store.authenticate(`Bearer ${token}`);
   await store.poll(worker, { capabilities: { jobKinds: ['targetProfile'] } });
-  const payload = { contract: { ...NATIVE }, runId: 'run', targetId: 'synthetic-target', environment: 'synthetic-test', requirements: [] };
+  const payload = { contract: { ...NATIVE }, runId: 'run', targetId: 'synthetic-target', environment: 'synthetic-target', requirements: [] };
   assert.deepEqual([...TARGET_PROFILE_PAYLOAD_KEYS].sort(), Object.keys(payload).sort());
   await assert.rejects(store.enqueue(bridge.id, 'targetProfile', payload, { artifact: Buffer.from('candidate') }), { statusCode: 422 });
   await assert.rejects(store.enqueue(bridge.id, 'targetProfile', { ...payload, code: 'synthetic_contracts' }), { statusCode: 422 });
@@ -265,12 +268,14 @@ test('the bridge store carries targetProfile as a read-only job: no artifact, no
   assert.deepEqual((await good).report, report);
   // End to end through the real store: the observer admits the worker's attested report.
   const observer = configuredTargetProfileObserver({ bridges: store, log: assert.fail, env: { WIKI_NATIVE_MATERIALIZATION_BRIDGE_ID: bridge.id,
-    WIKI_NATIVE_MATERIALIZATION_BRIDGE_OWNER: 'synthetic-owner', WIKI_NATIVE_MATERIALIZATION_REVISION: WORKER.nativeRevision } });
-  const pending = observer.observe({ targetId: 'synthetic-target', environment: 'synthetic-test', requirements: [need] });
+    WIKI_NATIVE_MATERIALIZATION_BRIDGE_OWNER: 'synthetic-owner', WIKI_NATIVE_MATERIALIZATION_REVISION: WORKER.nativeRevision,
+    WIKI_NATIVE_TARGET_PROFILE_TARGET: 'synthetic-target' } });
+  const pending = observer.observe({ targetId: 'synthetic-target', environment: 'synthetic-target', requirements: [need] });
   // The observer reads the bridge before enqueueing; let it queue the job first.
   let queued = null;
   for (let attempt = 0; attempt < 50 && !queued; attempt++) queued = await store.poll(worker, { waitMs: 100 });
   assert.equal(queued.kind, 'targetProfile');
+  assert.deepEqual([queued.payload.targetId, queued.payload.environment], ['synthetic-target', 'synthetic-target']);
   await store.complete(worker, queued.id, { ok: true, result: { report: observedReport({ runId: queued.payload.runId, installedSolutions: [installed('vendor_module')],
     requirements: queued.payload.requirements }) } });
   const outcome = await pending;
@@ -283,12 +288,21 @@ test('stub stores, caller-chosen worker revisions and hand-built results are ref
   const stub = { get: async () => ({ capabilities: { jobKinds: ['targetProfile'] } }), enqueue: async () => ({ report: observedReport() }) };
   assert.equal(isBridgeStore(stub), false);
   const env = { WIKI_NATIVE_MATERIALIZATION_BRIDGE_ID: '00000000-0000-4000-8000-000000000001', WIKI_NATIVE_MATERIALIZATION_BRIDGE_OWNER: 'synthetic-owner',
-    WIKI_NATIVE_MATERIALIZATION_REVISION: WORKER.nativeRevision };
+    WIKI_NATIVE_MATERIALIZATION_REVISION: WORKER.nativeRevision, WIKI_NATIVE_TARGET_PROFILE_TARGET: 'synthetic-target' };
   const logged = [];
   assert.equal(configuredTargetProfileObserver({ env, bridges: stub, log: message => logged.push(message) }), null);
   assert.match(logged[0], /no bridge store/);
   assert.equal(configuredTargetProfileObserver({ env: {}, bridges: stub, log: assert.fail }), null, 'unconfigured by default');
   assert.equal(configuredTargetProfileObserver({ env: { ...env, WIKI_NATIVE_MATERIALIZATION_REVISION: 'main' }, bridges: stub, log: () => {} }), null);
+  // Without a configured Target id there is no observer.
+  const unnamed = await bridgeWorker();
+  try {
+    const why = [];
+    const { WIKI_NATIVE_TARGET_PROFILE_TARGET: ignored, ...withoutTarget } = unnamed.env;
+    assert.equal(configuredTargetProfileObserver({ env: withoutTarget, bridges: unnamed.store, log: message => why.push(message) }), null);
+    assert.match(why[0], /WIKI_NATIVE_TARGET_PROFILE_TARGET/);
+    assert.equal(configuredTargetProfileObserver({ env: { ...unnamed.env, WIKI_NATIVE_TARGET_PROFILE_TARGET: 'https://host' }, bridges: unnamed.store, log: () => {} }), null);
+  } finally { await unnamed.close(); }
   assert.equal('bridgeTargetProfileObserver' in bridgeModule, false);
   // The expected revision is the configured one: a caller argument is ignored, and a report from
   // the worker the caller names instead of the configured one is refused.
@@ -299,7 +313,7 @@ test('stub stores, caller-chosen worker revisions and hand-built results are ref
   try {
     const observer = configuredTargetProfileObserver({ env: worker.env, bridges: worker.store, nativeRevision: other, log: assert.fail });
     assert.equal(observer.nativeRevision, WORKER.nativeRevision);
-    const [outcome] = await Promise.all([observer.observe({ targetId: 'synthetic-target', environment: 'synthetic-test' }), worker.serve()]);
+    const [outcome] = await Promise.all([observer.observe({ targetId: 'synthetic-target', environment: 'synthetic-target' }), worker.serve()]);
     assert.deepEqual(outcome.errors, ['native-worker-revision-mismatch']);
   } finally { await worker.close(); }
   // Results are branded by the producing module; copies are not.
@@ -322,4 +336,22 @@ test('catalog kinds match the casing of real exports exactly: widget, never WIDG
   const doc = nativeDeclaration({ captures: artifacts, targetProfileDigest: PROFILE });
   assert.deepEqual(doc.units[0].unsupportedMembers.map(row => row.reason), ['unknown-capability']);
   assert.equal(nativeDeclaration({ captures: [capture([WIDGET])], targetProfileDigest: PROFILE }).units[0].status, 'supported');
+});
+
+test('a non-designated Target answers unavailable/target-not-designated and yields no observation', async () => {
+  // As the elma365 #106 worker answers on a bridge whose configured Target is not designated.
+  const report = { contract: { ...NATIVE }, document: 'target-profile-report', worker: { ...WORKER }, status: 'unavailable', targetId: 'synthetic-target',
+    environment: 'synthetic-target', targetProfileDigest: null, platformVersion: null, observedAt: '2026-10-15T00:00:00.000Z', changedAt: null, inventoryDigest: null,
+    installedSolutions: [], receipts: [], observation: null, evidenceRef: null, publicationReady: false, executionEnabled: false,
+    unavailable: { reason: 'target-not-designated', missing: ['target-designation'], requiredOperation: 'designate this non-production Target for read-only observation' } };
+  const worker = await bridgeWorker({ respond: payload => {
+    assert.deepEqual([payload.targetId, payload.environment], ['synthetic-target', 'synthetic-target']);
+    return { report };
+  } });
+  try {
+    const observer = configuredTargetProfileObserver({ env: worker.env, bridges: worker.store, log: assert.fail });
+    const [outcome] = await Promise.all([observer.observe({ requirements: [need] }), worker.serve()]);
+    assert.deepEqual([outcome.status, outcome.reason, outcome.observation], ['unavailable', 'target-not-designated', null]);
+    assert.ok(reasons(resolveNative({ observation: outcome.observation }).blockers).includes('unobserved-target-profile'));
+  } finally { await worker.close(); }
 });

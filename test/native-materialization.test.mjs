@@ -596,7 +596,7 @@ async function nativeEvidence(resolution, changes, { today = false } = {}) {
     declarations: [nativeDeclaration({ captures: [capture], changes, targetProfileDigest: NATIVE_PROFILE, targetReport: report })] });
   const dependencyEvidence = resolveDependencyEvidence({ plan: coverage.plan, receiptContract: { id: 'elma365-dependency-receipt', version: 1 },
     observation: observed?.observation ?? null, bindings: [VENDOR_BINDING], now: '2026-10-10T18:00:00.000Z' });
-  const targetProfile = report ? wikiTargetProfile(report) : { targetId: 'synthetic-target', environment: 'synthetic-test', digest: NATIVE_PROFILE, platformVersion: '2025.4', changedAt: NOW };
+  const targetProfile = report ? wikiTargetProfile(report) : { targetId: 'synthetic-target', environment: 'synthetic-target', digest: NATIVE_PROFILE, platformVersion: '2025.4', changedAt: NOW };
   return { coverage, dependencies: dependencyEvidence, targetProfile };
 }
 const nativeRequest = async (env, change, resolution, evidence) => {

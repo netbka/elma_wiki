@@ -31,7 +31,7 @@ export const installed = (code, extra = {}) => ({ code, version: '2.1.0', paid: 
 
 /** Observed report (elma365 observedTargetProfileReport) with receipts for `requirements`
  * ({service, namespace, code, provider: {code, version}}). */
-export function observedReport({ targetId = 'synthetic-target', environment = 'synthetic-test', targetProfileDigest = hex('a'), platformVersion = '2025.4',
+export function observedReport({ targetId = 'synthetic-target', environment = targetId, targetProfileDigest = hex('a'), platformVersion = '2025.4',
   observedAt = '2026-10-15T00:00:00.000Z', changedAt = observedAt, installedSolutions = [], requirements = [], runId = 'synthetic-run',
   worker = WORKER } = {}) {
   const solutions = [...installedSolutions].sort((a, b) => compare(a.code, b.code));
@@ -82,7 +82,7 @@ export async function bridgeWorker({ respond = () => { throw Error('no job expec
     throw Error('No job arrived');
   };
   const env = { WIKI_NATIVE_MATERIALIZATION_BRIDGE_ID: bridge.id, WIKI_NATIVE_MATERIALIZATION_BRIDGE_OWNER: 'synthetic-owner',
-    WIKI_NATIVE_MATERIALIZATION_REVISION: WORKER.nativeRevision };
+    WIKI_NATIVE_MATERIALIZATION_REVISION: WORKER.nativeRevision, WIKI_NATIVE_TARGET_PROFILE_TARGET: 'synthetic-target' };
   return { store, bridge, worker, env, jobs, serve, close: () => fs.rm(directory, { recursive: true, force: true }) };
 }
 
@@ -92,8 +92,7 @@ export async function observe(options = {}, { patch = report => report, env = {}
     environment: payload.environment, runId: payload.runId, ...options })) }) });
   try {
     const observer = configuredTargetProfileObserver({ env: { ...worker.env, ...env }, bridges: worker.store, log: () => {} });
-    const [result] = await Promise.all([observer.observe({ targetId: options.targetId ?? 'synthetic-target', environment: options.environment ?? 'synthetic-test',
-      requirements: options.requirements ?? [] }), worker.serve()]);
+    const [result] = await Promise.all([observer.observe({ requirements: options.requirements ?? [] }), worker.serve()]);
     return result;
   } finally { await worker.close(); }
 }
