@@ -150,8 +150,37 @@ three roots, including unresolved records after restart.
   400.
 
 The delivery renderer shows the `partial-outcome` state and the per-unit
-receipts in import order (Storybook `delivery--partial-outcome`). No Solution
-composer screen exists yet, and no live, native or business result is claimed:
+receipts in import order (Storybook `delivery--partial-outcome`).
+
+**Solution composer screen.** `/solutions?id=:id&view=compose` is the «Сборка»
+tab inside the Solution (shown once a change or full update was accepted), not
+a separate destination. `web/managed/composer.js` lists the frozen candidates
+from `GET /api/solutions/:id/composed`, opens one with `&candidate=:id`, and
+shows its status (`stale`, awaiting exact-byte approval, approved), import
+order, Target platform and evidence basis. A synthetic candidate is labelled as
+not a native ELMA package and not release-eligible. Approve/revoke posts the
+existing review action with a required reason. An approved or stale candidate
+mounts the shared delivery renderer (`web/releases/delivery.js`) through
+`composedDeliveryClient`, so prepare/confirm/read-back, `partial-outcome`
+unit receipts, unknown outcome and lost-response recovery behave exactly as
+for the handoff; a stale candidate shows history read-only. Starting a build is
+always shown disabled: `GET /api/delivery/capabilities` reports
+`composedBuild: {available: false, reason: 'native-materialization-unavailable',
+reference: 'netbka/elma365#60', missing}` because freezing has no HTTP route and
+no native materialization contract is pinned. The screen never presents a build
+as working. Storybook: `solution-composer--*`; check:
+`npm run test:composer:storybook`.
+
+The Solution next action (`solutionNextAction`) projects the product plan map
+from server state: a stale pending comparison → «Сравнить изменения»
+(`compare`); a conflicting pending change → «Разрешить конфликт»
+(`conflict`), or «Указать базу изменения» (`unknown-base`) when its base is
+undeclared; with composer data loaded and accepted changes, no current candidate
+→ `build-blocked` (or `build` only if the server reports `composedBuild.available`),
+and a current candidate → «Проверить конфигурацию» (`verify`). Without composer
+data the review-only projection is unchanged.
+
+No live, native or business result is claimed:
 `node --test test/composed-delivery.test.mjs` uses synthetic archives, the
 synthetic P6 assembler and the synthetic Target adapter only. The native
 release eligibility of a composed candidate remains blocked on the open P8 gate

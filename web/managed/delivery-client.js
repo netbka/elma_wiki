@@ -1,7 +1,14 @@
 // The URL captures the exact Solution/handoff pair. Execution identity comes from
 // the authenticated session; shared content IDs never enter the legacy API.
 export function solutionDeliveryClient(solutionId, request) {
-  const handoff = id => `/api/solutions/${encodeURIComponent(solutionId)}/handoffs/${encodeURIComponent(id)}`;
+  return contextualDeliveryClient(id => `/api/solutions/${encodeURIComponent(solutionId)}/handoffs/${encodeURIComponent(id)}`, request);
+}
+// Composed candidates (MR-06) use the same coordinator under their own namespace;
+// refresh reads the candidate record, never a handoff.
+export function composedDeliveryClient(solutionId, request) {
+  return contextualDeliveryClient(id => `/api/solutions/${encodeURIComponent(solutionId)}/composed/${encodeURIComponent(id)}`, request);
+}
+function contextualDeliveryClient(handoff, request) {
   return {
     async load(id) {
       const [capabilities, connections, attempts, bridges] = await Promise.all([

@@ -65,8 +65,10 @@ export function hasAcceptedFullExport(state) {
     && baseline.components.every(row => current.get(row.key) === row.digest);
 }
 
-// The domain stays authoritative. This pure projection chooses one next action.
-export function solutionNextAction(state, { error, stale, view } = {}) {
+// The domain stays authoritative. This pure projection chooses one next action
+// (product plan one-next-action map). Composer states are projected only when the
+// server's composed candidates and build capability were actually loaded.
+export function solutionNextAction(state, { error, stale, view, composed } = {}) {
   if (error || stale) return { state: stale ? 'stale' : 'error', summary: 'Проверьте актуальное состояние решения.', label: 'Обновить состояние', view: 'overview' };
   if (!state) return { state: 'empty', summary: 'Решений пока нет.', label: 'Добавить решение', view: 'create' };
   if (state.status === 'archived') return { state: 'archived', summary: 'Решение в архиве. Исходные файлы и история сохранены.', label: 'Возобновить работу', action: 'reopen' };
@@ -75,19 +77,32 @@ export function solutionNextAction(state, { error, stale, view } = {}) {
   const problem = pending.find(row => !row.stale && (row.attention?.conflicts || row.attention?.unknown));
   const fixes = pending.find(row => !row.stale && row.decision === 'needs-changes');
   const fresh = problem || fixes || pending.find(row => !row.stale);
+  // A conflicting partial change without a declared base cannot be resolved
+  // three-way; the base is established by preparing the change again.
+  if (problem?.attention.conflicts && problem.kind === 'change' && problem.baseDeclaration?.status === 'unknown')
+    return { state: 'unknown-base', summary: 'В изменении есть конфликт, а его исходная версия не указана. Укажите базу, чтобы сравнить версии.', label: 'Указать базу изменения', view: 'change', artifact: problem.artifactId };
   if (fresh) return {
     state: problem ? problem.attention.conflicts ? 'conflict' : 'unknown' : fixes ? 'needs-fixes' : 'unreviewed',
-    summary: problem ? problem.attention.conflicts ? 'В изменении есть конфликт. Выберите версию при рассмотрении.' : 'Часть изменения не распознана. Проверьте исходные данные.'
+    summary: problem ? problem.attention.conflicts ? 'В изменении есть конфликт. Выберите версию для каждого объекта.' : 'Часть изменения не распознана. Проверьте исходные данные.'
       : fixes ? 'Для изменения запрошены исправления.' : `${pending.length} изменений ожидают рассмотрения.`,
-    label: fixes && !problem ? 'Добавить исправление' : 'Рассмотреть изменение',
+    label: problem?.attention.conflicts ? 'Разрешить конфликт' : fixes && !problem ? 'Добавить исправление' : 'Рассмотреть изменение',
     view: fixes && !problem ? fresh.kind === 'change' ? 'change' : 'full' : 'review', artifact: fresh.artifactId
   };
-  if (pending.length) return { state: 'stale', summary: 'Сравнение устарело после обновления решения.', label: 'Сравнить заново', view: pending[0].kind === 'change' ? 'change' : 'full' };
+  if (pending.length) return { state: 'compare', summary: 'Принятая версия изменилась. Изменения нужно сравнить заново.', label: 'Сравнить изменения', view: pending[0].kind === 'change' ? 'change' : 'full' };
   if (state.openFindings?.length) return { state: 'needs-fixes', summary: 'Есть замечания к принятому изменению.', label: 'Рассмотреть замечания', view: 'review', artifact: state.openFindings[0].artifactId };
   // Delivery states are projected only when the existing delivery capability is supplied.
   if (state.delivery?.supported && state.delivery.state === 'deployed-unverified') return { state: 'test-awaiting-verification', summary: 'Версия отправлена в TEST. Результат ещё не проверен.', label: 'Проверить TEST', view: 'delivery' };
   if (state.delivery?.supported && state.delivery.state === 'verified') return { state: 'verified', summary: 'TEST проверен. Работа завершена.', label: 'Открыть решение', view: 'solution' };
   const accepted = state.changes?.length || state.reconciliations?.length;
+  if (accepted && composed) {
+    const current = (composed.candidates || []).filter(row => row.inputsStatus === 'current').sort((a, b) => a.createdAt.localeCompare(b.createdAt)).at(-1);
+    if (current) return { state: 'verify', summary: current.evidenceBasis === 'native' && current.releaseEligible === true
+      ? 'Конфигурация собрана, но не проверена на Target.' : 'Есть учебная сборка. Её можно проверить только на учебном стенде; это не пакет ELMA и не выпуск.',
+      label: 'Проверить конфигурацию', view: 'compose', candidate: current.id };
+    return composed.build?.available === true
+      ? { state: 'build', summary: 'Изменения приняты. Соберите конфигурацию из принятой версии.', label: 'Собрать конфигурацию', view: 'compose' }
+      : { state: 'build-blocked', summary: 'Изменения приняты. Сборка конфигурации заблокирована: нативная материализация ELMA недоступна.', label: 'Открыть сборку', view: 'compose' };
+  }
   return accepted ? { state: 'accepted', summary: 'Изменения приняты. Ожидающих решений нет.', label: view === 'solution' ? 'Добавить изменение' : 'Открыть решение', view: view === 'solution' ? 'change' : 'solution' }
     : { state: 'ready', summary: 'Текущая версия сохранена. Можно добавить изменение.', label: 'Добавить изменение', view: 'change' };
 }

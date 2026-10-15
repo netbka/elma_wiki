@@ -112,7 +112,12 @@ test('delivery capability API remains authenticated and distinguishes unavailabl
       headers.Cookie = login.headers.get('set-cookie').split(';')[0];
       const response = await fetch(base + '/api/delivery/capabilities', { headers });
       // The operator bridge is always registered; `liveDelivery` only turns true with verified live evidence.
-      assert.deepEqual(await response.json(), { mode: syntheticDelivery ? 'synthetic' : 'bridge', liveDelivery: false, bridge: true, adapters: syntheticDelivery ? ['synthetic', 'bridge'] : ['bridge'] });
+      const capabilities = await response.json();
+      // The composer build stays unavailable until a native materialization contract and a trusted build route exist.
+      assert.deepEqual(capabilities.composedBuild, { available: false, reason: 'native-materialization-unavailable', reference: 'netbka/elma365#60',
+        missing: ['versioned-materialization-request-contract', 'baseline-preserving-stage-service', 'process-runtime-compiler', 'native-package-validation-receipt', 'manifest-regeneration-policy', 'isolated-native-assembler'] });
+      delete capabilities.composedBuild;
+      assert.deepEqual(capabilities, { mode: syntheticDelivery ? 'synthetic' : 'bridge', liveDelivery: false, bridge: true, adapters: syntheticDelivery ? ['synthetic', 'bridge'] : ['bridge'] });
       assert.equal((await fetch(base + '/api/delivery/capabilities', { method: 'POST', headers, body: '{}' })).status, 405);
     } finally { await new Promise(resolve => server.close(resolve)); }
   }
