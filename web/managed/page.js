@@ -121,6 +121,21 @@ try {
     try { about = { purpose: await request(`${api}/${encodeURIComponent(id)}/explanations?scope=solution-purpose`) }; }
     catch (error) { about = { purpose: { loadError: error.message } }; }
   }
+  // UX-06: the process and screen tabs read the captured artifacts' projections
+  // (diagrams, declared fields) before rendering; a failed read is shown per artifact.
+  let visuals;
+  if (api === '/api/solutions' && workspace && ['flows', 'solution'].includes(view)) {
+    const wanted = new Set();
+    for (const row of workspace.current || []) {
+      if (!['processor', 'widgets', 'applications', 'collections'].includes(row.service)) continue;
+      const captured = (workspace.artifacts || []).filter(artifact => (artifact.components || []).some(component => component.key === row.key && component.digest === row.digest)).at(-1);
+      if (captured) wanted.add(captured.id);
+    }
+    visuals = Object.fromEntries(await Promise.all([...wanted].map(async artifactId => {
+      try { return [artifactId, await request(`${api}/${encodeURIComponent(id)}/artifacts/${encodeURIComponent(artifactId)}/visual`)]; }
+      catch (error) { return [artifactId, { error: error.message }]; }
+    })));
+  }
   // Replacing a prepared change offers its exact captured keys as scope candidates.
   let previousReview = null;
   if (shared && workspace && artifact && view === 'change') {
@@ -132,7 +147,7 @@ try {
   if (shared && !config.legacy && (view === 'create' || view === 'full')) {
     try { pullUnavailable = (await request('/api/config-source/servers')).configured === false; } catch { pullUnavailable = true; }
   }
-  root.replaceChildren(mountManagedWorkspace({ ...config, workspace, view, review, rows, handoff, handoffs, exportEvidence, handoffReason, acquisition, previousReview, composed, pullUnavailable, about }, actions));
+  root.replaceChildren(mountManagedWorkspace({ ...config, workspace, view, review, rows, handoff, handoffs, exportEvidence, handoffReason, acquisition, previousReview, composed, pullUnavailable, about, visuals, object: query.get('object') }, actions));
   document.title = (workspace?.name || (view === 'create' ? 'Загрузить решение' : 'Решения')) + ' · E365';
   root.querySelector('h1')?.focus({ preventScroll: true });
 } catch (error) {

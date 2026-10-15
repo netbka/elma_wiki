@@ -168,6 +168,13 @@ try {
   await page.goto(workspaceUrl);
   await page.getByRole('link', { name: 'Экраны и данные', exact: true }).click();
   await page.getByRole('heading', { name: 'Текущее состояние · 3 объектов', exact: true }).waitFor();
+  // UX-06: search by name or code keeps the grouping and announces the count.
+  await page.getByLabel('Поиск по названию или коду', { exact: true }).fill('contract');
+  await page.getByText('1 объектов', { exact: true }).waitFor();
+  assert.equal(await page.locator('.managed-screens .managed-card:not([hidden])').count(), 1, 'search narrows the screens');
+  await page.getByLabel('Поиск по названию или коду', { exact: true }).fill('нет такого');
+  await page.getByText('Ничего не найдено', { exact: true }).waitFor();
+  await page.getByLabel('Поиск по названию или коду', { exact: true }).fill('');
   await page.getByRole('link', { name: 'Обновить', exact: true }).click();
   await upload(await archive([['contract', 'vendor'], ['untouched', 'base'], ['added', 'ours']]), true);
   await page.getByLabel('Экспорт относится к этому решению и тому же источнику ELMA', { exact: true }).check();
@@ -242,7 +249,11 @@ try {
   processState = await (await context.request.get(base + processRoute)).json();
   assert.equal(processState.current[0].responsibility.elements.find(part => part.code === 'y').team, 'Korus');
   assert.equal(processState.current[0].responsibility.elements.find(part => part.code === 'x').team, 'Internal');
-  await page.getByRole('link', { name: 'Экраны и данные', exact: true }).click(); await page.getByText('Internal: 3 · Korus: 1', { exact: true }).waitFor();
+  // UX-06: processes live on Как работает with their responsibility and open the diagram there.
+  await page.getByRole('link', { name: 'Как работает', exact: true }).click(); await page.getByText('Internal: 3 · Korus: 1', { exact: true }).waitFor();
+  await page.getByRole('button', { name: /^Посмотреть процесс: / }).first().click();
+  await page.getByRole('img', { name: 'Схема процесса из экспорта', exact: true }).waitFor();
+  await page.getByText(/^Кто выполняет: /).first().waitFor();
   const boundary = structuredClone(additions); boundary.process.items.y.condition = 'reviewed edit';
   await prepareProcess(boundary, 'change'); await acceptBlocked();
   await page.getByLabel('Изменение принятого объекта проверено', { exact: true }).check();
@@ -267,7 +278,7 @@ try {
     } catch { res.writeHead(404); res.end(); }
   });
   await new Promise(resolve => stories.listen(0, '127.0.0.1', resolve));
-  const storyModes = ['empty','list','create','overview','pending','change','review','conflict','overlap','ambiguous','stale','archived','loading','load-error','changes','solution','no-source','needs-fixes','pending-conflict','review-comment','review-findings','review-resolved','review-accepted','review-stale-anchor','review-removed-anchor','review-ambiguous-anchor','elements-added','elements-boundary','elements-conflict','elements-unknown','create-legacy','pull-exporting','pull-ready','pull-failed','pull-unavailable','update','summary-mixed','summary-no-changes','summary-closed','decision','lifecycle-build','lifecycle-verified','about-empty','about-generated','about-saved','about-stale','about-error'];
+  const storyModes = ['empty','list','create','overview','pending','change','review','conflict','overlap','ambiguous','stale','archived','loading','load-error','changes','solution','no-source','needs-fixes','pending-conflict','review-comment','review-findings','review-resolved','review-accepted','review-stale-anchor','review-removed-anchor','review-ambiguous-anchor','elements-added','elements-boundary','elements-conflict','elements-unknown','create-legacy','pull-exporting','pull-ready','pull-failed','pull-unavailable','update','summary-mixed','summary-no-changes','summary-closed','decision','lifecycle-build','lifecycle-verified','about-empty','about-generated','about-saved','about-stale','about-error','flows','flows-error','flows-unknown','screens'];
   for (const mode of storyModes) {
     await page.goto(`http://127.0.0.1:${stories.address().port}/iframe.html?id=managed-workspace--${mode}&viewMode=story`);
     await page.locator('.managed-shell h1').waitFor();
@@ -296,11 +307,45 @@ try {
       await page.getByRole('heading', { name: 'Для чего', exact: true }).waitFor(); await page.getByRole('heading', { name: 'Модули', exact: true }).waitFor();
       const activity = page.getByRole('list', { name: 'Последние события', exact: true });
       await activity.getByText('Uploader', { exact: true }).waitFor(); assert.equal(await activity.getByText('Reviewer', { exact: true }).count(), 2);
+      // A code-less module card is titled "Без модуля" and offers no Объяснить button; a real module does.
+      const orphan = page.locator('.managed-about .managed-card').filter({ has: page.getByRole('heading', { name: 'Без модуля', exact: true }) });
+      assert.equal(await orphan.count(), 1, 'one code-less module card: ' + mode); assert.equal(await orphan.getByRole('button', { name: 'Объяснить', exact: true }).count(), 0, 'no Explain for a code-less module');
+      assert.equal(await page.locator('.managed-about .managed-card').filter({ has: page.getByRole('heading', { name: 'synthetic', exact: true }) }).getByRole('button', { name: 'Объяснить', exact: true }).count(), 1);
       if (mode === 'about-empty') { await page.getByText('Опишите, для чего это решение', { exact: true }).waitFor(); await page.getByRole('button', { name: 'Написать', exact: true }).waitFor(); }
       if (mode === 'about-generated') { assert.match(await page.getByLabel('Описание решения', { exact: true }).inputValue(), /Решение объединяет модули/); assert.equal(await page.getByRole('button', { name: 'Сохранить описание', exact: true }).isDisabled(), false); }
       if (mode === 'about-saved') { await page.getByText(/^Командировки сотрудников/).first().waitFor(); await page.getByRole('button', { name: 'Изменить', exact: true }).waitFor(); assert.equal(await page.getByText('Состав решения изменился после сохранения. Проверьте описание.', { exact: true }).count(), 0); }
       if (mode === 'about-stale') await page.getByText('Состав решения изменился после сохранения. Проверьте описание.', { exact: true }).waitFor();
       if (mode === 'about-error') { await page.getByRole('alert').filter({ hasText: 'Описание не получено' }).waitFor(); await page.getByRole('button', { name: 'Написать', exact: true }).waitFor(); }
+    }
+    if (mode === 'flows') {
+      await page.getByText(/^Задачи: /).waitFor();
+      await page.getByLabel('Поиск по названию или коду', { exact: true }).fill('trip');
+      assert.equal(await page.locator('.managed-flows .managed-card:not([hidden])').count(), 1);
+      await page.getByLabel('Поиск по названию или коду', { exact: true }).fill('');
+      await page.getByRole('button', { name: 'Посмотреть процесс: trip_approval', exact: true }).click();
+      await page.getByRole('img', { name: 'Схема процесса из экспорта', exact: true }).waitFor();
+      await page.getByText('Кто выполняет: Согласующий', { exact: true }).first().waitFor();
+      assert.equal(await page.locator('.visual-unsupported').count(), 0, 'a fully supported process has no unsupported list');
+      await page.setViewportSize({ width: 390, height: 844 }); assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'flows 390');
+    }
+    if (mode === 'flows-error') { await page.getByText(/^Схема не получена: /).first().waitFor(); }
+    if (mode === 'flows-unknown') {
+      // An unsupported lane and node: who does it is unknown, and the unsupported items are one collapsed list with a count.
+      await page.getByRole('button', { name: 'Посмотреть процесс: trip_approval', exact: true }).click();
+      await page.getByRole('img', { name: 'Схема процесса из экспорта', exact: true }).waitFor();
+      await page.getByText('Кто выполняет: дорожка не указана', { exact: true }).first().waitFor();
+      const unsupported = page.locator('.visual-unsupported > summary'); await unsupported.waitFor();
+      assert.match(await unsupported.innerText(), /^Не поддерживается · [1-9]\d*$/);
+      assert.equal(await page.locator('.visual-unsupported[open]').count(), 0, 'the list is collapsed by default');
+    }
+    if (mode === 'screens') {
+      await page.locator('summary', { hasText: 'Поля · 2' }).click();
+      await page.getByRole('cell', { name: 'Сумма', exact: true }).waitFor();
+      await page.getByText('Поля не восстановлены из экспорта', { exact: true }).first().waitFor();
+      assert.equal(await page.getByRole('heading', { name: /^Объекты решения · \d+$/ }).innerText(), 'Объекты решения · 8', 'processes are not counted among screens and data');
+      assert.equal(await page.locator('.managed-screens').getByRole('heading', { name: /^Процессы · / }).count(), 0, 'processes are not listed among screens');
+      await page.getByRole('link', { name: /^Как работает · 1$/ }).waitFor();
+      await page.setViewportSize({ width: 390, height: 844 }); assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'screens 390');
     }
     if (mode === 'summary-closed') { await page.getByText(/^Закрыто без изменений:/).waitFor(); assert.equal(await page.getByRole('button', { name: 'Решение по версии', exact: true }).count(), 0); }
     if (!mode.startsWith('review-') && !mode.startsWith('elements-') && !['create','create-legacy','update','change','review','conflict','overlap','ambiguous','archived','loading','summary-mixed','summary-no-changes','summary-closed','decision'].includes(mode) && !mode.startsWith('pull-')) assert.equal(await page.locator('.managed-content a.button').count(), 1, 'one primary action: ' + mode);

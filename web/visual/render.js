@@ -1,6 +1,6 @@
-import { relatedForm, checkScenarioStep } from './model.js';
+import { relatedForm, checkScenarioStep, laneOf } from './model.js';
 import { mountExplanation } from '../explanations/render.js';
-import { diagram as diagramLabels } from '../managed/labels.js';
+import { diagram as diagramLabels, flows as flowLabels } from '../managed/labels.js';
 const el=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n;};
 const svg=(tag,attrs={})=>{const n=document.createElementNS('http://www.w3.org/2000/svg',tag);for(const [k,v] of Object.entries(attrs))n.setAttribute(k,String(v));return n;};
 export function mountSnapshotVisual(model={},actions={}) {
@@ -11,6 +11,7 @@ export function mountSnapshotVisual(model={},actions={}) {
   root.append(style,el('h2','Процесс и форма'),el('p','Схема восстановлена из экспорта. Поведение и права ELMA не проверены.'));
   if(model.loading){root.append(el('p','Загружаем визуальный обзор…'));return root;}
   if(model.error){const e=el('p',model.error);e.setAttribute('role','alert');root.append(e);if(actions.retry){const b=el('button','Повторить загрузку');b.type='button';b.onclick=actions.retry;root.append(b);}return root;}
+  if(model.processLimit){root.append(el('p',flowLabels.tooManyProcesses+' · '+model.processLimit));return root;}
   if(!model.processes?.length){root.append(el('p','В этом снимке нет поддерживаемой схемы процесса. Исходный файл сохранён.'));return root;}
   if(model.synthetic)root.append(el('p','Учебный пример. Данные и сценарии синтетические.'));
   const badges=el('div');badges.className='visual-evidence';
@@ -66,6 +67,8 @@ export function mountSnapshotVisual(model={},actions={}) {
         if(followTransition)path.push(node.name);else path=[node.name];
       }refresh();
       panel.replaceChildren(el('h3',node.name),source(node.pointer));
+      // UX-06: who does it, from the lane that contains the step in the export.
+      const lane=laneOf(process,node);panel.append(el('p',flowLabels.whoDoes+': '+(lane?lane.name:flowLabels.laneUnknown)));
       if(actions.explanations)panel.append(explanation({scope:'step',artifactId:model.artifactId,source:process.source,nodeId:node.id},'Объяснить этот шаг',openSource));
       diagram.querySelectorAll('[data-node]').forEach(n=>n.setAttribute('stroke',n.dataset.node===node.id?'#087451':n.dataset.changed?'#b36b00':'#536660'));
       const relation=relatedForm(process,node.id);
@@ -106,9 +109,12 @@ export function mountSnapshotVisual(model={},actions={}) {
       g.append(shape,label);g.onclick=()=>select(node);g.onkeydown=e=>{if(['Enter',' '].includes(e.key)){e.preventDefault();select(node);}};diagram.append(g);
     }
     layout.append(diagram,panel);content.append(layout);
-    for(const lane of process.lanes.filter(l=>!l.supported))content.append(el('p','Область процесса не поддерживается: '+(lane.name||lane.id)),source(lane.pointer));
-    for(const edge of process.edges.filter(e=>!e.supported))content.append(el('p','Переход не поддерживается: '+(edge.name||edge.id)),source(edge.pointer));
-    for(const issue of process.issues)content.append(el('p',issue.reason),source(issue.pointer));
+    // UX-06: unsupported lanes, transitions and projection issues in one collapsed list with a count.
+    const unsupported=el('details'), unsupportedBody=el('div');unsupported.className='visual-unsupported';let unsupportedCount=0;
+    for(const lane of process.lanes.filter(l=>!l.supported)){unsupportedCount++;unsupportedBody.append(el('p','Область процесса не поддерживается: '+(lane.name||lane.id)),source(lane.pointer));}
+    for(const edge of process.edges.filter(e=>!e.supported)){unsupportedCount++;unsupportedBody.append(el('p','Переход не поддерживается: '+(edge.name||edge.id)),source(edge.pointer));}
+    for(const issue of process.issues){unsupportedCount++;unsupportedBody.append(el('p',issue.reason),source(issue.pointer));}
+    if(unsupportedCount){unsupported.append(el('summary',flowLabels.unsupported+' · '+unsupportedCount),unsupportedBody);content.append(unsupported);}
     if(process.nodes.length)select(process.nodes.find(node=>node.id===model.scenario?.stepId)||process.nodes[0]);
     if(model.scenario?.missing && current){const result=checkScenarioStep(process,current.id,values[current.id]||{},process.edges.find(edge=>edge.source===current.id)?.id);
       if(result.missing.length)error.textContent='По экспорту требуется: '+result.missing.map(field=>field.name||field.code).join(', ')+'. Введённые значения сохранены.';}

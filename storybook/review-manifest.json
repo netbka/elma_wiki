@@ -897,7 +897,11 @@
         "managed-workspace--about-generated",
         "managed-workspace--about-saved",
         "managed-workspace--about-stale",
-        "managed-workspace--about-error"
+        "managed-workspace--about-error",
+        "managed-workspace--flows",
+        "managed-workspace--flows-error",
+        "managed-workspace--screens",
+        "managed-workspace--flows-unknown"
       ],
       "requiredVisibleStates": [
         "empty",
@@ -955,7 +959,11 @@
         "about-generated",
         "about-saved",
         "about-stale",
-        "about-error"
+        "about-error",
+        "flows",
+        "flows-error",
+        "screens",
+        "flows-unknown"
       ],
       "sources": [
         "docs/workflows/solutions.md",

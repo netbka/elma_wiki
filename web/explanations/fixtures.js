@@ -38,7 +38,7 @@ export function explanationFixtureActions(){
 }
 export function explanationSolutionFixture(){
   const model=managedFixture('solution'), component={key:JSON.stringify(['processor','synthetic.processes','approval']),service:'processor',code:'approval',digest:'a'.repeat(64),team:'Учебная команда',interventionId:null};
-  model.workspace.current=[component];model.workspace.artifacts[0].components=[component];
+  model.workspace.current=[component];model.workspace.artifacts[0].components=[component];model.view='flows';
   return model;
 }
 export function explanationSolutionActions(){

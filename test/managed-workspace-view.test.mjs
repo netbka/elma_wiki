@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { managedFixture } from '../web/managed/fixtures.js';
-import { moduleCardView, dateLabel, moduleCards, activityFeed, relativeTime, solutionStatus, lifecycleSteps, reviewGate, workspaceSummary, componentName, workspaceUrl, solutionNextAction, responsibilityLabel, responsibilityReport, hasAcceptedFullExport, objectLabel, objectCode, objectFromKey, objectKindLabel, objectModule, isSystemObject, groupObjects, reviewSummary, reviewBucket, groupDependencies } from '../web/managed/model.js';
+import { capturedArtifact, matchesQuery, moduleCardView, dateLabel, moduleCards, activityFeed, relativeTime, solutionStatus, lifecycleSteps, reviewGate, workspaceSummary, componentName, workspaceUrl, solutionNextAction, responsibilityLabel, responsibilityReport, hasAcceptedFullExport, objectLabel, objectCode, objectFromKey, objectKindLabel, objectModule, isSystemObject, groupObjects, reviewSummary, reviewBucket, groupDependencies } from '../web/managed/model.js';
 import { solutionHandoffFixture } from '../web/managed/handoff-fixtures.js';
 
 test('handoff navigation requires a matching accepted full state and stays separate from delivery evidence', () => {
@@ -194,6 +194,25 @@ test('UX-05: module cards count business rows by kind, the activity list names p
   assert.equal(relativeTime('2026-10-01T13:00:00Z', now), dateLabel('2026-10-01T13:00:00Z'));
   assert.equal(model.about.purpose.saved.sourceStatus, 'current'); assert.equal(managedFixture('about-stale').about.purpose.saved.sourceStatus, 'stale');
   assert.equal(managedFixture('about-empty').about.purpose.saved, null); assert.equal(managedFixture('about-generated').aboutEditing, true);
+});
+
+test('UX-06: search matches name, code, namespace and key; captured artifacts resolve by exact digest; summaries and lanes come from declared data', async () => {
+  const { processSummary, laneOf } = await import('../web/visual/model.js');
+  const model = managedFixture('flows'), state = model.workspace;
+  const process = state.current.find(row => row.service === 'processor'), widget = state.current.find(row => row.code === 'contract');
+  assert.equal(capturedArtifact(state, process).id, state.baselineId);
+  assert.equal(capturedArtifact(state, { ...widget, digest: 'b'.repeat(64) }), null);
+  assert.equal(matchesQuery(widget, ''), true); assert.equal(matchesQuery(widget, 'заявк'), true); assert.equal(matchesQuery(widget, 'CONTRACT'), true);
+  assert.equal(matchesQuery(widget, 'synthetic.records'), true); assert.equal(matchesQuery(widget, 'валют'), false);
+  const visual = model.visuals[state.baselineId].processes[0], summary = processSummary(visual);
+  assert.deepEqual(summary.tasks, visual.nodes.filter(node => ['user', 'assignment'].includes(node.type)).map(node => node.name));
+  assert.equal(summary.steps, visual.nodes.length); assert.equal(summary.more, 0);
+  const task = visual.nodes.find(node => node.type === 'user'), lane = laneOf(visual, task);
+  assert.equal(lane.name, 'Согласующий', 'the lane that contains the step');
+  assert.equal(laneOf({ ...visual, lanes: visual.lanes.map(row => ({ ...row, supported: false })) }, task), null, 'an unsupported lane never names who does it');
+  assert.equal(laneOf({ ...visual, lanes: [] }, task), null);
+  assert.equal(laneOf(visual, { position: null }), null);
+  assert.deepEqual(processSummary({ nodes: [] }), { tasks: [], more: 0, steps: 0 });
 });
 
 test('UX-05 follow-ups: reply and reopen events have labels; a module card without a namespace is titled and not explainable; overflow is counted', () => {

@@ -1,4 +1,4 @@
-import { componentName, dateLabel, labels, elementLabels, elementKinds, responsibilityLabel, responsibilityReport, reviewGate, workspaceSummary, workspaceUrl as buildUrl, solutionNextAction, objectLabel, objectFromKey, groupObjects, reviewSummary, reviewBucket, objectModule } from './model.js';
+import { objectKind, componentName, dateLabel, labels, elementLabels, elementKinds, responsibilityLabel, responsibilityReport, reviewGate, workspaceSummary, workspaceUrl as buildUrl, solutionNextAction, objectLabel, objectFromKey, groupObjects, reviewSummary, reviewBucket, objectModule } from './model.js';
 import { nouns, grouping, ribbon, facts, reviewSummary as summaryLabels, decision as decisionLabels, diagram as diagramLabels, tabs as tabLabels, header as headerLabels, stepStates } from './labels.js';
 import { decisionChoices, decisionDefault, canCloseWithoutChanges, solutionStatus, lifecycleSteps } from './model.js';
 import { mountSnapshotVisual } from '../visual/render.js';
@@ -11,6 +11,7 @@ import { mountDependencies } from './dependencies.js';
 import { mountMergeResolution, mergeResolutionView } from './merge.js';
 import { mountComposer } from './composer.js';
 import { mountAbout, mountActivity } from './about.js';
+import { mountFlows, mountScreens } from './flows.js';
 import { acceptedFullBases, baseOptionLabel, baseEvidence, scopeEvidence, scopeCandidates, preparationFields } from './change-base.js';
 const el = (tag, text, className) => { const node = document.createElement(tag); if (text !== undefined) node.textContent = text; if (className) node.className = className; return node; };
 let sequence = 0;
@@ -120,7 +121,7 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
     // Tab names and order follow the plan's vocabulary (§6.2). "Как работает" and
     // "Запросы" arrive with UX-06 and UX-07; until then the object inventory, processes
     // included, sits under "Экраны и данные".
-    for (const [label, mode] of [[tabLabels.about, 'overview'], [tabLabels.screensAndData, 'solution'], [tabLabels.changes, 'changes']]) {
+    for (const [label, mode] of [[tabLabels.about, 'overview'], [tabLabels.flows, 'flows'], [tabLabels.screensAndData, 'solution'], [tabLabels.changes, 'changes']]) {
       const a = link(label, workspaceUrl(state.id, mode));
       if (view === mode || mode === 'changes' && ['change', 'full', 'review'].includes(view)) a.setAttribute('aria-current', 'page');
       tabs.append(a);
@@ -148,7 +149,7 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
         selectedId: model.composed?.selectedId, loadError: model.composed?.loadError, error: model.composed?.error }, { ...actions.composed, link, candidateHref: composeHref, listHref: composeHref() }));
       return root;
     }
-    if (['overview', 'changes', 'solution'].includes(view)) {
+    if (['overview', 'changes', 'solution', 'flows'].includes(view)) {
       // UX-04: the header carries the one primary button (the recommended action) and the
       // Обновить link, the only secondary way to a new version. The partial-export path
       // stays under the technical details below.
@@ -158,7 +159,9 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
       context.append(actionsBar);
       // UX-05: О решении opens with the purpose and the modules; attention follows.
       if (view === 'overview') content.append(mountAbout({ state, about: model.about || {}, editing: !!model.aboutEditing, now: model.now }, { explanations: actions.explanations, navigate: actions.navigate, open: () => workspaceUrl(state.id, 'solution') }));
-      content.append(el('h2', view === 'solution' ? `Объекты решения · ${state.current.length}` : view === 'changes' ? 'Изменения' : 'Что требует внимания'), el('p', next.summary));
+      // UX-06: Как работает is the process tab; it has no attention block of its own.
+      if (view === 'flows') { content.append(mountFlows({ state, visuals: model.visuals || {}, selected: model.object || null }, { visual: actions.visual, explanations: actions.explanations, navigate: actions.navigate })); return root; }
+      content.append(el('h2', view === 'solution' ? `Объекты решения · ${state.current.filter(row => objectKind(row) !== 'processes').length}` : view === 'changes' ? 'Изменения' : 'Что требует внимания'), el('p', next.summary));
       if(actions.explanations && ['overview','solution'].includes(view)){
         const evidence=el('div');
         content.append(mountExplanation({target:{scope:'solution'},label:'Объяснить решение'}, {...actions.explanations,
@@ -217,15 +220,9 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
       const scroll = el('div', undefined, 'managed-table'); scroll.tabIndex = 0; scroll.setAttribute('role', 'region'); scroll.setAttribute('aria-label', 'Рабочее состояние объектов'); scroll.append(table); return scroll;
       };
       if (!grouped) current.append(objectTable(state.current));
-      else {
-        for (const group of grouped.modules) {
-          const section = el('section', undefined, 'managed-module');
-          section.append(el('h3', `${grouping.module} ${group.module || grouping.withoutModule} · ${group.count}`));
-          for (const kind of group.kinds) { section.append(el('h4', `${kind.label} · ${kind.rows.length}`)); section.append(objectTable(kind.rows)); }
-          current.append(section);
-        }
-        if (grouped.system.length) { const details = el('details'); details.append(el('summary', `${nouns.systemObjects} · ${grouped.system.length} · ${grouping.showAll}`), objectTable(grouped.system)); current.append(details); }
-      }
+      // UX-06: Экраны и данные shows forms and data objects with their declared fields,
+      // searchable, system objects collapsed; processes live on Как работает.
+      else current.append(mountScreens({ state, visuals: model.visuals || {} }, { navigate: actions.navigate, flowsHref: workspaceUrl(state.id, 'flows') }));
       current.append(visualTarget);
       history.append(el('h2', 'Принятые изменения'), el('p', `Изменений: ${state.changes.length} · Обновлений версии: ${state.reconciliations.length}`));
       for (const row of state.reviewedChanges || []) history.append(link(`${row.kind === 'change' ? row.options.taskRef : 'Обновление версии'}${row.closedAt ? ` · ${decisionLabels.closedNoChanges}` : ''}`, workspaceUrl(state.id, 'review', row.artifactId)));

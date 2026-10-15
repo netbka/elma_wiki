@@ -22,7 +22,7 @@ test('Solution reading guide leads with named tasks, separates marked processes 
   // "роль" is a word, not a substring of "контроль"; the OLD/TEST/AGENT markers are upper-case only.
   assert.match(ordinary,/Другие процессы\n(?:• [^\n]+\n)*• Контроль качества/);assert.ok(!/Доступ и пользователи\n(?:• [^\n]+\n)*• Контроль качества/.test(ordinary));
   assert.match(ordinary,/Получить учебных пользователей из роли/);assert.ok(ordinary.includes('old_lowercase_is_ordinary'));assert.ok(!marked.includes('old_lowercase'));
-  assert.match(ordinary,/Экраны и данные/);
+  assert.match(ordinary,/Как работает/);
   assert.match(text,/не является порядком выполнения/);assert.match(text,/по названиям процессов/);
   assert.match(text,/Ожидающие рассмотрения версии не включены/);
   assert.ok(!text.includes('переходов'));
@@ -192,4 +192,38 @@ test('removed steps retain their explanation in the Solution catalogue; duplicat
   assert.equal(catalogue.related.length,1);assert.equal(catalogue.related[0].sourceStatus,'removed');
   assert.equal(catalogue.related[0].text,'Историческое объяснение удаляемого шага');
   assert.ok(catalogue.related[0].sources[0].componentKey);
+});
+
+test('past the 50-process bound the solution explanation says what was not shown and a process explanation names the limit',async t=>{
+  const {request,json,post,login,ref}=await setup(t);
+  const a=await login('alice@example.org');
+  const many=Array.from({length:51},(_,i)=>['p'+i,visualSource]);
+  const bytes=await zip([['package.json',{code:'synthetic_many',type:'SOLUTION'}],
+    ['processor/manifest.json',{entities:many.map(([code])=>({code,namespace:'travel',kind:'PROCESS',name:'Процесс '+code,path:code+'.json'}))}],
+    ...many.map(([code,source])=>['processor/'+code+'.json',source])]);
+  const project=await json(await request('/api/solutions/uploads?filename=many.e365',a.cookie,{method:'POST',headers:{'X-Elma-Wiki-Request':'1','Content-Type':'application/octet-stream'},body:bytes}),201);
+  const state=await json(await post('/api/solutions',a.cookie,{name:'Большое решение',baselineOwner:'Vendor',snapshot:ref(project,'full')}),201);
+  const overview=await json(await request(url(state.id,{scope:'solution'}),a.cookie));
+  assert.match(overview.draft.text,/Не показаны: 51 процессов сверх предела обзора/);
+  assert.ok(!/процессы[^.]*не установлены/.test(overview.draft.text),'the limit is not reported as an absence of processes');
+  assert.ok(!/(^|[^\d])0 процессов/.test(overview.draft.text),'no zero process count is stated as fact');
+  assert.match(overview.draft.text,/процессов: 51, из них без схемы: 51/);
+  assert.ok(!overview.draft.text.includes('Какие задачи отражены'),'no empty task section');
+  assert.ok(!overview.draft.text.includes('нажмите «Посмотреть процесс»'),'no diagram instruction when nothing was projected');
+  assert.match(overview.draft.text,/Схемы этого файла не построены/);
+  assert.ok(!overview.draft.text.includes('откройте отдельный процесс'),'the text does not send the reader to a 422');
+  const process=await request(url(state.id,{scope:'process',artifactId:state.baselineId,source:'processor/p0.json'}),a.cookie);
+  assert.equal(process.status,422);assert.match((await process.json()).error,/не более 50 процессов/);
+  // Mixed lifecycle: an accepted partial change brings p0–p2 in a small file; only the other 48 stay unshown.
+  const few=many.slice(0,3);
+  const small=await zip([['package.json',{code:'synthetic_many',type:'SOLUTION'}],
+    ['processor/manifest.json',{entities:few.map(([code])=>({code,namespace:'travel',kind:'PROCESS',name:'Процесс '+code,path:code+'.json'}))}],
+    ...few.map(([code,source])=>['processor/'+code+'.json',source])]);
+  const partial=await json(await request('/api/solutions/uploads?filename=few.e365',a.cookie,{method:'POST',headers:{'X-Elma-Wiki-Request':'1','Content-Type':'application/octet-stream'},body:small}),201);
+  const review=await json(await post('/api/solutions/'+state.id+'/prepare',a.cookie,{kind:'change',snapshot:ref(partial,'partial'),expectedRevision:state.revision,team:'Internal',taskRef:'Split',sameSourceConfirmed:true}),201);
+  await json(await post('/api/solutions/'+state.id+'/artifacts/'+review.artifactId+'/accept',a.cookie,{expectedRevision:state.revision,reviewedDigest:review.artifactDigest,reviewedBoundaryKeys:review.rows.filter(row=>row.boundaryCrossing).map(row=>row.key)}));
+  const mixed=await json(await request(url(state.id,{scope:'solution'}),a.cookie));
+  assert.match(mixed.draft.text,/процессов: 51, из них без схемы: 48/);assert.match(mixed.draft.text,/Не показаны: 48 процессов/);
+  assert.match(mixed.draft.text,/Какие задачи отражены/);assert.match(mixed.draft.text,/• Процесс p0/);assert.match(mixed.draft.text,/нажмите «Посмотреть процесс»/);
+  assert.ok(!mixed.draft.text.includes('Схемы этого файла не построены'));
 });

@@ -70,7 +70,7 @@ export const facts = {
 export const objectKinds = { process: 'Процесс', processes: 'Процессы', form: 'Экран', forms: 'Экраны', application: 'Приложение', directory: 'Справочник', data: 'Данные', permissions: 'Права', other: 'Прочее', localization: 'Локализация' };
 // Service -> kind group of the Solution tab, in display order.
 export const kindGroups = { processes: 'Процессы', forms: 'Экраны', data: 'Данные', permissions: 'Права', localization: 'Локализация', other: 'Прочее' };
-export const grouping = { module: 'Модуль', withoutModule: 'Без модуля', objects: 'объектов', showAll: 'показать все', code: 'код' };
+export const grouping = { module: 'Модуль', withoutModule: 'Без модуля', objects: 'объектов', showAll: 'показать все', code: 'код', andMore: 'и ещё' };
 
 // Change request form
 export const requestForm = {
@@ -142,6 +142,15 @@ export const activity = {
     'review-reply': 'Ответ в обсуждении', 'review-reopen': 'Замечание открыто снова', 'change-accepted': 'Изменение принято', 'baseline-accepted': 'Версия принята', 'closed-no-changes': 'Закрыто без изменений', 'merge-resolved': 'Решение по совмещению сохранено',
     'explanation-saved': 'Описание сохранено', archived: 'В архив', reopened: 'Работа возобновлена' },
   justNow: 'только что', minutesAgo: 'мин назад', hoursAgo: 'ч назад', yesterday: 'вчера'
+};
+
+// "Как работает" and "Экраны и данные" (UX-06)
+export const flows = {
+  search: 'Поиск по названию или коду', nothingFound: 'Ничего не найдено', steps: 'шагов', tasks: 'Задачи', noTasks: 'Задач с участием людей в экспорте нет',
+  whoDoes: 'Кто выполняет', laneUnknown: 'дорожка не указана', unsupported: 'Не поддерживается', fields: 'Поля', fieldsUnknown: 'Поля не восстановлены из экспорта',
+  field: 'Поле', fieldCode: 'Код', fieldType: 'Тип', fieldRequired: 'Обязательное', yes: 'да', no: 'нет', noProcesses: 'Поддерживаемых процессов в принятом состоянии нет',
+  processesElsewhere: 'Процессы показаны на вкладке', diagramUnavailable: 'Схема не получена', view: 'Посмотреть процесс',
+  fieldsUnavailable: 'Поля не получены', diagramNotBuilt: 'Схема не построена', tooManyProcesses: 'Для обзора выберите меньший пакет: не более 50 процессов'
 };
 
 // Empty states
