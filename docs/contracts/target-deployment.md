@@ -434,7 +434,7 @@ At `verify` the recorded normalized policy applies only while the configuration 
 
 Any other answer fails closed with 502 (`code: READ_BACK_METADATA`) before identity is re-observed: the attempt is never `verified`, an unresolved state (`deployed-unverified`, `unknown-outcome`, `partial-outcome`) keeps its state and Target reservation, `evidence.verificationError.reason` names the failure and the history asks for a bridge update and a repeated read-back, never redispatch. Candidate bytes come from the frozen candidate archive.
 
-**Bridge worker change (B4 dependency, netbka/elma365).** The current worker (`elma-development/commands/bridge.mjs`) answers `readBack` with `{ inventory, version }` only, so every DEV2 delivery under `import-normalized-v1` fails closed until it is updated. This repository does not change it. The required fields:
+**Bridge worker change (B4 dependency, netbka/elma365).** Until netbka/elma365 PR #100 (merged 2026-10-15) the worker (`elma-development/commands/bridge.mjs`) answered `readBack` with `{ inventory, version }` only. Since #100 it returns `metadataFiles` when `metadataPaths` are requested. A worker started from an older revision is still hash-only, so a DEV2 delivery under `import-normalized-v1` fails closed until the operator restarts the worker from current elma365 main. No live read-back with the updated worker has been observed. This repository does not change the worker. The required fields:
 
 | Direction | Field | Contract |
 |---|---|---|
