@@ -1,11 +1,12 @@
 import { changeLabels, impactLabels } from './comparison.js';
 import { mountDelivery } from './delivery.js';
 import { mountSnapshotPicker } from './snapshot-picker.js';
+import { mountEdits } from './edits.js';
 import { deliveryTargetResult, deliveryStateLabels } from './model.js';
 const el = (tag, content, className) => { const node = document.createElement(tag); if (content !== undefined) node.textContent = content; if (className) node.className = className; return node; };
 const stateLabels = { review: 'Рецензия', candidate: 'Кандидат подготовлен', prepared: 'Принят для локальной передачи', 'handed-off': 'Пакет передачи выдан' };
 const checkLabels = { pass: 'Пройдено', fail: 'Не пройдено', 'not-run': 'Не выполнялось', unsupported: 'Не поддерживается', stale: 'Устарело' };
-const eventLabels = { review: 'Решение по изменению', details: 'Условия передачи изменены', freeze: 'Кандидат подготовлен', approve: 'Кандидат принят для передачи', handoff: 'Пакет передачи выдан' };
+const eventLabels = { review: 'Решение по изменению', details: 'Условия передачи изменены', freeze: 'Кандидат подготовлен', approve: 'Кандидат принят для передачи', handoff: 'Пакет передачи выдан', 'attach-edit': 'Правка подключена', 'review-edit': 'Решение по правке', 'detach-edit': 'Правка убрана' };
 let fieldId = 0;
 export function mountRelease({ release, projects = [], releases = [], change, create, preview, download, open, visibleChanges = 20, deliveryClient, loadSnapshots, solution = null, deliveryDrafts = new Map() } = {}) {
   const root = el('div', undefined, 'release-shell');
@@ -75,7 +76,7 @@ export function mountRelease({ release, projects = [], releases = [], change, cr
   const nextActions = solution ? el('div', undefined, 'release-next-actions') : null;
   if (nextActions) root.append(nextActions);
   root.append(el('p', release.intent), el('p', `Назначение передачи: ${release.targetIntent}. Эта подпись не выбирает Target; его личность и результат проверяются отдельно.`));
-  root.append(el('p', solution ? 'Передаётся принятый полный .e365 целиком. Рабочая копия редактора не входит в эту версию.' : 'Этот релиз использует исходный .e365 целиком. Правки в рабочей копии редактора не входят в кандидат.', 'note'));
+  root.append(el('p', solution ? 'Передаётся принятый полный .e365 целиком. Рабочая копия редактора входит только как явно подключённая и принятая правка.' : 'Этот релиз использует исходный .e365 целиком. Рабочая копия редактора входит в кандидат только как явно подключённая и принятая правка.', 'note'));
   for (const [label, snapshot] of solution ? [['Принятый экспорт', release.source]] : [['Новый DEV', release.source], ['Базовая версия DEV', release.baseline]]) {
     const section = el('section'); section.append(el('h2', label));
     if (snapshot) {
@@ -109,6 +110,7 @@ export function mountRelease({ release, projects = [], releases = [], change, cr
     form.onsubmit = event => event.preventDefault(); form.append(actions); card.append(form); changes.append(card);
   }
   root.append(changes);
+  root.append(mountEdits({ release, change, run, button, field, disabled: release.associationStatus === 'stale' }));
   if (visibleChanges < release.changes.length) button('Показать следующие 20 изменений', () => { visibleChanges += 20; run(async () => release); }, changes);
   const details = el('section'); details.append(el('h2', 'Условия рецензии и передачи'));
   const form = el('form'), title = field(form, solution ? 'Название передачи' : 'Название релиза', release.title), intent = field(form, 'Деловая цель', release.intent, 'textarea'), target = field(form, solution ? 'Кому или для чего передать пакет' : 'Назначение передачи (непроверенная компания или ответственный)', release.targetIntent), limits = field(form, 'Ограничения: неполное покрытие, отсутствие базы, неизвестное влияние', release.limitations, 'textarea'), notes = field(form, 'Примечания для оператора', release.notes, 'textarea');
@@ -123,7 +125,7 @@ export function mountRelease({ release, projects = [], releases = [], change, cr
   const freeze = button('Подготовить неизменяемый кандидат', () => run(() => change(release.id, { revision: release.revision, action: 'freeze' })), actions); freeze.dataset.unavailable = String(release.blockers.length > 0); freeze.disabled = release.blockers.length > 0;
   const approval = el('form'), why = field(approval, 'Объяснение принятия кандидата', '', 'textarea'); why.required = true;
   const accept = button('Принять кандидат для передачи', () => { if (why.reportValidity()) run(() => change(release.id, { revision: release.revision, action: 'approve', reason: why.value })); }, approval); accept.dataset.unavailable = String(!release.candidate || release.blockers.length > 0); accept.disabled = accept.dataset.unavailable === 'true'; approval.onsubmit = event => event.preventDefault(); root.append(actions, approval);
-  const handoff = button('Скачать приватный пакет передачи', () => run(async () => { await download(release.id, release.revision); return open(release.id); }), root); handoff.dataset.unavailable = String(!release.approval || release.associationStatus === 'stale'); handoff.disabled = handoff.dataset.unavailable === 'true';
+  const handoff = button('Скачать приватный пакет передачи', () => run(async () => { await download(release.id, release.revision); return open(release.id); }), root); handoff.dataset.unavailable = String(!release.approval || release.associationStatus === 'stale' || release.candidate?.provenance === 'supported-edit'); handoff.disabled = handoff.dataset.unavailable === 'true';
   if (!solution || deliveryClient) (nextActions || root).append(mountDelivery({ release, client: deliveryClient, initialDrafts: deliveryDrafts, isBlocked: () => busy || stale,
     onAction: input => run(() => deliveryClient.act(release.id, input), true, '.release-delivery h2'),
     onRefresh: () => run(() => deliveryClient.refresh(release.id), true, '.release-delivery h2', true),

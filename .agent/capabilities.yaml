@@ -50,8 +50,8 @@ capabilities:
     routes: ["docs/contracts/request-bot.md", "docs/contracts/portal-requests.md", "services/request-bot/README.md", "docs/plans/vk-teams-agent-delivery.md"]
     boundaries: ["domain", "storage", "security", "connection", "tooling", "ops"]
   analyst-releases:
-    owners: ["lib/releases.mjs", "lib/solutions.mjs", "web/releases/", "web/releases.html", "test/releases.test.mjs", "test/solution-handoffs.test.mjs", "tools/solution-handoff-browser-check.mjs"]
-    routes: ["docs/contracts/analyst-releases.md", "docs/workflows/analyst-release.md", "docs/plans/analyst-release-investigation.md"]
+    owners: ["lib/releases.mjs", "lib/supported-edits.mjs", "lib/solutions.mjs", "web/releases/", "web/releases.html", "test/releases.test.mjs", "test/supported-edits.test.mjs", "test/solution-handoffs.test.mjs", "tools/solution-handoff-browser-check.mjs"]
+    routes: ["docs/contracts/analyst-releases.md", "docs/contracts/developer-workspace.md", "docs/workflows/analyst-release.md", "docs/plans/analyst-release-investigation.md"]
     boundaries: ["ui", "domain", "storage", "security", "tooling"]
   authentication:
     owners: ["lib/auth.mjs", "lib/vk-teams.mjs", "lib/email.mjs", "lib/service-config.mjs", "server.mjs", "web/login.html", "web/service.js"]
@@ -86,7 +86,7 @@ capabilities:
     routes: ["docs/contracts/source-target-connections.md", "docs/contracts/target-deployment.md", "docs/runbooks/target-deployment.md"]
     boundaries: ["connection", "security", "ops"]
   developer-workspace:
-    owners: ["extensions/e365-workbench/", "lib/"]
+    owners: ["extensions/e365-workbench/", "lib/", "lib/supported-edits.mjs", "web/releases/edits.js", "test/supported-edits.test.mjs"]
     routes: ["docs/contracts/developer-workspace.md"]
     boundaries: ["compiler", "storage", "ui"]
   compiler-lint:
