@@ -52,7 +52,8 @@ test('one next action prioritizes blockers, fresh review and stale recovery over
   pending.pending.push({ artifactId: 'conflict', kind: 'reconciliation', attention: { conflicts: 1 }, stale: false });
   assert.equal(solutionNextAction(pending).artifact, 'conflict');
   pending.pending.forEach(row => row.stale = true);
-  assert.equal(solutionNextAction(pending).state, 'stale');
+  assert.equal(solutionNextAction(pending).state, 'compare');
+  assert.equal(solutionNextAction(pending).label, 'Сравнить изменения');
   assert.equal(solutionNextAction(pending).view, 'change');
   assert.equal(solutionNextAction(managedFixture('needs-fixes').workspace).state, 'needs-fixes');
   assert.equal(solutionNextAction(managedFixture('needs-fixes').workspace).artifact, 'synthetic-review');

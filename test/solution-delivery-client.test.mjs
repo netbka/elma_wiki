@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { solutionDeliveryClient } from '../web/managed/delivery-client.js';
+import { solutionDeliveryClient, composedDeliveryClient } from '../web/managed/delivery-client.js';
 
 test('Solution delivery pins both IDs, sends only explicit action inputs and reads actor-owned controls', async () => {
   const calls = [];
@@ -22,4 +22,15 @@ test('lost post-action read demands recovery without replay; known reservation i
   assert.equal(writes, 1);
   const refused = solutionDeliveryClient('solution', async () => { throw Object.assign(Error('На этом Target уже есть незавершённая доставка'), { status: 409 }); });
   await assert.rejects(refused.act('handoff', { action: 'prepare' }), error => error.recoverable === true);
+});
+
+test('composed delivery uses the composed namespace and refreshes the candidate record, never a handoff', async () => {
+  const calls = [];
+  const client = composedDeliveryClient('solution/a', async (...args) => { calls.push(args); return []; });
+  await client.load('candidate/b');
+  assert.deepEqual(calls.map(c => c[0]), ['/api/delivery/capabilities', '/api/connections', '/api/solutions/solution%2Fa/composed/candidate%2Fb/delivery', '/api/bridges']);
+  calls.length = 0;
+  const input = { action: 'verify', attemptId: 'attempt' };
+  await client.act('candidate/b', input);
+  assert.deepEqual(calls, [['/api/solutions/solution%2Fa/composed/candidate%2Fb/delivery', input], ['/api/solutions/solution%2Fa/composed/candidate%2Fb']]);
 });

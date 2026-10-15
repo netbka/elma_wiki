@@ -479,3 +479,46 @@ test('an unobserved read-back failure keeps partial and unknown outcomes reserve
     assert.equal(calls.filter(call => call.units).length, 1);
   });
 });
+
+test('MR-08 composed: promotion keeps the exact frozen candidate and profile, goes stale with review inputs, and partial receipts block plain retry', async t => {
+  const { composed, delivery, calls, candidate, mutate } = await setup(t);
+  const first = await delivery.connections.create(executor, target());
+  let attempt = await composed.prepare(candidate.id, executor, { revision: candidate.revision, connectionId: first.id });
+  attempt = await composed.confirm(candidate.id, attempt.id, executor, confirmation(attempt));
+  attempt = await composed.verify(candidate.id, attempt.id, executor);
+  assert.equal(attempt.state, 'verified');
+  // Another platform version than the bound composed profile is refused at promotion.
+  const otherPlatform = await delivery.connections.create(executor, target('2026.1', 'other-platform.example.invalid'));
+  await assert.rejects(composed.promote(candidate.id, attempt.id, executor, { revision: candidate.revision, connectionId: otherPlatform.id, idempotencyKey: 'x' }), error => error.statusCode === 409);
+  const second = await delivery.connections.create(executor, target(PROFILE.platformVersion, 'composed-stage.example.invalid'));
+  let promoted = await composed.promote(candidate.id, attempt.id, executor, { revision: candidate.revision, connectionId: second.id, idempotencyKey: 'p' });
+  assert.deepEqual(promoted.composed.targetProfile, attempt.composed.targetProfile);
+  assert.deepEqual(promoted.evidence.units.map(unit => unit.status), ['pending', 'pending']);
+  const packet = await composed.packet(candidate.id, promoted.id, executor);
+  assert.equal(packet.inputs.composed.targetProfile.digest, PROFILE.digest);
+  assert.equal(packet.inputsDigest, (await composed.packet(candidate.id, attempt.id, executor)).inputsDigest);
+  promoted = await composed.confirm(candidate.id, promoted.id, executor, { ...confirmation(promoted), idempotencyKey: 'promoted' });
+  assert.equal((await composed.verify(candidate.id, promoted.id, executor)).state, 'verified');
+  assert.equal(calls.length, 2);
+  // New review evidence: the candidate is stale, so neither promotion nor its packet stays current.
+  await mutate('comment');
+  const third = await delivery.connections.create(executor, target(PROFILE.platformVersion, 'composed-third.example.invalid'));
+  await assert.rejects(composed.promote(candidate.id, promoted.id, executor, { revision: candidate.revision, connectionId: third.id, idempotencyKey: 'stale' }), error => error.statusCode === 409);
+  assert.equal((await composed.packet(candidate.id, promoted.id, executor)).outcome.candidateStatus, 'stale');
+  assert.equal((await composed.packet(candidate.id, promoted.id, executor)).outcome.verificationCurrent, false);
+});
+
+test('MR-08 composed: an applied unit receipt with an unchanged inventory reconciles as diverged, never as not-applied', async t => {
+  const { composed, delivery, calls, candidate } = await setup(t, { adapters: { synthetic: opts => syntheticAdapter({ ...opts, calls: [], scenario: 'partial' }) } });
+  const connection = await delivery.connections.create(executor, target());
+  let attempt = await composed.prepare(candidate.id, executor, { revision: candidate.revision, connectionId: connection.id });
+  attempt = await composed.confirm(candidate.id, attempt.id, executor, confirmation(attempt));
+  assert.equal(attempt.state, 'partial-outcome');
+  await assert.rejects(composed.retry(candidate.id, attempt.id, executor, { idempotencyKey: 'r' }), error => error.statusCode === 409);
+  attempt = await composed.verify(candidate.id, attempt.id, executor);
+  assert.equal(attempt.state, 'verification-failed');
+  assert.equal(attempt.evidence.reconciliation.outcome, 'diverged');
+  assert.equal(attempt.evidence.reconciliation.fromState, 'partial-outcome');
+  await assert.rejects(composed.retry(candidate.id, attempt.id, executor, { idempotencyKey: 'r' }), error => error.statusCode === 409 && /идемпотентный/.test(error.message));
+  assert.equal(calls.length, 0);
+});
