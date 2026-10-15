@@ -45,6 +45,12 @@ export const changeKinds = { modified: 'Изменён', added: 'Добавле�
 // Status ribbon on the review page
 export const ribbon = { modified: 'Изменено', added: 'Добавлено', removed: 'Удалено', conflicts: 'Конфликтов', all: 'Все', viewed: 'Просмотрено', unchanged: 'Без изменений' };
 
+// Review summary (UX-03)
+export const reviewSummary = {
+  filter: 'Показать', filterLabel: 'Фильтр объектов', baseRevision: 'Основа: ревизия', noChangedObjects: 'Изменённых объектов нет',
+  unknownParts: 'Нераспознанных частей', dependencyProblems: 'Зависимостей с вопросами', responsibility: 'Ответственность', uploaded: 'Загрузил'
+};
+
 // Facts shown as chips
 export const facts = {
   baseVersion: 'Основа: версия от', baseUnknown: 'Основа: не указана', baseSequence: 'Основа записана Wiki по порядку загрузок с того же сервера. Происхождение экспорта в ELMA не проверено.', server: 'Сервер', loadedBy: 'Загрузил',

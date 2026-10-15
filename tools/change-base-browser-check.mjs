@@ -98,6 +98,9 @@ try {
   await extra().fill(key('category'));
   await submit(); await page.getByRole('heading', { name: 'Рассмотреть изменение', exact: true }).waitFor();
   assert.equal(requests.upload, 1, 'retry reuses the saved upload');
+  // UX-03: provenance evidence sits behind one «Подробнее».
+  const openDetails = () => page.locator('details.managed-more > summary').click();
+  await openDetails();
   const provenance = page.locator('.managed-provenance');
   await provenance.getByText('Происхождение: заявлено, не проверено', { exact: true }).waitFor();
   await provenance.getByText(/База заявлена: ревизия 0/).waitFor();
@@ -123,6 +126,7 @@ try {
   // Omitting the base records an unknown base, shown as unknown in review.
   await fillChange([['contract', 'second']], 'SYNTHETIC-2');
   await submit(); await page.getByRole('heading', { name: 'Рассмотреть изменение', exact: true }).waitFor();
+  await openDetails();
   await provenance.getByText('Происхождение: неизвестно', { exact: true }).waitFor();
   await provenance.getByText('База не указана — происхождение неизвестно', { exact: true }).waitFor();
   await provenance.getByText('Состав не указан', { exact: true }).waitFor();
@@ -158,6 +162,7 @@ try {
   await page.getByLabel('Экспорт относится к этому решению и тому же источнику ELMA', { exact: true }).check();
   await confirmBase().check();
   await submit(); await page.getByRole('heading', { name: 'Рассмотреть изменение', exact: true }).waitFor();
+  await openDetails();
   await provenance.getByText(/База заявлена: ревизия 1/).waitFor();
   await page.goto(changeUrl); await page.getByRole('heading', { name: 'Добавить изменение', exact: true }).waitFor();
   assert.equal(await page.getByText(/Восстановлен черновик/).count(), 0, 'successful preparation clears its draft');
@@ -206,6 +211,7 @@ try {
       if (mode === 'change-draft') await page.getByText(/Предыдущая отправка могла сохраниться/).waitFor();
       if (mode === 'change-rejected') await page.getByText(/Объект состава не найден/).waitFor();
     }
+    if (mode.startsWith('base-')) await page.locator('details.managed-more > summary').click();
     if (mode === 'base-declared') await page.getByText('Происхождение: заявлено, не проверено', { exact: true }).waitFor();
     if (mode === 'base-unknown') await page.getByText('Происхождение: неизвестно', { exact: true }).waitFor();
     for (const width of [1440, 390]) {

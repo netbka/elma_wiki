@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { managedFixture } from '../web/managed/fixtures.js';
-import { reviewGate, workspaceSummary, componentName, workspaceUrl, solutionNextAction, responsibilityLabel, responsibilityReport, hasAcceptedFullExport, objectLabel, objectCode, objectFromKey, objectKindLabel, objectModule, isSystemObject, groupObjects } from '../web/managed/model.js';
+import { reviewGate, workspaceSummary, componentName, workspaceUrl, solutionNextAction, responsibilityLabel, responsibilityReport, hasAcceptedFullExport, objectLabel, objectCode, objectFromKey, objectKindLabel, objectModule, isSystemObject, groupObjects, reviewSummary, reviewBucket, groupDependencies } from '../web/managed/model.js';
 import { solutionHandoffFixture } from '../web/managed/handoff-fixtures.js';
 
 test('handoff navigation requires a matching accepted full state and stays separate from delivery evidence', () => {
@@ -109,4 +109,18 @@ test('UX-02: business name first, technical code second; objects group by module
   assert.deepEqual(grouped.modules[0].kinds.map(kind => kind.kind), ['processes', 'data'], 'kinds follow display order');
   assert.equal(grouped.system.length, 3, 'permissions, __default and localization are system objects');
   assert.equal(grouped.modules.reduce((n, group) => n + group.count, 0) + grouped.system.length, rows.length, 'every row is shown once');
+});
+
+test('UX-03: the review summary counts every row once, names a no-change version and groups dependencies by target', () => {
+  const mixed = managedFixture('summary-mixed').review, summary = reviewSummary(mixed, mixed.rows);
+  assert.deepEqual(summary.counts, { modified: 1, added: 1, removed: 1, conflicts: 1, unchanged: 3, unknown: 0 });
+  assert.equal(summary.changed, 4); assert.equal(summary.total, 7); assert.equal(summary.noDifference, false);
+  assert.equal(summary.line, 'Изменено 1 · Добавлено 1 · Удалено 1 · Конфликтов 1 · Без изменений 3');
+  assert.equal(summary.dependencyProblems, 14);
+  const none = managedFixture('summary-no-changes').review;
+  assert.equal(reviewSummary(none).noDifference, true);
+  assert.equal(reviewSummary({ ...none, ambiguities: [{ reason: 'unknown' }] }).noDifference, false, 'unknown parts are never "no difference"');
+  assert.equal(reviewBucket({ classification: 'component-modified', conflict: true }), 'conflicts', 'a cross-team conflict wins over the classification');
+  const grouped = groupDependencies(mixed.dependencies.rows);
+  assert.equal(grouped.length, 2); assert.equal(grouped[0].required, true, 'required first'); assert.equal(grouped[1].count, 14);
 });

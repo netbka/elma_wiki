@@ -55,6 +55,8 @@ try {
   poll = 0;
   await page.getByRole('button', { name: 'Обновить', exact: true }).click();
   await page.getByRole('heading', { name: 'Рассмотреть обновление версии', exact: true }).waitFor();
+  assert.ok(await page.locator('.managed-chips').getByText(/^Основа: (версия от|ревизия 0)/).isVisible(), 'the base chip names the previous pull');
+  await page.locator('details.managed-more > summary').click();
   assert.ok(await page.getByText(/База заявлена: ревизия 0/).isVisible(), 'the base is the previous pull');
   await page.goto(base + '/solutions');
   await page.getByRole('link', { name: 'Открыть решение', exact: true }).click();

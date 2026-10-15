@@ -27,6 +27,9 @@ export const Pending = { render: () => story('pending') };
 export const Change = { render: () => story('change') };
 export const Review = { render: () => story('review') };
 export const Conflict = { render: () => story('conflict') };
+export const SummaryMixed = { render: () => story('summary-mixed'), parameters: { docs: { description: { story:
+  'Сначала ответ: строка счётчиков, факты как метки, одно «Подробнее». Лента статусов фильтрует карточки; изменённые объекты сгруппированы по модулям, без изменений — одна свёрнутая группа; зависимости сгруппированы с количеством.' } } } };
+export const SummaryNoChanges = { render: () => story('summary-no-changes') };
 export const Overlap = { render: () => story('overlap') };
 export const Ambiguous = { render: () => story('ambiguous') };
 export const Stale = { render: () => story('stale') };
