@@ -1,5 +1,5 @@
 import { mountExplanation } from '../../web/explanations/render.js';
-import { explanationFixture, explanationFixtureActions, explanationSolutionFixture, explanationSolutionActions } from '../../web/explanations/fixtures.js';
+import { explanationFixture, explanationFixtureActions, explanationSolutionFixture, explanationSolutionActions, solutionReadingFixture } from '../../web/explanations/fixtures.js';
 import { mountManagedWorkspace } from '../../web/managed/render.js';
 export default {id:'solution-explanation',title:'Решение/Объяснение',parameters:{layout:'fullscreen',docs:{description:{component:'Синтетические данные. Сохранение демонстрационное, без ELMA, AI-провайдера или записи в продукт.'}}}};
 const story=state=>({render:()=>mountExplanation(explanationFixture(state),explanationFixtureActions())});
@@ -13,3 +13,4 @@ export const Conflict=story('conflict');
 export const Historical=story('historical');
 export const Regenerated=story('regenerated');
 export const InSolution={render:()=>mountManagedWorkspace(explanationSolutionFixture(),explanationSolutionActions())};
+export const SolutionReadingGuide={render:()=>mountExplanation(solutionReadingFixture(),explanationFixtureActions())};

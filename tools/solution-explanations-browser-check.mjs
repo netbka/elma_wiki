@@ -34,6 +34,10 @@ try {
   await page.goto(url);
   const solution=page.locator('.solution-explanation').first();
   await solution.getByRole('button',{name:'Объяснить решение',exact:true}).click();
+  await solution.getByRole('button',{name:'Уточнить объяснение',exact:true}).waitFor();
+  assert.equal(await solution.getByLabel('Текст объяснения').count(),0,'Explanation opens for reading, not inside an editor');
+  assert.match(await solution.locator('.explanation-reading').innerText(),/Какие задачи отражены/);
+  await solution.getByRole('button',{name:'Уточнить объяснение',exact:true}).click();
   await solution.getByLabel('Текст объяснения').waitFor();
   assert.match(await solution.getByLabel('Текст объяснения').inputValue(),/принятое|Принятое/);
   await solution.getByLabel('Текст объяснения').fill('Проверенное описание решения');
@@ -46,6 +50,7 @@ try {
   await page.locator('.solution-visual svg').waitFor();
   const processPanel=page.locator('.solution-visual > div .solution-explanation').first();
   await page.getByRole('button',{name:'Объяснить этот процесс',exact:true}).click();
+  await processPanel.getByRole('button',{name:'Уточнить объяснение',exact:true}).click();
   await processPanel.getByLabel('Текст объяснения').waitFor();
   assert.match(await processPanel.getByLabel('Текст объяснения').inputValue(),/Повторное рассмотрение/);
   await processPanel.getByText('Источники объяснения',{exact:true}).click();
@@ -55,6 +60,7 @@ try {
   await page.locator('svg [data-node=review]').focus();await page.keyboard.press('Enter');
   const step=page.locator('.visual-form .solution-explanation');
   await step.getByRole('button',{name:'Объяснить этот шаг',exact:true}).click();
+  await step.getByRole('button',{name:'Уточнить объяснение',exact:true}).click();
   await step.getByLabel('Текст объяснения').waitFor();
   const human='Человек уточнил правило возврата. <img src=x onerror=alert(1)>';
   await step.getByLabel('Текст объяснения').fill(human);
@@ -120,12 +126,33 @@ try {
   await page.getByRole('button',{name:'Посмотреть процесс: approval',exact:true}).click();
   await page.locator('svg [data-node=review]').click();
   await page.getByRole('button',{name:'Объяснить этот шаг',exact:true}).click();
+  await page.getByRole('button',{name:'Уточнить объяснение',exact:true}).click();
   await page.getByRole('button',{name:'Сохранить объяснение',exact:true}).click();
   await page.getByText(/Объяснение сохранено:/).waitFor();
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+  await page.evaluate(async()=>{
+    const {mountExplanation}=await import('/explanations/render.js');
+    const {solutionReadingFixture,explanationFixtureActions}=await import('/explanations/fixtures.js');
+    document.documentElement.style.zoom='1';
+    document.querySelector('#managed-root').replaceChildren(mountExplanation(solutionReadingFixture(),explanationFixtureActions()));
+  });
+  await page.setViewportSize({width:1280,height:1000});
+  const reading=page.locator('.solution-explanation');
+  assert.equal(await reading.getByLabel('Текст объяснения').count(),0);
+  assert.match(await reading.innerText(),/Какие задачи отражены/);
+  assert.equal(await reading.getByText('• OLD_Учебный процесс',{exact:false}).isVisible(),false,'Marked names do not obscure the main explanation');
+  await reading.screenshot({path:'qa/solution-explanations-reading-desktop.png'});
+  await page.setViewportSize({width:390,height:844});
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+  await reading.screenshot({path:'qa/solution-explanations-reading-mobile.png'});
+  await reading.getByRole('button',{name:'Уточнить объяснение',exact:true}).focus();await page.keyboard.press('Enter');
+  await reading.getByLabel('Текст объяснения').fill('Сохраняем понятное пояснение человека');
+  await reading.getByRole('button',{name:'Подготовить новое объяснение',exact:true}).click();
+  await reading.getByRole('button',{name:'Оставить мой текст',exact:true}).waitFor();
+  assert.equal(await reading.getByLabel('Текст объяснения').inputValue(),'Сохраняем понятное пояснение человека');
   assert.deepEqual(errors,[]);
-  await fs.writeFile('qa/solution-explanations-browser-evidence.json',JSON.stringify({synthetic:true,solution:true,process:true,step:true,persistence:true,sourceNavigation:true,regenerationPreservesEdits:true,concurrency:true,lostResponse:true,keyboard:true,mobile:true,zoom:true,storybookStates:10,externalAI:false,nativeObservation:false}));
-  console.log('Solution explanations: actual API/UI generation, source navigation, edit/save/reload, draft retention, conflict, lost response, keyboard, mobile/zoom and 10 shared Storybook states passed.');
+  await fs.writeFile('qa/solution-explanations-browser-evidence.json',JSON.stringify({synthetic:true,solution:true,process:true,step:true,readingBeforeEditing:true,persistence:true,sourceNavigation:true,regenerationPreservesEdits:true,concurrency:true,lostResponse:true,keyboard:true,mobile:true,zoom:true,storybookStates:11,externalAI:false,nativeObservation:false}));
+  console.log('Solution explanations: actual API/UI generation, reading before editing, source navigation, edit/save/reload, draft retention, conflict, lost response, keyboard, mobile/zoom and 11 shared Storybook states passed.');
 } finally {
   await browser?.close();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));
   assert.equal(path.dirname(directory),os.tmpdir());await fs.rm(directory,{recursive:true,force:true});

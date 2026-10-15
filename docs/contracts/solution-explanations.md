@@ -7,6 +7,15 @@ parser projection, authenticated storage, security and Storybook tooling.
 
 ## User experience
 
+Solution explanations open as readable paragraphs; editing starts explicitly with
+**Уточнить объяснение**. The generated overview groups captured process names
+into task themes, gives a concrete route to inspect a process and comment on a
+review, and puts technical counts after the reading guide. This grouping is
+explicitly name-derived: it proves neither business purpose nor execution order.
+Names starting with OLD, TEST or AGENT are listed separately; their names never
+prove that they are inactive. All source references remain available. Saved human
+text is preserved and a regenerated draft still requires explicit replacement.
+
 Solution Overview / Solution offers **Объяснить решение** as a secondary action.
 The Solution object table opens the exact captured accepted process matching the
 current component digest. Change review keeps its captured process/form preview.

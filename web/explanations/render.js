@@ -8,7 +8,7 @@ export function mountExplanation(model = {}, actions = {}) {
   const style = el('style', '.solution-explanation{margin:16px 0;padding:12px;border:1px solid #bcced6;min-width:0;overflow-wrap:anywhere}.solution-explanation pre{white-space:pre-wrap;overflow-wrap:anywhere;font-family:inherit}.solution-explanation textarea{box-sizing:border-box;width:100%;min-height:220px;font:inherit}.solution-explanation button{padding:8px;margin:4px;max-width:100%;overflow-wrap:anywhere;background:#fff;color:#125b88;border:1px solid #8aa0b0;border-radius:5px}.solution-explanation .explanation-save{background:#146c53;color:#fff}.solution-explanation [role=alert]{color:#8c2630}.solution-explanation .explanation-comparison{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}@media(max-width:760px){.solution-explanation .explanation-comparison{grid-template-columns:1fr}}');
   const body = el('div'); root.append(style,body);
   let response = model.initial || null, busy = model.state === 'loading', error = model.error || '', blocked = model.state === 'conflict';
-  let opened = !!model.initial || !!model.state || !!model.error, editing = model.state === 'draft' || !!response&&!response.saved, text = model.text ?? model.initial?.draft?.text ?? '', proposed = model.proposed ?? null;
+  let opened = !!model.initial || !!model.state || !!model.error, editing = model.state === 'draft', text = model.text ?? model.initial?.draft?.text ?? '', proposed = model.proposed ?? null;
   let notice = '', requestId = 0;
   const button = (parent, label, callback, disabled = false) => { const node = el('button',label); node.type='button'; node.disabled=disabled; node.onclick=callback; parent.append(node); return node; };
   async function load(regenerate = false) {
@@ -20,7 +20,7 @@ export function mountExplanation(model = {}, actions = {}) {
       if (token !== requestId) return;
       response = result; blocked = false;
       if (regenerate) proposed = result.draft.text;
-      else if (!editing) { text = result.saved?.text ?? result.draft.text; editing = !result.saved; }
+      else if (!editing) { text = result.saved?.text ?? result.draft.text; }
     } catch (e) { error = e.message || 'Не удалось загрузить объяснение.'; }
     finally { busy = false; render(); focusHeading(); }
   }
@@ -46,6 +46,28 @@ export function mountExplanation(model = {}, actions = {}) {
     }
     parent.append(details);
   }
+  function reading(parent, value) {
+    const content=el('div'); content.className='explanation-reading';
+    content.style.maxWidth='76ch';
+    const headings=new Set(['Какие задачи отражены в экспорте','Как начать разбор','Что описывает этот обзор','Что ещё проверить']);
+    let section=content;
+    for(const paragraph of value.split(/\n\n/)) {
+      if(paragraph==='Техническая справка'||paragraph==='Отдельно: названия с пометками OLD / TEST / AGENT') {
+        section=el('details');section.append(el('summary',paragraph));content.append(section);continue;
+      }
+      if(headings.has(paragraph)||paragraph.startsWith('О решении «')) {
+        section=content;section.append(el('h5',paragraph));continue;
+      }
+      const lines=paragraph.split('\n');
+      if(lines.length>1&&lines.slice(1).every(line=>line.startsWith('• '))) {
+        section.append(el('strong',lines[0]));const list=el('ul');
+        for(const line of lines.slice(1))list.append(el('li',line.slice(2)));
+        section.append(list);continue;
+      }
+      const node=el('p',paragraph); node.style.whiteSpace='pre-wrap';node.style.lineHeight='1.6';section.append(node);
+    }
+    parent.append(content);
+  }
   function render() {
     body.replaceChildren(el('h4','Объяснение'));
     if (!opened) { button(body,model.label || 'Объяснить, как это работает',()=>load()); return; }
@@ -54,13 +76,19 @@ export function mountExplanation(model = {}, actions = {}) {
     if (notice) { const status=el('p',notice); status.setAttribute('role','status'); body.append(status); }
     if (blocked) body.append(el('p','Сохранение заблокировано до обновления. Ваш текст остаётся в редакторе. Сравните его с сохранённым текстом перед повтором.'));
     if (!response) { if (!busy) button(body,'Повторить загрузку объяснения',()=>load()); return; }
-    body.append(el('p','Место сохранения: '+response.title),el('p','Подготовлено по объявленным данным экспорта. Назначение и работа в ELMA требуют проверки.'));
+    body.append(el('p','Место сохранения: '+response.title),el('p','Основание: сохранённый экспорт. Работа в ELMA не проверена.'));
     if (response.reason) body.append(el('p',response.reason));
     if (response.saved) {
       if (response.saved.sourceStatus==='stale') body.append(el('p','Источник изменился — проверьте объяснение. Предыдущий текст сохранён.'));
-      body.append(el('p',`Сохранил: ${response.saved.actor.login} · ${response.saved.at}`),el('pre',response.saved.text));
+      body.append(el('p',`Сохранил: ${response.saved.actor.login} · ${response.saved.at}`));reading(body,response.saved.text);
       sources(body,response.saved.sources);
       if (!editing) button(body,'Изменить объяснение',()=>{text=response.saved.text; editing=true; render();},busy||blocked||!response.writable);
+    }
+    if (!response.saved && !editing) {
+      body.append(el('p','Черновик — можно уточнить перед сохранением.'));
+      reading(body,text);
+      button(body,'Уточнить объяснение',()=>{editing=true;render();},busy||blocked||!response.writable);
+      sources(body,response.draft.sources);
     }
     if (editing) {
       const label=el('label','Текст объяснения'), textarea=el('textarea'); textarea.id='explanation-text-'+ ++sequence;

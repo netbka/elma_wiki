@@ -1,6 +1,13 @@
 import { managedFixture } from '../managed/fixtures.js';
 import { visualFixture, visualSource } from '../visual/fixtures.js';
 export const explanationTarget={scope:'step',artifactId:'synthetic-artifact',source:'processor/synthetic.json',nodeId:'review'};
+export function solutionReadingFixture(){
+  const model=explanationFixture('draft');
+  model.state=undefined;model.target={scope:'solution'};
+  model.initial.title='Учебный документооборот';
+  model.initial.draft={...model.initial.draft,text:'О решении «Учебный документооборот»\n\nНиже — ориентир по названиям процессов в сохранённом экспорте. Назначение и реальная работа требуют подтверждения.\n\nКакие задачи отражены в экспорте\n\nДоговоры и документы\n• Подготовить документ\n• Согласовать документ\n\nКак начать разбор\n\nОткройте вкладку «Решение», выберите процесс и нажмите «Посмотреть процесс». Список не задаёт порядок выполнения.\n\nОтдельно: названия с пометками OLD / TEST / AGENT\n\n• OLD_Учебный процесс\n• TEST ONLY: учебная проверка\nПометки не доказывают, что процессы выключены.\n\nЧто ещё проверить\n\nУчастники, условия и результаты работы в ELMA не проверены.'};
+  return model;
+}
 const draft={text:'Шаг «Согласовать» относится к учебному процессу. Объявлены переходы «Согласовать» → «Готово» и «Вернуть» → «Исправить». Поле «Документ» обязательно по экспорту.\n\nУсловия, права и выполнение в ELMA не установлены.',engine:'declared-source-v1',sources:[{label:'Согласовать',pointer:'processor/synthetic.json#/process/items/review',nodeId:'review'}]};
 const entry={id:'synthetic-explanation',key:'synthetic-step',text:'Учебное пояснение, дополненное аналитиком: при возврате уточните причину.',title:'Учебное согласование → Согласовать',sources:draft.sources,fingerprint:'synthetic-fingerprint',actor:{id:'synthetic-actor',login:'Учебный аналитик'},at:'2026-10-08T10:00:00.000Z'};
 export function explanationFixture(state='ready'){

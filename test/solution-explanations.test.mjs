@@ -8,6 +8,23 @@ import { createServer } from '../server.mjs';
 import { vkLoginLinks } from '../lib/vk-login-links.mjs';
 import { visualSource } from '../web/visual/fixtures.js';
 import { zip } from './fixture.mjs';
+import { solutionReadingGuide } from '../lib/solution-explanations.mjs';
+
+test('Solution reading guide leads with named tasks, separates marked processes and never invents execution order or inactive status',()=>{
+  const processes=['Обработка учебного документа','Проверка учебного контрагента','Учебное согласование','Получить учебных пользователей из роли',
+    'OLD_Учебный маршрут','TEST ONLY: synthetic probe','AGENT synthetic acceptance'].map(name=>({name}));
+  const text=solutionReadingGuide('Учебное решение',processes,40).join('\n\n');
+  assert.ok(text.indexOf('Какие задачи')<text.indexOf('40 объектов'));
+  assert.match(text,/Контрагенты\n• Проверка учебного контрагента/);
+  const [ordinary,marked]=text.split('Отдельно: названия с пометками OLD / TEST / AGENT');
+  assert.ok(!ordinary.includes('TEST ONLY:'));assert.ok(!ordinary.includes('OLD_'));assert.ok(!ordinary.includes('AGENT synthetic'));
+  assert.match(marked,/OLD_Учебный маршрут/);assert.match(marked,/не доказывает/);
+  assert.match(text,/не является порядком выполнения/);assert.match(text,/по названиям процессов/);
+  assert.match(text,/Ожидающие рассмотрения версии не включены/);
+  assert.ok(!text.includes('переходов'));
+  const empty=solutionReadingGuide('Пустое решение',[],0).join('\n');
+  assert.match(empty,/Попросите ответственного/);assert.match(empty,/0 объектов, 0 процессов/);
+});
 
 export const explanationArchive = raw => zip([
   ['package.json',{code:'synthetic_explanation',type:'SOLUTION'}],
