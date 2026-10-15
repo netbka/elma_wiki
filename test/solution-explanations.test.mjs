@@ -22,7 +22,7 @@ test('Solution reading guide leads with named tasks, separates marked processes 
   // "роль" is a word, not a substring of "контроль"; the OLD/TEST/AGENT markers are upper-case only.
   assert.match(ordinary,/Другие процессы\n(?:• [^\n]+\n)*• Контроль качества/);assert.ok(!/Доступ и пользователи\n(?:• [^\n]+\n)*• Контроль качества/.test(ordinary));
   assert.match(ordinary,/Получить учебных пользователей из роли/);assert.ok(ordinary.includes('old_lowercase_is_ordinary'));assert.ok(!marked.includes('old_lowercase'));
-  assert.match(ordinary,/Экраны и данные/);
+  assert.match(ordinary,/Как работает/);
   assert.match(text,/не является порядком выполнения/);assert.match(text,/по названиям процессов/);
   assert.match(text,/Ожидающие рассмотрения версии не включены/);
   assert.ok(!text.includes('переходов'));
@@ -205,7 +205,10 @@ test('past the 50-process bound the solution explanation says what was not shown
   const state=await json(await post('/api/solutions',a.cookie,{name:'Большое решение',baselineOwner:'Vendor',snapshot:ref(project,'full')}),201);
   const overview=await json(await request(url(state.id,{scope:'solution'}),a.cookie));
   assert.match(overview.draft.text,/Не показаны: 51 процессов сверх предела обзора/);
-  assert.ok(!overview.draft.text.includes('Поддерживаемые процессы не установлены'),'the limit is not reported as an absence of processes');
+  assert.ok(!overview.draft.text.includes('не установлены'),'the limit is not reported as an absence of processes');
+  assert.ok(!overview.draft.text.includes('0 процессов'),'no process count is stated as fact');
+  assert.match(overview.draft.text,/процессов: 51, схемы не построены/);
+  assert.ok(!overview.draft.text.includes('откройте отдельный процесс'),'the text does not send the reader to a 422');
   const process=await request(url(state.id,{scope:'process',artifactId:state.baselineId,source:'processor/p0.json'}),a.cookie);
   assert.equal(process.status,422);assert.match((await process.json()).error,/не более 50 процессов/);
 });
