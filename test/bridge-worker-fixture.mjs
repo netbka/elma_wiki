@@ -4,11 +4,12 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { createServer } from '../server.mjs';
 import { bridgeStore } from '../lib/bridge.mjs';
+import { E1_SOURCE } from '../lib/native-materialization-e1.mjs';
 
 // Synthetic stand-ins for the operator bridge transport of `materialize` jobs. Everything runs on
 // 127.0.0.1 against a temporary directory; no ELMA host, token or native tool is involved.
 export const sha = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
-export const WORKER_REVISION = '23b476df735e60353a80b5aef6e827cca198a8be';
+export const WORKER_REVISION = E1_SOURCE.revision;
 
 /** A Wiki server whose native materialization is explicitly configured for one owner's bridge. */
 export async function materializeServer(t, { owner = 'synthetic-owner', adapterOwner = owner, timeoutMs = 5000, maxOutputBytes, configure = true } = {}) {

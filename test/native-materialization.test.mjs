@@ -14,7 +14,7 @@ import { prepareMaterializationRequest, materializeNative, materializationStatus
   NATIVE_MATERIALIZATION_CONTRACTS, SYNTHETIC_MATERIALIZATION_CONTRACT } from '../lib/native-materialization.mjs';
 import { zip } from './fixture.mjs';
 import { materializeServer } from './bridge-worker-fixture.mjs';
-import { E1_SOURCE, E1_SCHEMA_INTACT, E1_REQUIRED_CHECKS, buildE1Envelope, validateE1Request, validateE1Receipt } from '../lib/native-materialization-e1.mjs';
+import { E1_SOURCE, E1_SCHEMA_INTACT, E1_SCHEMA_REVISION, E1_REQUIRED_CHECKS, buildE1Envelope, validateE1Request, validateE1Receipt, validateE1ReceiptArtifacts, e1HygieneErrors } from '../lib/native-materialization-e1.mjs';
 
 // Synthetic Contracts-shaped B/A/C archives. Every component carries a declared
 // resource; `div` also carries coupled client source. The manifest keeps an
@@ -387,10 +387,24 @@ test('E1: malformed, mismatched, unknown-version or unavailable receipts fail cl
   // Output transport binding: sha256 and size of the returned bytes.
   const bytes = Buffer.from('synthetic output'), bound = e1Receipt(request, bytes);
   assert.equal(validateE1Receipt(bound, request, { artifacts: [{ solution: request.inputs.solution, bytes }] }).state, 'validated');
-  const binding = (receipt, artifacts) => reasons(validateE1Receipt(receipt, request, { artifacts }).errors);
-  assert.deepEqual(binding(bound, [{ bytes: Buffer.from('tampered output!') }]), ['artifact-digest-mismatch']);
+  const binding = (receipt, artifacts) => reasons(validateE1Receipt(receipt, request, { artifacts }).errors).sort();
+  const listed = bound.artifacts[0].sha256, other = Buffer.from('tampered output!');
+  // Bytes delivered under the listed name but with other content or length.
+  assert.deepEqual(binding(bound, [{ sha256: listed, bytes: other }]), ['artifact-digest-mismatch']);
+  assert.deepEqual(binding(bound, [{ sha256: listed, bytes: Buffer.concat([bytes, Buffer.from('!')]) }]), ['artifact-digest-mismatch', 'artifact-size-mismatch']);
   assert.deepEqual(binding({ ...bound, artifacts: [{ ...bound.artifacts[0], size: bytes.length + 1 }] }, [{ bytes }]), ['artifact-size-mismatch']);
-  assert.deepEqual(binding(bound, []), ['artifact-bytes-missing']);
+  // Other bytes are both missing for the listed archive and unexpected.
+  assert.deepEqual(binding(bound, [{ bytes: other }]), ['missing-artifact-bytes', 'unexpected-artifact']);
+  assert.deepEqual(binding(bound, []), ['missing-artifact-bytes']);
+  assert.deepEqual(binding(bound, [{ bytes }, { bytes }]), ['duplicate-artifact-bytes']);
+  assert.deepEqual(binding(bound, [{ sha256: 'not-a-digest', bytes }]), ['artifact-name-invalid', 'missing-artifact-bytes']);
+  // An unavailable receipt lists nothing, so any delivered bytes are rejected.
+  const none = { ...bound, status: 'unavailable', unavailable, artifacts: [], coverage: null, checks: [], evidenceRef: null };
+  assert.equal(validateE1Receipt(none, request, { artifacts: [] }).state, 'unavailable');
+  assert.deepEqual(binding(none, [{ bytes }]), ['unexpected-artifact']);
+  const bytesMap = new Map([[listed, bytes]]);
+  assert.deepEqual(validateE1ReceiptArtifacts(bound, bytesMap).errors, []);
+  assert.deepEqual(reasons(validateE1ReceiptArtifacts({ ...bound, artifacts: [bound.artifacts[0], bound.artifacts[0]] }, bytesMap).errors), ['duplicate-artifact']);
 
   const cases = [
     // Pre-E1 response shape from a worker claiming E1.
@@ -403,7 +417,9 @@ test('E1: malformed, mismatched, unknown-version or unavailable receipts fail cl
     [{ receipt: row => ({ ...row, artifacts: [{ ...row.artifacts[0], size: row.artifacts[0].size + 1 }] }) }, 'native-receipt-invalid', 'failed'],
     [{ response: result => ({ ...result, artifacts: [] }) }, 'native-receipt-invalid', 'failed'],
     [{ receipt: row => ({ ...row, status: 'failed', checks: row.checks.map(check => check.id === 'native-package-check' ? { ...check, status: 'failed' } : check) }) }, 'native-validation-failed', 'failed'],
-    [{ receipt: row => ({ ...row, status: 'unavailable', unavailable, artifacts: [], coverage: null, checks: [], evidenceRef: null }) }, 'native-worker-unavailable', 'unavailable'],
+    [{ receipt: row => ({ ...row, status: 'unavailable', unavailable, artifacts: [], coverage: null, checks: [], evidenceRef: null }), response: result => ({ ...result, artifacts: [] }) }, 'native-worker-unavailable', 'unavailable'],
+    // Bytes delivered with an unavailable receipt are refused.
+    [{ receipt: row => ({ ...row, status: 'unavailable', unavailable, artifacts: [], coverage: null, checks: [], evidenceRef: null }) }, 'native-receipt-invalid', 'failed'],
     [{ fail: true }, 'native-materialization-failed', 'failed']
   ];
   for (const [options, reason, status] of cases) {
@@ -467,9 +483,9 @@ test('E1 over the operator bridge: validated output is materialized; tampered si
     // The receipt names a size other than the uploaded bytes.
     [answer => ({ ...answer, receipt: { ...answer.receipt, artifacts: [{ ...answer.receipt.artifacts[0], size: answer.bytes.length + 1 }] } }), 'artifact-size-mismatch'],
     // The upload is refused (declared digest of other bytes), so the validated receipt has no bytes.
-    [answer => ({ ...answer, declaredSha256: '0'.repeat(64) }), 'artifact-bytes-missing'],
+    [answer => ({ ...answer, declaredSha256: '0'.repeat(64) }), 'missing-artifact-bytes'],
     // Self-consistent receipt for bytes other than the uploaded archive.
-    [answer => ({ ...answer, bytes: Buffer.concat([answer.bytes, Buffer.from('tail')]) }), 'artifact-digest-mismatch']
+    [answer => ({ ...answer, bytes: Buffer.concat([answer.bytes, Buffer.from('tail')]) }), 'unexpected-artifact']
   ];
   for (const [answer, reason] of failures) {
     answers.push(answer);
@@ -481,4 +497,58 @@ test('E1 over the operator bridge: validated output is materialized; tampered si
   const lost = await materializeNative({ request, originals, adapter: env.adapter, now: NOW });
   assert.equal(lost.manifest.status, 'failed'); assert.deepEqual(lost.artifacts, []);
   assert.ok(reasons(lost.manifest.blockers).includes('native-outcome-unknown'));
+});
+
+test('E1 1.2 no-edit: a zero-change request carries an empty release scope and only a base-equal receipt is accepted', async t => {
+  const env = await setup(t, [['div', 0], ['outside', 0]]);
+  const c = await env.prepare([['div', 0]], 'C', ['div']);
+  const resolution = await env.resolve(c);
+  const request = await prepareFor(env, c, resolution, {}, HEX_PROFILE);
+  assert.equal(request.status, 'ready', JSON.stringify(request.blockers)); assert.deepEqual(request.operations, []);
+  assert.deepEqual(request.inputs.coverage.units, []); assert.deepEqual(request.inputs.coverage.importOrder, []);
+  const originals = await env.originals(request.inputs.originals.map(row => row.artifactId));
+  const envelope = buildE1Envelope(request, originals);
+  assert.deepEqual(envelope.releaseScope, { solution: request.inputs.solution, units: [], importOrder: [] });
+  assert.deepEqual(validateE1Request(envelope, { originals }).errors, []);
+  // E1 no-edit rules at the boundary.
+  const errors = value => reasons(validateE1Request(value, { originals }).errors);
+  assert.ok(errors({ ...envelope, releaseScope: { ...envelope.releaseScope, units: ['div'], importOrder: ['div'] } }).includes('no-edit-scope-not-empty'));
+  const files = request.expected.files.map((row, index) => index ? row : { ...row, action: 'replace' });
+  const changed = { ...request, expected: { ...request.expected, files } };
+  assert.ok(errors({ ...envelope, request: changed }).includes('no-edit-file-not-preserved'));
+
+  const adapter = e1Adapter();
+  const { manifest } = await materializeNative({ request, originals, adapter, now: NOW });
+  assert.equal(adapter.calls.length, 1);
+  assert.equal(manifest.status, 'materialized', JSON.stringify(manifest.blockers));
+  assert.deepEqual(reasons(manifest.blockers), ['synthetic-evidence-only']); assert.equal(manifest.releaseEligible, false);
+  // A validated no-edit receipt reporting a changed output is invalid.
+  const out = await materializeNative({ request, originals, now: NOW,
+    adapter: e1Adapter({ receipt: row => ({ ...row, coverage: { ...row.coverage, unexpectedPaths: 1 } }) }) });
+  assert.ok(out.manifest.blockers.find(row => row.reason === 'native-receipt-invalid')?.errors.includes('no-edit-output-changed'));
+  assert.equal(out.manifest.status, 'failed');
+});
+
+// The hygiene lists of elma365 contract.test.mjs at E1_SOURCE.commit (schema revision 1.2).
+test('E1 1.2 hygiene: embedded host paths, URLs and credentials are rejected; identifiers and API routes stay valid', () => {
+  assert.equal(E1_SCHEMA_INTACT, true); assert.equal(E1_SCHEMA_REVISION, '1.2'); assert.equal(E1_SOURCE.schemaRevision, '1.2');
+  const at = value => reasons(e1HygieneErrors(value));
+  for (const value of ['evidence in C:\\git\\Elma\\.local\\run', 'stage at /home/runner/work/x', 'copied from \\\\fileserver\\exports', 'kept under ~/exports',
+    'see (file:///tmp/report)', 'written to /tmp', 'path=D:/exports/x', 'path:C:\\git\\x', 'dir:/home/user/x', 'evidence:/var/log',
+    'ref:file:///x', 'at <C:\\exports>', '/api/../home/user', 'POST /pub/v1/../../../home/x', '/srv/api/x',
+    '/pub/x\\..\\..\\home', '/api/%2e%2e/etc', 'GET /api/%2E%2E/etc/x', 'route:/pub/a%2fb/c', 'POST /pub/x\\..\\home'])
+    assert.deepEqual(at(value), ['host-path'], value);
+  for (const value of ['Basic dXNlcjpwYXNzd29yZA==', 'header was basic YWRtaW46czNjcmV0', 'basic:YWRtaW46czNjcmV0', 'auth basic=dXNlcjpwYXNz',
+    'https://user:pass@example.invalid/x', 'fetch //user:pass@example.invalid/x', 'login admin:s3cret@dev-elma.example:443',
+    'admin:s3cret@dev-elma.example/api', 'admin:s3cret@host', 'creds admin:s3cret@host.', 'user=admin:s3cret@host',
+    'admin:s3cret@10.0.0.1', 'login admin:secret@10.0.0.1:8080', 'admin:secret@localhost', 'admin:secret@host:443', 'admin:secret@host/x',
+    'admin:secret@dev-elma.example', 'admin:p%40ss@host'])
+    assert.deepEqual(at(value), ['secret-like-value'], value);
+  for (const value of ['reported at https://dev-elma.example/api', 'url:https://host/x', 'link <https://host/x>'])
+    assert.deepEqual(at(value), ['client-host-reference'], value);
+  for (const value of ['Basic package check', 'widgets/div.json', 'pass rate 3/4 on 2026/10/14', 'provider:helper@1.0.0', 'validated / failed',
+    'stage, compile --verify, check and pack on an authorized dev2 worker', 'elma-dev compile --verify --host=<dev2>', 'node tools/config-workspace/check.mjs dev2 <stage>',
+    'ns:module@1.0.0/x', 'ns:module@1.0.0', 'POST /pub/v1/app/x', '/api/apps/v1', 'GET /api/apps/v1/items?limit=1', 'route:/pub/v1/app/x', 'key:value',
+    'unit div:widgets', 'svc:widgets@Contracts', 'role:admin@company', 'owner role:admin@company.', 'ns:module@1.0.0.beta'])
+    assert.deepEqual(at(value), [], value);
 });

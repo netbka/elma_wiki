@@ -2,8 +2,12 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/netbka/elma365/tools/native-materialization/contract.schema.json",
   "title": "elma365-native-materialization@1",
-  "$comment": "Request envelope, validation receipt and manifest-regeneration policy for netbka/elma365#60. contract.mjs validates documents against these $defs (strict: every object rejects unknown fields) and then applies the semantic rules in docs/enterprise-development/native-materialization.md. Patterns use JavaScript RegExp syntax.",
+  "$comment": "Request envelope, validation receipt and manifest-regeneration policy for netbka/elma365#60. contract.mjs validates documents against these $defs (strict: every object rejects unknown fields) and then applies the semantic rules in docs/enterprise-development/native-materialization.md. Patterns use JavaScript RegExp syntax. Revisions within version 1 only relax or clarify; $defs/schemaRevision names this file's revision and the contract document publishes its sha256 (of these LF bytes).",
   "$defs": {
+    "schemaRevision": {
+      "$comment": "Revision of this schema file within contract version 1. 1.0 = PR #89 (23b476d), 1.1 = E2 (operations may be empty), 1.2 = no-edit envelope (empty release scope), output byte transport, wider hygiene. Never used to validate a document; documents still carry only {id, version}.",
+      "const": "1.2"
+    },
     "contract": {
       "type": "object",
       "additionalProperties": false,
@@ -214,7 +218,7 @@
           }
         },
         "evidenceBasis": { "enum": ["native", "synthetic"] },
-        "operations": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/operation" } },
+        "operations": { "$comment": "Empty = no-edit mode: every expected file must then be preserve from the base artifact and the output must equal the base unpacked content.", "type": "array", "items": { "$ref": "#/$defs/operation" } },
         "expected": {
           "type": "object",
           "additionalProperties": false,
@@ -261,14 +265,14 @@
           }
         },
         "releaseScope": {
-          "$comment": "Explicit release scope: the exact selected native import units and order. Must equal request.inputs.coverage.",
+          "$comment": "Explicit release scope: the exact selected native import units and order. Must equal request.inputs.coverage. In no-edit mode (request.operations empty) units and importOrder must be empty: nothing is imported.",
           "type": "object",
           "additionalProperties": false,
           "required": ["solution", "units", "importOrder"],
           "properties": {
             "solution": { "$ref": "#/$defs/identifier" },
-            "units": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/text" } },
-            "importOrder": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/text" } }
+            "units": { "type": "array", "items": { "$ref": "#/$defs/text" } },
+            "importOrder": { "type": "array", "items": { "$ref": "#/$defs/text" } }
           }
         }
       }
@@ -323,6 +327,7 @@
           ]
         },
         "artifacts": {
+          "$comment": "Output archive manifest. Bytes travel out of band, never inline or as a host path: directory artifact receipt.json + artifacts/<sha256>, or one HTTP part per artifact named by its sha256. The consumer accepts bytes only when both sha256 and byte length equal this entry, and rejects absent or extra bytes.",
           "type": "array",
           "maxItems": 1,
           "items": {
