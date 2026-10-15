@@ -49,6 +49,8 @@ test('long process explanation stays readable while retaining every node source 
   assert.ok(selected.draft.sources.some(s=>s.pointer.includes('/forms/0')));
   const empty=processReadingGuide({name:'Учебный пустой процесс',nodes:[],edges:[]}).join('\n');
   assert.match(empty,/нельзя определить, что делает процесс/);
+  const uncertain=processReadingGuide({name:'Учебные длинные названия',nodes:[],edges:[{name:'Длинное учебное название '.repeat(25),target:'missing',supported:false}]}).join('\n');
+  assert.match(uncertain,/… → неизвестный или неоднозначный шаг \(связь не поддерживается\)/,'Shortening names must preserve uncertainty labels');
 });
 
 export const explanationArchive = raw => zip([
