@@ -1,4 +1,4 @@
-import { classificationLabels, elementClassificationLabels, elementKindLabels, actions as actionLabels, summaries } from './labels.js';
+import { classificationLabels, elementClassificationLabels, elementKindLabels, actions as actionLabels, summaries, kindGroups, displayLabel, isTechnicalKey } from './labels.js';
 // Review classification wording lives in labels.js (UX-00); these names stay for
 // existing importers.
 export const labels = classificationLabels;
@@ -33,6 +33,58 @@ export function responsibilityReport(state, review) {
 }
 export function componentName(key) {
   try { const parts = JSON.parse(key); return Array.isArray(parts) ? parts.at(-1) : key; } catch { return key; }
+}
+
+// UX-02: business name first, technical key second. These projections read the
+// component metadata (service, namespace, code, kind, name) and never change
+// identity, digests or classification.
+const keyParts = key => { try { const parts = JSON.parse(key); return Array.isArray(parts) ? parts : null; } catch { return null; } };
+// Metadata recoverable from the key alone ([service, namespace, code] or
+// [service, namespace, kind, code]), for rows known only by key, e.g. objects a review adds.
+export function objectFromKey(key) {
+  const parts = keyParts(key);
+  if (!parts || parts.length < 3) return { key };
+  const [service, namespace] = parts, code = parts.at(-1);
+  return { key, service, namespace, code, ...(parts.length > 3 ? { kind: parts[2] } : {}) };
+}
+// The technical label a row had before UX-02; stays the fallback and the muted secondary text.
+export function objectCode(input = {}) {
+  const row = { ...objectFromKey(input.key), ...Object.fromEntries(Object.entries(input).filter(([, value]) => value != null)) };
+  const parts = keyParts(row.key);
+  if (parts && parts.length > 3) return row.code ? `${row.namespace} · ${row.code} · ${row.kind}` : `${row.namespace} · ${row.kind}`;
+  return row.code || (parts ? parts.at(-1) : row.key) || '';
+}
+export function objectLabel(row = {}) {
+  const code = objectCode(row);
+  const name = typeof row.name === 'string' && row.name.trim() && row.name.trim() !== row.code ? row.name.trim() : '';
+  return displayLabel({ name, key: code });
+}
+const kindOfService = { processor: 'processes', widgets: 'forms', appViews: 'forms', applications: 'data', collections: 'data', settings: 'data',
+  permissions: 'permissions', permissionsSettings: 'permissions', localizer: 'localization' };
+export function objectKind(row = {}) { return kindOfService[row.service] || 'other'; }
+export function objectKindLabel(row = {}) { return kindGroups[objectKind(row)]; }
+// Module = the first segment of the namespace (ELMA workspace code).
+export function objectModule(row = {}) { return typeof row.namespace === 'string' && row.namespace ? row.namespace.split('.')[0] : ''; }
+// Permissions, localization and name-less defaults are system objects: shown collapsed unless changed.
+export function isSystemObject(row = {}) {
+  const kind = objectKind(row);
+  return kind === 'permissions' || kind === 'localization' || row.code === '__default' || (!row.name && isTechnicalKey(objectCode(row)));
+}
+// Groups rows by module, then by kind group in display order; system objects
+// go to their own list. The order of rows inside a group is preserved.
+export function groupObjects(rows = []) {
+  const modules = new Map(), system = [];
+  for (const row of rows) {
+    if (isSystemObject(row)) { system.push(row); continue; }
+    const module = objectModule(row), kind = objectKind(row);
+    if (!modules.has(module)) modules.set(module, new Map());
+    const kinds = modules.get(module);
+    if (!kinds.has(kind)) kinds.set(kind, []);
+    kinds.get(kind).push(row);
+  }
+  const order = Object.keys(kindGroups);
+  return { modules: [...modules].sort(([a], [b]) => a.localeCompare(b, 'ru')).map(([module, kinds]) => ({ module, count: [...kinds.values()].reduce((n, list) => n + list.length, 0),
+    kinds: [...kinds].sort(([a], [b]) => order.indexOf(a) - order.indexOf(b)).map(([kind, list]) => ({ kind, label: kindGroups[kind], rows: list })) })), system };
 }
 export const dateLabel = value => value ? new Date(value).toLocaleString('ru-RU', { dateStyle: 'medium', timeStyle: 'short' }) : 'Дата не зафиксирована';
 export function workspaceSummary(state) {

@@ -145,7 +145,7 @@ and move it on.
 
 Research still to perform before UX-02 (implementing agent, no owner decision):
 
-- R1. Capture the exact Russian labels ELMA365 Designer uses for application,
+- R1 (partly done 2026-10-15 from ELMA365 help, recorded in `web/managed/labels.js`: ELMA uses "Раздел" for the workspace level, "Приложение", "Бизнес-процесс", "Страница", "Форма", "Справочник"; the owner's "Модуль" and the user word "Экран" are kept). Still to do: capture the exact Russian labels ELMA365 Designer uses for application,
   process, form, directory, module, permissions and localization from DEV
   screenshots already in private evidence, so Wiki object-kind labels match
   what users see in ELMA.
