@@ -72,7 +72,6 @@ export function mountFlows({ state, visuals = {}, selected = null }, actions = {
   }
   root.append(target);
   if (selected) { const found = cards.find(({ row }) => row.key === selected); if (found) open(found.row, found.card); }
-  input.setAttribute('aria-label', `${flowLabels.search} · ${nouns.solution}`);
   return root;
 }
 

@@ -1,5 +1,5 @@
 import { visualFixture } from '../visual/fixtures.js';
-const names = { contract: 'Договор', approval: 'Согласование договора', comment: 'Комментарий к договору' };
+const names = { contract: 'Заявка на командировку', approval: 'Утверждение командировки', comment: 'Комментарий к заявке' };
 const component = (code, team = 'Команда внедрения', changed = false) => ({ code, key: JSON.stringify(['widgets', 'synthetic.records', code]), team,
   service: 'widgets', namespace: 'synthetic.records', kind: 'WIDGET', name: names[code] || null,
   interventionId: changed ? 'synthetic-change' : null, digest: 'a'.repeat(64) });
@@ -7,7 +7,7 @@ export function managedFixture(mode = 'overview') {
   const at = '2026-10-07T12:00:00Z', base = { id: 'synthetic-baseline', scope: 'full', checksum: 'a'.repeat(64), snapshot: {
     projectId: 'synthetic-project', snapshotId: 'synthetic-snapshot', checksum: 'a'.repeat(64), source: null, createdAt: at
   }, scopeDeclaration: { scope: 'full', method: 'explicit-assertion', declaredAt: at } };
-  const workspace = { id: 'synthetic-workspace', name: 'Согласование договоров', status: 'active', revision: 1,
+  const workspace = { id: 'synthetic-workspace', name: 'Командировки и расходы', status: 'active', revision: 1,
     baselineId: base.id, baselineOwner: 'Команда внедрения', baselineAcceptedAt: at, artifacts: [base],
     current: [component('contract'), component('approval'), component('comment', 'Внутренняя команда', true)],
     changes: [{ id: 'synthetic-change' }], reconciliations: [], history: [{ type: 'created', baselineId: base.id }, { type: 'change-accepted' }], pending: [] };
@@ -40,19 +40,19 @@ export function managedFixture(mode = 'overview') {
     const extra = (service, namespace, code, kind, name, classification, extraFields = {}) => ({ code, key: JSON.stringify(service === 'widgets' ? [service, namespace, code] : [service, namespace, kind, code]),
       service, namespace, kind, name, classification, previousTeam: 'Команда внедрения', digest: 'a'.repeat(64), ...extraFields });
     review.kind = 'reconciliation'; review.options = { baselineOwner: 'Команда внедрения' };
-    review.snapshot = { ...base.snapshot, source: { connectionId: 'config-api-dev', solutionRef: 'contract_management' } };
+    review.snapshot = { ...base.snapshot, source: { connectionId: 'config-api-dev', solutionRef: 'travel_expenses' } };
     review.baseDeclaration = { schemaVersion: 1, status: 'declared', method: 'source-sequence', artifactId: base.id, revision: 0, checksum: base.checksum, scope: 'full', ancestryVerified: false };
     review.dependencies = { provenance: 'configured-source-capture', rows: [
       ...Array.from({ length: 14 }, () => ({ required: false, service: 'processor', targetNamespace: '_system_catalogs', targetCode: '_my_companies', status: 'provider-not-observed' })),
       { required: true, service: 'widgets', targetNamespace: '_clients', targetCode: '_companies', status: 'component-source-present' }] };
     review.rows = mode !== 'summary-mixed'
       ? [{ ...component('contract'), classification: 'unchanged' }, { ...component('approval'), classification: 'unchanged' }, extra('permissionsSettings', 'synthetic', 'contract', 'permissionSettings', null, 'unchanged')]
-      : [extra('processor', 'contract_management.contracts', 'approval_process', 'template', 'Согласование договора', 'external-change'),
-        extra('widgets', 'contract_management.contracts', 'create_form', 'WIDGET', 'Форма создания договора', 'intervention-added', { previousTeam: null }),
-        extra('applications', 'contract_management', 'currencies', 'directory', 'Валюты', 'component-deleted', { removed: true }),
+      : [extra('processor', 'travel_expenses.trips', 'trip_approval', 'template', 'Утверждение командировки', 'external-change'),
+        extra('widgets', 'travel_expenses.trips', 'request_form', 'WIDGET', 'Форма заявки', 'intervention-added', { previousTeam: null }),
+        extra('applications', 'travel_expenses', 'currencies', 'directory', 'Валюты', 'component-deleted', { removed: true }),
         { ...component('contract'), classification: 'conflict' },
         { ...component('approval'), classification: 'unchanged' }, { ...component('comment'), classification: 'unchanged' },
-        extra('permissionsSettings', 'contract_management', 'contracts', 'permissionSettings', null, 'unchanged')];
+        extra('permissionsSettings', 'travel_expenses', 'trips', 'permissionSettings', null, 'unchanged')];
   }
   if (mode === 'conflict') review.rows[0].classification = 'conflict';
   if (mode === 'overlap') review.rows[0].conflict = true;
@@ -63,7 +63,7 @@ export function managedFixture(mode = 'overview') {
     if (conflict) review.options = { baselineOwner: 'Korus' };
     review.rows = [{ key: JSON.stringify(['processor','synthetic','approval']), classification: conflict ? 'conflict' : 'component-modified', boundaryCrossing: boundary,
       elements: { complete: mode !== 'elements-unknown', residualChanged: mode === 'elements-unknown', ambiguities: [], rows: [
-        { id: '["node","y"]', kind: 'node', code: 'y', name: 'Проверить договор', team: 'Korus', classification: boundary ? 'element-modified' : 'unchanged', boundaryCrossing: boundary },
+        { id: '["node","y"]', kind: 'node', code: 'y', name: 'Проверить бюджет', team: 'Korus', classification: boundary ? 'element-modified' : 'unchanged', boundaryCrossing: boundary },
         { id: '["node","x"]', kind: 'node', code: 'x', name: 'Дополнительное согласование', team: conflict ? 'Внутренняя команда' : null, classification: conflict ? 'conflict' : 'element-added', conflict },
         ...['comment','returnReason'].map(code => ({ id: JSON.stringify(['variable',code]), kind: 'variable', code, name: code, team: conflict ? 'Внутренняя команда' : null, classification: conflict ? 'known-change-incorporated' : 'element-added' }))
       ] } }];
@@ -80,43 +80,43 @@ export function managedFixture(mode = 'overview') {
     model.rows = mode === 'list' ? [{ ...workspace, baselineSnapshot: base.snapshot, changedComponents: 1, pendingCount: 2, current: undefined, pending: undefined }] : [];
   }
   // UX-01 fixed entry: server + solution, no scope/base/responsibility questions.
-  const pullCatalog = [{ code: 'contract_management', name: 'Договоры и контрагенты' }, { code: 'paid_module', name: 'Платный модуль', paid: true }];
-  const pullRecord = { id: 'synthetic-acquisition', server: 'dev', solution: 'contract_management', state: 'exporting', progress: { completed: 0, total: 1 }, solutions: [] };
+  const pullCatalog = [{ code: 'travel_expenses', name: 'Командировки и расходы' }, { code: 'paid_module', name: 'Платный модуль', paid: true }];
+  const pullRecord = { id: 'synthetic-acquisition', server: 'dev', solution: 'travel_expenses', state: 'exporting', progress: { completed: 0, total: 1 }, solutions: [] };
   if (mode === 'create') model.pullCatalog = pullCatalog;
   if (mode === 'create-legacy') model.legacy = true;
   if (mode === 'pull-exporting') model.acquisition = pullRecord;
-  if (mode === 'pull-ready') model.acquisition = { ...pullRecord, state: 'ready', progress: { completed: 1, total: 1 }, solutions: [{ code: 'contract_management', project: { id: 'synthetic-project', currentSnapshotId: 'synthetic-snapshot' } }] };
+  if (mode === 'pull-ready') model.acquisition = { ...pullRecord, state: 'ready', progress: { completed: 1, total: 1 }, solutions: [{ code: 'travel_expenses', project: { id: 'synthetic-project', currentSnapshotId: 'synthetic-snapshot' } }] };
   if (mode === 'pull-failed') model.acquisition = { ...pullRecord, state: 'failed', error: 'Экспорт не завершён. Начните новую загрузку.' };
   if (mode === 'pull-unavailable') model.pullUnavailable = true;
-  if (mode === 'update') { base.snapshot.source = { connectionId: 'config-api-dev', solutionRef: 'contract_management' }; model.view = 'full'; }
+  if (mode === 'update') { base.snapshot.source = { connectionId: 'config-api-dev', solutionRef: 'travel_expenses' }; model.view = 'full'; }
   if (mode === 'change') model.view = 'change';
   if (mode === 'changes') model.view = 'changes';
   if (['flows', 'screens', 'flows-error'].includes(mode)) {
     // UX-06: the solution inventory plus the captured projections of its artifact.
     model.view = mode === 'screens' ? 'solution' : 'flows';
-    const visual = visualFixture('source'); visual.artifactId = base.id;
-    visual.processes[0].object = ['processor', 'contract_management.contracts', 'template', 'approval_process'];
+    const visual = visualFixture('source'); visual.artifactId = base.id; visual.processes[0].name = names.approval;
+    visual.processes[0].object = ['processor', 'travel_expenses.trips', 'template', 'trip_approval'];
     visual.objects = [
-      { object: ['widgets', 'synthetic.records', 'contract'], service: 'widgets', code: 'contract', name: 'Договор', source: 'widgets/contract.json', fields: [
+      { object: ['widgets', 'synthetic.records', 'contract'], service: 'widgets', code: 'contract', name: names.contract, source: 'widgets/contract.json', fields: [
         { code: 'number', name: 'Номер', type: 'STRING', required: true, pointer: 'widgets/contract.json#/descriptor/fields/0' },
         { code: 'amount', name: 'Сумма', type: 'MONEY', required: false, pointer: 'widgets/contract.json#/descriptor/fields/1' }] },
-      { object: ['widgets', 'synthetic.records', 'approval'], service: 'widgets', code: 'approval', name: 'Согласование договора', source: 'widgets/approval.json', fields: [] },
-      { object: ['applications', 'contract_management', 'application', 'contracts'], service: 'applications', code: 'contracts', name: 'Договоры', source: 'applications/contracts.json', fields: [
-        { code: 'title', name: 'Название', type: 'STRING', required: true, pointer: 'applications/contracts.json#/fields/0' }] }
+      { object: ['widgets', 'synthetic.records', 'approval'], service: 'widgets', code: 'approval', name: names.approval, source: 'widgets/approval.json', fields: [] },
+      { object: ['applications', 'travel_expenses', 'application', 'trips'], service: 'applications', code: 'trips', name: 'Командировки', source: 'applications/trips.json', fields: [
+        { code: 'title', name: 'Название', type: 'STRING', required: true, pointer: 'applications/trips.json#/fields/0' }] }
     ];
     model.visuals = { [base.id]: mode === 'flows-error' ? { error: 'Схема не получена: учебная ошибка.' } : visual };
   }
   if (['solution', 'flows', 'screens', 'flows-error'].includes(mode)) {
-    model.view = 'solution';
+    model.view = ['flows', 'flows-error'].includes(mode) ? 'flows' : 'solution';
     // UX-02: a second module, a process, data objects and system objects show grouping, names and the collapsed group.
     const extra = (service, namespace, code, kind, name) => ({ code, key: JSON.stringify(kind && service !== 'widgets' ? [service, namespace, kind, code] : [service, namespace, code]), team: 'Команда внедрения',
       service, namespace, kind, name, interventionId: null, digest: 'a'.repeat(64) });
-    workspace.current.push(extra('processor', 'contract_management.contracts', 'approval_process', 'template', 'Согласование договора'),
-      extra('applications', 'contract_management', 'contracts', 'application', 'Договоры'),
-      extra('applications', 'contract_management', 'currencies', 'directory', 'Валюты'),
-      extra('permissionsSettings', 'contract_management', 'contracts', 'permissionSettings', null),
-      extra('widgets', 'contract_management', '__default', 'WIDGET', null),
-      extra('localizer', 'contract_management', '', 'localization', null));
+    workspace.current.push(extra('processor', 'travel_expenses.trips', 'trip_approval', 'template', 'Утверждение командировки'),
+      extra('applications', 'travel_expenses', 'trips', 'application', 'Командировки'),
+      extra('applications', 'travel_expenses', 'currencies', 'directory', 'Валюты'),
+      extra('permissionsSettings', 'travel_expenses', 'trips', 'permissionSettings', null),
+      extra('widgets', 'travel_expenses', '__default', 'WIDGET', null),
+      extra('localizer', 'travel_expenses', '', 'localization', null));
     base.components = workspace.current.map(row => ({ key: row.key, digest: row.digest }));
   }
   if (mode === 'native-components') {
@@ -139,8 +139,8 @@ export function managedFixture(mode = 'overview') {
     Object.assign(workspace, { artifacts: [base, update], baselineId: update.id, revision: 3, reconciliations: [{ id: update.id }],
       history: [...workspace.history, { type: 'baseline-accepted', id: update.id, revision: 2 }] });
     model.view = 'change';
-    const draft = { revision: 2, owner: 'Внутренняя команда', task: 'DEMO-14 · категория договора', baseId: base.id, scopeEnabled: true,
-      scopeName: 'Категория договора', selected: [component('contract').key], extra: JSON.stringify(['widgets', 'synthetic.records', 'category']), captured: null };
+    const draft = { revision: 2, owner: 'Внутренняя команда', task: 'DEMO-14 · категория поездки', baseId: base.id, scopeEnabled: true,
+      scopeName: 'Категория поездки', selected: [component('contract').key], extra: JSON.stringify(['widgets', 'synthetic.records', 'category']), captured: null };
     if (mode === 'change-draft') model.draft = { ...draft, uncertain: true };
     if (mode === 'change-rejected') { model.draft = { ...draft, revision: 3 }; model.error = 'Объект состава не найден ни в выбранной базе, ни в загруженном экспорте. Черновик сохранён.'; }
   }
@@ -149,7 +149,7 @@ export function managedFixture(mode = 'overview') {
     review.baseDeclaration = mode === 'base-unknown' ? { schemaVersion: 1, status: 'unknown', method: 'not-recorded', ancestryVerified: false }
       : { schemaVersion: 1, status: 'declared', method: 'explicit-assertion', artifactId: base.id, revision: 0, checksum: base.checksum, scope: 'full', ancestryVerified: false };
     review.changeScopeDeclaration = mode === 'base-unknown' ? { schemaVersion: 1, status: 'unknown', method: 'not-recorded' }
-      : { schemaVersion: 1, status: 'declared', method: 'explicit-assertion', name: 'Категория договора', deletions: [], baseArtifactId: base.id, baseRevision: 0,
+      : { schemaVersion: 1, status: 'declared', method: 'explicit-assertion', name: 'Категория поездки', deletions: [], baseArtifactId: base.id, baseRevision: 0,
         members: [{ key: component('approval').key, baseDigest: 'a'.repeat(64), incomingDigest: null }, { key: component('contract').key, baseDigest: 'a'.repeat(64), incomingDigest: 'b'.repeat(64) }],
         ancestryVerified: false, automaticMergeEnabled: false, buildEnabled: false };
   }
@@ -188,7 +188,7 @@ export function managedFixture(mode = 'overview') {
   if (mode.startsWith('about-')) {
     const draft = { text: 'Решение объединяет модули «synthetic».\n\nsynthetic. Экраны: Договор, Согласование договора, Комментарий к договору.\n\nНазначение описано по названиям объектов экспорта. Работа в ELMA не наблюдалась; проверьте и дополните описание.', sources: [], engine: 'declared-names-v1', evidence: 'declared-names', nativeObservation: 'absent' };
     const purpose = { key: 'solution-purpose', title: workspace.name, fingerprint: 'p'.repeat(64), expectedRevision: 1, version: 0, writable: true, reason: null, related: [], draft, saved: null, history: [] };
-    const entry = { id: 'synthetic-purpose', key: 'solution-purpose', title: workspace.name, fingerprint: 'p'.repeat(64), text: 'Договоры с контрагентами: подготовка, согласование юристами и финансовым отделом, подписание и хранение. Решением пользуются менеджеры по продажам и юристы.', sources: [], actor: uploader, at: '2026-10-07T11:00:00Z' };
+    const entry = { id: 'synthetic-purpose', key: 'solution-purpose', title: workspace.name, fingerprint: 'p'.repeat(64), text: 'Командировки сотрудников: заявка, утверждение руководителем и бухгалтерией, выдача аванса и отчёт о расходах. Решением пользуются сотрудники и бухгалтерия.', sources: [], actor: uploader, at: '2026-10-07T11:00:00Z' };
     if (['about-saved', 'about-stale'].includes(mode)) Object.assign(purpose, { version: 1, saved: { ...entry, sourceStatus: mode === 'about-stale' ? 'stale' : 'current' }, history: [entry] });
     if (mode === 'about-generated') model.aboutEditing = true;
     if (mode === 'about-error') purpose.loadError = 'Сервис объяснений недоступен.';

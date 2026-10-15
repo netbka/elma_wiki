@@ -1,5 +1,5 @@
 import { nouns, actions as actionLabels, about as aboutLabels, empty, grouping } from './labels.js';
-import { moduleCards, objectLabel, actorDisplay, relativeTime, activityFeed, dateLabel } from './model.js';
+import { moduleCards, objectLabel, actorDisplay, relativeTime, activityFeed, dateLabel, moduleCardView } from './model.js';
 import { mountExplanation } from '../explanations/render.js';
 
 let sequence = 0;
@@ -93,16 +93,24 @@ export function mountAbout({ state, about = {}, editing = false, now }, actions 
   const cards = moduleCards(state.current || []), list = el('div', undefined, 'managed-list');
   if (!cards.length) modules.append(el('p', aboutLabels.noModules, 'managed-muted'));
   for (const card of cards) {
-    const article = el('article', undefined, 'managed-card'), label = objectLabel({ code: card.module, name: card.name, namespace: card.module });
-    const title = el('h3', label.text, label.technical ? 'managed-technical' : undefined); article.append(title);
+    const article = el('article', undefined, 'managed-card'), view = moduleCardView(card);
+    const title = el('h3', view.title.text, view.title.technical ? 'managed-technical' : undefined); article.append(title);
     const counts = [['processes', card.processes.length], ['forms', card.forms.length], ['data', card.data.length], ['other', card.other.length]].filter(([, n]) => n)
       .map(([kind, n]) => `${n} ${aboutLabels.moduleCounts[kind]}`);
     article.append(el('p', counts.join(' · ') + (card.system ? ` · ${nouns.systemObjects}: ${card.system}` : ''), 'managed-muted'));
-    const names = rows => rows.map(row => objectLabel(row).text).slice(0, 6).join(', ') + (rows.length > 6 ? ` ${grouping.showAll}` : '');
-    const sentence = [[aboutLabels.processesList, card.processes], [aboutLabels.screensList, card.forms], [aboutLabels.dataList, card.data]].filter(([, rows]) => rows.length).map(([kind, rows]) => `${kind}: ${names(rows)}.`).join(' ');
-    article.append(el('p', sentence || aboutLabels.moduleNoNames));
+    const kindLabels = { processes: aboutLabels.processesList, forms: aboutLabels.screensList, data: aboutLabels.dataList };
+    const sentence = el('p');
+    for (const part of view.parts) {
+      sentence.append(`${kindLabels[part.kind]}: ${part.names.join(', ')}`);
+      // More than six names: the rest are one click away on the Экраны и данные tab (plain text when no link is available).
+      if (part.more) { const more = actions.open ? el('a', grouping.showAll, 'managed-link') : el('span', grouping.showAll, 'managed-muted'); if (actions.open) { more.href = actions.open(card.module); if (actions.navigate) more.onclick = event => { event.preventDefault(); actions.navigate(more.href); }; } sentence.append(' ', more); }
+      sentence.append('. ');
+    }
+    if (!view.parts.length) sentence.textContent = aboutLabels.moduleNoNames;
+    article.append(sentence);
     if (actions.open) { const a = el('a', actionLabels.open, 'managed-link'); a.href = actions.open(card.module); if (actions.navigate) a.onclick = event => { event.preventDefault(); actions.navigate(a.href); }; article.append(a); }
-    if (actions.explanations) article.append(mountExplanation({ target: { scope: 'module', module: card.module }, label: actionLabels.explain }, actions.explanations));
+    // A module without a code has no description scope: no Explain button.
+    if (actions.explanations && view.explainable) article.append(mountExplanation({ target: { scope: 'module', module: card.module }, label: actionLabels.explain }, actions.explanations));
     list.append(article);
   }
   modules.append(list); root.append(modules);

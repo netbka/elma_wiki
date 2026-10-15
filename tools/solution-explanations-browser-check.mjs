@@ -30,7 +30,7 @@ try {
   assert.equal(uploaded.status(),201);const project=await uploaded.json();
   const created=await context.request.post(base+'/api/solutions',{headers:{'X-Elma-Wiki-Request':'1'},data:{name:'Учебное решение',baselineOwner:'Vendor',snapshot:{projectId:project.id,snapshotId:project.currentSnapshotId,scope:'full',scopeConfirmed:true}}});
   assert.equal(created.status(),201);const state=await created.json();
-  const url=base+'/solutions?id='+state.id+'&view=flows';
+  const url=base+'/solutions?id='+state.id+'&view=solution';
   await page.goto(url);
   const solution=page.locator('.solution-explanation').first();
   await solution.getByRole('button',{name:'Объяснить решение',exact:true}).click();
@@ -46,6 +46,8 @@ try {
   await solution.getByText('Источники объяснения',{exact:true}).first().click();
   await solution.getByRole('button',{name:'approval',exact:true}).click();
   await page.getByRole('heading',{name:'Учебное согласование',exact:true}).waitFor();
+  // UX-06: processes open on Как работает.
+  await page.getByRole('link',{name:'Как работает',exact:true}).click();
   await page.getByRole('button',{name:'Посмотреть процесс: approval',exact:true}).click();
   await page.locator('.solution-visual svg').waitFor();
   const processPanel=page.locator('.solution-visual > div .solution-explanation').first();

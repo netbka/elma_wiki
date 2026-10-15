@@ -31,8 +31,10 @@ The Solution object table opens the exact captured accepted process matching the
 current component digest. Change review keeps its captured process/form preview.
 The shared preview offers **Объяснить этот процесс** and **Объяснить этот шаг**.
 An explanation identifies its destination, describes declared steps/transitions,
-forms/fields and missing evidence, and links to source references. Users edit and
-save in place. Generating a replacement shows it beside the existing text;
+forms/fields and missing evidence, and links to source references. The panel
+opens readable: the generated guide or the saved text first, then **Уточнить
+объяснение** / **Изменить объяснение** opens the editor and **Сохранить
+объяснение** saves. Generating a replacement shows it beside the existing text;
 only **Использовать новый черновик** replaces the editor. Navigation among
 processes/steps in one mounted preview preserves each unsaved panel.
 
@@ -127,5 +129,5 @@ partial-state resolution, checksum rejection and retained removed-step knowledge
 `npm run test:explanations:browser` checks actual UI/API generation/source
 navigation/edit/save/reload, draft preservation, replacement comparison,
 concurrency/lost-response recovery, escaped text, keyboard, 390px/200% reflow and
-the ten shared renderer states. Evidence is synthetic; live ELMA, external AI,
+the twelve shared renderer states. Evidence is synthetic; live ELMA, external AI,
 deployment and independent user comprehension are not claimed.

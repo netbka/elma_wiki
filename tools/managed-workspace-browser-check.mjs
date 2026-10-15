@@ -278,7 +278,8 @@ try {
     } catch { res.writeHead(404); res.end(); }
   });
   await new Promise(resolve => stories.listen(0, '127.0.0.1', resolve));
-  for (const mode of ['empty','list','create','overview','pending','change','review','conflict','overlap','ambiguous','stale','archived','loading','load-error','changes','solution','no-source','needs-fixes','pending-conflict','review-comment','review-findings','review-resolved','review-accepted','review-stale-anchor','review-removed-anchor','review-ambiguous-anchor','elements-added','elements-boundary','elements-conflict','elements-unknown','create-legacy','pull-exporting','pull-ready','pull-failed','pull-unavailable','update','summary-mixed','summary-no-changes','summary-closed','decision','lifecycle-build','lifecycle-verified','about-empty','about-generated','about-saved','about-stale','about-error','flows','flows-error','screens']) {
+  const storyModes = ['empty','list','create','overview','pending','change','review','conflict','overlap','ambiguous','stale','archived','loading','load-error','changes','solution','no-source','needs-fixes','pending-conflict','review-comment','review-findings','review-resolved','review-accepted','review-stale-anchor','review-removed-anchor','review-ambiguous-anchor','elements-added','elements-boundary','elements-conflict','elements-unknown','create-legacy','pull-exporting','pull-ready','pull-failed','pull-unavailable','update','summary-mixed','summary-no-changes','summary-closed','decision','lifecycle-build','lifecycle-verified','about-empty','about-generated','about-saved','about-stale','about-error','flows','flows-error','screens'];
+  for (const mode of storyModes) {
     await page.goto(`http://127.0.0.1:${stories.address().port}/iframe.html?id=managed-workspace--${mode}&viewMode=story`);
     await page.locator('.managed-shell h1').waitFor();
     if (['review','conflict','overlap','ambiguous'].includes(mode)) await acceptBlocked();
@@ -308,16 +309,16 @@ try {
       await activity.getByText('Uploader', { exact: true }).waitFor(); assert.equal(await activity.getByText('Reviewer', { exact: true }).count(), 2);
       if (mode === 'about-empty') { await page.getByText('Опишите, для чего это решение', { exact: true }).waitFor(); await page.getByRole('button', { name: 'Написать', exact: true }).waitFor(); }
       if (mode === 'about-generated') { assert.match(await page.getByLabel('Описание решения', { exact: true }).inputValue(), /Решение объединяет модули/); assert.equal(await page.getByRole('button', { name: 'Сохранить описание', exact: true }).isDisabled(), false); }
-      if (mode === 'about-saved') { await page.getByText(/^Договоры с контрагентами/).first().waitFor(); await page.getByRole('button', { name: 'Изменить', exact: true }).waitFor(); assert.equal(await page.getByText('Состав решения изменился после сохранения. Проверьте описание.', { exact: true }).count(), 0); }
+      if (mode === 'about-saved') { await page.getByText(/^Командировки сотрудников/).first().waitFor(); await page.getByRole('button', { name: 'Изменить', exact: true }).waitFor(); assert.equal(await page.getByText('Состав решения изменился после сохранения. Проверьте описание.', { exact: true }).count(), 0); }
       if (mode === 'about-stale') await page.getByText('Состав решения изменился после сохранения. Проверьте описание.', { exact: true }).waitFor();
       if (mode === 'about-error') { await page.getByRole('alert').filter({ hasText: 'Описание не получено' }).waitFor(); await page.getByRole('button', { name: 'Написать', exact: true }).waitFor(); }
     }
     if (mode === 'flows') {
       await page.getByText(/^Задачи: /).waitFor();
-      await page.getByLabel('Поиск по названию или коду', { exact: true }).fill('approval');
+      await page.getByLabel('Поиск по названию или коду', { exact: true }).fill('trip');
       assert.equal(await page.locator('.managed-flows .managed-card:not([hidden])').count(), 1);
       await page.getByLabel('Поиск по названию или коду', { exact: true }).fill('');
-      await page.getByRole('button', { name: 'Посмотреть процесс: approval_process', exact: true }).click();
+      await page.getByRole('button', { name: 'Посмотреть процесс: trip_approval', exact: true }).click();
       await page.getByRole('img', { name: 'Схема процесса из экспорта', exact: true }).waitFor();
       await page.getByText(/^Кто выполняет: /).first().waitFor();
       await page.setViewportSize({ width: 390, height: 844 }); assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'flows 390');
@@ -346,7 +347,7 @@ try {
     await page.screenshot({ path: `qa/managed-story-${mode}.png`, fullPage: true }); evidence.states.push(mode);
   }
   assert.deepEqual(errors, []);
-  console.log('Solution: synthetic Change discussion/correction/acceptance, contextual editor, element responsibility/report, boundary/conflict decisions, archive/reopen, keyboard, responsive, stale/retry and all 30 shared Storybook states passed.');
+  console.log(`Solution: synthetic Change discussion/correction/acceptance, contextual editor, element responsibility/report, boundary/conflict decisions, archive/reopen, keyboard, responsive, stale/retry and all ${storyModes.length} shared Storybook states passed.`);
 } finally {
   await fs.mkdir('qa', { recursive: true }); await fs.writeFile('qa/managed-browser-evidence.json', JSON.stringify(evidence, null, 2));
   await browser?.close(); await new Promise(resolve => server.close(resolve));

@@ -112,7 +112,7 @@ try {
     try {
       const [candidates, capabilities] = await Promise.all([request(composedApi), request('/api/delivery/capabilities')]);
       composed = { candidates, build: capabilities.composedBuild };
-    } catch { composed = undefined; }
+    } catch (error) { composed = { loadError: error.message }; }
   }
   // UX-05: О решении reads the saved purpose (or its generated draft) before rendering,
   // so the page opens with the answer; a failed read keeps the empty sentence and a retry.
