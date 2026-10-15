@@ -11,14 +11,18 @@ import { zip } from './fixture.mjs';
 import { solutionReadingGuide, processReadingGuide } from '../lib/solution-explanations.mjs';
 
 test('Solution reading guide leads with named tasks, separates marked processes and never invents execution order or inactive status',()=>{
-  const processes=['Обработка учебного документа','Проверка учебного контрагента','Учебное согласование','Получить учебных пользователей из роли',
-    'OLD_Учебный маршрут','TEST ONLY: synthetic probe','AGENT synthetic acceptance'].map(name=>({name}));
+  const processes=['Обработка учебного документа','Проверка учебного партнёра','Учебное согласование','Получить учебных пользователей из роли',
+    'OLD_Учебный маршрут','TEST ONLY: synthetic probe','AGENT synthetic acceptance','Контроль качества','old_lowercase_is_ordinary'].map(name=>({name}));
   const text=solutionReadingGuide('Учебное решение',processes,40).join('\n\n');
   assert.ok(text.indexOf('Какие задачи')<text.indexOf('40 объектов'));
-  assert.match(text,/Контрагенты\n• Проверка учебного контрагента/);
+  assert.match(text,/Клиенты и партнёры\n• Проверка учебного партнёра/);
   const [ordinary,marked]=text.split('Отдельно: названия с пометками OLD / TEST / AGENT');
   assert.ok(!ordinary.includes('TEST ONLY:'));assert.ok(!ordinary.includes('OLD_'));assert.ok(!ordinary.includes('AGENT synthetic'));
   assert.match(marked,/OLD_Учебный маршрут/);assert.match(marked,/не доказывает/);
+  // "роль" is a word, not a substring of "контроль"; the OLD/TEST/AGENT markers are upper-case only.
+  assert.match(ordinary,/Другие процессы\n(?:• [^\n]+\n)*• Контроль качества/);assert.ok(!/Доступ и пользователи\n(?:• [^\n]+\n)*• Контроль качества/.test(ordinary));
+  assert.match(ordinary,/Получить учебных пользователей из роли/);assert.ok(ordinary.includes('old_lowercase_is_ordinary'));assert.ok(!marked.includes('old_lowercase'));
+  assert.match(ordinary,/Экраны и данные/);
   assert.match(text,/не является порядком выполнения/);assert.match(text,/по названиям процессов/);
   assert.match(text,/Ожидающие рассмотрения версии не включены/);
   assert.ok(!text.includes('переходов'));
