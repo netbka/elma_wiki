@@ -6,6 +6,7 @@ import path from 'node:path';
 import { createServer } from '../server.mjs';
 import { zip } from './fixture.mjs';
 import { actorDisplay } from '../lib/actors.mjs';
+import { aboutContext } from '../lib/solution-about.mjs';
 
 // UX-05: the purpose paragraph and module descriptions are explanations of
 // their own scopes, generated from declared names only, saved with author and
@@ -82,4 +83,16 @@ test('UX-05: actor display shows a name with initials, never a bare letter, an i
   assert.deepEqual(actorDisplay({ id: 'y', login: 'Мария Сидорова', provider: 'vk-teams' }), { name: 'Мария Сидорова', initials: 'МС', login: 'Мария Сидорова' });
   assert.equal(actorDisplay({ id: 'z', login: 'p', provider: 'local' }).initials, 'P');
   assert.deepEqual(actorDisplay(null), { name: '', initials: '?', login: '' });
+});
+
+test('UX-05 follow-up: the module fingerprint covers the module\'s system objects, so a permission change marks the saved description stale', () => {
+  const row = (service, namespace, code, kind, name, digest) => ({ key: JSON.stringify(kind ? [service, namespace, kind, code] : [service, namespace, code]), service, namespace, code, kind, name, digest });
+  const state = digest => ({ status: 'active', revision: 0, name: 'Учебные командировки', current: [
+    row('widgets', 'travel', 'request', null, 'Заявка', 'a'.repeat(64)),
+    row('permissionsSettings', 'travel', 'request', 'permissionSettings', null, digest)] });
+  const before = aboutContext({ state: state('b'.repeat(64)) }, { scope: 'module', module: 'travel' });
+  const after = aboutContext({ state: state('c'.repeat(64)) }, { scope: 'module', module: 'travel' });
+  assert.notEqual(before.fingerprint, after.fingerprint);
+  assert.equal(before.key, JSON.stringify(['module', 'travel']));
+  assert.match(before.draft.text, /Экраны: Заявка/);
 });

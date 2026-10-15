@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { managedFixture } from '../web/managed/fixtures.js';
-import { dateLabel, moduleCards, activityFeed, relativeTime, solutionStatus, lifecycleSteps, reviewGate, workspaceSummary, componentName, workspaceUrl, solutionNextAction, responsibilityLabel, responsibilityReport, hasAcceptedFullExport, objectLabel, objectCode, objectFromKey, objectKindLabel, objectModule, isSystemObject, groupObjects, reviewSummary, reviewBucket, groupDependencies } from '../web/managed/model.js';
+import { moduleCardView, dateLabel, moduleCards, activityFeed, relativeTime, solutionStatus, lifecycleSteps, reviewGate, workspaceSummary, componentName, workspaceUrl, solutionNextAction, responsibilityLabel, responsibilityReport, hasAcceptedFullExport, objectLabel, objectCode, objectFromKey, objectKindLabel, objectModule, isSystemObject, groupObjects, reviewSummary, reviewBucket, groupDependencies } from '../web/managed/model.js';
 import { solutionHandoffFixture } from '../web/managed/handoff-fixtures.js';
 
 test('handoff navigation requires a matching accepted full state and stays separate from delivery evidence', () => {
@@ -90,23 +90,23 @@ test('process reports expose precise boundaries and previous teams without claim
 });
 
 test('UX-02: business name first, technical code second; objects group by module and kind, system objects aside', () => {
-  const widget = { key: JSON.stringify(['widgets', 'contract_management.contracts', 'create_form']), service: 'widgets', namespace: 'contract_management.contracts', code: 'create_form', kind: 'WIDGET', name: 'Форма создания договора' };
-  assert.deepEqual(objectLabel(widget), { text: 'Форма создания договора', secondary: 'create_form', technical: false });
-  assert.deepEqual(objectLabel({ ...widget, name: 'create_form' }), { text: 'create_form', secondary: '', technical: false }, 'a name equal to the code is not repeated');
+  const widget = { key: JSON.stringify(['widgets', 'travel_expenses.trips', 'request_form']), service: 'widgets', namespace: 'travel_expenses.trips', code: 'request_form', kind: 'WIDGET', name: 'Форма заявки' };
+  assert.deepEqual(objectLabel(widget), { text: 'Форма заявки', secondary: 'request_form', technical: false });
+  assert.deepEqual(objectLabel({ ...widget, name: 'request_form' }), { text: 'request_form', secondary: '', technical: false }, 'a name equal to the code is not repeated');
   assert.deepEqual(objectLabel({ ...widget, name: null, code: 'form_01a11b42-6c2a-7767-b10f-fdb60bdc6139' }).technical, true, 'a name-less GUID form is marked technical');
-  const permission = { key: JSON.stringify(['permissionsSettings', 'contract_management', 'permissionSettings', 'contracts']), service: 'permissionsSettings', namespace: 'contract_management', code: 'contracts', kind: 'permissionSettings' };
-  assert.equal(objectLabel(permission).text, 'contract_management · contracts · permissionSettings', 'long keys keep the previous technical label');
+  const permission = { key: JSON.stringify(['permissionsSettings', 'travel_expenses', 'permissionSettings', 'trips']), service: 'permissionsSettings', namespace: 'travel_expenses', code: 'trips', kind: 'permissionSettings' };
+  assert.equal(objectLabel(permission).text, 'travel_expenses · trips · permissionSettings', 'long keys keep the previous technical label');
   assert.equal(objectCode({ key: '["widgets","x","y"]' }), 'y');
-  assert.equal(objectLabel({ key: permission.key }).text, 'contract_management · contracts · permissionSettings', 'a row known only by its key (an object a review adds) is labelled from the key');
-  assert.deepEqual(objectFromKey(permission.key), { key: permission.key, service: 'permissionsSettings', namespace: 'contract_management', code: 'contracts', kind: 'permissionSettings' });
-  assert.equal(objectModule(objectFromKey(widget.key)), 'contract_management');
+  assert.equal(objectLabel({ key: permission.key }).text, 'travel_expenses · trips · permissionSettings', 'a row known only by its key (an object a review adds) is labelled from the key');
+  assert.deepEqual(objectFromKey(permission.key), { key: permission.key, service: 'permissionsSettings', namespace: 'travel_expenses', code: 'trips', kind: 'permissionSettings' });
+  assert.equal(objectModule(objectFromKey(widget.key)), 'travel_expenses');
   assert.deepEqual(objectFromKey('not-json'), { key: 'not-json' });
   assert.equal(objectKindLabel({ service: 'processor' }), 'Процессы'); assert.equal(objectKindLabel({ service: 'applications' }), 'Данные'); assert.equal(objectKindLabel({ service: 'unknown' }), 'Прочее');
-  assert.equal(objectModule(widget), 'contract_management'); assert.equal(objectModule({}), '');
+  assert.equal(objectModule(widget), 'travel_expenses'); assert.equal(objectModule({}), '');
   assert.equal(isSystemObject(permission), true); assert.equal(isSystemObject({ ...widget, name: null, code: '__default' }), true); assert.equal(isSystemObject(widget), false);
   const rows = managedFixture('solution').workspace.current, grouped = groupObjects(rows);
-  assert.deepEqual(grouped.modules.map(group => group.module), ['contract_management', 'synthetic']);
-  assert.deepEqual(grouped.modules[0].kinds.map(kind => kind.kind), ['processes', 'data'], 'kinds follow display order');
+  assert.deepEqual(grouped.modules.map(group => group.module), ['synthetic', 'travel_expenses']);
+  assert.deepEqual(grouped.modules.find(group => group.module === 'travel_expenses').kinds.map(kind => kind.kind), ['processes', 'data'], 'kinds follow display order');
   assert.equal(grouped.system.length, 3, 'permissions, __default and localization are system objects');
   assert.equal(grouped.modules.reduce((n, group) => n + group.count, 0) + grouped.system.length, rows.length, 'every row is shown once');
 });
@@ -182,7 +182,7 @@ test('UX-04: the header badge and stepper project every row of the next-action m
 
 test('UX-05: module cards count business rows by kind, the activity list names people and relative times, and the fixture shows two distinct actors', () => {
   const cards = moduleCards(managedFixture('solution').workspace.current);
-  assert.deepEqual(cards.map(card => [card.module, card.processes.length, card.forms.length, card.data.length, card.system]), [['contract_management', 1, 0, 2, 3], ['synthetic', 0, 3, 0, 0]]);
+  assert.deepEqual(cards.map(card => [card.module, card.processes.length, card.forms.length, card.data.length, card.system]), [['synthetic', 0, 3, 0, 0], ['travel_expenses', 1, 0, 2, 3]]);
   const model = managedFixture('about-saved'), feed = activityFeed(model.workspace, 8, model.now);
   assert.deepEqual(feed.map(row => [row.label, row.actor.name, row.actor.initials, row.when]),
     [['Изменение принято', 'Reviewer', 'R', '2 ч назад'], ['Комментарий', 'Reviewer', 'R', '4 ч назад'], ['Решение загружено', 'Uploader', 'U', '5 ч назад']]);
@@ -194,4 +194,18 @@ test('UX-05: module cards count business rows by kind, the activity list names p
   assert.equal(relativeTime('2026-10-01T13:00:00Z', now), dateLabel('2026-10-01T13:00:00Z'));
   assert.equal(model.about.purpose.saved.sourceStatus, 'current'); assert.equal(managedFixture('about-stale').about.purpose.saved.sourceStatus, 'stale');
   assert.equal(managedFixture('about-empty').about.purpose.saved, null); assert.equal(managedFixture('about-generated').aboutEditing, true);
+});
+
+test('UX-05 follow-ups: reply and reopen events have labels; a module card without a namespace is titled and not explainable; overflow is counted', () => {
+  const actor = { id: 'a', login: 'reviewer@example.org', provider: 'vk-teams' };
+  const feed = activityFeed({ audit: [{ action: 'review-reply', actor, at: '2026-10-07T10:00:00Z' }, { action: 'review-reopen', actor, at: '2026-10-07T11:00:00Z' }] });
+  assert.deepEqual(feed.map(row => row.label), ['Замечание открыто снова', 'Ответ в обсуждении']);
+  assert.ok(feed.every(row => row.label !== row.action));
+  const row = (code, name, i) => ({ key: JSON.stringify(['widgets', '', code + i]), service: 'widgets', namespace: '', code: code + i, name: name + ' ' + i, digest: 'a'.repeat(64) });
+  const nameless = moduleCards(Array.from({ length: 8 }, (_, i) => row('form', 'Экран', i)))[0];
+  const view = moduleCardView(nameless);
+  assert.deepEqual(view.title, { text: 'Без модуля', technical: true }); assert.equal(view.explainable, false);
+  assert.deepEqual(view.parts.map(part => [part.kind, part.names.length, part.more]), [['forms', 6, 2]]);
+  const named = moduleCardView(moduleCards(managedFixture('solution').workspace.current).find(card => card.module === 'travel_expenses'));
+  assert.equal(named.explainable, true); assert.equal(named.title.text, 'travel_expenses'); assert.ok(named.parts.every(part => part.more === 0));
 });

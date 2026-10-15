@@ -11,11 +11,11 @@ import { zip } from './fixture.mjs';
 import { solutionReadingGuide, processReadingGuide } from '../lib/solution-explanations.mjs';
 
 test('Solution reading guide leads with named tasks, separates marked processes and never invents execution order or inactive status',()=>{
-  const processes=['Обработка учебного документа','Проверка учебного контрагента','Учебное согласование','Получить учебных пользователей из роли',
+  const processes=['Обработка учебного документа','Проверка учебного партнёра','Учебное согласование','Получить учебных пользователей из роли',
     'OLD_Учебный маршрут','TEST ONLY: synthetic probe','AGENT synthetic acceptance','Контроль качества','old_lowercase_is_ordinary'].map(name=>({name}));
   const text=solutionReadingGuide('Учебное решение',processes,40).join('\n\n');
   assert.ok(text.indexOf('Какие задачи')<text.indexOf('40 объектов'));
-  assert.match(text,/Контрагенты\n• Проверка учебного контрагента/);
+  assert.match(text,/Клиенты и партнёры\n• Проверка учебного партнёра/);
   const [ordinary,marked]=text.split('Отдельно: названия с пометками OLD / TEST / AGENT');
   assert.ok(!ordinary.includes('TEST ONLY:'));assert.ok(!ordinary.includes('OLD_'));assert.ok(!ordinary.includes('AGENT synthetic'));
   assert.match(marked,/OLD_Учебный маршрут/);assert.match(marked,/не доказывает/);

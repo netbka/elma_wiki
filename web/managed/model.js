@@ -1,4 +1,4 @@
-import { classificationLabels, elementClassificationLabels, elementKindLabels, actions as actionLabels, summaries, kindGroups, displayLabel, isTechnicalKey, ribbon, steps as stepLabels, stepReasons, statuses, activity as activityLabels } from './labels.js';
+import { grouping as groupingLabels, classificationLabels, elementClassificationLabels, elementKindLabels, actions as actionLabels, summaries, kindGroups, displayLabel, isTechnicalKey, ribbon, steps as stepLabels, stepReasons, statuses, activity as activityLabels } from './labels.js';
 // Review classification wording lives in labels.js (UX-00); these names stay for
 // existing importers.
 export const labels = classificationLabels;
@@ -284,4 +284,14 @@ export function activityFeed(state, limit = 8, now = Date.now()) {
   return (state?.audit || []).slice(-limit).reverse().map((row, index) => ({
     id: row.at + ':' + index, action: row.action, label: activityLabels.events[row.action] || row.action,
     actor: actorDisplay(row.actor), at: row.at, when: relativeTime(row.at, now), artifactId: row.artifactId ?? null }));
+}
+
+// UX-05 follow-up: the module card as data. Title falls back to "Без модуля"
+// when the namespace is empty; sentence parts carry the first `limit` names and
+// how many more there are; a module without a code cannot be described.
+export function moduleCardView(card, limit = 6) {
+  const label = objectLabel({ code: card.module, name: card.name, namespace: card.module });
+  const parts = [['processes', card.processes], ['forms', card.forms], ['data', card.data]].filter(([, rows]) => rows.length)
+    .map(([kind, rows]) => ({ kind, names: rows.slice(0, limit).map(row => objectLabel(row).text), more: Math.max(0, rows.length - limit) }));
+  return { title: { text: label.text || groupingLabels.withoutModule, technical: label.technical || !label.text }, parts, explainable: !!card.module };
 }
