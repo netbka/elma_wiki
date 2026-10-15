@@ -149,7 +149,8 @@ export const flows = {
   search: 'Поиск по названию или коду', nothingFound: 'Ничего не найдено', steps: 'шагов', tasks: 'Задачи', noTasks: 'Задач с участием людей в экспорте нет',
   whoDoes: 'Кто выполняет', laneUnknown: 'дорожка не указана', unsupported: 'Не поддерживается', fields: 'Поля', fieldsUnknown: 'Поля не восстановлены из экспорта',
   field: 'Поле', fieldCode: 'Код', fieldType: 'Тип', fieldRequired: 'Обязательное', yes: 'да', no: 'нет', noProcesses: 'Поддерживаемых процессов в принятом состоянии нет',
-  processesElsewhere: 'Процессы показаны на вкладке', diagramUnavailable: 'Схема не получена', view: 'Посмотреть процесс'
+  processesElsewhere: 'Процессы показаны на вкладке', diagramUnavailable: 'Схема не получена', view: 'Посмотреть процесс',
+  fieldsUnavailable: 'Поля не получены', tooManyProcesses: 'Для обзора выберите меньший пакет: не более 50 процессов'
 };
 
 // Empty states

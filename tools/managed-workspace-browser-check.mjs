@@ -278,7 +278,7 @@ try {
     } catch { res.writeHead(404); res.end(); }
   });
   await new Promise(resolve => stories.listen(0, '127.0.0.1', resolve));
-  const storyModes = ['empty','list','create','overview','pending','change','review','conflict','overlap','ambiguous','stale','archived','loading','load-error','changes','solution','no-source','needs-fixes','pending-conflict','review-comment','review-findings','review-resolved','review-accepted','review-stale-anchor','review-removed-anchor','review-ambiguous-anchor','elements-added','elements-boundary','elements-conflict','elements-unknown','create-legacy','pull-exporting','pull-ready','pull-failed','pull-unavailable','update','summary-mixed','summary-no-changes','summary-closed','decision','lifecycle-build','lifecycle-verified','about-empty','about-generated','about-saved','about-stale','about-error','flows','flows-error','screens'];
+  const storyModes = ['empty','list','create','overview','pending','change','review','conflict','overlap','ambiguous','stale','archived','loading','load-error','changes','solution','no-source','needs-fixes','pending-conflict','review-comment','review-findings','review-resolved','review-accepted','review-stale-anchor','review-removed-anchor','review-ambiguous-anchor','elements-added','elements-boundary','elements-conflict','elements-unknown','create-legacy','pull-exporting','pull-ready','pull-failed','pull-unavailable','update','summary-mixed','summary-no-changes','summary-closed','decision','lifecycle-build','lifecycle-verified','about-empty','about-generated','about-saved','about-stale','about-error','flows','flows-error','flows-unknown','screens'];
   for (const mode of storyModes) {
     await page.goto(`http://127.0.0.1:${stories.address().port}/iframe.html?id=managed-workspace--${mode}&viewMode=story`);
     await page.locator('.managed-shell h1').waitFor();
@@ -324,14 +324,25 @@ try {
       await page.getByLabel('Поиск по названию или коду', { exact: true }).fill('');
       await page.getByRole('button', { name: 'Посмотреть процесс: trip_approval', exact: true }).click();
       await page.getByRole('img', { name: 'Схема процесса из экспорта', exact: true }).waitFor();
-      await page.getByText(/^Кто выполняет: /).first().waitFor();
+      await page.getByText('Кто выполняет: Согласующий', { exact: true }).first().waitFor();
+      assert.equal(await page.locator('.visual-unsupported').count(), 0, 'a fully supported process has no unsupported list');
       await page.setViewportSize({ width: 390, height: 844 }); assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'flows 390');
     }
     if (mode === 'flows-error') { await page.getByText(/^Схема не получена: /).first().waitFor(); }
+    if (mode === 'flows-unknown') {
+      // An unsupported lane and node: who does it is unknown, and the unsupported items are one collapsed list with a count.
+      await page.getByRole('button', { name: 'Посмотреть процесс: trip_approval', exact: true }).click();
+      await page.getByRole('img', { name: 'Схема процесса из экспорта', exact: true }).waitFor();
+      await page.getByText('Кто выполняет: дорожка не указана', { exact: true }).first().waitFor();
+      const unsupported = page.locator('.visual-unsupported > summary'); await unsupported.waitFor();
+      assert.match(await unsupported.innerText(), /^Не поддерживается · [1-9]\d*$/);
+      assert.equal(await page.locator('.visual-unsupported[open]').count(), 0, 'the list is collapsed by default');
+    }
     if (mode === 'screens') {
       await page.locator('summary', { hasText: 'Поля · 2' }).click();
       await page.getByRole('cell', { name: 'Сумма', exact: true }).waitFor();
       await page.getByText('Поля не восстановлены из экспорта', { exact: true }).first().waitFor();
+      assert.equal(await page.getByRole('heading', { name: /^Объекты решения · \d+$/ }).innerText(), 'Объекты решения · 8', 'processes are not counted among screens and data');
       assert.equal(await page.locator('.managed-screens').getByRole('heading', { name: /^Процессы · / }).count(), 0, 'processes are not listed among screens');
       await page.getByRole('link', { name: /^Как работает · 1$/ }).waitFor();
       await page.setViewportSize({ width: 390, height: 844 }); assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'screens 390');

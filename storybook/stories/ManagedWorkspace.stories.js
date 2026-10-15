@@ -54,6 +54,7 @@ export const Solution = { render: () => story('solution') };
 export const Flows = { render: () => story('flows'), parameters: { docs: { description: { story:
   'UX-06: Как работает. Processes by module with business names, declared responsibility and a one-line reading from their human tasks; search by name or code; the selected process opens the shared diagram with step detail.' } } } };
 export const FlowsError = { render: () => story('flows-error') };
+export const FlowsUnknown = { render: () => story('flows-unknown') };
 export const Screens = { render: () => story('screens'), parameters: { docs: { description: { story:
   'UX-06: Экраны и данные. Forms and data objects by module with the fields their export declares; search; system objects collapsed; processes referenced on Как работает.' } } } };
 export const NativeComponents = { render: () => story('native-components') };

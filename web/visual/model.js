@@ -115,6 +115,6 @@ export function processSummary(process, limit = 6) {
 export function laneOf(process, node) {
   if (!node?.position) return null;
   const cx = node.position.x + node.position.width / 2, cy = node.position.y + node.position.height / 2;
-  const lanes = (process?.lanes || []).filter(lane => lane.position && cx >= lane.position.x && cx <= lane.position.x + lane.position.width && cy >= lane.position.y && cy <= lane.position.y + lane.position.height);
+  const lanes = (process?.lanes || []).filter(lane => lane.supported && lane.position && cx >= lane.position.x && cx <= lane.position.x + lane.position.width && cy >= lane.position.y && cy <= lane.position.y + lane.position.height);
   return lanes.length === 1 ? lanes[0] : null;
 }

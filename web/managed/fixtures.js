@@ -91,10 +91,10 @@ export function managedFixture(mode = 'overview') {
   if (mode === 'update') { base.snapshot.source = { connectionId: 'config-api-dev', solutionRef: 'travel_expenses' }; model.view = 'full'; }
   if (mode === 'change') model.view = 'change';
   if (mode === 'changes') model.view = 'changes';
-  if (['flows', 'screens', 'flows-error'].includes(mode)) {
+  if (['flows', 'screens', 'flows-error', 'flows-unknown'].includes(mode)) {
     // UX-06: the solution inventory plus the captured projections of its artifact.
     model.view = mode === 'screens' ? 'solution' : 'flows';
-    const visual = visualFixture('source'); visual.artifactId = base.id; visual.processes[0].name = names.approval;
+    const visual = visualFixture(mode === 'flows-unknown' ? 'unknown' : 'source'); visual.artifactId = base.id; visual.processes[0].name = names.approval;
     visual.processes[0].object = ['processor', 'travel_expenses.trips', 'template', 'trip_approval'];
     visual.objects = [
       { object: ['widgets', 'synthetic.records', 'contract'], service: 'widgets', code: 'contract', name: names.contract, source: 'widgets/contract.json', fields: [
@@ -106,8 +106,8 @@ export function managedFixture(mode = 'overview') {
     ];
     model.visuals = { [base.id]: mode === 'flows-error' ? { error: 'Схема не получена: учебная ошибка.' } : visual };
   }
-  if (['solution', 'flows', 'screens', 'flows-error'].includes(mode)) {
-    model.view = ['flows', 'flows-error'].includes(mode) ? 'flows' : 'solution';
+  if (['solution', 'flows', 'screens', 'flows-error', 'flows-unknown'].includes(mode)) {
+    model.view = ['flows', 'flows-error', 'flows-unknown'].includes(mode) ? 'flows' : 'solution';
     // UX-02: a second module, a process, data objects and system objects show grouping, names and the collapsed group.
     const extra = (service, namespace, code, kind, name) => ({ code, key: JSON.stringify(kind && service !== 'widgets' ? [service, namespace, kind, code] : [service, namespace, code]), team: 'Команда внедрения',
       service, namespace, kind, name, interventionId: null, digest: 'a'.repeat(64) });

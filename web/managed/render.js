@@ -1,4 +1,4 @@
-import { componentName, dateLabel, labels, elementLabels, elementKinds, responsibilityLabel, responsibilityReport, reviewGate, workspaceSummary, workspaceUrl as buildUrl, solutionNextAction, objectLabel, objectFromKey, groupObjects, reviewSummary, reviewBucket, objectModule } from './model.js';
+import { objectKind, componentName, dateLabel, labels, elementLabels, elementKinds, responsibilityLabel, responsibilityReport, reviewGate, workspaceSummary, workspaceUrl as buildUrl, solutionNextAction, objectLabel, objectFromKey, groupObjects, reviewSummary, reviewBucket, objectModule } from './model.js';
 import { nouns, grouping, ribbon, facts, reviewSummary as summaryLabels, decision as decisionLabels, diagram as diagramLabels, tabs as tabLabels, header as headerLabels, stepStates } from './labels.js';
 import { decisionChoices, decisionDefault, canCloseWithoutChanges, solutionStatus, lifecycleSteps } from './model.js';
 import { mountSnapshotVisual } from '../visual/render.js';
@@ -161,7 +161,7 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
       if (view === 'overview') content.append(mountAbout({ state, about: model.about || {}, editing: !!model.aboutEditing, now: model.now }, { explanations: actions.explanations, navigate: actions.navigate, open: () => workspaceUrl(state.id, 'solution') }));
       // UX-06: Как работает is the process tab; it has no attention block of its own.
       if (view === 'flows') { content.append(mountFlows({ state, visuals: model.visuals || {}, selected: model.object || null }, { visual: actions.visual, explanations: actions.explanations, navigate: actions.navigate })); return root; }
-      content.append(el('h2', view === 'solution' ? `Объекты решения · ${state.current.length}` : view === 'changes' ? 'Изменения' : 'Что требует внимания'), el('p', next.summary));
+      content.append(el('h2', view === 'solution' ? `Объекты решения · ${state.current.filter(row => objectKind(row) !== 'processes').length}` : view === 'changes' ? 'Изменения' : 'Что требует внимания'), el('p', next.summary));
       if(actions.explanations && ['overview','solution'].includes(view)){
         const evidence=el('div');
         content.append(mountExplanation({target:{scope:'solution'},label:'Объяснить решение'}, {...actions.explanations,

@@ -40,12 +40,15 @@ export function mountFlows({ state, visuals = {}, selected = null }, actions = {
     for (const section of root.querySelectorAll('.managed-module')) section.hidden = ![...section.querySelectorAll('.managed-card')].some(card => !card.hidden);
     status.textContent = query ? shown ? `${shown} ${grouping.objects}` : flowLabels.nothingFound : '';
   });
+  let openToken = 0;
   const open = async (row, card) => {
-    const captured = capturedArtifact(state, row);
+    const token = ++openToken, captured = capturedArtifact(state, row);
     target.replaceChildren(mountSnapshotVisual({ loading: true }));
     for (const other of cards) other.card.classList.toggle('managed-selected', other.row === row);
     let value = visualFor(visuals, captured?.id);
     if ((!value || value.error) && actions.visual && captured) { try { value = await actions.visual(captured.id); visuals[captured.id] = value; } catch (e) { value = { error: e.message }; } }
+    // A slower earlier response must not replace the latest selection.
+    if (token !== openToken) return;
     if (!value || value.error) { target.replaceChildren(mountSnapshotVisual({ error: value?.error || flowLabels.diagramUnavailable }, { retry: () => open(row, card) })); return; }
     const own = { ...value, processes: value.processes.filter(process => JSON.stringify(process.object) === row.key) };
     target.replaceChildren(mountSnapshotVisual(own, { explanations: actions.explanations }));
@@ -102,6 +105,8 @@ export function mountScreens({ state, visuals = {} }, actions = {}) {
     const object = value?.objects?.find(object => JSON.stringify(object.object) === row.key);
     if (object?.fields?.length) { const details = el('details'); details.append(el('summary', `${flowLabels.fields} · ${object.fields.length}`), fieldTable(object.fields)); article.append(details); }
     else if (object) article.append(el('p', flowLabels.fieldsUnknown, 'managed-muted'));
+    // The projection was not read (failed read, or none loaded for a captured artifact): the card says so.
+    else if (captured && (!value || value.error)) article.append(el('p', value?.error ? `${flowLabels.fieldsUnavailable}: ${value.error}` : flowLabels.fieldsUnavailable, 'managed-muted'));
     cards.push({ row, card: article }); return article;
   };
   const grouped = groupObjects(rows.filter(row => objectKind(row) !== 'processes'));
