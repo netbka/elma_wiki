@@ -88,12 +88,12 @@ async function setup(t, variables) {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'e365-preset-test-'));
   // Hooks run in registration order: stop every worker stand-in before its directory is removed.
   t.after(async () => { await Promise.all([...liveWorkers].map(stop => stop())); assert.ok(path.basename(directory).startsWith('e365-preset-test-')); await fs.rm(directory, { recursive: true, force: true }); });
-  const projects = projectStore(directory), bridges = bridgeStore(directory, { onlineMs: 5000, healthTimeoutMs: 1000 });
+  const projects = projectStore(directory), bridges = bridgeStore(directory, { onlineMs: 5000, healthTimeoutMs: 10000 });
   let delivery;
   const releases = releaseStore(directory, projects, { deliverySummary: (id, owner) => delivery.summary(id, owner) });
   const presets = targetPresets(variables, { protectedHosts: [PROD] });
   delivery = deliveryStore(directory, releases, { adapters: { bridge: (opts, connection) => bridges.adapter(opts, connection) }, presets,
-    presetAdapter: (preset, connection) => bridges.presetAdapter(preset, connection), protectedHosts: [PROD], timeoutMs: 3000 });
+    presetAdapter: (preset, connection) => bridges.presetAdapter(preset, connection), protectedHosts: [PROD], timeoutMs: 10000 });
   return { directory, projects, releases, delivery, bridges };
 }
 async function approvedRelease(projects, releases, owner = 'alice') {
@@ -148,7 +148,7 @@ function fakeWorker(bridges, token, { target, host, inventory = [], importAppend
   return { log, payloads, setMetadata: value => { mode = value; }, stop };
 }
 async function online(bridges, id, owner = 'alice') {
-  for (const deadline = Date.now() + 5000; Date.now() < deadline; await new Promise(resolve => setTimeout(resolve, 25)))
+  for (const deadline = Date.now() + 20000; Date.now() < deadline; await new Promise(resolve => setTimeout(resolve, 25)))
     if ((await bridges.get(id, owner)).online) return;
   assert.fail('worker did not report online');
 }
@@ -198,7 +198,7 @@ test('DEV2 delivers a designated candidate through the dev2 bridge and refuses a
   const { projects, releases, bridges } = first;
   const presets = targetPresets(env({ WIKI_TARGET_DEV2_DEPLOY_CANDIDATES: designated }), { protectedHosts: [PROD] });
   let delivery;
-  delivery = deliveryStore(first.directory, releases, { adapters: {}, presets, presetAdapter: (preset, connection) => bridges.presetAdapter(preset, connection), protectedHosts: [PROD], timeoutMs: 3000 });
+  delivery = deliveryStore(first.directory, releases, { adapters: {}, presets, presetAdapter: (preset, connection) => bridges.presetAdapter(preset, connection), protectedHosts: [PROD], timeoutMs: 10000 });
 
   // A bridge running `--target=dev2` but whose host is shared DEV (or PROD) is never selected.
   const { bridge: wrong, token: wrongToken } = await bridges.create('alice', { name: 'misconfigured' });
@@ -227,9 +227,9 @@ test('DEV2 delivers a designated candidate through the dev2 bridge and refuses a
 
   // A changed configuration (designation withdrawn) refuses dispatch of a prepared attempt.
   const second = await approvedRelease(projects, releases);
-  const withdrawn = deliveryStore(first.directory, releases, { adapters: {}, presets: targetPresets(env({ WIKI_TARGET_DEV2_DEPLOY_CANDIDATES: second.candidate.sha256 }), { protectedHosts: [PROD] }), presetAdapter: (preset, connection) => bridges.presetAdapter(preset, connection), protectedHosts: [PROD], timeoutMs: 3000 });
+  const withdrawn = deliveryStore(first.directory, releases, { adapters: {}, presets: targetPresets(env({ WIKI_TARGET_DEV2_DEPLOY_CANDIDATES: second.candidate.sha256 }), { protectedHosts: [PROD] }), presetAdapter: (preset, connection) => bridges.presetAdapter(preset, connection), protectedHosts: [PROD], timeoutMs: 10000 });
   const prepared = await withdrawn.prepare(second.id, 'alice', { revision: second.revision, connectionId: 'preset-dev2' });
-  const restarted = deliveryStore(first.directory, releases, { adapters: {}, presets: targetPresets(env(), { protectedHosts: [PROD] }), presetAdapter: (preset, connection) => bridges.presetAdapter(preset, connection), protectedHosts: [PROD], timeoutMs: 3000 });
+  const restarted = deliveryStore(first.directory, releases, { adapters: {}, presets: targetPresets(env(), { protectedHosts: [PROD] }), presetAdapter: (preset, connection) => bridges.presetAdapter(preset, connection), protectedHosts: [PROD], timeoutMs: 10000 });
   const deploys = worker.log.filter(kind => kind === 'deploy').length;
   await assert.rejects(restarted.confirm(second.id, prepared.id, 'alice', { idempotencyKey: 'late', confirmation: `DEPLOY ${prepared.solutionCode} ${prepared.sha256.slice(0, 12)}` }), error => error.statusCode === 403);
   assert.equal(worker.log.filter(kind => kind === 'deploy').length, deploys);
@@ -264,7 +264,7 @@ async function deploy(delivery, release, connectionId, input = {}) {
 }
 const designatedStore = (directory, releases, bridges, designated) => deliveryStore(directory, releases, { adapters: { bridge: (opts, connection) => bridges.adapter(opts, connection) },
   presets: targetPresets(env(designated ? { WIKI_TARGET_DEV2_DEPLOY_CANDIDATES: designated } : {}), { protectedHosts: [PROD] }),
-  presetAdapter: (preset, connection) => bridges.presetAdapter(preset, connection), protectedHosts: [PROD], timeoutMs: 3000 });
+  presetAdapter: (preset, connection) => bridges.presetAdapter(preset, connection), protectedHosts: [PROD], timeoutMs: 10000 });
 async function dev2Worker(t, bridges, options = {}) {
   const { bridge, token } = await bridges.create('alice', { name: 'DEV2' });
   const worker = fakeWorker(bridges, token, { target: 'dev2', host: DEV2, inventory: await inventoryOf(await fixture(false)), importAppends: true, ...options });

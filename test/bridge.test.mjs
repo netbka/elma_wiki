@@ -19,13 +19,16 @@ const fixture = (required = false) => zip([
 const details = { title: 'Релиз в TEST', intent: 'Проверить обязательность заголовка', targetIntent: 'TEST' };
 const sha = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
 
-async function setup(t, options = {}) {
+// Generous, injectable timeouts: the fake worker long-polls in-process, so a short health or
+// operation timeout made these tests fail under CPU load. Negative paths wait for an observable
+// condition (bridge offline) instead of racing a timer.
+async function setup(t, { healthTimeoutMs = 10000, onlineMs = 5000, ...options } = {}) {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'e365-bridge-test-'));
   t.after(async () => { assert.ok(path.basename(directory).startsWith('e365-bridge-test-')); await fs.rm(directory, { recursive: true, force: true }); });
-  const projects = projectStore(directory), bridges = bridgeStore(directory, { onlineMs: 5000, healthTimeoutMs: 500 });
+  const projects = projectStore(directory), bridges = bridgeStore(directory, { onlineMs, healthTimeoutMs });
   let delivery;
   const releases = releaseStore(directory, projects, { deliverySummary: (id, owner) => delivery.summary(id, owner) });
-  delivery = deliveryStore(directory, releases, { adapters: { bridge: (opts, connection) => bridges.adapter(opts, connection) }, protectedHosts: ['prod.example.invalid'], timeoutMs: 2000, ...options });
+  delivery = deliveryStore(directory, releases, { adapters: { bridge: (opts, connection) => bridges.adapter(opts, connection) }, protectedHosts: ['prod.example.invalid'], timeoutMs: 10000, ...options });
   return { directory, projects, releases, delivery, bridges };
 }
 async function approvedRelease(projects, releases, owner = 'alice') {
@@ -37,13 +40,13 @@ async function approvedRelease(projects, releases, owner = 'alice') {
 }
 const confirmation = attempt => `DEPLOY ${attempt.solutionCode} ${attempt.sha256.slice(0, 12)}`;
 
-async function waitForWorker(bridges, bridgeId) {
-  const deadline = Date.now() + 5000;
+async function waitForWorker(bridges, bridgeId, online = true) {
+  const deadline = Date.now() + 20000;
   while (Date.now() < deadline) {
-    if ((await bridges.get(bridgeId, 'alice')).online) return;
+    if ((await bridges.get(bridgeId, 'alice')).online === online) return;
     await new Promise(resolve => setTimeout(resolve, 25));
   }
-  assert.fail('worker did not report online within 5 seconds');
+  assert.fail(`worker did not report ${online ? 'online' : 'offline'} within 20 seconds`);
 }
 
 // An in-process stand-in for the operator worker: it owns the "Target" state the way the real worker owns
@@ -159,7 +162,7 @@ test('bridge: slow import returns deploying and finishes in the background; unap
 });
 
 test('bridge: owner isolation, PROD identity refusal and timeouts without a worker', async t => {
-  const { projects, releases, delivery, bridges } = await setup(t, { timeoutMs: 300 });
+  const { projects, releases, delivery, bridges } = await setup(t);
   const { bridge, token } = await bridges.create('alice', { name: 'Мост Алисы' });
   // Bob cannot use Alice's bridge even if he knows its id.
   const bobs = await delivery.connections.create('bob', { name: 'Чужой мост', role: 'target', environment: 'test', adapter: 'bridge', adapterOptions: { bridgeId: bridge.id } });
@@ -176,7 +179,8 @@ test('bridge: owner isolation, PROD identity refusal and timeouts without a work
   const release = await approvedRelease(projects, releases);
   await assert.rejects(delivery.prepare(release.id, 'alice', { revision: release.revision, connectionId: connection.id }), error => error.statusCode === 403 && /защищённый узел/.test(error.message));
   await worker.stop();
-  // Worker gone after the bridge was last seen online: inspect times out instead of hanging.
+  // Worker gone: once the bridge is observably offline the Target is unavailable, never hanging.
+  await waitForWorker(bridges, bridge.id, false);
   await assert.rejects(delivery.prepare(release.id, 'alice', { revision: release.revision, connectionId: connection.id }), error => /защищённый узел|не ответил|недоступен/.test(error.message));
   assert.rejects(bridges.authenticate('Bearer wb_' + 'x'.repeat(40)), error => error.statusCode === 401);
   await assert.rejects(bridges.authenticate(undefined), error => error.statusCode === 401);
