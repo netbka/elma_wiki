@@ -1,6 +1,15 @@
 {
   "version": 2,
   "capabilities": {
+    "solution-composer": {
+      "entry": "/solutions?id=:id&view=compose",
+      "kind": "implemented",
+      "actions": ["list-candidates", "open-candidate", "approve-exact-bytes", "revoke-approval", "prepare-delivery", "confirm-delivery", "read-back", "refresh-stale-state", "retry-load"],
+      "renderer": ["web/managed/render.js", "web/managed/composer.js", "web/managed/model.js", "web/releases/delivery.js", "web/releases/delivery-model.js"],
+      "storyIds": ["solution-composer--build-blocked", "solution-composer--list", "solution-composer--awaiting-approval", "solution-composer--approved", "solution-composer--stale", "solution-composer--missing", "solution-composer--delivery-prepared", "solution-composer--partial-outcome", "solution-composer--unknown-outcome", "solution-composer--verified", "solution-composer--verification-failed", "solution-composer--failed", "solution-composer--load-error", "solution-composer--delivery-load-error", "solution-composer--lost-response", "solution-composer--next-compare", "solution-composer--next-resolve", "solution-composer--next-unknown-base", "solution-composer--next-build-blocked", "solution-composer--next-review-build", "solution-composer--next-verify"],
+      "requiredVisibleStates": ["build-blocked", "list", "awaiting-approval", "approved", "stale", "missing", "delivery-prepared", "partial-outcome", "unknown-outcome", "verified", "verification-failed", "failed", "load-error", "delivery-load-error", "lost-response", "next-compare", "next-resolve", "next-unknown-base", "next-build-blocked", "next-review-build", "next-verify"],
+      "sources": ["lib/composed-candidates.mjs", "docs/contracts/target-deployment.md", "test/composed-delivery.test.mjs", "test/solution-composer-view.test.mjs", "tools/solution-composer-storybook-check.mjs"]
+    },
     "solution-explanations": {
       "entry": "Solution overview and contextual process/step preview",
       "kind": "implemented",
@@ -184,6 +193,8 @@
         "delivery--unknown",
         "delivery--partial-outcome",
         "delivery--failed",
+        "delivery--partial-install",
+        "delivery--stale-unresolved",
         "delivery--blocked",
         "delivery--cancelled",
         "delivery--stale",
@@ -207,6 +218,8 @@
         "unknown-outcome",
         "partial-outcome",
         "failed",
+        "partial-install",
+        "stale-unresolved",
         "blocked",
         "cancelled",
         "stale",
@@ -610,10 +623,14 @@
         "freeze",
         "approve",
         "preview",
-        "bundle"
+        "bundle",
+        "attach-edit",
+        "review-edit",
+        "detach-edit"
       ],
       "renderer": [
         "web/releases/render.js",
+        "web/releases/edits.js",
         "web/releases/model.js",
         "web/releases/comparison.js",
         "web/releases/snapshot-picker.js"
@@ -626,6 +643,9 @@
         "release--candidate",
         "release--prepared",
         "release--handed-off",
+        "release--supported-edit",
+        "release--stale-edit",
+        "release--edited-candidate",
         "release--snapshot-selection",
         "release--snapshot-load-error"
       ],
@@ -637,12 +657,17 @@
         "candidate",
         "prepared",
         "handed-off",
+        "supported-edit",
+        "stale-edit",
+        "edited-candidate",
         "snapshot-selection",
         "snapshot-load-error"
       ],
       "sources": [
         "lib/releases.mjs",
-        "docs/contracts/analyst-releases.md"
+        "lib/supported-edits.mjs",
+        "docs/contracts/analyst-releases.md",
+        "docs/contracts/developer-workspace.md"
       ]
     },
     "managed-workspace": {

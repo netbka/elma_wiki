@@ -56,7 +56,7 @@ export function mountDelivery({ release, client, onAction, onRefresh, onState, i
       const retry = button(root, 'Повторить загрузку доставки', onRefresh || (() => refresh())); retry.dataset.recovery = 'true'; retry.disabled = false; return;
     }
     if (!data) {
-      root.append(el('p', client ? 'Загружаем состояние доставки…' : 'Доставка в ELMA пока недоступна. Используйте приватный пакет передачи.'));
+      root.append(el('p', client ? 'Загружаем состояние доставки…' : release?.candidate?.provenance === 'supported-edit' ? 'Кандидат с правками только для рецензии: он не устанавливается до нативной сборки изменённого пакета (elma365#60).' : 'Доставка в ELMA пока недоступна. Используйте приватный пакет передачи.'));
       return;
     }
     const view = deliveryPanelView(release, data);
@@ -148,6 +148,11 @@ export function mountDelivery({ release, client, onAction, onRefresh, onState, i
       }
       if (view.canCancel) button(attempt, 'Отменить подготовку', () => execute({ action: 'cancel', attemptId: latest.id }));
       if (view.canVerify) button(attempt, 'Прочитать и проверить результат', () => execute({ action: 'verify', attemptId: latest.id })).classList.remove('secondary');
+      if (view.canReconcile) button(attempt, 'Сверить состояние Target без подтверждения', () => execute({ action: 'reconcile', attemptId: latest.id })).classList.remove('secondary');
+      const reconciliation = latest.evidence.reconciliation;
+      if (reconciliation?.mode === 'reconcile-only') attempt.append(el('p', reconciliation.outcome === 'not-applied' ? 'Сверка без подтверждения: изменения не применены, Target освобождён. Прежний кандидат не подтверждён.'
+        : reconciliation.outcome === 'stale-applied' ? 'Сверка без подтверждения: на Target применён устаревший кандидат. Target остаётся зарезервированным до решения владельца.'
+        : 'Сверка без подтверждения: частичная установка. Target остаётся зарезервированным; нужен план восстановления.', 'note'));
       const comparison = latest.evidence.comparison;
       if (comparison) {
         attempt.append(el('p', `Сравнено файлов: ${comparison.compared}. Политика проверки: ${comparison.policy || 'прежняя, требуется повторная проверка'}.`));

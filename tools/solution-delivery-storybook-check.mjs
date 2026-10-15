@@ -42,6 +42,11 @@ try {
     if (mode === 'verified') assert.match(await page.locator('.release-checks').textContent(), /Учебный стенд.*Пройдено/);
     if (mode === 'verification-error') assert.match(await panel().textContent(), /Не удалось подтвердить read-back/);
     if (mode === 'load-error') assert.equal(await button('Повторить загрузку доставки').isEnabled(), true);
+    // MR-08: an operation error is reconciled by read-back before any new preparation.
+    if (mode === 'failed') {
+      assert.equal(await button('Подготовить учебную доставку').isDisabled(), true);
+      assert.equal(await button('Прочитать и проверить результат').isEnabled(), true);
+    }
   }
   await open('journey');
   await page.getByLabel('Примечания для оператора', { exact: true }).fill('Учебный черновик');
