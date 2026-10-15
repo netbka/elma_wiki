@@ -172,7 +172,7 @@ export function solutionNextAction(state, { error, stale, view, composed } = {})
   if (state.delivery?.supported && state.delivery.state === 'deployed-unverified') return { state: 'test-awaiting-verification', summary: 'Версия отправлена в TEST. Результат ещё не проверен.', label: 'Проверить TEST', view: 'delivery' };
   if (state.delivery?.supported && state.delivery.state === 'verified') return { state: 'verified', summary: 'TEST проверен. Работа завершена.', label: 'Открыть решение', view: 'solution' };
   const accepted = state.changes?.length || state.reconciliations?.length;
-  if (accepted && composed) {
+  if (accepted && composed && !composed.loadError) {
     const current = (composed.candidates || []).filter(row => row.inputsStatus === 'current').sort((a, b) => a.createdAt.localeCompare(b.createdAt)).at(-1);
     // Exact bytes must be approved before a candidate can be verified on a Target.
     if (current && current.approval?.revision !== current.revision) return { state: 'review-build', summary: 'Конфигурация собрана. Проверьте и примите точные байты сборки перед проверкой на Target.',
@@ -227,7 +227,7 @@ export function solutionStatus(next = {}) {
 // next. A step the product cannot perform yet is unavailable with a two-word
 // reason (build without a builder, release before P6) and is never shown as
 // working. Error and stale states have no stepper: the page asks to refresh.
-export function lifecycleSteps(state, next = solutionNextAction(state)) {
+export function lifecycleSteps(state, next = solutionNextAction(state), composed) {
   if (!next || ['error', 'stale', 'empty'].includes(next.state)) return [];
   const order = ['load', 'compare', 'review', 'build', 'verify', 'release'];
   const current = next.state === 'no-source' ? 'load'
@@ -239,7 +239,8 @@ export function lifecycleSteps(state, next = solutionNextAction(state)) {
     : next.state === 'archived' ? (state?.changes?.length || state?.reconciliations?.length ? 'build' : state?.baselineId ? 'compare' : 'load') : 'compare';
   // 'accepted' is the review-only projection: the composer was not loaded, so no
   // builder is known. Release stays unavailable until P6 defines it.
-  const unavailable = { build: ['accepted', 'build-blocked'].includes(next.state) ? stepReasons.noBuilder : '', release: stepReasons.notYet };
+  // 'accepted' with a failed composer read is unknown, not "no builder".
+  const unavailable = { build: next.state === 'accepted' && composed?.loadError ? stepReasons.builderUnknown : ['accepted', 'build-blocked'].includes(next.state) ? stepReasons.noBuilder : '', release: stepReasons.notYet };
   const index = order.indexOf(current);
   return order.map((id, position) => {
     const reason = unavailable[id] || '';
@@ -274,8 +275,8 @@ export function moduleCards(rows = []) {
   const grouped = groupObjects(rows);
   return grouped.modules.map(({ module, count, kinds }) => {
     const of = kind => kinds.find(row => row.kind === kind)?.rows || [];
-    return { module, name: null, count, processes: of('processes'), forms: of('forms'), data: of('data'), other: of('other'),
-      system: grouped.system.filter(row => objectModule(row) === module).length };
+    const systemRows = grouped.system.filter(row => objectModule(row) === module);
+    return { module, name: null, count, processes: of('processes'), forms: of('forms'), data: of('data'), other: of('other'), systemRows, system: systemRows.length };
   });
 }
 // Activity list from the attributed audit records the server already keeps; newest first.

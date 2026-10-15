@@ -173,6 +173,9 @@ test('UX-04: the header badge and stepper project every row of the next-action m
   assert.equal(solutionStatus(solutionNextAction(ready.workspace)).label, 'В работе');
   // Exactly one current step while the Solution is active, none in the archive, no stepper on error or stale pages.
   for (const [model] of cases) assert.equal(project(model).steps.filter(step => step.current).length, model.workspace.status === 'archived' ? 0 : 1);
+  const unread = managedFixture('overview'); unread.composed = { loadError: 'x' };
+  assert.equal(solutionNextAction(unread.workspace, unread).state, 'accepted');
+  assert.equal(lifecycleSteps(unread.workspace, solutionNextAction(unread.workspace, unread), unread.composed).find(step => step.id === 'build').reason, 'сборщик не опрошен');
   assert.deepEqual(lifecycleSteps(ready.workspace, { state: 'stale' }), []);
   assert.deepEqual(lifecycleSteps(null, solutionNextAction(null)), []);
 });

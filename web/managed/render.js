@@ -108,7 +108,7 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
     headline.append(badge, ' · ', `${headerLabels.versionFrom} ${dateLabel(state.baselineAcceptedAt)}`);
     context.append(headline);
     const stepper = el('ol', undefined, 'managed-stepper'); stepper.setAttribute('aria-label', headerLabels.steps);
-    for (const step of lifecycleSteps(state, next)) {
+    for (const step of lifecycleSteps(state, next, model.composed)) {
       const item = el('li', undefined, 'managed-step'); item.dataset.state = step.state;
       if (step.current) item.setAttribute('aria-current', 'step');
       if (step.state === 'unavailable') item.setAttribute('aria-disabled', 'true');

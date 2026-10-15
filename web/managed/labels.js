@@ -22,7 +22,7 @@ export const tabs = { about: 'О решении', flows: 'Как работае�
 
 // Lifecycle stepper (product plan one-next-action map)
 export const steps = { load: 'Загрузка', compare: 'Сравнение', review: 'Рассмотрение', build: 'Сборка', verify: 'Проверка', release: 'Выпуск' };
-export const stepReasons = { noBuilder: 'нет сборщика', noTarget: 'нет цели', notYet: 'ещё не доступно' };
+export const stepReasons = { noBuilder: 'нет сборщика', builderUnknown: 'сборщик не опрошен', noTarget: 'нет цели', notYet: 'ещё не доступно' };
 export const stepStates = { done: 'готово', current: 'сейчас', next: 'далее' };
 
 // Solution header (UX-04): status badge, version line, stepper and tab navigation names
@@ -139,7 +139,7 @@ export const about = {
 };
 export const activity = {
   events: { created: 'Решение загружено', prepared: 'Версия подготовлена', 'review-comment': 'Комментарий', 'review-reject': 'Запрошена доработка', 'review-resolve': 'Замечание устранено',
-    'change-accepted': 'Изменение принято', 'baseline-accepted': 'Версия принята', 'closed-no-changes': 'Закрыто без изменений', 'merge-resolved': 'Решение по совмещению сохранено',
+    'review-reply': 'Ответ в обсуждении', 'review-reopen': 'Замечание открыто снова', 'change-accepted': 'Изменение принято', 'baseline-accepted': 'Версия принята', 'closed-no-changes': 'Закрыто без изменений', 'merge-resolved': 'Решение по совмещению сохранено',
     'explanation-saved': 'Описание сохранено', archived: 'В архив', reopened: 'Работа возобновлена' },
   justNow: 'только что', minutesAgo: 'мин назад', hoursAgo: 'ч назад', yesterday: 'вчера'
 };

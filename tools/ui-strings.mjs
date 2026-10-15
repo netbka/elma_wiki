@@ -99,9 +99,9 @@ export async function checkStrings() {
   for (const [file, values] of Object.entries(scanned)) {
     if (file === relative(root, labelsPath).replace(/\\/g, '/')) continue;
     const known = new Set(baseline[file] || []);
-    for (const value of values) if (!labels.has(value) && !known.has(value)) problems.push(`${file}: product text outside the label map: ${JSON.stringify(value)}`);
+    // A literal equal to a label value is still hard-coded: only an import counts as migrated.
+    for (const value of values) if (!known.has(value)) problems.push(`${file}: product text outside the label map${labels.has(value) ? ' (duplicate of a label; import it)' : ''}: ${JSON.stringify(value)}`);
     for (const value of known) if (!values.includes(value)) problems.push(`${file}: baseline lists a string that no longer exists (run tools/ui-strings.mjs --update): ${JSON.stringify(value)}`);
-    for (const value of known) if (labels.has(value)) problems.push(`${file}: baseline still lists a string that moved into the label map (run tools/ui-strings.mjs --update): ${JSON.stringify(value)}`);
   }
   return { problems, scanned, labels, baseline };
 }
@@ -113,7 +113,7 @@ async function main() {
     for (const [file, values] of Object.entries(scanned)) {
       if (file === relative(root, labelsPath).replace(/\\/g, '/')) continue;
       const known = new Set(previous[file] || []);
-      const rest = values.filter(value => !labels.has(value)); if (rest.length) out[file] = rest;
+      const rest = values; if (rest.length) out[file] = rest;
       for (const value of rest) if (!known.has(value)) added.push(`${file}: ${JSON.stringify(value)}`);
     }
     // The baseline only shrinks: new inline text belongs in labels.js. `--allow-new`

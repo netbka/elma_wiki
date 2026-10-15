@@ -94,13 +94,20 @@ export function mountAbout({ state, about = {}, editing = false, now }, actions 
   if (!cards.length) modules.append(el('p', aboutLabels.noModules, 'managed-muted'));
   for (const card of cards) {
     const article = el('article', undefined, 'managed-card'), label = objectLabel({ code: card.module, name: card.name, namespace: card.module });
-    const title = el('h3', label.text, label.technical ? 'managed-technical' : undefined); article.append(title);
+    const title = el('h3', label.text || grouping.withoutModule, label.technical ? 'managed-technical' : undefined); article.append(title);
     const counts = [['processes', card.processes.length], ['forms', card.forms.length], ['data', card.data.length], ['other', card.other.length]].filter(([, n]) => n)
       .map(([kind, n]) => `${n} ${aboutLabels.moduleCounts[kind]}`);
     article.append(el('p', counts.join(' · ') + (card.system ? ` · ${nouns.systemObjects}: ${card.system}` : ''), 'managed-muted'));
-    const names = rows => rows.map(row => objectLabel(row).text).slice(0, 6).join(', ') + (rows.length > 6 ? ` ${grouping.showAll}` : '');
-    const sentence = [[aboutLabels.processesList, card.processes], [aboutLabels.screensList, card.forms], [aboutLabels.dataList, card.data]].filter(([, rows]) => rows.length).map(([kind, rows]) => `${kind}: ${names(rows)}.`).join(' ');
-    article.append(el('p', sentence || aboutLabels.moduleNoNames));
+    const names = rows => rows.map(row => objectLabel(row).text).slice(0, 6).join(', ');
+    const sentence = el('p'), parts = [[aboutLabels.processesList, card.processes], [aboutLabels.screensList, card.forms], [aboutLabels.dataList, card.data]].filter(([, rows]) => rows.length);
+    for (const [kind, rows] of parts) {
+      sentence.append(`${kind}: ${names(rows)}`);
+      // More than six names: the rest are one click away on the Экраны и данные tab.
+      if (rows.length > 6 && actions.open) { const more = el('a', grouping.showAll, 'managed-link'); more.href = actions.open(card.module); if (actions.navigate) more.onclick = event => { event.preventDefault(); actions.navigate(more.href); }; sentence.append(' ', more); }
+      sentence.append('. ');
+    }
+    if (!parts.length) sentence.textContent = aboutLabels.moduleNoNames;
+    article.append(sentence);
     if (actions.open) { const a = el('a', actionLabels.open, 'managed-link'); a.href = actions.open(card.module); if (actions.navigate) a.onclick = event => { event.preventDefault(); actions.navigate(a.href); }; article.append(a); }
     if (actions.explanations) article.append(mountExplanation({ target: { scope: 'module', module: card.module }, label: actionLabels.explain }, actions.explanations));
     list.append(article);

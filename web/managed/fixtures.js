@@ -79,7 +79,7 @@ export function managedFixture(mode = 'overview') {
     model.rows = mode === 'list' ? [{ ...workspace, baselineSnapshot: base.snapshot, changedComponents: 1, pendingCount: 2, current: undefined, pending: undefined }] : [];
   }
   // UX-01 fixed entry: server + solution, no scope/base/responsibility questions.
-  const pullCatalog = [{ code: 'contract_management', name: 'Договоры и контрагенты' }, { code: 'paid_module', name: 'Платный модуль', paid: true }];
+  const pullCatalog = [{ code: 'travel_expenses', name: 'Командировки и расходы' }, { code: 'paid_module', name: 'Платный модуль', paid: true }];
   const pullRecord = { id: 'synthetic-acquisition', server: 'dev', solution: 'contract_management', state: 'exporting', progress: { completed: 0, total: 1 }, solutions: [] };
   if (mode === 'create') model.pullCatalog = pullCatalog;
   if (mode === 'create-legacy') model.legacy = true;
@@ -171,7 +171,7 @@ export function managedFixture(mode = 'overview') {
   if (mode.startsWith('about-')) {
     const draft = { text: 'Решение объединяет модули «synthetic».\n\nsynthetic. Экраны: Договор, Согласование договора, Комментарий к договору.\n\nНазначение описано по названиям объектов экспорта. Работа в ELMA не наблюдалась; проверьте и дополните описание.', sources: [], engine: 'declared-names-v1', evidence: 'declared-names', nativeObservation: 'absent' };
     const purpose = { key: 'solution-purpose', title: workspace.name, fingerprint: 'p'.repeat(64), expectedRevision: 1, version: 0, writable: true, reason: null, related: [], draft, saved: null, history: [] };
-    const entry = { id: 'synthetic-purpose', key: 'solution-purpose', title: workspace.name, fingerprint: 'p'.repeat(64), text: 'Договоры с контрагентами: подготовка, согласование юристами и финансовым отделом, подписание и хранение. Решением пользуются менеджеры по продажам и юристы.', sources: [], actor: uploader, at: '2026-10-07T11:00:00Z' };
+    const entry = { id: 'synthetic-purpose', key: 'solution-purpose', title: workspace.name, fingerprint: 'p'.repeat(64), text: 'Командировки сотрудников: заявка, утверждение руководителем и бухгалтерией, выдача аванса и отчёт о расходах. Решением пользуются сотрудники и бухгалтерия.', sources: [], actor: uploader, at: '2026-10-07T11:00:00Z' };
     if (['about-saved', 'about-stale'].includes(mode)) Object.assign(purpose, { version: 1, saved: { ...entry, sourceStatus: mode === 'about-stale' ? 'stale' : 'current' }, history: [entry] });
     if (mode === 'about-generated') model.aboutEditing = true;
     if (mode === 'about-error') purpose.loadError = 'Сервис объяснений недоступен.';
