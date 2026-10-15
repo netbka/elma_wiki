@@ -14,9 +14,15 @@ test('no product text appears outside the label map except the committed, shrink
   for (const rows of Object.values(baseline)) for (const text of rows) assert.equal(values.has(text), false, `baseline duplicates the label map: ${text}`);
 });
 
-test('the string scanner reads quotes, templates and escapes, and skips comments and interpolations', () => {
+test('the string scanner reads quotes, templates and escapes, and skips comments', () => {
   const source = "const a = 'Решение'; // 'Комментарий'\n/* \"Блок\" */ const b = `Загрузил ${who} · ${n} шт`; const c = \"Экран \\\"1\\\"\"; const d = `${x}`;";
   assert.deepEqual(stringLiterals(source), ['Решение', 'Загрузил', '·', 'шт', 'Экран "1"']);
+  assert.deepEqual(stringLiterals("const s = 'строка\\nдва';"), ['строка\nдва']);
+});
+
+test('literals inside interpolations, nested templates and braces are scanned', () => {
+  const source = "el('p', `${ok ? 'Новый текст' : \"Другой\"} и ${list.map(x => `пункт ${x.name || 'без имени'}`).join({ sep: '; ' }.sep)} конец`); const z = 'после';";
+  assert.deepEqual(stringLiterals(source), ['p', 'Новый текст', 'Другой', 'и', 'пункт', 'без имени', ';', 'конец', 'после']);
 });
 
 test('label values are plain words: no technical keys, no parentheses, no trailing punctuation on buttons', () => {

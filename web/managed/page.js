@@ -32,7 +32,6 @@ const navigate = href => { location.href = href; };
 const actions = {
   ...(shared ? { acquisition: {
     upload: file => request('/api/config-source/uploads', file, true),
-    servers: () => request('/api/config-source/servers'),
     catalog: server => request('/api/config-source/servers/' + server + '/solutions'),
     start: input => request('/api/config-source/exports', input),
     get: id => request('/api/config-source/acquisitions/' + id),

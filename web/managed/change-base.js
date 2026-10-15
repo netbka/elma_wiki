@@ -1,3 +1,4 @@
+import { facts } from './labels.js';
 // Pure ViewModel for MR-01 explicit change bases and named component scope.
 // The server (#95/#103) stays authoritative: these helpers only project accepted
 // state, build the explicit request fields and describe recorded evidence. They
@@ -31,7 +32,7 @@ export function baseOptionLabel(base) {
 export function baseEvidence(declaration) {
   if (declaration?.status === 'declared') return { status: 'declared', ancestry: declaration.ancestryVerified === true ? 'verified' : 'declared',
     title: `База заявлена: ревизия ${declaration.revision} · SHA-256 ${short(declaration.checksum)}…`,
-    detail: declaration.ancestryVerified === true ? 'Происхождение подтверждено.' : 'Это заявление команды. Происхождение экспорта в ELMA не проверено; автоматическое объединение и сборка не разрешены.' };
+    detail: declaration.ancestryVerified === true ? 'Происхождение подтверждено.' : declaration.method === 'source-sequence' ? facts.baseSequence : 'Это заявление команды. Происхождение экспорта в ELMA не проверено; автоматическое объединение и сборка не разрешены.' };
   return { status: 'unknown', ancestry: 'unknown',
     title: declaration?.method === 'not-declared' ? 'База не указана — происхождение неизвестно' : 'База не зафиксирована (прежняя загрузка) — происхождение неизвестно',
     detail: 'Сравнение идёт с текущей версией. Неизвестная база не даёт права на автоматическое объединение или сборку.' };

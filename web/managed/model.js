@@ -39,8 +39,17 @@ export function componentName(key) {
 // component metadata (service, namespace, code, kind, name) and never change
 // identity, digests or classification.
 const keyParts = key => { try { const parts = JSON.parse(key); return Array.isArray(parts) ? parts : null; } catch { return null; } };
+// Metadata recoverable from the key alone ([service, namespace, code] or
+// [service, namespace, kind, code]), for rows known only by key, e.g. objects a review adds.
+export function objectFromKey(key) {
+  const parts = keyParts(key);
+  if (!parts || parts.length < 3) return { key };
+  const [service, namespace] = parts, code = parts.at(-1);
+  return { key, service, namespace, code, ...(parts.length > 3 ? { kind: parts[2] } : {}) };
+}
 // The technical label a row had before UX-02; stays the fallback and the muted secondary text.
-export function objectCode(row = {}) {
+export function objectCode(input = {}) {
+  const row = { ...objectFromKey(input.key), ...Object.fromEntries(Object.entries(input).filter(([, value]) => value != null)) };
   const parts = keyParts(row.key);
   if (parts && parts.length > 3) return row.code ? `${row.namespace} · ${row.code} · ${row.kind}` : `${row.namespace} · ${row.kind}`;
   return row.code || (parts ? parts.at(-1) : row.key) || '';

@@ -185,7 +185,7 @@ test('UX-01 fixed pull path: a full pull from the same named Source needs no con
   const again = await json(await post(id + '/prepare', { kind: 'reconciliation', snapshot: third.ref, expectedRevision: state.revision }), 201);
   assert.equal(again.baseDeclaration.artifactId, state.baselineId);
   assert.equal(again.baseDeclaration.revision, state.revision);
-  // A manual upload into a Source-backed Solution still needs the explicit confirmation and attribution.
+  // A manual upload into a Source-backed Solution still needs the explicit same-Source confirmation; the declared responsibility carries over either way.
   const manual = await upload([['a', 'manual']], 'full');
   await json(await post(id + '/prepare', { kind: 'reconciliation', snapshot: manual.ref, expectedRevision: state.revision }), 400);
   const confirmed = await json(await post(id + '/prepare', { kind: 'reconciliation', snapshot: manual.ref, expectedRevision: state.revision, sameSourceConfirmed: true }), 201);

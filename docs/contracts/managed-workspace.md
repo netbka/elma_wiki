@@ -64,7 +64,11 @@ Omitting `base` records `unknown` / `not-declared`. Legacy artifacts with no
 recorded declaration return `unknown` / `not-recorded` in technical review and
 pending/completed-review metadata; reads never rewrite records or infer ancestry.
 Source equality, filename, uploader, team, current baseline, content equality and
-upload order do not promote unknown ancestry. Corrections without a new explicit
+upload order do not promote unknown ancestry. A full pull from the Solution's
+own named Source records its base as the current accepted full artifact with
+`method: source-sequence` (UX-01): a derived pull-sequence base that Wiki itself
+wrote, shown as such in review; it does not verify ancestry (`ancestryVerified`
+stays false) and does not open the three-way partial-merge gate. Corrections without a new explicit
 base declaration also remain unknown; previous declarations are not copied by
 guessing. Actual scope is still recorded independently as full/partial.
 
