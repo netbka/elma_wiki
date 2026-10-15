@@ -104,3 +104,17 @@ export function checkScenarioStep(process, nodeId, values = {}, transitionId) {
   return { allowed: supported && !missing.length, missing, unknown: unknown || !supported,
     evidence: 'simulated', nativeObservation: 'absent' };
 }
+
+// UX-06: a one-line reading of a process from its declared human tasks, in the
+// order the export lists them. Names only; no execution order is claimed.
+export function processSummary(process, limit = 6) {
+  const tasks = (process?.nodes || []).filter(node => ['user', 'assignment'].includes(node.type)).map(node => node.name).filter(Boolean);
+  return { tasks: tasks.slice(0, limit), more: Math.max(0, tasks.length - limit), steps: process?.nodes?.length || 0 };
+}
+// The lane whose declared rectangle contains the step; null when none or ambiguous.
+export function laneOf(process, node) {
+  if (!node?.position) return null;
+  const cx = node.position.x + node.position.width / 2, cy = node.position.y + node.position.height / 2;
+  const lanes = (process?.lanes || []).filter(lane => lane.position && cx >= lane.position.x && cx <= lane.position.x + lane.position.width && cy >= lane.position.y && cy <= lane.position.y + lane.position.height);
+  return lanes.length === 1 ? lanes[0] : null;
+}

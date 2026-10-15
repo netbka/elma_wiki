@@ -284,3 +284,15 @@ export function activityFeed(state, limit = 8, now = Date.now()) {
     id: row.at + ':' + index, action: row.action, label: activityLabels.events[row.action] || row.action,
     actor: actorDisplay(row.actor), at: row.at, when: relativeTime(row.at, now), artifactId: row.artifactId ?? null }));
 }
+
+// UX-06: the captured artifact that holds a row's exact bytes (latest wins), and
+// the search rule shared by the tabs: business name, code, namespace or key,
+// case-insensitive; an empty query matches everything.
+export function capturedArtifact(state, row) {
+  return (state?.artifacts || []).filter(artifact => (artifact.components || []).some(component => component.key === row.key && component.digest === row.digest)).at(-1) || null;
+}
+export function matchesQuery(row, query = '') {
+  const needle = String(query || '').trim().toLocaleLowerCase('ru-RU');
+  if (!needle) return true;
+  return [row.name, row.code, row.namespace, row.key, objectLabel(row).text].some(value => typeof value === 'string' && value.toLocaleLowerCase('ru-RU').includes(needle));
+}

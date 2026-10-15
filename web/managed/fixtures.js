@@ -1,3 +1,4 @@
+import { visualFixture } from '../visual/fixtures.js';
 const names = { contract: 'Договор', approval: 'Согласование договора', comment: 'Комментарий к договору' };
 const component = (code, team = 'Команда внедрения', changed = false) => ({ code, key: JSON.stringify(['widgets', 'synthetic.records', code]), team,
   service: 'widgets', namespace: 'synthetic.records', kind: 'WIDGET', name: names[code] || null,
@@ -90,7 +91,22 @@ export function managedFixture(mode = 'overview') {
   if (mode === 'update') { base.snapshot.source = { connectionId: 'config-api-dev', solutionRef: 'contract_management' }; model.view = 'full'; }
   if (mode === 'change') model.view = 'change';
   if (mode === 'changes') model.view = 'changes';
-  if (mode === 'solution') {
+  if (['flows', 'screens', 'flows-error'].includes(mode)) {
+    // UX-06: the solution inventory plus the captured projections of its artifact.
+    model.view = mode === 'screens' ? 'solution' : 'flows';
+    const visual = visualFixture('source'); visual.artifactId = base.id;
+    visual.processes[0].object = ['processor', 'contract_management.contracts', 'template', 'approval_process'];
+    visual.objects = [
+      { object: ['widgets', 'synthetic.records', 'contract'], service: 'widgets', code: 'contract', name: 'Договор', source: 'widgets/contract.json', fields: [
+        { code: 'number', name: 'Номер', type: 'STRING', required: true, pointer: 'widgets/contract.json#/descriptor/fields/0' },
+        { code: 'amount', name: 'Сумма', type: 'MONEY', required: false, pointer: 'widgets/contract.json#/descriptor/fields/1' }] },
+      { object: ['widgets', 'synthetic.records', 'approval'], service: 'widgets', code: 'approval', name: 'Согласование договора', source: 'widgets/approval.json', fields: [] },
+      { object: ['applications', 'contract_management', 'application', 'contracts'], service: 'applications', code: 'contracts', name: 'Договоры', source: 'applications/contracts.json', fields: [
+        { code: 'title', name: 'Название', type: 'STRING', required: true, pointer: 'applications/contracts.json#/fields/0' }] }
+    ];
+    model.visuals = { [base.id]: mode === 'flows-error' ? { error: 'Схема не получена: учебная ошибка.' } : visual };
+  }
+  if (['solution', 'flows', 'screens', 'flows-error'].includes(mode)) {
     model.view = 'solution';
     // UX-02: a second module, a process, data objects and system objects show grouping, names and the collapsed group.
     const extra = (service, namespace, code, kind, name) => ({ code, key: JSON.stringify(kind && service !== 'widgets' ? [service, namespace, kind, code] : [service, namespace, code]), team: 'Команда внедрения',
@@ -101,6 +117,7 @@ export function managedFixture(mode = 'overview') {
       extra('permissionsSettings', 'contract_management', 'contracts', 'permissionSettings', null),
       extra('widgets', 'contract_management', '__default', 'WIDGET', null),
       extra('localizer', 'contract_management', '', 'localization', null));
+    base.components = workspace.current.map(row => ({ key: row.key, digest: row.digest }));
   }
   if (mode === 'native-components') {
     model.view = 'solution';

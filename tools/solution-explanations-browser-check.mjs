@@ -30,7 +30,7 @@ try {
   assert.equal(uploaded.status(),201);const project=await uploaded.json();
   const created=await context.request.post(base+'/api/solutions',{headers:{'X-Elma-Wiki-Request':'1'},data:{name:'Учебное решение',baselineOwner:'Vendor',snapshot:{projectId:project.id,snapshotId:project.currentSnapshotId,scope:'full',scopeConfirmed:true}}});
   assert.equal(created.status(),201);const state=await created.json();
-  const url=base+'/solutions?id='+state.id+'&view=solution';
+  const url=base+'/solutions?id='+state.id+'&view=flows';
   await page.goto(url);
   const solution=page.locator('.solution-explanation').first();
   await solution.getByRole('button',{name:'Объяснить решение',exact:true}).click();
