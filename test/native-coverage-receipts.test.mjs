@@ -26,7 +26,7 @@ const errorsOf = verdict => [...new Set(verdict.errors.map(row => row.reason))].
 const component = (service, kind, code, namespace = 'synthetic.app') => ({ key: JSON.stringify([service, namespace, ...(service === 'processor' ? [kind] : []), code]),
   service, namespace, code, kind, digest: sha(code) });
 const WIDGET = component('widgets', 'widget', 'form'), VIEWER = component('widgets', 'widget', 'viewer');
-const TEMPLATE = component('processor', 'template', 'approval'), COLLECTION = component('appViews', 'collection', 'list');
+const TEMPLATE = component('processor', 'template', 'approval'), APP_VIEW = component('appViews', 'appView', 'list');
 const capture = (components, solution = 'synthetic_contracts') => ({ solution, scope: 'full', checksum: hex('c'), components, ambiguities: [], unclassifiedFiles: [],
   dependencies: dependencyReport([]) });
 const change = (row, op, solution = 'synthetic_contracts') => ({ solution, key: row.key, service: row.service, kind: row.kind, op, digest: op === 'remove' ? null : row.digest });
@@ -35,7 +35,7 @@ const adapt = (artifacts, declaration, extra = {}) => adaptNativeCoverage({ requ
 const allReasons = result => [...reasons(result.adapterBlockers), ...reasons(result.plan.blockers)];
 const blockerOf = (result, reason) => result.adapterBlockers.find(row => row.reason === reason);
 
-test('both schemas are vendored from the elma365 #103 merge commit and the catalog from #104', async () => {
+test('both schemas are vendored from the elma365 #103 merge commit and the catalog from #109', async () => {
   assert.deepEqual(NATIVE_CONTRACT_SOURCE, { repository: 'netbka/elma365', pullRequest: 103, issue: 60, merged: true, revision: 'c202d6980e4bfaacf449a6b3b829b8c6580287a7' });
   for (const [source, file] of [[COVERAGE_SOURCE, 'elma365-native-coverage-1.schema.json'], [RECEIPT_SOURCE, 'elma365-dependency-receipt-1.schema.json'],
     [CAPABILITY_CATALOG_SOURCE, 'elma365-native-coverage-1.capabilities.json']]) {
@@ -45,8 +45,8 @@ test('both schemas are vendored from the elma365 #103 merge commit and the catal
   }
   assert.equal(COVERAGE_SOURCE.schemaRevision, '1.1'); assert.equal(RECEIPT_SOURCE.schemaRevision, '1.1');
   assert.equal(COVERAGE_SCHEMA_INTACT, true); assert.equal(RECEIPT_SCHEMA_INTACT, true);
-  assert.equal(CAPABILITY_CATALOG.catalogDigest, '1f926e601b7a163ceb13609f3ba9c9f0dd281f37e8b611063109b3a4df7bb53d');
-  assert.deepEqual([CAPABILITY_CATALOG_SOURCE.pullRequest, CAPABILITY_CATALOG_SOURCE.revision], [104, '3d819be5cfbb24c490d323ad845da050f01d6a5e']);
+  assert.equal(CAPABILITY_CATALOG.catalogDigest, '60048542c76aaa748b4c0f5e1e8a888a497cf17ab337e7cb10a6a2364467b58c');
+  assert.deepEqual([CAPABILITY_CATALOG_SOURCE.pullRequest, CAPABILITY_CATALOG_SOURCE.revision], [109, 'fdab897b1d82139c5b6c6aa5363836f1c30e62f0']);
   assert.deepEqual(validateCapabilityCatalog(CAPABILITY_CATALOG), { valid: true, errors: [] });
   assert.deepEqual(NATIVE_RECEIPT_CONTRACTS[0].semantics, RECEIPT_SEMANTICS);
   assert.deepEqual(NATIVE_RECEIPT_CONTRACTS[0].semantics, { provenance: 'elma365-worker-read-only-observation-v1',
@@ -111,8 +111,8 @@ test('the adapter recomputes changesDigest from its own changes and rejects a de
 
 test('synthetic-fixture evidence is synthetic, never native, and its basis cannot be upgraded', () => {
   const report = observedReport({ targetProfileDigest: PROFILE });
-  // appViews collection preservation and widget add are proven on the synthetic fixture only.
-  const cases = [[[capture([WIDGET, COLLECTION])], []], [[capture([WIDGET, VIEWER])], [change(VIEWER, 'add')]]];
+  // appViews appView preservation and replace, and widget add, are proven on the synthetic fixture only.
+  const cases = [[[capture([WIDGET, APP_VIEW])], []], [[capture([WIDGET, APP_VIEW])], [change(APP_VIEW, 'replace')]], [[capture([WIDGET, VIEWER])], [change(VIEWER, 'add')]]];
   for (const [artifacts, changes] of cases) {
     const doc = nativeDeclaration({ captures: artifacts, changes, targetProfileDigest: PROFILE, targetReport: report });
     assert.equal(doc.evidenceBasis, 'synthetic-fixture');
@@ -336,6 +336,15 @@ test('catalog kinds match the casing of real exports exactly: widget, never WIDG
   const doc = nativeDeclaration({ captures: artifacts, targetProfileDigest: PROFILE });
   assert.deepEqual(doc.units[0].unsupportedMembers.map(row => row.reason), ['unknown-capability']);
   assert.equal(nativeDeclaration({ captures: [capture([WIDGET])], targetProfileDigest: PROFILE }).units[0].status, 'supported');
+  // elma365 #109: real exports record appViews entities as kind appView, now supported (synthetic-fixture basis, never native);
+  // the invented kind collection is no longer listed.
+  const appView = CAPABILITY_CATALOG.capabilities.find(row => row.service === 'appViews' && row.kind === 'appView');
+  assert.deepEqual([appView.preserve.status, appView.preserve.basis, appView.edit.operations], ['proven-offline', 'synthetic-fixture', [{ op: 'replace', basis: 'synthetic-fixture' }]]);
+  assert.equal(CAPABILITY_CATALOG.capabilities.some(row => row.service === 'appViews' && row.kind === 'collection'), false);
+  const appViewDoc = nativeDeclaration({ captures: [capture([APP_VIEW])], targetProfileDigest: PROFILE });
+  assert.equal(appViewDoc.units[0].status, 'supported'); assert.equal(appViewDoc.evidenceBasis, 'synthetic-fixture');
+  const legacy = nativeDeclaration({ captures: [capture([{ ...APP_VIEW, kind: 'collection' }])], targetProfileDigest: PROFILE });
+  assert.deepEqual(legacy.units[0].unsupportedMembers.map(row => row.reason), ['unknown-capability']);
 });
 
 test('a non-designated Target answers unavailable/target-not-designated and yields no observation', async () => {

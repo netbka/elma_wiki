@@ -32,7 +32,7 @@
   "capabilities": [
     {
       "service": "appViews",
-      "kind": "collection",
+      "kind": "appView",
       "serializers": [
         {
           "id": "entity-json",
@@ -41,7 +41,7 @@
             {
               "kind": "test",
               "path": "tools/config-workspace/test_roundtrip.py",
-              "name": "test_noedit_stage_preserves_every_original_path_and_byte"
+              "name": "test_noedit_stage_preserves_an_app_view_kind_record"
             }
           ]
         }
@@ -53,26 +53,22 @@
           {
             "kind": "test",
             "path": "tools/config-workspace/test_roundtrip.py",
-            "name": "test_noedit_stage_preserves_every_original_path_and_byte"
+            "name": "test_noedit_stage_preserves_an_app_view_kind_record"
           },
           {
             "kind": "test",
             "path": "tools/config-workspace/test_roundtrip.py",
-            "name": "test_native_pack_of_the_noedit_stage_reproduces_the_original"
+            "name": "test_native_pack_of_an_app_view_kind_stage_reproduces_the_original"
           },
           {
             "kind": "fixture",
-            "path": "tools/native-materialization/fixtures/contracts-noedit.e365",
-            "name": null
-          },
-          {
-            "kind": "task-record",
-            "path": "docs/task-records/native-60-noedit-roundtrip-20261014/README.md",
-            "name": null
+            "path": "tools/native-materialization/fixtures/make_contracts_samebase.py",
+            "name": "app_view_kind"
           }
         ],
         "limits": [
-          "Proven on the committed synthetic Contracts-shaped fixture only (evidence basis synthetic-fixture).",
+          "Proven on synthetic Contracts-shaped editions whose appViews record has the native kind appView (evidence basis synthetic-fixture).",
+          "The E2 Contracts export run preserved a whole package that contains appView records, but it records no per-kind result, so it is not cited.",
           "Live native-package-check, service-compile, import and Target read-back are unavailable; offline proof is not native acceptance."
         ]
       },
@@ -88,21 +84,26 @@
           {
             "kind": "test",
             "path": "tools/config-workspace/test_samebase.py",
-            "name": "test_disjoint_changes_take_each_component_from_its_side_and_preserve_everything_else"
+            "name": "test_an_app_view_kind_record_is_replaced_whole_beside_widget_changes"
           },
           {
             "kind": "test",
             "path": "tools/config-workspace/test_samebase.py",
-            "name": "test_native_pack_reproduces_the_merged_package"
+            "name": "test_an_app_view_kind_replace_materializes_and_stages_losslessly"
           },
           {
-            "kind": "task-record",
-            "path": "docs/task-records/native-60-e4-same-base/README.md",
-            "name": null
+            "kind": "test",
+            "path": "tools/config-workspace/test_samebase.py",
+            "name": "test_native_pack_reproduces_the_merged_app_view_kind_package"
+          },
+          {
+            "kind": "fixture",
+            "path": "tools/native-materialization/fixtures/make_contracts_samebase.py",
+            "name": "app_view_kind"
           }
         ],
         "limits": [
-          "Proven on the committed synthetic Contracts-shaped fixture only (evidence basis synthetic-fixture). Add and remove are not proven.",
+          "Proven on synthetic Contracts-shaped editions whose appViews record has the native kind appView (evidence basis synthetic-fixture). Add and remove are not proven.",
           "Live native-package-check, service-compile, import and Target read-back are unavailable; offline proof is not native acceptance."
         ]
       }
@@ -632,5 +633,5 @@
   ],
   "publicationReady": false,
   "executionEnabled": false,
-  "catalogDigest": "1f926e601b7a163ceb13609f3ba9c9f0dd281f37e8b611063109b3a4df7bb53d"
+  "catalogDigest": "60048542c76aaa748b4c0f5e1e8a888a497cf17ab337e7cb10a6a2364467b58c"
 }
