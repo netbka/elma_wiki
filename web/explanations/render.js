@@ -49,16 +49,20 @@ export function mountExplanation(model = {}, actions = {}) {
   function reading(parent, value) {
     const content=el('div'); content.className='explanation-reading';
     content.style.maxWidth='76ch';
-    const headings=new Set(['Какие задачи отражены в экспорте','Как начать разбор','Что описывает этот обзор','Что ещё проверить']);
+    const headings=new Set(['Какие задачи отражены в экспорте','Как начать разбор','Что описывает этот обзор','Что ещё проверить',
+      'Начало и завершение','Задачи участников','Решения и развилки','Автоматические действия по схеме','Переходы с названиями']);
     let section=content;
     for(const paragraph of value.split(/\n\n/)) {
       if(paragraph==='Техническая справка'||paragraph==='Отдельно: названия с пометками OLD / TEST / AGENT') {
         section=el('details');section.append(el('summary',paragraph));content.append(section);continue;
       }
-      if(headings.has(paragraph)||paragraph.startsWith('О решении «')) {
+      if(headings.has(paragraph)||paragraph.startsWith('О решении «')||paragraph.startsWith('Процесс «')) {
         section=content;section.append(el('h5',paragraph));continue;
       }
       const lines=paragraph.split('\n');
+      if(lines.every(line=>line.startsWith('• '))) {
+        const list=el('ul');for(const line of lines)list.append(el('li',line.slice(2)));section.append(list);continue;
+      }
       if(lines.length>1&&lines.slice(1).every(line=>line.startsWith('• '))) {
         section.append(el('strong',lines[0]));const list=el('ul');
         for(const line of lines.slice(1))list.append(el('li',line.slice(2)));

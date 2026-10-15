@@ -50,6 +50,9 @@ try {
   await page.locator('.solution-visual svg').waitFor();
   const processPanel=page.locator('.solution-visual > div .solution-explanation').first();
   await page.getByRole('button',{name:'Объяснить этот процесс',exact:true}).click();
+  await processPanel.getByRole('heading',{name:'Задачи участников',exact:true}).waitFor();
+  assert.equal(await processPanel.getByLabel('Текст объяснения').count(),0);
+  assert.match(await processPanel.locator('.explanation-reading').innerText(),/Повторное рассмотрение/);
   await processPanel.getByRole('button',{name:'Уточнить объяснение',exact:true}).click();
   await processPanel.getByLabel('Текст объяснения').waitFor();
   assert.match(await processPanel.getByLabel('Текст объяснения').inputValue(),/Повторное рассмотрение/);
@@ -150,9 +153,26 @@ try {
   await reading.getByRole('button',{name:'Подготовить новое объяснение',exact:true}).click();
   await reading.getByRole('button',{name:'Оставить мой текст',exact:true}).waitFor();
   assert.equal(await reading.getByLabel('Текст объяснения').inputValue(),'Сохраняем понятное пояснение человека');
+  await page.evaluate(async()=>{
+    const {mountExplanation}=await import('/explanations/render.js');
+    const {processReadingFixture,explanationFixtureActions}=await import('/explanations/fixtures.js');
+    document.querySelector('#managed-root').replaceChildren(mountExplanation(processReadingFixture(),explanationFixtureActions()));
+  });
+  await page.setViewportSize({width:1280,height:1000});
+  const processReading=page.locator('.solution-explanation');
+  assert.equal(await processReading.getByLabel('Текст объяснения').count(),0);
+  assert.equal(await processReading.locator('li').count(),6);
+  assert.equal(await processReading.getByText('Шагов: 4. Переходов: 4.',{exact:true}).isVisible(),false);
+  await processReading.getByText('Техническая справка',{exact:true}).click();
+  await processReading.getByText('Шагов: 4. Переходов: 4.',{exact:true}).waitFor();
+  await processReading.getByText('Техническая справка',{exact:true}).click();
+  await processReading.screenshot({path:'qa/solution-explanations-process-desktop.png'});
+  await page.setViewportSize({width:390,height:844});
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+  await processReading.screenshot({path:'qa/solution-explanations-process-mobile.png'});
   assert.deepEqual(errors,[]);
-  await fs.writeFile('qa/solution-explanations-browser-evidence.json',JSON.stringify({synthetic:true,solution:true,process:true,step:true,readingBeforeEditing:true,persistence:true,sourceNavigation:true,regenerationPreservesEdits:true,concurrency:true,lostResponse:true,keyboard:true,mobile:true,zoom:true,storybookStates:11,externalAI:false,nativeObservation:false}));
-  console.log('Solution explanations: actual API/UI generation, reading before editing, source navigation, edit/save/reload, draft retention, conflict, lost response, keyboard, mobile/zoom and 11 shared Storybook states passed.');
+  await fs.writeFile('qa/solution-explanations-browser-evidence.json',JSON.stringify({synthetic:true,solution:true,process:true,step:true,readingBeforeEditing:true,processReadingGuide:true,persistence:true,sourceNavigation:true,regenerationPreservesEdits:true,concurrency:true,lostResponse:true,keyboard:true,mobile:true,zoom:true,storybookStates:12,externalAI:false,nativeObservation:false}));
+  console.log('Solution explanations: actual API/UI generation, Solution/process reading guides, source navigation, edit/save/reload, draft retention, conflict, lost response, keyboard, mobile/zoom and 12 shared Storybook states passed.');
 } finally {
   await browser?.close();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));
   assert.equal(path.dirname(directory),os.tmpdir());await fs.rm(directory,{recursive:true,force:true});

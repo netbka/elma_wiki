@@ -16,6 +16,16 @@ Names starting with OLD, TEST or AGENT are listed separately; their names never
 prove that they are inactive. All source references remain available. Saved human
 text is preserved and a regenerated draft still requires explicit replacement.
 
+Process overviews group declared steps into tasks, branch points and automatic
+actions, with named transitions and a route to inspect a step. Each list shows
+at most eight entries and explicitly directs readers to the diagram/sources for
+the remainder. Names in the guide may be shortened; source references preserve
+their full node/transition labels. Form and field references are shown when a
+step is selected, rather than repeating the same form inventory in the process
+overview. No execution order, participant assignment or branch condition
+is inferred. Step explanations retain exact outgoing transitions and form/field
+context. The source-reference and text limits still apply; nothing is executed.
+
 Solution Overview / Solution offers **Объяснить решение** as a secondary action.
 The Solution object table opens the exact captured accepted process matching the
 current component digest. Change review keeps its captured process/form preview.
@@ -95,9 +105,10 @@ Oversized generation fails explicitly and asks for a narrower process/step.
 
 Customer explanations remain in authenticated runtime storage, never Git, public
 Learn content or actual Storybook stories. `web/explanations/render.js` is reused
-by production and ten `solution-explanation--*` states: ready, draft, saved,
+by production and twelve `solution-explanation--*` states: ready, draft, saved,
 stale, loading, error/retry, conflict, historical/read-only, regenerated and an
-interactive integrated Solution/process/step story.
+interactive integrated Solution/process/step story, plus Solution and process
+reading-guide states.
 Fixtures and save actions are explicitly synthetic. Storybook demonstrates this
 UI; it is not a second content store.
 
