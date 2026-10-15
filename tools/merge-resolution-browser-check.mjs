@@ -55,7 +55,7 @@ try {
   await section.getByText('Действует для текущих версий').waitFor();
   await section.getByText('limit: Взять версию из этого изменения').waitFor();
   evidence.saved = true;
-  assert.equal(await page.getByRole('button', { name: 'Принять изменение' }).count(), 0, 'a stale change still cannot be accepted');
+  assert.equal(await page.getByRole('button', { name: 'Решение по версии', exact: true }).count(), 0, 'a stale change offers no decision dialog');
   assert.equal((await json(route)).revision, 1); evidence.acceptanceUnchanged = true;
 
   // Restart: a new server process reads the committed resolution.

@@ -179,3 +179,23 @@ export function solutionNextAction(state, { error, stale, view, composed } = {})
   return accepted ? { state: 'accepted', summary: summaries.accepted, label: view === 'solution' ? actionLabels.refresh : 'Открыть решение', view: view === 'solution' ? 'full' : 'solution' }
     : { state: 'ready', summary: summaries.ready, label: actionLabels.refresh, view: 'full' };
 }
+
+// UX-03b: the choices of the "Решение по версии" dialog. A pure projection of
+// the review: the gate text disables acceptance (with its reason), the
+// discussion decides whether a finding or a comment can be recorded, and an
+// accepted, closed or stale review offers nothing. The first enabled choice is
+// the default; nothing is preselected when every choice is disabled.
+export function decisionChoices(review, gate = reviewGate(review)) {
+  if (!review || review.stale || review.acceptedAt || review.closedAt) return [];
+  const choices = [{ id: 'accept', disabled: !!gate, reason: gate || '' }];
+  if (review.discussion) choices.push({ id: 'request-fixes', disabled: false, reason: '' }, { id: 'comment', disabled: false, reason: '' });
+  return choices;
+}
+export const decisionDefault = choices => choices.find(choice => !choice.disabled)?.id ?? null;
+
+// A version with no difference can be closed without a decision; any changed,
+// added, removed or conflicting object, or an unrecognised part, needs one.
+export function canCloseWithoutChanges(review, summary) {
+  if (!review || review.stale || review.acceptedAt || review.closedAt) return false;
+  return !!summary?.noDifference && !review.ambiguities?.length;
+}

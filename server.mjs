@@ -249,7 +249,7 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
           'Cache-Control': 'no-store', 'X-Artifact-SHA256': result.evidence.sha256, 'X-Solution-Revision': String(result.evidence.revision) });
         return res.end(result.bytes);
       }
-      const solutionMatch = /^\/api\/solutions(?:\/([^/]+)(?:\/(prepare|archive|explanations)|\/artifacts\/([^/]+)\/(preview|review|discussion|merge|accept|original|visual))?)?$/.exec(pathname);
+      const solutionMatch = /^\/api\/solutions(?:\/([^/]+)(?:\/(prepare|archive|explanations)|\/artifacts\/([^/]+)\/(preview|review|discussion|merge|accept|close|original|visual))?)?$/.exec(pathname);
       if (solutionMatch) {
         const [, id, operation, artifactId, artifactAction] = solutionMatch, action = operation || artifactAction;
         if (!session) return send(res, id ? 404 : 401, { error: id ? 'Решение не найдено' : 'Войдите в сервис' });
@@ -275,7 +275,7 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
           res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Disposition': 'attachment; filename="solution.e365"', 'Cache-Control': 'no-store' });
           return res.end(bytes);
         }
-        if (req.method !== 'POST' || (id && !['prepare', 'archive', 'accept', 'discussion', 'merge', 'explanations'].includes(action))) return send(res, 405, { error: 'Метод не поддерживается' });
+        if (req.method !== 'POST' || (id && !['prepare', 'archive', 'accept', 'close', 'discussion', 'merge', 'explanations'].includes(action))) return send(res, 405, { error: 'Метод не поддерживается' });
         if (req.headers['content-type']?.split(';')[0] !== 'application/json') return send(res, 415, { error: 'Требуется JSON' });
         const input = JSON.parse((await body(req, 256 * 1024)).toString('utf8'));
         if (!id) {
@@ -285,7 +285,8 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
         const result = !id ? await store.create(SOLUTION_CATALOG, input, session.user) : action === 'explanations' ? await store.explanation(id, SOLUTION_CATALOG, input, session.user) : action === 'discussion' ? await store.comment(id, SOLUTION_CATALOG, artifactId, input, session.user)
           : action === 'merge' ? await store.resolveMerge(id, SOLUTION_CATALOG, artifactId, input, session.user)
           : action === 'prepare' ? await store.prepare(id, SOLUTION_CATALOG, input, session.user)
-          : action === 'accept' ? await store.accept(id, SOLUTION_CATALOG, artifactId, input, session.user) : await store.setArchived(id, SOLUTION_CATALOG, input, session.user);
+          : action === 'accept' ? await store.accept(id, SOLUTION_CATALOG, artifactId, input, session.user)
+          : action === 'close' ? await store.close(id, SOLUTION_CATALOG, artifactId, input, session.user) : await store.setArchived(id, SOLUTION_CATALOG, input, session.user);
         return send(res, !id || action === 'prepare' ? 201 : 200, result);
       }
       const requestMatch = /^\/api\/requests(?:\/(REQ-[A-F0-9]{12})(?:\/(reply|approve|cancel))?)?$/.exec(pathname);
@@ -302,7 +303,7 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
         if (!input || typeof input !== 'object' || Array.isArray(input) || Object.keys(input).some(k => !allowed.includes(k))) return send(res, 400, { error: 'Некорректное задание' });
         return send(res, id ? 200 : 201, await requests.command(owner, { ...input, action: action || 'create', ...(id ? { requestId: id } : {}) }));
       }
-      const managedMatch = /^\/api\/managed-workspaces(?:\/([^/]+)(?:\/(prepare|archive)|\/artifacts\/([^/]+)\/(preview|accept|original))?)?$/.exec(pathname);
+      const managedMatch = /^\/api\/managed-workspaces(?:\/([^/]+)(?:\/(prepare|archive)|\/artifacts\/([^/]+)\/(preview|review|accept|close|original))?)?$/.exec(pathname);
       if (managedMatch) {
         const [, id, operation, artifactId, artifactAction] = managedMatch, action = operation || artifactAction;
         if (!session) return send(res, id ? 404 : 401, { error: id ? 'Workspace not found' : 'Войдите в сервис' });
@@ -315,16 +316,18 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
           return send(res, 200, await managed.list(owner, { archived: archived === 'true' }));
         }
         if (req.method === 'GET' && action === 'preview') return send(res, 200, await managed.preview(id, owner, artifactId));
+        if (req.method === 'GET' && action === 'review') return send(res, 200, await managed.review(id, owner, artifactId));
         if (req.method === 'GET' && action === 'original') {
           const result = await managed.original(id, owner, artifactId);
           res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Disposition': 'attachment; filename="snapshot.e365"', 'Cache-Control': 'no-store' });
           return res.end(result);
         }
-        if (req.method !== 'POST' || (id && !['prepare', 'archive', 'accept'].includes(action))) return send(res, 405, { error: 'Метод не поддерживается' });
+        if (req.method !== 'POST' || (id && !['prepare', 'archive', 'accept', 'close'].includes(action))) return send(res, 405, { error: 'Метод не поддерживается' });
         if (req.headers['content-type']?.split(';')[0] !== 'application/json') return send(res, 415, { error: 'Требуется JSON' });
         const input = JSON.parse((await body(req, 256 * 1024)).toString('utf8'));
         const result = !id ? await managed.create(owner, input, session.user) : action === 'prepare' ? await managed.prepare(id, owner, input, session.user)
-          : action === 'accept' ? await managed.accept(id, owner, artifactId, input, session.user) : await managed.setArchived(id, owner, input, session.user);
+          : action === 'accept' ? await managed.accept(id, owner, artifactId, input, session.user)
+          : action === 'close' ? await managed.close(id, owner, artifactId, input, session.user) : await managed.setArchived(id, owner, input, session.user);
         return send(res, !id || action === 'prepare' ? 201 : 200, result);
       }
       if (pathname === '/api/delivery/capabilities') {

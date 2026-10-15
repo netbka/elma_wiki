@@ -100,6 +100,29 @@ export const summaries = {
 // Gate reasons shown on a disabled decision button
 export const gates = { chooseConflictVersions: 'Сначала выберите версию для конфликтов' };
 
+// Decision dialog (UX-03b): one button opens one dialog with three choices.
+export const decision = {
+  question: 'Что вы решили',
+  acceptVersion: 'Принять версию', acceptChange: 'Принять изменение', sendComment: 'Отправить комментарий',
+  acceptVersionNote: 'Станет текущей версией. Установка в ELMA не выполняется.',
+  acceptChangeNote: 'Войдёт в принятую историю решения. Установка в ELMA не выполняется.',
+  requestFixesNote: 'Автор получит замечание. Принятие заблокировано, пока оно не устранено.',
+  commentOnlyNote: 'Это не решение: запись останется в обсуждении.',
+  comment: 'Комментарий', commentOptional: 'Комментарий, необязательно',
+  requestedFixes: 'Запрошена доработка', fixesDone: 'Замечание устранено', closedNoChanges: 'Закрыто без изменений',
+  closeNote: 'Версия будет закрыта без принятия. Текущая версия и история не изменятся.',
+  accepted: 'Принято', reviewClosed: 'Решение по этой версии уже принято'
+};
+
+// Bug-report form: the reject path records the same finding as "Запросить доработку".
+export const feedback = {
+  rejectNote: 'Добавит блокирующее замечание «Запрошена доработка» и отправит ошибку в GitHub. Принятие заблокировано до разрешения замечания.',
+  rejectApplied: 'Запрошена доработка: блокирующее замечание добавлено.'
+};
+
+// Changed steps on the process diagram (UX-03b "Открыть схему")
+export const diagram = { changedSteps: 'Изменённые шаги выделены', changedStep: 'изменён', processNotFound: 'Схема этого процесса не найдена в экспорте' };
+
 // Empty states
 export const empty = { purpose: 'Опишите, для чего это решение', solutions: 'Решений пока нет', requests: 'Запросов пока нет', comments: 'Комментариев пока нет' };
 

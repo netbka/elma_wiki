@@ -737,7 +737,9 @@
         "managed-workspace--pull-unavailable",
         "managed-workspace--update",
         "managed-workspace--summary-mixed",
-        "managed-workspace--summary-no-changes"
+        "managed-workspace--summary-no-changes",
+        "managed-workspace--summary-closed",
+        "managed-workspace--decision"
       ],
       "requiredVisibleStates": [
         "empty",
@@ -745,6 +747,8 @@
         "create",
         "summary-mixed",
         "summary-no-changes",
+        "summary-closed",
+        "decision",
         "create-legacy",
         "pull-exporting",
         "pull-ready",
