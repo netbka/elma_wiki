@@ -27,7 +27,22 @@ test('delivery controls follow server states; unavailable and uncertain outcomes
   }
   assert.equal(view('deploying').canConfirm, false); assert.equal(view('deploying').canCancel, false);
   assert.equal(view('verified').canVerify, false); assert.match(view('verified').next, /не доказательство/);
-  for (const state of ['verification-failed', 'failed', 'blocked', 'cancelled']) assert.equal(view(state).canPrepare, true);
+  for (const state of ['verification-failed', 'blocked', 'cancelled']) assert.equal(view(state).canPrepare, true);
+  // MR-08: an operation error and a diverged read-back are unreconciled: read-back only, no new preparation.
+  assert.equal(view('failed').canPrepare, false); assert.equal(view('failed').canVerify, true); assert.match(view('failed').next, /Сначала прочитайте/);
+  const partial = deliveryPanelView(release, { capabilities, connections: [connection], attempts: [{ ...attempt('verification-failed'), evidence: { reconciliation: { outcome: 'diverged' } } }] });
+  assert.equal(partial.canPrepare, false); assert.equal(partial.canVerify, true); assert.match(partial.next, /частичную установку/);
+  const notApplied = deliveryPanelView(release, { capabilities, connections: [connection], attempts: [{ ...attempt('verification-failed'), evidence: { reconciliation: { outcome: 'not-applied' } } }] });
+  assert.equal(notApplied.canPrepare, true);
+  // A stale unresolved attempt offers only the reconcile-only read-back, never verification.
+  for (const state of ['failed', 'unknown-outcome', 'partial-outcome', 'deployed-unverified']) {
+    const stale = deliveryPanelView(release, { capabilities, connections: [connection], attempts: [{ ...attempt(state), releaseRevision: 3 }] });
+    assert.equal(stale.canReconcile, true, state); assert.equal(stale.canVerify, false); assert.equal(stale.canPrepare, false); assert.match(stale.next, /не сверен/);
+  }
+  const staleDiverged = deliveryPanelView(release, { capabilities, connections: [connection], attempts: [{ ...attempt('verification-failed'), releaseRevision: 3, evidence: { reconciliation: { outcome: 'stale-applied', mode: 'reconcile-only' } } }] });
+  assert.equal(staleDiverged.canReconcile, true); assert.equal(staleDiverged.canPrepare, false);
+  for (const state of ['verified', 'cancelled', 'blocked', 'prepared']) assert.equal(deliveryPanelView(release, { capabilities, connections: [connection], attempts: [{ ...attempt(state), releaseRevision: 3 }] }).canReconcile, false, state);
+  assert.equal(view('failed').canReconcile, false, 'a current attempt uses the verifying read-back');
   assert.equal(view('prepared').confirmation, 'DEPLOY example aaaaaaaaaaaa');
   assert.equal(deliveryPanelView({ ...release, approval: null }, { capabilities }).canPrepare, false);
 });

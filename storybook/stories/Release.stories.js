@@ -18,6 +18,22 @@ function example(state = 'review') {
     record.reviews['widgets/form.json'] = { decision: 'accepted', reason: 'Проверено обязательное поле', actor: 'Учебный аналитик' };
     record.candidate = { id: 'synthetic-candidate', sha256: record.source.checksum, deployable: false };
   }
+  if (['supported-edit','stale-edit','edited-candidate'].includes(state)) {
+    // Synthetic AR-05 edit: the server owns editability and evidence; this only mounts the shared renderer.
+    record.source.entities = [{ ...record.source.entities[0], kind: 'WIDGET' }, { archivePath: 'processes/approval.json', name: 'Учебный процесс согласования', kind: 'PROCESS', fields: [] }];
+    record.reviews['widgets/form.json'] = { decision: 'accepted', reason: 'Проверено обязательное поле', actor: 'Учебный аналитик' };
+    record.edits = [{ id: 'synthetic-edit', policy: 'widget-script-edit-v1', archivePath: 'widgets/form.json', objectId: 'object-0', name: 'Учебная форма договора', kind: 'WIDGET',
+      baseChecksum: record.source.checksum, workspaceRevision: 3, status: state === 'stale-edit' ? 'stale' : 'current', reason: state === 'stale-edit' ? 'Профиль ELMA compiler изменился или недоступен' : null,
+      files: [{ name: 'client.ts', origin: 'widgets/form.json#/descriptor/clientScripts', originalSha256: 'c'.repeat(64), editedSha256: 'd'.repeat(64), added: 2, removed: 1 }],
+      generated: { file: 'edits/synthetic-edit.json', sha256: 'e'.repeat(64), bytes: 2048 },
+      compiler: { profileHash: 'f'.repeat(64), compilerContract: 'widget-worker-ts-5.9.3-v1', platformVersion: '2026.7.23', typescriptVersion: '5.9.3', evidenceReference: 'Синтетический профиль', checkedAt: '2026-10-07T09:30:00Z' },
+      materialization: 'unavailable', actor: { id: 'author', login: 'Учебный разработчик', provider: 'local' }, at: '2026-10-07T09:40:00Z', review: null }];
+    if (state === 'edited-candidate') {
+      record.edits[0].review = { decision: 'accepted', reason: 'Проверены diff и runtime', actor: { id: 'reviewer', login: 'Учебный аналитик', provider: 'local' }, sha256: 'e'.repeat(64), independent: true };
+      record.candidate = { id: 'synthetic-edited-candidate', sha256: '9'.repeat(64), provenance: 'supported-edit', originalSha256: record.source.checksum, deployable: false, materialization: 'unavailable', edits: [{ id: 'synthetic-edit', archivePath: 'widgets/form.json', sha256: 'e'.repeat(64) }] };
+      record.approval = { revision: 1, actor: 'Учебный аналитик', reason: 'Правка рассмотрена; передача недоступна', scope: 'edited-review-only' };
+    }
+  }
   if (['prepared','handed-off'].includes(state)) record.approval = { revision: 1, actor: 'Учебный аналитик', reason: 'Только локальная передача' };
   if (state === 'handed-off') record.handoffAt = '2026-10-07T10:00:00Z';
   return record;
@@ -25,7 +41,10 @@ function example(state = 'review') {
 function story(state) {
   let record = example(state);
   return mountRelease({ release: releaseView(record), change: async (_id, input) => {
-    if (input.action === 'review') record.reviews[input.path] = { decision: input.decision, reason: input.reason };
+    if (input.action === 'review-edit') record.edits[0].review = { decision: input.decision, reason: input.reason, actor: { id: 'reviewer', login: 'Учебный аналитик', provider: 'local' }, sha256: record.edits[0].generated.sha256, independent: true };
+    else if (input.action === 'detach-edit') record.edits = [];
+    else if (input.action === 'attach-edit') throw Error('Учебный пример: рабочая копия и compiler здесь не подключены');
+    else if (input.action === 'review') record.reviews[input.path] = { decision: input.decision, reason: input.reason };
     else if (input.action === 'details') Object.assign(record, { title: input.title, intent: input.intent, targetIntent: input.targetIntent, limitations: input.limitations, notes: input.notes });
     else if (input.action === 'freeze') record.candidate = { id: 'synthetic-candidate', sha256: record.source.checksum, deployable: false };
     else if (input.action === 'approve') record.approval = { revision: record.revision + 1, reason: input.reason, actor: 'Учебный аналитик' };
@@ -42,6 +61,9 @@ export const Blocked = { render: () => story('blocked') };
 export const Candidate = { render: () => story('candidate') };
 export const Prepared = { render: () => story('prepared') };
 export const HandedOff = { render: () => story('handed-off') };
+export const SupportedEdit = { render: () => story('supported-edit') };
+export const StaleEdit = { render: () => story('stale-edit') };
+export const EditedCandidate = { render: () => story('edited-candidate') };
 function creation(failed = false) {
   const project = { id: 'synthetic-project', filename: 'Учебные снимки DEV.e365', createdAt: '2026-10-07T09:00:00Z' };
   const root = mountRelease({ projects: [project], loadSnapshots: async () => {

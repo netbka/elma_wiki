@@ -19,12 +19,19 @@ import { workspaceStore } from './lib/workspaces.mjs';
 import { managedWorkspaceStore } from './lib/managed-workspace-store.mjs';
 import { releaseStore } from './lib/releases.mjs';
 import { deliveryStore, syntheticAdapter } from './lib/delivery.mjs';
+import { INSPECTED_NATIVE_MATERIALIZATION, NATIVE_MATERIALIZATION_CONTRACTS } from './lib/native-materialization.mjs';
 import { bridgeStore } from './lib/bridge.mjs';
+import { configuredMaterializationAdapter } from './lib/native-materialization-bridge.mjs';
 import { targetPresets } from './lib/target-presets.mjs';
 import { demoData } from './lib/demo.mjs';
 import { configSourceClient, configAcquisitions } from './lib/config-source.mjs';
 
 const project = path.dirname(fileURLToPath(import.meta.url));
+// Delivery request keys for every delivery route (legacy, Solution handoff, composed). PROD
+// confirmation is deliberately absent: no HTTP request can supply `productionConfirmation`, and
+// this server constructs the delivery store without PROD grants.
+const contextualDeliveryKeys = { prepare: ['action', 'revision', 'connectionId'], confirm: ['action', 'attemptId', 'idempotencyKey', 'confirmation'], verify: ['action', 'attemptId'], cancel: ['action', 'attemptId'],
+  promote: ['action', 'attemptId', 'connectionId', 'revision', 'idempotencyKey'], retry: ['action', 'attemptId', 'idempotencyKey'], reconcile: ['action', 'attemptId'] };
 const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml' };
 function send(res, status, value) { res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(value)); }
 async function body(req, max) {
@@ -55,7 +62,7 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
   // Predefined DEV and DEV2 Targets from non-secret WIKI_TARGET_* variables; PROD has none.
   presets = targetPresets(process.env, { protectedHosts: protectedTargetHosts }),
   configSource = configSourceClient({ url: process.env.CONFIG_SOURCE_API_URL, token: process.env.CONFIG_SOURCE_API_TOKEN }),
-  requests = requestCoordinator(), bugPublisher = bugGitHub() } = {}) {
+  requests = requestCoordinator(), bugPublisher = bugGitHub(), materializationEnv = process.env } = {}) {
   const actors = actorStore(directory);
   const base = new URL(baseUrl), auth = createAuth({ baseUrl, allowLocal, sendEmail, sendVk, now, onLogin: actors.resolve }), portals = portalStore(directory, { sharedAccess: true }), projects = projectStore(directory, { sharedAccess: true }), oldDemo = demoData(), sample = oldDemo.servers.showcase, demo = {entities:sample.entities,solution:sample.solutions[0],coverage:'structural',parserVersion:'2.0.0',inventory:[],provenance:{},synthetic:true};
   const solutions = solutionStore(directory);
@@ -68,10 +75,13 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
       operationId: report.id
     }, report.actor) });
   let delivery;
-  const releases = releaseStore(directory, projects, { sharedAccess: true, deliverySummary: (id, owner) => delivery.summary(id, owner) });
+  const releases = releaseStore(directory, projects, { sharedAccess: true, workspaces: workspaceStore(projects), deliverySummary: (id, owner) => delivery.summary(id, owner) });
   // The bridge adapter is always available: it only does something once an owner registers a bridge and an
   // operator runs the worker with the token. The service itself still makes no outbound connections.
   const bridges = bridgeStore(directory);
+  // Native materialization over the bridge is opt-in through explicit WIKI_NATIVE_MATERIALIZATION_* variables
+  // (bridge ID, owner, pinned worker revision). Without them it is null and materializeNative stays `unavailable`.
+  const nativeMaterialization = configuredMaterializationAdapter({ env: materializationEnv, bridges });
   delivery = deliveryStore(directory, releases, { solutionHandoffs: solutions.handoffs, composedCandidates: solutions.composed, adapters: { ...(syntheticDelivery ? { synthetic: syntheticAdapter } : {}), bridge: (options, connection) => bridges.adapter(options, connection) }, protectedHosts: protectedTargetHosts, timeoutMs: deliveryTimeoutMs, presets, presetAdapter: (preset, connection) => bridges.presetAdapter(preset, connection) });
   let uploading = false;
   const loginBot = createVkLoginBot({ directory, issueLink: auth.issueVkLink });
@@ -168,16 +178,19 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
         if (releaseId) await handoffs.authorize(id, releaseId); else await solutions.managed.authorize(id, SOLUTION_CATALOG);
         if (action === 'delivery') {
           const contextual = delivery.forSolution(id), executionActor = session.user.id;
-          if (req.method === 'GET') return send(res, 200, await contextual.list(releaseId, executionActor));
+          if (req.method === 'GET') return send(res, 200, url.searchParams.has('packet') ? await contextual.packet(releaseId, url.searchParams.get('packet'), executionActor) : await contextual.list(releaseId, executionActor));
           if (req.method !== 'POST') return send(res, 405, { error: 'Метод не поддерживается' });
           if (req.headers['content-type']?.split(';')[0] !== 'application/json') return send(res, 415, { error: 'Требуется JSON' });
           const input = JSON.parse((await body(req, 32 * 1024)).toString('utf8'));
-          const keys = { prepare: ['action', 'revision', 'connectionId'], confirm: ['action', 'attemptId', 'idempotencyKey', 'confirmation'], verify: ['action', 'attemptId'], cancel: ['action', 'attemptId'] };
+          const keys = contextualDeliveryKeys;
           if (!input || typeof input !== 'object' || Array.isArray(input) || !Object.hasOwn(keys, input.action) || Object.keys(input).some(key => !keys[input.action].includes(key)))
             return send(res, 400, { error: 'Invalid contextual delivery request' });
           if (input.action === 'prepare') return send(res, 201, await contextual.prepare(releaseId, executionActor, input));
           if (input.action === 'confirm') return send(res, 200, await contextual.confirm(releaseId, input.attemptId, executionActor, input));
           if (input.action === 'verify') return send(res, 200, await contextual.verify(releaseId, input.attemptId, executionActor));
+          if (input.action === 'promote') return send(res, 201, await contextual.promote(releaseId, input.attemptId, executionActor, input));
+          if (input.action === 'retry') return send(res, 201, await contextual.retry(releaseId, input.attemptId, executionActor, input));
+          if (input.action === 'reconcile') return send(res, 200, await contextual.reconcile(releaseId, input.attemptId, executionActor));
           return send(res, 200, await contextual.cancel(releaseId, input.attemptId, executionActor));
         }
         if (req.method === 'GET' && !action) return send(res, 200, releaseId ? await handoffs.get(id, releaseId) : await handoffs.list(id));
@@ -201,16 +214,19 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
         if (candidateId) await composed.authorize(id, candidateId); else await solutions.managed.authorize(id, SOLUTION_CATALOG);
         if (action === 'delivery') {
           const contextual = delivery.forComposed(id), executionActor = session.user.id;
-          if (req.method === 'GET') return send(res, 200, await contextual.list(candidateId, executionActor));
+          if (req.method === 'GET') return send(res, 200, url.searchParams.has('packet') ? await contextual.packet(candidateId, url.searchParams.get('packet'), executionActor) : await contextual.list(candidateId, executionActor));
           if (req.method !== 'POST') return send(res, 405, { error: 'Метод не поддерживается' });
           if (req.headers['content-type']?.split(';')[0] !== 'application/json') return send(res, 415, { error: 'Требуется JSON' });
           const input = JSON.parse((await body(req, 32 * 1024)).toString('utf8'));
-          const keys = { prepare: ['action', 'revision', 'connectionId'], confirm: ['action', 'attemptId', 'idempotencyKey', 'confirmation'], verify: ['action', 'attemptId'], cancel: ['action', 'attemptId'] };
+          const keys = contextualDeliveryKeys;
           if (!input || typeof input !== 'object' || Array.isArray(input) || !Object.hasOwn(keys, input.action) || Object.keys(input).some(key => !keys[input.action].includes(key)))
             return send(res, 400, { error: 'Invalid contextual delivery request' });
           if (input.action === 'prepare') return send(res, 201, await contextual.prepare(candidateId, executionActor, input));
           if (input.action === 'confirm') return send(res, 200, await contextual.confirm(candidateId, input.attemptId, executionActor, input));
           if (input.action === 'verify') return send(res, 200, await contextual.verify(candidateId, input.attemptId, executionActor));
+          if (input.action === 'promote') return send(res, 201, await contextual.promote(candidateId, input.attemptId, executionActor, input));
+          if (input.action === 'retry') return send(res, 201, await contextual.retry(candidateId, input.attemptId, executionActor, input));
+          if (input.action === 'reconcile') return send(res, 200, await contextual.reconcile(candidateId, input.attemptId, executionActor));
           return send(res, 200, await contextual.cancel(candidateId, input.attemptId, executionActor));
         }
         if (req.method === 'GET') return send(res, 200, candidateId ? await composed.get(id, candidateId) : await composed.list(id));
@@ -316,7 +332,13 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
         if (req.method !== 'GET') return send(res,405,{error:'Метод не поддерживается'});
         // `liveDelivery` stays false until a live delivery has been verified end to end; `bridge` says the
         // operator-bridge adapter is registered (it still needs a bridge token and a running worker).
-        return send(res,200,{ mode: syntheticDelivery ? 'synthetic' : 'bridge', liveDelivery: false, bridge: true, adapters: delivery.adapterNames });
+        // `composedBuild` tells the Solution composer whether a build can be started. Freezing build
+        // bytes is trusted server code with no HTTP route, and native materialization is unavailable
+        // (netbka/elma365#60), so it stays false; the UI shows it as blocked, never as working.
+        // `contracts` lists the pinned native contracts and `missing` the observed gaps, verbatim.
+        return send(res,200,{ mode: syntheticDelivery ? 'synthetic' : 'bridge', liveDelivery: false, bridge: true, adapters: delivery.adapterNames,
+          composedBuild: { available: false, reason: 'native-materialization-unavailable', reference: `${INSPECTED_NATIVE_MATERIALIZATION.repository}#${INSPECTED_NATIVE_MATERIALIZATION.issue}`,
+            contracts: NATIVE_MATERIALIZATION_CONTRACTS.map(row => `${row.id}@${row.version}`), missing: [...INSPECTED_NATIVE_MATERIALIZATION.missing] } });
       }
       if (pathname === '/api/releases') {
         if (!session) return send(res,401,{error:'Войдите в сервис'});
@@ -329,9 +351,10 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
       }
       // Operator bridge worker: bearer token (hash-compared), never a browser session. Bodies stay small;
       // the candidate artifact is streamed separately and only while its job is taken.
-      const bridgeWorkerMatch = /^\/api\/bridge\/(poll|jobs\/([^/]+)\/(artifact|result))$/.exec(pathname);
+      // A materialize job fetches its inputs by sha256 and uploads one output archive; both are job-scoped.
+      const bridgeWorkerMatch = /^\/api\/bridge\/(poll|jobs\/([^/]+)\/(artifact|result|output|inputs\/([0-9a-f]{64})))$/.exec(pathname);
       if (bridgeWorkerMatch) {
-        const [,,jobId,jobAction] = bridgeWorkerMatch, bridge = await bridges.authenticate(req.headers.authorization);
+        const [,,jobId,jobAction,inputSha256] = bridgeWorkerMatch, bridge = await bridges.authenticate(req.headers.authorization);
         if (!jobId) {
           if (req.method !== 'POST') return send(res,405,{error:'Метод не поддерживается'});
           const input = JSON.parse((await body(req,16*1024)).toString('utf8') || '{}');
@@ -342,6 +365,19 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
           const bytes = await bridges.artifact(bridge, jobId);
           res.writeHead(200,{'Content-Type':'application/octet-stream','Content-Length':bytes.length,'Cache-Control':'no-store'});
           return res.end(bytes);
+        }
+        if (inputSha256) {
+          if (req.method !== 'GET') return send(res,405,{error:'Метод не поддерживается'});
+          const { bytes, sha256, size } = await bridges.input(bridge, jobId, inputSha256);
+          res.writeHead(200,{'Content-Type':'application/octet-stream','Content-Length':size,'X-Content-Sha256':sha256,'Cache-Control':'no-store'});
+          return res.end(bytes);
+        }
+        if (jobAction === 'output') {
+          if (req.method !== 'PUT') return send(res,405,{error:'Метод не поддерживается'});
+          if (req.headers['content-type']?.split(';')[0] !== 'application/octet-stream') return send(res,415,{error:'Требуется application/octet-stream'});
+          const declared = { sha256: String(req.headers['x-content-sha256'] || ''), size: /^\d+$/.test(req.headers['content-length'] || '') ? Number(req.headers['content-length']) : null };
+          // Streamed to a private temp file with incremental sha256/size; never buffered in memory.
+          return send(res,200,await bridges.writeOutput(bridge, jobId, declared, req));
         }
         if (req.method !== 'POST') return send(res,405,{error:'Метод не поддерживается'});
         const input = JSON.parse((await body(req,2*1024*1024)).toString('utf8'));
@@ -389,17 +425,22 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
         await releases.authorize(id,owner);
         if (req.method === 'GET' && !action) return send(res,200,await releases.get(id,owner));
         if (req.method === 'GET' && action === 'preview') return send(res,200,await releases.preview(id,owner,url.searchParams.get('path'),url.searchParams.get('side')));
-        if (req.method === 'GET' && action === 'delivery') return send(res,200,await delivery.list(id,owner));
+        if (req.method === 'GET' && action === 'delivery') return send(res,200,url.searchParams.has('packet') ? await delivery.packet(id,url.searchParams.get('packet'),owner) : await delivery.list(id,owner));
         if (req.method !== 'POST' || !['change','bundle','delivery'].includes(action)) return send(res,405,{error:'Метод не поддерживается'});
         if (req.headers['content-type']?.split(';')[0] !== 'application/json') return send(res,415,{error:'Требуется JSON'});
         const input = JSON.parse((await body(req,64*1024)).toString('utf8'));
         if (!input || typeof input !== 'object' || Array.isArray(input)) return send(res,400,{error:'Некорректный запрос'});
         if (action === 'change') return send(res,200,await releases.change(id,owner,input,session.user));
         if (action === 'delivery') {
+          if (!Object.hasOwn(contextualDeliveryKeys, input.action)) return send(res,400,{error:'Неизвестное действие доставки'});
+          if (Object.keys(input).some(key => !contextualDeliveryKeys[input.action].includes(key))) return send(res,400,{error:'Некорректный запрос доставки'});
           if (input.action === 'prepare') return send(res,201,await delivery.prepare(id,owner,input));
           if (input.action === 'confirm') return send(res,200,await delivery.confirm(id,input.attemptId,owner,input));
           if (input.action === 'verify') return send(res,200,await delivery.verify(id,input.attemptId,owner));
           if (input.action === 'cancel') return send(res,200,await delivery.cancel(id,input.attemptId,owner));
+          if (input.action === 'promote') return send(res,201,await delivery.promote(id,input.attemptId,owner,input));
+          if (input.action === 'retry') return send(res,201,await delivery.retry(id,input.attemptId,owner,input));
+          if (input.action === 'reconcile') return send(res,200,await delivery.reconcile(id,input.attemptId,owner));
           return send(res,400,{error:'Неизвестное действие доставки'});
         }
         const bundle = await releases.bundle(id,owner,input.revision,session.user);
@@ -510,6 +551,7 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
     }
   });
   server.loginBot = loginBot;
+  server.nativeMaterialization = nativeMaterialization;
   if (loginBot) {
     server.once('listening', () => { void loginBot.run(); });
     server.once('close', () => loginBot.stop());
