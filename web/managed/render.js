@@ -3,7 +3,8 @@ import { mountSnapshotVisual } from '../visual/render.js';
 import { mountExplanation } from '../explanations/render.js';
 import { mountRelease } from '../releases/render.js';
 import { hasAcceptedFullExport } from './model.js';
-import { mountAcquisition } from './acquisition.js';
+import { mountAcquisition, mountSolutionPull, serverFromConnection } from './acquisition.js';
+import { actions as actionLabels, pull as pullLabels } from './labels.js';
 import { mountDependencies } from './dependencies.js';
 import { mountMergeResolution, mergeResolutionView } from './merge.js';
 import { mountComposer } from './composer.js';
@@ -15,7 +16,7 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
   const workspaceUrl = (id, view, artifact) => buildUrl(id, view, artifact, model.home || '/workspaces');
   const api = model.api || '/api/managed-workspaces';
   const root = el('div', undefined, 'managed-shell'), content = el('div', undefined, 'managed-content');
-  const heading = el('h1', state?.name || (view === 'create' ? 'Добавить решение' : view === 'archived' ? 'Архив решений' : 'Решения'));
+  const heading = el('h1', state?.name || (view === 'create' ? actionLabels.loadSolution : view === 'archived' ? 'Архив решений' : 'Решения'));
   heading.tabIndex = -1;
   const notice = el('p', model.loading ? 'Загружаем решение…' : model.notice || '', 'managed-notice'); notice.setAttribute('role', 'status');
   const error = el('div', model.error || '', 'managed-error'); error.setAttribute('role', 'alert'); error.tabIndex = -1;
@@ -56,6 +57,8 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
     if (!state && view === mode) a.setAttribute('aria-current', 'page'); nav.append(a);
   }
   const secondary = el('details'); secondary.append(el('summary', 'Прежние загрузки'), link('Открыть загруженные файлы', '/dashboard'));
+  // Manual .e365 upload is legacy compatibility, reachable only from here.
+  if (model.shared) secondary.append(link(pullLabels.manualFile, workspaceUrl(null, 'create') + '&mode=file'));
   nav.append(secondary); root.append(nav, content); content.append(heading, notice, error);
   if (actions.logout) button('Выйти', () => run(actions.logout), nav);
   if (synthetic) content.append(el('p', 'Учебное решение. Данные синтетические; действия не изменяют ELMA.', 'managed-note'));
@@ -68,7 +71,7 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
     if (!rows.length) {
       content.append(el('h2', view === 'archived' ? 'В архиве пока пусто' : 'Решений пока нет'));
     }
-    if (view !== 'archived') content.append(link('Добавить решение', workspaceUrl(null, 'create'), true));
+    if (view !== 'archived') content.append(link(model.shared ? actionLabels.loadSolution : 'Добавить решение', workspaceUrl(null, 'create'), true));
     const list = el('div', undefined, 'managed-list');
     for (const row of rows) {
       const summary = workspaceSummary(row), card = el('article', undefined, 'managed-card');
@@ -116,10 +119,9 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
       const next = solutionNextAction(state, model);
       const actionsBar = el('div', undefined, 'managed-actions');
       if (next.action !== 'reopen') actionsBar.append(link(next.label, next.view === 'compose' ? composeHref(next.candidate) : workspaceUrl(state.id, next.view, next.artifact), true));
-      if (state.status !== 'archived') {
-        if (next.view !== 'change') actionsBar.append(link('Добавить изменение', workspaceUrl(state.id, 'change')));
-        actionsBar.append(link('Обновить версию', workspaceUrl(state.id, 'full')));
-      }
+      // The only secondary way to create a new version is to pull again. The
+      // partial-export path stays available under the technical details below.
+      if (state.status !== 'archived' && next.view !== 'full') actionsBar.append(link(model.shared ? actionLabels.refresh : 'Обновить версию', workspaceUrl(state.id, 'full')));
       content.append(el('h2', view === 'solution' ? `Объекты решения · ${state.current.length}` : view === 'changes' ? 'Изменения' : 'Что требует внимания'), el('p', next.summary), actionsBar);
       if(actions.explanations && ['overview','solution'].includes(view)){
         const evidence=el('div');
@@ -181,6 +183,7 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
         el('p', `Заявленная ответственность: ${state.baselineOwner}. Авторы публикаций ELMA не установлены.`),
         el('p', 'Отсутствие объекта в частичном пакете не удаляет его. Текущее состояние не является готовым архивом для установки.'));
       if (model.shared) artifacts.append(link('История передачи решения', workspaceUrl(state.id, 'handoff')));
+      if (state.status !== 'archived') artifacts.append(link(model.shared ? pullLabels.legacyChange : 'Добавить изменение', workspaceUrl(state.id, 'change')));
       state.artifacts.forEach((artifact, i) => { const item = el('div'); item.append(link(`Скачать файл ${i + 1}`, `${api}/${state.id}/artifacts/${artifact.id}/original`)); technical(item, 'Источник и контрольная сумма', { snapshot: artifact.snapshot, scope: artifact.scopeDeclaration, checksum: artifact.checksum, uploadedBy: artifact.uploadedBy }); artifacts.append(item); });
       history.append(artifacts);
       if (view === 'solution') {lower.style.gridTemplateColumns='minmax(0,1fr)';lower.append(current);}
@@ -202,6 +205,19 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
 
   if (view === 'create' || ['change', 'full'].includes(view)) {
     if (state?.status === 'archived') { content.append(el('p', 'Сначала возобновите работу из обзора решения.')); return root; }
+    // UX-01 fixed path: pull the whole solution from a named server. The file
+    // form below remains for legacy uploads (`mode=file`) and partial changes.
+    const source = state ? (state.artifacts?.find(row => row.snapshot?.source)?.snapshot.source || state.sourceReference || null) : null;
+    const pullable = model.shared && actions.acquisition && !model.legacy && (view === 'create' || view === 'full' && serverFromConnection(source?.connectionId));
+    if (pullable) {
+      if (view === 'full') content.append(el('h2', actionLabels.refresh));
+      const snapshotOf = project => ({ projectId: project.id, snapshotId: project.currentSnapshotId, scope: 'full', scopeConfirmed: true });
+      content.append(mountSolutionPull({ ...actions.acquisition }, { source: view === 'full' ? source : null, synthetic, acquisition: model.acquisition, unavailable: model.pullUnavailable, catalog: model.pullCatalog, error: model.pullError },
+        row => run(() => view === 'create' ? actions.create({ name: row.name || row.code, snapshot: snapshotOf(row.project) })
+          : actions.prepare({ kind: 'reconciliation', snapshot: snapshotOf(row.project), expectedRevision: state.revision }), state ? workspaceUrl(state.id, view, model.artifact) : undefined)));
+      if (view === 'create') content.append(link(pullLabels.manualFile, workspaceUrl(null, 'create') + '&mode=file'));
+      return root;
+    }
     const partial = view === 'change', form = el('form', undefined, 'managed-form');
     content.append(el('h2', partial ? 'Добавить изменение' : view === 'create' ? 'Загрузить .e365' : 'Обновить текущую версию'));
     content.append(el('p', partial ? 'Загрузите частичный экспорт изменённых объектов. Остальные объекты сохранятся.' : 'Нужен полный экспорт решения из ELMA365. Частичный экспорт не подходит.'));

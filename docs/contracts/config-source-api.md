@@ -76,7 +76,19 @@ never claims an atomic success. Interrupted parsing is not retried blindly.
 Export failures require a fresh job; transient connection failure can resume
 the same acquisition. Reload URLs retain the acquisition ID.
 
-Within Add solution / Add change / Update version, the shared acquisition
+The primary entry (**Загрузить решение**, `web/managed/acquisition.js` `mountSolutionPull`) lists the two
+named servers, loads `/servers/:server/solutions` as soon as a server is chosen,
+starts one `POST /exports {server, solution}` and polls `/acquisitions/:id`
+until ready; the single readable member then creates the Solution (or, for
+**Обновить**, prepares a full update) with no further question. A reload during
+export resumes through the `acquisition` query parameter and asks for one
+**Продолжить** click before continuing, so a saved export is never turned into a
+second Solution automatically. `GET /servers` returning `configured: false`
+renders the entry as unavailable. Paid or opaque members are shown as facts
+and cannot continue.
+
+Within the legacy file form (`view=create&mode=file`), Add change and the
+manual Update version, the shared acquisition
 renderer lets the person upload a bundle/multiple individual packages, load
 one/all solutions from DEV/dev2, download the original and select a member.
 Selection feeds the existing full/partial/same-Source responsibility/review

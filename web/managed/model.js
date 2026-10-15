@@ -1,4 +1,4 @@
-import { classificationLabels, elementClassificationLabels, elementKindLabels } from './labels.js';
+import { classificationLabels, elementClassificationLabels, elementKindLabels, actions as actionLabels, summaries } from './labels.js';
 // Review classification wording lives in labels.js (UX-00); these names stay for
 // existing importers.
 export const labels = classificationLabels;
@@ -69,7 +69,7 @@ export function hasAcceptedFullExport(state) {
 // server's composed candidates and build capability were actually loaded.
 export function solutionNextAction(state, { error, stale, view, composed } = {}) {
   if (error || stale) return { state: stale ? 'stale' : 'error', summary: 'Проверьте актуальное состояние решения.', label: 'Обновить состояние', view: 'overview' };
-  if (!state) return { state: 'empty', summary: 'Решений пока нет.', label: 'Добавить решение', view: 'create' };
+  if (!state) return { state: 'empty', summary: 'Решений пока нет.', label: actionLabels.loadSolution, view: 'create' };
   if (state.status === 'archived') return { state: 'archived', summary: 'Решение в архиве. Исходные файлы и история сохранены.', label: 'Возобновить работу', action: 'reopen' };
   if (!state.baselineId) return { state: 'no-source', summary: 'Для начала нужен полный экспорт решения.', label: 'Добавить решение', view: 'create' };
   const pending = state.pending || [];
@@ -105,6 +105,7 @@ export function solutionNextAction(state, { error, stale, view, composed } = {})
       ? { state: 'build', summary: 'Изменения приняты. Соберите конфигурацию из принятой версии.', label: 'Собрать конфигурацию', view: 'compose' }
       : { state: 'build-blocked', summary: 'Изменения приняты. Сборка конфигурации заблокирована: нативная материализация ELMA недоступна.', label: 'Открыть сборку', view: 'compose' };
   }
-  return accepted ? { state: 'accepted', summary: 'Изменения приняты. Ожидающих решений нет.', label: view === 'solution' ? 'Добавить изменение' : 'Открыть решение', view: view === 'solution' ? 'change' : 'solution' }
-    : { state: 'ready', summary: 'Текущая версия сохранена. Можно добавить изменение.', label: 'Добавить изменение', view: 'change' };
+  // The fixed path has one way to create a new version: pull again (`full`).
+  return accepted ? { state: 'accepted', summary: summaries.accepted, label: view === 'solution' ? actionLabels.refresh : 'Открыть решение', view: view === 'solution' ? 'full' : 'solution' }
+    : { state: 'ready', summary: summaries.ready, label: actionLabels.refresh, view: 'full' };
 }

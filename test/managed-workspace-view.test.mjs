@@ -46,7 +46,8 @@ test('one next action prioritizes blockers, fresh review and stale recovery over
   assert.equal(solutionNextAction(managedFixture('no-source').workspace).state, 'no-source');
   assert.equal(solutionNextAction(managedFixture('archived').workspace).action, 'reopen');
   const ready = managedFixture().workspace; ready.changes = [];
-  assert.equal(solutionNextAction(ready).view, 'change');
+  assert.equal(solutionNextAction(ready).view, 'full'); // UX-01: the only way to a new version is to pull again
+  assert.equal(solutionNextAction(ready).label, 'Обновить');
   const pending = managedFixture('pending').workspace;
   assert.equal(solutionNextAction(pending).artifact, pending.pending[0].artifactId);
   pending.pending.push({ artifactId: 'conflict', kind: 'reconciliation', attention: { conflicts: 1 }, stale: false });

@@ -27,9 +27,13 @@ try {
   await page.goto(base + '/solutions');
   await page.getByRole('heading', { name: 'Решений пока нет' }).waitFor();
   assert.equal(await page.locator('.managed-content a.button').count(), 1);
-  await page.getByRole('link', { name: 'Добавить решение', exact: true }).focus();
+  await page.getByRole('link', { name: 'Загрузить решение', exact: true }).focus();
   await page.keyboard.press('Enter');
-  await page.getByRole('heading', { name: 'Добавить решение', exact: true }).waitFor();
+  await page.getByRole('heading', { name: 'Загрузить решение', exact: true, level: 1 }).waitFor();
+  // UX-01: the fixed entry is server + solution; this check exercises the legacy file path behind its one link.
+  assert.equal(await page.getByLabel('Это полный экспорт решения', { exact: true }).count(), 0, 'no scope question on the fixed entry');
+  await page.getByRole('link', { name: 'Загрузить файл .e365 вручную', exact: true }).click();
+  await page.getByRole('heading', { name: 'Загрузить .e365', exact: true }).waitFor();
   await page.getByLabel('Название решения', { exact: true }).fill('Учебные договоры');
   await page.getByLabel('Кто отвечает за исходную версию', { exact: true }).fill('Поставщик');
   const baseBytes = await archive([['contract', 'base'], ['untouched', 'base']]);
@@ -43,7 +47,9 @@ try {
   await page.getByRole('heading', { name: 'Что требует внимания' }).waitFor();
   const workspaceUrl = page.url(), id = new URL(workspaceUrl).searchParams.get('id'); assert.ok(id);
   const prepareChange = async bytes => {
-    await page.goto(workspaceUrl); await page.getByRole('link', { name: 'Добавить изменение', exact: true }).click();
+    // Partial exports are legacy: reachable only from the technical details of the Changes tab.
+    await page.goto(workspaceUrl + '&view=changes'); await page.getByText('Исходные файлы и технические данные', { exact: true }).click();
+    await page.getByRole('link', { name: 'Загрузить частичный экспорт файлом', exact: true }).click();
     await page.getByLabel('Ответственная команда', { exact: true }).fill('Внутренняя команда');
     await page.getByLabel('Что изменили', { exact: true }).fill('SYNTHETIC-1');
     await upload(bytes);
@@ -114,7 +120,7 @@ try {
   await page.goto(workspaceUrl);
   await page.getByRole('link', { name: 'Решение', exact: true }).click();
   await page.getByRole('heading', { name: 'Текущее состояние · 3 объектов', exact: true }).waitFor();
-  await page.getByRole('link', { name: 'Обновить версию', exact: true }).click();
+  await page.getByRole('link', { name: 'Обновить', exact: true }).click();
   await upload(await archive([['contract', 'vendor'], ['untouched', 'base'], ['added', 'ours']]), true);
   await page.getByLabel('Экспорт относится к этому решению и тому же источнику ELMA', { exact: true }).check();
   await page.getByRole('button', { name: 'Сохранить и рассмотреть', exact: true }).click();
@@ -146,7 +152,7 @@ try {
   await page.getByRole('link', { name: 'Архив', exact: true }).click(); await page.getByRole('link', { name: 'Открыть архив', exact: true }).click();
   await page.getByLabel('Возобновить работу с сохранённой базой и историей', { exact: true }).check();
   await page.getByRole('button', { name: 'Возобновить работу', exact: true }).click();
-  await page.getByRole('link', { name: 'Добавить изменение', exact: true }).waitFor(); evidence.lifecycle = true;
+  await page.getByRole('link', { name: 'Обновить', exact: true }).waitFor(); evidence.lifecycle = true;
   await prepareChange(await archive([['second', 'pending']]));
   const staleUrl = page.url(), originalState = await (await context.request.get(`${base}/api/solutions/${id}`)).json();
   await context.request.post(`${base}/api/solutions/${id}/archive`, { headers: { 'X-Elma-Wiki-Request': '1' }, data: { archived: true, expectedRevision: originalState.revision } });
@@ -216,12 +222,15 @@ try {
     } catch { res.writeHead(404); res.end(); }
   });
   await new Promise(resolve => stories.listen(0, '127.0.0.1', resolve));
-  for (const mode of ['empty','list','create','overview','pending','change','review','conflict','overlap','ambiguous','stale','archived','loading','load-error','changes','solution','no-source','needs-fixes','pending-conflict','review-comment','review-findings','review-resolved','review-accepted','review-stale-anchor','review-removed-anchor','review-ambiguous-anchor','elements-added','elements-boundary','elements-conflict','elements-unknown']) {
+  for (const mode of ['empty','list','create','overview','pending','change','review','conflict','overlap','ambiguous','stale','archived','loading','load-error','changes','solution','no-source','needs-fixes','pending-conflict','review-comment','review-findings','review-resolved','review-accepted','review-stale-anchor','review-removed-anchor','review-ambiguous-anchor','elements-added','elements-boundary','elements-conflict','elements-unknown','create-legacy','pull-exporting','pull-ready','pull-failed','pull-unavailable','update']) {
     await page.goto(`http://127.0.0.1:${stories.address().port}/iframe.html?id=managed-workspace--${mode}&viewMode=story`);
     await page.locator('.managed-shell h1').waitFor();
     if (['review','conflict','overlap','ambiguous'].includes(mode)) assert.equal(await page.getByRole('button', { name: mode === 'conflict' ? 'Принять версию' : 'Принять изменение', exact: true }).isDisabled(), true, mode);
     if (mode === 'conflict') { await page.getByLabel('Какую версию сохранить', { exact: true }).selectOption('keep-working'); assert.equal(await page.getByRole('button', { name: 'Принять версию', exact: true }).isDisabled(), false); }
-    if (!mode.startsWith('review-') && !mode.startsWith('elements-') && !['create','change','review','conflict','overlap','ambiguous','archived','loading'].includes(mode)) assert.equal(await page.locator('.managed-content a.button').count(), 1, 'one primary action: ' + mode);
+    if (!mode.startsWith('review-') && !mode.startsWith('elements-') && !['create','create-legacy','update','change','review','conflict','overlap','ambiguous','archived','loading'].includes(mode) && !mode.startsWith('pull-')) assert.equal(await page.locator('.managed-content a.button').count(), 1, 'one primary action: ' + mode);
+    if (mode === 'create') { assert.equal(await page.getByRole('button', { name: 'Загрузить', exact: true }).count(), 1, 'one button on the fixed entry'); assert.equal(await page.getByLabel('Это полный экспорт решения', { exact: true }).count(), 0); }
+    if (mode === 'update') { await page.getByRole('button', { name: 'Обновить', exact: true }).waitFor(); assert.equal(await page.getByLabel('Сервер', { exact: true }).isDisabled(), true); }
+    if (mode === 'pull-unavailable') assert.equal(await page.getByRole('button', { name: 'Загрузить', exact: true }).isDisabled(), true);
     if (mode.startsWith('elements-')) { await page.setViewportSize({ width: 390, height: 844 }); await page.getByRole('heading', { name: 'Ответственность частей процесса', exact: true }).waitFor(); }
     if (mode.startsWith('review-')) {
       await page.setViewportSize({ width: 390, height: 844 });

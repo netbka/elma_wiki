@@ -45,10 +45,20 @@ export function managedFixture(mode = 'overview') {
   if (mode === 'pending') workspace.pending = [{ artifactId: review.artifactId, kind: review.kind, revision: 1, stale: false, options: review.options }];
   const model = { synthetic: true, shared: true, home: '/solutions', api: '/api/solutions', view: 'overview', workspace };
   if (['review', 'conflict', 'overlap', 'ambiguous'].includes(mode) || mode.startsWith('review-') || mode.startsWith('elements-')) Object.assign(model, { view: 'review', review });
-  if (['create', 'empty', 'list', 'loading', 'load-error'].includes(mode)) {
-    delete model.workspace; model.view = mode === 'create' ? 'create' : 'list';
+  if (['create', 'create-legacy', 'empty', 'list', 'loading', 'load-error'].includes(mode) || mode.startsWith('pull-')) {
+    delete model.workspace; model.view = ['create', 'create-legacy'].includes(mode) || mode.startsWith('pull-') ? 'create' : 'list';
     model.rows = mode === 'list' ? [{ ...workspace, baselineSnapshot: base.snapshot, changedComponents: 1, pendingCount: 2, current: undefined, pending: undefined }] : [];
   }
+  // UX-01 fixed entry: server + solution, no scope/base/responsibility questions.
+  const pullCatalog = [{ code: 'contract_management', name: 'Договоры и контрагенты' }, { code: 'paid_module', name: 'Платный модуль', paid: true }];
+  const pullRecord = { id: 'synthetic-acquisition', server: 'dev', solution: 'contract_management', state: 'exporting', progress: { completed: 0, total: 1 }, solutions: [] };
+  if (mode === 'create') model.pullCatalog = pullCatalog;
+  if (mode === 'create-legacy') model.legacy = true;
+  if (mode === 'pull-exporting') model.acquisition = pullRecord;
+  if (mode === 'pull-ready') model.acquisition = { ...pullRecord, state: 'ready', progress: { completed: 1, total: 1 }, solutions: [{ code: 'contract_management', project: { id: 'synthetic-project', currentSnapshotId: 'synthetic-snapshot' } }] };
+  if (mode === 'pull-failed') model.acquisition = { ...pullRecord, state: 'failed', error: 'Экспорт не завершён. Начните новую загрузку.' };
+  if (mode === 'pull-unavailable') model.pullUnavailable = true;
+  if (mode === 'update') { base.snapshot.source = { connectionId: 'config-api-dev', solutionRef: 'contract_management' }; model.view = 'full'; }
   if (mode === 'change') model.view = 'change';
   if (mode === 'changes') model.view = 'changes';
   if (mode === 'solution') model.view = 'solution';

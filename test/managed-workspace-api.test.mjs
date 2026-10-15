@@ -163,6 +163,39 @@ test('HTTP concurrent decisions, stale proposals and corrupt originals fail clos
   assert.equal((await json(await request(id))).revision, 1);
 });
 
+test('UX-01 fixed pull path: a full pull from the same named Source needs no confirmation, responsibility or base question', async t => {
+  const { request, post, upload } = await setup(t);
+  const source = { connectionId: 'config-api-dev', solutionRef: 'synthetic_solution' };
+  const base = await upload([['a', 'base']], 'full', { source });
+  // No baselineOwner: the acting person is recorded as the declared responsibility.
+  let state = await json(await post('', { name: 'Pulled solution', snapshot: base.ref }), 201), id = '/' + state.id;
+  assert.ok(typeof state.baselineOwner === 'string' && state.baselineOwner.trim(), 'the acting person is the declared responsibility');
+  const next = await upload([['a', 'changed']], 'full', { source });
+  const prepared = await json(await post(id + '/prepare', { kind: 'reconciliation', snapshot: next.ref, expectedRevision: 0 }), 201);
+  assert.equal(prepared.options.baselineOwner, state.baselineOwner);
+  assert.equal(prepared.sourceDeclaration.method, 'source-sequence');
+  assert.equal(prepared.baseDeclaration.status, 'declared');
+  assert.equal(prepared.baseDeclaration.method, 'source-sequence');
+  assert.equal(prepared.baseDeclaration.artifactId, state.baselineId);
+  assert.equal(prepared.baseDeclaration.revision, 0);
+  assert.equal(prepared.baseDeclaration.ancestryVerified, false);
+  state = await json(await post(id + '/artifacts/' + prepared.artifactId + '/accept', decisions(prepared)));
+  // The next pull is based on the newly accepted version, at its acceptance revision.
+  const third = await upload([['a', 'third']], 'full', { source });
+  const again = await json(await post(id + '/prepare', { kind: 'reconciliation', snapshot: third.ref, expectedRevision: state.revision }), 201);
+  assert.equal(again.baseDeclaration.artifactId, state.baselineId);
+  assert.equal(again.baseDeclaration.revision, state.revision);
+  // A manual upload into a Source-backed Solution still needs the explicit confirmation and attribution.
+  const manual = await upload([['a', 'manual']], 'full');
+  await json(await post(id + '/prepare', { kind: 'reconciliation', snapshot: manual.ref, expectedRevision: state.revision }), 400);
+  const confirmed = await json(await post(id + '/prepare', { kind: 'reconciliation', snapshot: manual.ref, expectedRevision: state.revision, sameSourceConfirmed: true }), 201);
+  assert.equal(confirmed.baseDeclaration.status, 'unknown');
+  assert.equal(confirmed.sourceDeclaration.method, 'explicit-assertion');
+  // A different named Source is still refused even without a confirmation flag.
+  const other = await upload([['a', 'other']], 'full', { source: { ...source, connectionId: 'config-api-dev2' } });
+  await json(await post(id + '/prepare', { kind: 'reconciliation', snapshot: other.ref, expectedRevision: state.revision }), 409);
+});
+
 test('HTTP Source confirmation is explicit; known different connections cannot be mixed even after a manual baseline refresh', async t => {
   const { request, post, upload } = await setup(t);
   const source = { connectionId: 'synthetic-dev', solutionRef: 'synthetic_solution' };
