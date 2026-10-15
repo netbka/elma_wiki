@@ -65,6 +65,14 @@ optional `artifactId`, `source`, `nodeId` as appropriate. Duplicate or unknown
 query fields fail. `solution` selects accepted state without artifact parameters;
 `process` selects an artifact and exact projected source; `step` also requires a
 unique durable native/dictionary node identity. No positional guessing.
+Two further scopes serve "О решении" (UX-05, `lib/solution-about.mjs`):
+`solution-purpose` (no other parameters) and `module` (plus `module`, the first
+namespace segment of the accepted objects). Their drafts are generated from the
+declared entity names, namespaces and kinds of the accepted state only; no
+captured bytes are read, the source list is empty and `nativeObservation` stays
+`absent`. The fingerprint is the digest set of the whole state or of that
+module, so a changed composition marks the saved text stale. Entries of these
+scopes never enter the `solution` overview's related list.
 
 `POST` uses that target plus `text`, `expectedRevision`, `expectedVersion`, and
 `expectedFingerprint`. Existing Host/Origin/service-header/JSON/body-size rules

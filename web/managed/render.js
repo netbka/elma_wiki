@@ -10,6 +10,7 @@ import { actions as actionLabels, pull as pullLabels } from './labels.js';
 import { mountDependencies } from './dependencies.js';
 import { mountMergeResolution, mergeResolutionView } from './merge.js';
 import { mountComposer } from './composer.js';
+import { mountAbout, mountActivity } from './about.js';
 import { acceptedFullBases, baseOptionLabel, baseEvidence, scopeEvidence, scopeCandidates, preparationFields } from './change-base.js';
 const el = (tag, text, className) => { const node = document.createElement(tag); if (text !== undefined) node.textContent = text; if (className) node.className = className; return node; };
 let sequence = 0;
@@ -148,12 +149,16 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
       return root;
     }
     if (['overview', 'changes', 'solution'].includes(view)) {
+      // UX-04: the header carries the one primary button (the recommended action) and the
+      // Обновить link, the only secondary way to a new version. The partial-export path
+      // stays under the technical details below.
       const actionsBar = el('div', undefined, 'managed-actions');
       if (next.action !== 'reopen') actionsBar.append(link(next.label, next.view === 'compose' ? composeHref(next.candidate) : workspaceUrl(state.id, next.view, next.artifact), true));
-      // The only secondary way to create a new version is to pull again. The
-      // partial-export path stays available under the technical details below.
       if (state.status !== 'archived' && next.view !== 'full') actionsBar.append(link(model.shared ? actionLabels.refresh : 'Обновить версию', workspaceUrl(state.id, 'full')));
-      content.append(el('h2', view === 'solution' ? `Объекты решения · ${state.current.length}` : view === 'changes' ? 'Изменения' : 'Что требует внимания'), el('p', next.summary), actionsBar);
+      context.append(actionsBar);
+      // UX-05: О решении opens with the purpose and the modules; attention follows.
+      if (view === 'overview') content.append(mountAbout({ state, about: model.about || {}, editing: !!model.aboutEditing, now: model.now }, { explanations: actions.explanations, navigate: actions.navigate, open: () => workspaceUrl(state.id, 'solution') }));
+      content.append(el('h2', view === 'solution' ? `Объекты решения · ${state.current.length}` : view === 'changes' ? 'Изменения' : 'Что требует внимания'), el('p', next.summary));
       if(actions.explanations && ['overview','solution'].includes(view)){
         const evidence=el('div');
         content.append(mountExplanation({target:{scope:'solution'},label:'Объяснить решение'}, {...actions.explanations,
@@ -171,6 +176,7 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
         }),evidence);
       }
       if (view === 'overview') content.append(el('p', `Изменённых объектов: ${summary.changed} · Ожидают рассмотрения: ${summary.pending}`));
+      if (view === 'overview') content.append(mountActivity(state, { now: model.now }));
       for (const pending of view === 'solution' ? [] : state.pending) {
         const card = el('article', undefined, 'managed-card');
         card.append(el('h3', pending.kind === 'change' ? `${pending.options.team} · ${pending.options.taskRef}` : 'Обновление текущей версии'),
@@ -234,7 +240,7 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
       history.append(artifacts);
       if (view === 'solution') {lower.style.gridTemplateColumns='minmax(0,1fr)';lower.append(current);}
       else if (view === 'changes') lower.append(history);
-      else { const details = el('details'); details.append(el('summary', 'Объекты и история'), current, history); lower.append(details); }
+      else { const details = el('details'); details.append(el('summary', nouns.versionsAndHistory), current, history); lower.append(details); }
       content.append(lower);
       for (const artifact of state.artifacts) if (artifact.dependencies?.rows?.length) {
         const details = el('details'); details.append(el('summary', `Зависимости исходного файла ${state.artifacts.indexOf(artifact) + 1}`), mountDependencies(artifact.dependencies)); content.append(details);
@@ -244,7 +250,7 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
       const submit = el('button', state.status === 'archived' ? 'Возобновить работу' : 'В архив', state.status === 'archived' ? '' : 'secondary'); submit.type = 'submit'; form.append(submit);
       form.onsubmit = event => { event.preventDefault(); if (form.reportValidity()) run(() => actions.archive({ archived: state.status !== 'archived', expectedRevision: state.revision })); };
       if (state.status === 'archived') content.append(form);
-      else { const management = el('details'); management.append(el('summary', 'Архивировать решение'), form); content.append(management); }
+      else { const management = el('details'); management.append(el('summary', actionLabels.toArchive), form); content.append(management); }
       return root;
     }
   }

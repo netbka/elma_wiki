@@ -114,6 +114,13 @@ try {
       composed = { candidates, build: capabilities.composedBuild };
     } catch { composed = undefined; }
   }
+  // UX-05: О решении reads the saved purpose (or its generated draft) before rendering,
+  // so the page opens with the answer; a failed read keeps the empty sentence and a retry.
+  let about;
+  if (api === '/api/solutions' && workspace && view === 'overview') {
+    try { about = { purpose: await request(`${api}/${encodeURIComponent(id)}/explanations?scope=solution-purpose`) }; }
+    catch (error) { about = { purpose: { loadError: error.message } }; }
+  }
   // Replacing a prepared change offers its exact captured keys as scope candidates.
   let previousReview = null;
   if (shared && workspace && artifact && view === 'change') {
@@ -125,7 +132,7 @@ try {
   if (shared && !config.legacy && (view === 'create' || view === 'full')) {
     try { pullUnavailable = (await request('/api/config-source/servers')).configured === false; } catch { pullUnavailable = true; }
   }
-  root.replaceChildren(mountManagedWorkspace({ ...config, workspace, view, review, rows, handoff, handoffs, exportEvidence, handoffReason, acquisition, previousReview, composed, pullUnavailable }, actions));
+  root.replaceChildren(mountManagedWorkspace({ ...config, workspace, view, review, rows, handoff, handoffs, exportEvidence, handoffReason, acquisition, previousReview, composed, pullUnavailable, about }, actions));
   document.title = (workspace?.name || (view === 'create' ? 'Загрузить решение' : 'Решения')) + ' · E365';
   root.querySelector('h1')?.focus({ preventScroll: true });
 } catch (error) {

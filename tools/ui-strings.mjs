@@ -16,7 +16,7 @@ export const labelsPath = resolve(root, 'web/managed/labels.js');
 // Product renderers and ViewModels covered by the plan. Fixtures hold synthetic
 // data, not product text, and stay out of scope.
 export const rendererFiles = [
-  'web/managed/render.js', 'web/managed/model.js', 'web/managed/page.js', 'web/managed/acquisition.js',
+  'web/managed/render.js', 'web/managed/about.js', 'web/managed/model.js', 'web/managed/page.js', 'web/managed/acquisition.js',
   'web/managed/change-base.js', 'web/managed/merge.js', 'web/managed/composer.js', 'web/managed/dependencies.js',
   'web/managed/delivery-client.js', 'web/visual/render.js', 'web/visual/model.js',
   'web/feedback/render.js', 'web/feedback/page.js', 'web/feedback/capture.js', 'web/explanations/render.js'

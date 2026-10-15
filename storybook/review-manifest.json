@@ -892,7 +892,12 @@
         "managed-workspace--summary-closed",
         "managed-workspace--decision",
         "managed-workspace--lifecycle-build",
-        "managed-workspace--lifecycle-verified"
+        "managed-workspace--lifecycle-verified",
+        "managed-workspace--about-empty",
+        "managed-workspace--about-generated",
+        "managed-workspace--about-saved",
+        "managed-workspace--about-stale",
+        "managed-workspace--about-error"
       ],
       "requiredVisibleStates": [
         "empty",
@@ -945,7 +950,12 @@
         "merge-stale",
         "merge-blocked",
         "lifecycle-build",
-        "lifecycle-verified"
+        "lifecycle-verified",
+        "about-empty",
+        "about-generated",
+        "about-saved",
+        "about-stale",
+        "about-error"
       ],
       "sources": [
         "docs/workflows/solutions.md",
