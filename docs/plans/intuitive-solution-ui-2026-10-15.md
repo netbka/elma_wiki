@@ -29,7 +29,7 @@ Observed facts:
 | # | Observation | Effect on the user |
 | --- | --- | --- |
 | W1 | The review page renders every object of the Solution as a card. The reviewed export has 398 objects and 0 changes; the page is ~400 cards reading "Без изменений · Ответственность: P · Было и стало" (~196 000 characters of text). | The one fact that matters ("nothing changed") is never stated. The user scrolls for minutes and cannot answer "what changed?". |
-| W2 | Objects are labeled by internal keys: `_sep_<guid>`, `form_<guid>`, `<guid>`, `additional_docs@__directory`, 32 rows named `__default`. The parsed model already carries business names (`entity.name`); the process preview uses them ("Согласование", "Проверка контрагента"). | The user cannot connect a row to anything they know from ELMA. |
+| W2 | Objects are labeled by internal keys: `_sep_<guid>`, `form_<guid>`, `<guid>`, `travel_docs@__directory`, 32 rows named `__default`. The parsed model already carries business names (`entity.name`); the process preview uses them ("Утверждение", "Проверка бюджета"). | The user cannot connect a row to anything they know from ELMA. |
 | W3 | Responsibility is a single letter "P" on every row and in the header. | Person, team or placeholder? No name, no link. |
 | W4 | Disclaimers are legal/engineering sentences repeated per card ("Заявленная командой ответственность. Авторы публикаций ELMA и договорная ответственность не установлены", "Неизвестная база не даёт права на автоматическое объединение или сборку", "Переход не поддерживается: <guid>"). A raw JSON block sits one click from the main flow. | Read as "the system is broken" rather than as a status. |
 | W5 | The dependency section repeats "Зависимость не найдена в полученных данных" ~40 times for a handful of targets. | Noise hides the decision input. |
@@ -177,7 +177,7 @@ Research still to perform before UX-02 (implementing agent, no owner decision):
 ### 6.2 Solution header and lifecycle stepper (every Solution page)
 
 ```
-Договоры и контрагенты · DEV                  [Ожидает рассмотрения]   Версия от 15 окт., 11:27
+Командировки и расходы · DEV                  [Ожидает рассмотрения]   Версия от 15 окт., 11:27
 О решении · Как работает · Экраны и данные · Изменения · Запросы · Сборка (PR #123, contextual)
 Загрузка ✓ ── Сравнение ● ── Рассмотрение ○ ── Сборка (нет сборщика) ── Проверка ○ ── Выпуск ○
                                                                 [ Рассмотреть изменения ]
@@ -199,8 +199,8 @@ Generated from captured data by the existing explanation engine
    business objects it manages (from applications, directories, process names
    and localization). Editable; empty state says "Опишите, для чего это
    решение" with one button **Написать**.
-2. **Модули** — one card per application (`Договоры`, `Контрагенты`,
-   `Дополнительные документы`…): purpose sentence, counts of processes,
+2. **Модули** — one card per application (`Командировки`, `Авансовые отчёты`,
+   `Сопроводительные документы`…): purpose sentence, counts of processes,
    screens and directories, link **Открыть**.
 3. **Что требует внимания** — the existing attention block and the
    recommended action.
@@ -212,8 +212,8 @@ Generated from captured data by the existing explanation engine
 ### 6.4 Как работает (processes)
 
 The existing process preview promoted to a tab. Left: list of processes grouped
-by module, with business names and a one-line generated purpose ("Согласование
-договора: проверка контрагента, маршрут согласования, подписание"). Right: the
+by module, with business names and a one-line generated purpose ("Утверждение
+командировки: проверка бюджета, маршрут согласования, выдача аванса"). Right: the
 diagram, the step list in plain words, and for the selected step: who does it
 (lane), what they fill in (fields), where it goes next (transitions), and the
 saved explanation. Two chips only: `Схема: из экспорта` and `Поведение в ELMA:
@@ -305,7 +305,7 @@ Rejected alternatives are recorded so choices are not re-litigated silently.
 | Comment only | Только комментарий | Комментарий | Explicit that it is not a decision |
 | Change kinds | Изменён / Добавлен / Удалён / Без изменений / Конфликт | Модифицирован, Новый, Удаление заявлено явно | Short, parallel, one word |
 | Conflict | Конфликт · выберите версию | Нужен выбор версии | Noun chip plus imperative |
-| Base | Основа: версия от 8 окт. | База, Происхождение | "База" reads as database; on the fixed path it is always known |
+| Base | Основа: версия от 8 окт. | База, Происхождение | "База" reads as database; on the fixed path it is Wiki's pull sequence after the first pull |
 | Viewed | Просмотрено | Проверено | "Проверено" would claim verification |
 | Build / Verify / Release | Сборка / Проверка / Выпуск | Компиляция, Верификация, Релиз, Деплой | Russian; PR #123 uses Сборка |
 | Before/after | Было / Стало | Diff, Сравнение | Understood in the walkthrough |
