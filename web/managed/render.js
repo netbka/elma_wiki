@@ -6,6 +6,7 @@ import { hasAcceptedFullExport } from './model.js';
 import { mountAcquisition } from './acquisition.js';
 import { mountDependencies } from './dependencies.js';
 import { mountMergeResolution, mergeResolutionView } from './merge.js';
+import { mountComposer } from './composer.js';
 import { acceptedFullBases, baseOptionLabel, baseEvidence, scopeEvidence, scopeCandidates, preparationFields } from './change-base.js';
 const el = (tag, text, className) => { const node = document.createElement(tag); if (text !== undefined) node.textContent = text; if (className) node.className = className; return node; };
 let sequence = 0;
@@ -88,6 +89,12 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
       if (view === mode || mode === 'changes' && ['change', 'full', 'review'].includes(view)) a.setAttribute('aria-current', 'page');
       tabs.append(a);
     }
+    // The composer lives inside the Solution once a change was accepted; it is not a top-level destination.
+    const composeHref = candidate => workspaceUrl(state.id, 'compose') + (candidate ? '&candidate=' + encodeURIComponent(candidate) : '');
+    if (model.shared && (state.changes?.length || state.reconciliations?.length || view === 'compose')) {
+      const tab = link('Сборка', composeHref());
+      if (view === 'compose') tab.setAttribute('aria-current', 'page'); tabs.append(tab);
+    }
     if (model.shared && (hasAcceptedFullExport(state) || view === 'handoff')) {
       const tab = link('Передача', workspaceUrl(state.id, 'handoff'));
       if (view === 'handoff') tab.setAttribute('aria-current', 'page'); tabs.append(tab);
@@ -100,10 +107,15 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
         solution: { id: state.id, url: workspaceUrl(state.id), canCreate: !!model.exportEvidence, reason: model.handoffReason } }));
       return root;
     }
+    if (view === 'compose' && model.shared) {
+      content.append(mountComposer({ candidates: model.composed?.candidates || [], build: model.composed?.build, selected: model.composed?.selected || null,
+        selectedId: model.composed?.selectedId, loadError: model.composed?.loadError, error: model.composed?.error }, { ...actions.composed, link, candidateHref: composeHref, listHref: composeHref() }));
+      return root;
+    }
     if (['overview', 'changes', 'solution'].includes(view)) {
       const next = solutionNextAction(state, model);
       const actionsBar = el('div', undefined, 'managed-actions');
-      if (next.action !== 'reopen') actionsBar.append(link(next.label, workspaceUrl(state.id, next.view, next.artifact), true));
+      if (next.action !== 'reopen') actionsBar.append(link(next.label, next.view === 'compose' ? composeHref(next.candidate) : workspaceUrl(state.id, next.view, next.artifact), true));
       if (state.status !== 'archived') {
         if (next.view !== 'change') actionsBar.append(link('Добавить изменение', workspaceUrl(state.id, 'change')));
         actionsBar.append(link('Обновить версию', workspaceUrl(state.id, 'full')));
