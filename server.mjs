@@ -358,8 +358,8 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
           if (req.method !== 'PUT') return send(res,405,{error:'Метод не поддерживается'});
           if (req.headers['content-type']?.split(';')[0] !== 'application/octet-stream') return send(res,415,{error:'Требуется application/octet-stream'});
           const declared = { sha256: String(req.headers['x-content-sha256'] || ''), size: /^\d+$/.test(req.headers['content-length'] || '') ? Number(req.headers['content-length']) : null };
-          const { limit } = await bridges.outputSlot(bridge, jobId, declared);
-          return send(res,200,await bridges.output(bridge, jobId, { ...declared, bytes: await body(req, limit) }));
+          // Streamed to a private temp file with incremental sha256/size; never buffered in memory.
+          return send(res,200,await bridges.writeOutput(bridge, jobId, declared, req));
         }
         if (req.method !== 'POST') return send(res,405,{error:'Метод не поддерживается'});
         const input = JSON.parse((await body(req,2*1024*1024)).toString('utf8'));

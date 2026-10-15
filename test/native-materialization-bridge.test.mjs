@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { PassThrough, Readable } from 'node:stream';
 import { bridgeStore, MATERIALIZE_PAYLOAD_KEYS } from '../lib/bridge.mjs';
 import { bridgeMaterializationAdapter, configuredMaterializationAdapter } from '../lib/native-materialization-bridge.mjs';
 import { materializeServer, call, sha, WORKER_REVISION } from './bridge-worker-fixture.mjs';
@@ -27,13 +28,36 @@ test('not configured by default: no adapter, so materializeNative keeps returnin
   const bridges = bridgeStore(await fs.mkdtemp(path.join(os.tmpdir(), 'wiki-bridge-config-')));
   const full = { WIKI_NATIVE_MATERIALIZATION_BRIDGE_ID: '00000000-0000-4000-8000-000000000000', WIKI_NATIVE_MATERIALIZATION_BRIDGE_OWNER: 'synthetic-owner',
     WIKI_NATIVE_MATERIALIZATION_REVISION: WORKER_REVISION };
-  assert.ok(configuredMaterializationAdapter({ env: full, bridges }));
-  for (const key of Object.keys(full)) assert.equal(configuredMaterializationAdapter({ env: { ...full, [key]: '' }, bridges }), null, key);
-  assert.equal(configuredMaterializationAdapter({ env: { ...full, WIKI_NATIVE_MATERIALIZATION_REVISION: 'main' }, bridges }), null);
-  assert.equal(configuredMaterializationAdapter({ env: { ...full, WIKI_NATIVE_MATERIALIZATION_BRIDGE_ID: '../other' }, bridges }), null);
-  const configured = configuredMaterializationAdapter({ env: full, bridges });
+  const logged = [], log = message => logged.push(message), configure = env => configuredMaterializationAdapter({ env, bridges, log });
+  assert.equal(configure({}), null); assert.deepEqual(logged, [], 'no variables: silently unavailable');
+  assert.ok(configure(full));
+  for (const key of Object.keys(full)) assert.equal(configure({ ...full, [key]: '' }), null, key);
+  assert.equal(configure({ ...full, WIKI_NATIVE_MATERIALIZATION_REVISION: 'main' }), null);
+  assert.equal(configure({ ...full, WIKI_NATIVE_MATERIALIZATION_BRIDGE_ID: '../other' }), null);
+  assert.equal(logged.length, 5);
+  assert.match(logged[0], /disabled: missing WIKI_NATIVE_MATERIALIZATION_BRIDGE_ID$/);
+  const configured = configure(full);
   assert.deepEqual(configured.contract, { id: 'elma365-native-materialization', version: 1 });
   assert.equal(configured.nativeRevision, WORKER_REVISION); assert.equal(typeof configured.deployCandidate, 'undefined');
+});
+
+test('invalid timeout or output limit disables the adapter at startup with a secret-free reason', async t => {
+  const bridges = bridgeStore(await fs.mkdtemp(path.join(os.tmpdir(), 'wiki-bridge-limits-')));
+  const owner = 'owner-' + 'q'.repeat(12);
+  const full = { WIKI_NATIVE_MATERIALIZATION_BRIDGE_ID: '00000000-0000-4000-8000-000000000000', WIKI_NATIVE_MATERIALIZATION_BRIDGE_OWNER: owner,
+    WIKI_NATIVE_MATERIALIZATION_REVISION: WORKER_REVISION };
+  for (const [key, value] of [['TIMEOUT_MS', '-5'], ['TIMEOUT_MS', '0'], ['TIMEOUT_MS', '1.5'], ['TIMEOUT_MS', 'soon'], ['TIMEOUT_MS', String(2 ** 31)],
+    ['MAX_OUTPUT_BYTES', '-1'], ['MAX_OUTPUT_BYTES', '0'], ['MAX_OUTPUT_BYTES', '1e3'], ['MAX_OUTPUT_BYTES', String(256 * 1024 * 1024 + 1)]]) {
+    const logged = [];
+    assert.equal(configuredMaterializationAdapter({ env: { ...full, ['WIKI_NATIVE_MATERIALIZATION_' + key]: value }, bridges, log: message => logged.push(message) }), null, key + '=' + value);
+    assert.equal(logged.length, 1); assert.match(logged[0], new RegExp('WIKI_NATIVE_MATERIALIZATION_' + key));
+    // The reason names the variable, never a configured value.
+    assert.ok(!logged[0].includes(owner) && !logged[0].includes(full.WIKI_NATIVE_MATERIALIZATION_BRIDGE_ID) && !logged[0].includes(' ' + value + ' '), logged[0]);
+  }
+  const ok = configuredMaterializationAdapter({ env: { ...full, WIKI_NATIVE_MATERIALIZATION_TIMEOUT_MS: '1000', WIKI_NATIVE_MATERIALIZATION_MAX_OUTPUT_BYTES: '1024' }, bridges, log: assert.fail });
+  assert.ok(ok);
+  assert.throws(() => bridgeMaterializationAdapter({ bridges, bridgeId: full.WIKI_NATIVE_MATERIALIZATION_BRIDGE_ID, owner, nativeRevision: WORKER_REVISION, maxOutputBytes: -1 }));
+  assert.throws(() => bridgeMaterializationAdapter({ bridges, bridgeId: full.WIKI_NATIVE_MATERIALIZATION_BRIDGE_ID, owner, nativeRevision: WORKER_REVISION, timeoutMs: 0 }));
 });
 
 test('materialize job: originals by sha256, output upload bound to sha256 and size, receipt returned; never an import', async t => {
@@ -100,6 +124,46 @@ test('store binds the uploaded bytes to the declared size and accepts one output
   await store.complete(worker, job.id, { ok: true, result: { receipt } });
   const { value } = await pending;
   assert.ok(value.output.bytes.equals(OUTPUT)); assert.equal(value.output.size, OUTPUT.length);
+});
+
+test('output uploads stream to disk and hold one slot per job: a concurrent upload is refused', async t => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'wiki-bridge-stream-'));
+  t.after(() => fs.rm(directory, { recursive: true, force: true }));
+  const store = bridgeStore(directory), { bridge, token } = await store.create('synthetic-owner', { name: 'Synthetic' });
+  const worker = await store.authenticate(`Bearer ${token}`);
+  // A negative requested limit never becomes a negative job limit.
+  const pending = settled(store.enqueue(bridge.id, 'materialize', { contract: {}, envelope: {}, originals: envelope().originals, output: { maxBytes: -1 } }, { inputs: [...ORIGINALS.values()] }));
+  const job = await store.poll(worker);
+  assert.equal(job.outputLimitBytes, 256 * 1024 * 1024);
+  // A large output arrives in chunks; the first upload holds the slot while it streams.
+  const chunk = Buffer.alloc(1024 * 1024, 7), chunks = 4, whole = Buffer.concat(Array(chunks).fill(chunk));
+  const source = new PassThrough();
+  const first = store.writeOutput(worker, job.id, { sha256: sha(whole), size: whole.length }, source);
+  source.write(chunk);
+  await new Promise(resolve => setTimeout(resolve, 50));
+  const tempFiles = (await fs.readdir(path.join(directory, 'delivery', 'bridges', bridge.id, 'jobs', job.id))).filter(name => name.endsWith('.tmp'));
+  assert.equal(tempFiles.length, 1, 'the body streams into a private temp file');
+  await assert.rejects(store.writeOutput(worker, job.id, { sha256: sha(whole), size: whole.length }, Readable.from([whole])), { statusCode: 409 });
+  await assert.rejects(store.output(worker, job.id, { sha256: sha(whole), size: whole.length, bytes: whole }), { statusCode: 409 });
+  for (let index = 1; index < chunks; index++) source.write(chunk);
+  source.end();
+  assert.deepEqual(await first, { ok: true, sha256: sha(whole), size: whole.length });
+  const files = await fs.readdir(path.join(directory, 'delivery', 'bridges', bridge.id, 'jobs', job.id));
+  assert.deepEqual(files.filter(name => name !== 'inputs').sort(), ['output']);
+  // The slot is now taken by the committed output.
+  await assert.rejects(store.output(worker, job.id, { sha256: sha(whole), size: whole.length, bytes: whole }), { statusCode: 409 });
+  await store.complete(worker, job.id, { ok: true, result: { receipt } });
+  assert.ok((await pending).value.output.bytes.equals(whole));
+
+  // A short or tampered stream leaves no temp file and frees the slot for a retry.
+  const again = settled(store.enqueue(bridge.id, 'materialize', { contract: {}, envelope: {}, originals: envelope().originals }, { inputs: [...ORIGINALS.values()] }));
+  const next = await store.poll(worker);
+  await assert.rejects(store.writeOutput(worker, next.id, { sha256: sha(whole), size: whole.length }, Readable.from([chunk])), { statusCode: 422 });
+  await assert.rejects(store.writeOutput(worker, next.id, { sha256: sha(whole), size: whole.length }, Readable.from([Buffer.alloc(whole.length, 1)])), { statusCode: 422 });
+  assert.deepEqual((await fs.readdir(path.join(directory, 'delivery', 'bridges', bridge.id, 'jobs', next.id))).filter(name => name !== 'inputs'), []);
+  assert.equal((await store.writeOutput(worker, next.id, { sha256: sha(whole), size: whole.length }, Readable.from([whole]))).ok, true);
+  await store.complete(worker, next.id, { ok: true, result: { receipt } });
+  await again;
 });
 
 test('timeout or a lost worker is an unknown outcome, never success; a late result stays evidence only', async t => {
