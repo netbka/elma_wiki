@@ -59,6 +59,8 @@ jobs:
       - if: runner.os == 'Linux'
         run: npm run test:solution-delivery:storybook
       - if: runner.os == 'Linux'
+        run: npm run test:composer:storybook
+      - if: runner.os == 'Linux'
         run: node tools/requests-browser-check.mjs
       - if: runner.os == 'Linux'
         run: node tools/bug-reports-browser-check.mjs

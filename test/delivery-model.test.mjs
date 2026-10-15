@@ -16,9 +16,33 @@ test('delivery controls follow server states; unavailable and uncertain outcomes
   assert.equal(view('deployed-unverified').canVerify, true); assert.equal(view('deployed-unverified').canPrepare, false);
   assert.equal(view('unknown-outcome').canVerify, true); assert.equal(view('unknown-outcome').canConfirm, false);
   assert.match(view('unknown-outcome').next, /не повторяйте/);
+  // Composed multi-unit partial outcome: read-back only, no confirmation, cancel or new preparation.
+  for (const key of ['canConfirm', 'canCancel', 'canPrepare']) assert.equal(view('partial-outcome')[key], false);
+  assert.equal(view('partial-outcome').canVerify, true); assert.match(view('partial-outcome').next, /повтор операции запрещён/);
+  assert.equal(deliveryTargetResult(release, attempt('partial-outcome')), 'not-run');
+  // An unobserved read-back failure keeps the unresolved state: still read-back only, never a new preparation.
+  for (const state of ['deployed-unverified', 'unknown-outcome', 'partial-outcome']) {
+    const failed = deliveryPanelView(release, { capabilities, connections: [connection], attempts: [{ ...attempt(state), evidence: { verificationError: { statusCode: 502 } } }] });
+    assert.equal(failed.canPrepare, false); assert.equal(failed.canConfirm, false); assert.equal(failed.canVerify, true);
+  }
   assert.equal(view('deploying').canConfirm, false); assert.equal(view('deploying').canCancel, false);
   assert.equal(view('verified').canVerify, false); assert.match(view('verified').next, /не доказательство/);
-  for (const state of ['verification-failed', 'failed', 'blocked', 'cancelled']) assert.equal(view(state).canPrepare, true);
+  for (const state of ['verification-failed', 'blocked', 'cancelled']) assert.equal(view(state).canPrepare, true);
+  // MR-08: an operation error and a diverged read-back are unreconciled: read-back only, no new preparation.
+  assert.equal(view('failed').canPrepare, false); assert.equal(view('failed').canVerify, true); assert.match(view('failed').next, /Сначала прочитайте/);
+  const partial = deliveryPanelView(release, { capabilities, connections: [connection], attempts: [{ ...attempt('verification-failed'), evidence: { reconciliation: { outcome: 'diverged' } } }] });
+  assert.equal(partial.canPrepare, false); assert.equal(partial.canVerify, true); assert.match(partial.next, /частичную установку/);
+  const notApplied = deliveryPanelView(release, { capabilities, connections: [connection], attempts: [{ ...attempt('verification-failed'), evidence: { reconciliation: { outcome: 'not-applied' } } }] });
+  assert.equal(notApplied.canPrepare, true);
+  // A stale unresolved attempt offers only the reconcile-only read-back, never verification.
+  for (const state of ['failed', 'unknown-outcome', 'partial-outcome', 'deployed-unverified']) {
+    const stale = deliveryPanelView(release, { capabilities, connections: [connection], attempts: [{ ...attempt(state), releaseRevision: 3 }] });
+    assert.equal(stale.canReconcile, true, state); assert.equal(stale.canVerify, false); assert.equal(stale.canPrepare, false); assert.match(stale.next, /не сверен/);
+  }
+  const staleDiverged = deliveryPanelView(release, { capabilities, connections: [connection], attempts: [{ ...attempt('verification-failed'), releaseRevision: 3, evidence: { reconciliation: { outcome: 'stale-applied', mode: 'reconcile-only' } } }] });
+  assert.equal(staleDiverged.canReconcile, true); assert.equal(staleDiverged.canPrepare, false);
+  for (const state of ['verified', 'cancelled', 'blocked', 'prepared']) assert.equal(deliveryPanelView(release, { capabilities, connections: [connection], attempts: [{ ...attempt(state), releaseRevision: 3 }] }).canReconcile, false, state);
+  assert.equal(view('failed').canReconcile, false, 'a current attempt uses the verifying read-back');
   assert.equal(view('prepared').confirmation, 'DEPLOY example aaaaaaaaaaaa');
   assert.equal(deliveryPanelView({ ...release, approval: null }, { capabilities }).canPrepare, false);
 });
@@ -51,4 +75,17 @@ test('stale attempts keep history and cancellation while never authorizing curre
     assert.equal(view.canPrepare, false); assert.match(view.next, /прежнему/);
   }
   assert.equal(deliveryPanelView({ ...release, revision: 5 }, { capabilities, attempts: [attempt('deployed-unverified')] }).canVerify, false);
+});
+
+test('predefined DEV is never selectable for delivery; DEV2 needs a configured preset and a matching probed host', () => {
+  const bridgeCapabilities = { mode: 'bridge', liveDelivery: false, bridge: true };
+  const preset = (id, allowedOperations, probe, extra = {}) => ({ id, role: 'target', environment: 'dev', adapter: 'bridge', probe, preset: { id, available: true, allowedOperations, ...extra } });
+  const probe = { ok: true, hostMatches: true, identity: { host: 'dev2.example.invalid' } };
+  const dev = preset('preset-dev', ['health', 'inspect', 'export'], { ...probe, identity: { host: 'dev.example.invalid' } });
+  const dev2 = preset('preset-dev2', ['health', 'inspect', 'export', 'readBack', 'deploy'], probe);
+  const view = deliveryPanelView(release, { capabilities: bridgeCapabilities, connections: [dev, dev2] });
+  assert.equal(view.selectable(dev), false); assert.equal(view.usable(dev), false);
+  assert.equal(view.selectable(dev2), true); assert.equal(view.usable(dev2), true);
+  assert.equal(view.usable({ ...dev2, probe: { ...probe, hostMatches: false } }), false);
+  assert.equal(view.selectable({ ...dev2, preset: { ...dev2.preset, available: false } }), false);
 });

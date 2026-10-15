@@ -1,4 +1,5 @@
 import { captureWindow, readFile, editImage } from './capture.js';
+import { feedback as feedbackLabels } from '../managed/labels.js';
 const element = (tag, text, className) => { const value = document.createElement(tag); if (text) value.textContent = text; if (className) value.className = className; return value; };
 const button = (text, action, parent) => { const value = element('button', text); value.type = 'button'; value.onclick = action; parent?.append(value); return value; };
 const input = (label, tag, parent) => { const row = element('label', label), value = element(tag); row.append(value); parent.append(row); return value; };
@@ -23,7 +24,7 @@ export function mountBugReporter(config = {}, actions = {}) {
     const canReject = context?.artifactId && context?.solutionId && Number.isInteger(context.expectedDiscussionRevision) && Number.isInteger(context.expectedRevision);
     type.querySelector('[value=reject]').disabled = !canReject;
     if (!canReject && type.value === 'reject') type.value = 'bug';
-    kindNote.textContent = canReject ? (type.value === 'reject' ? 'Добавит блокирующее замечание «Нужны изменения» и отправит ошибку в GitHub. Принятие заблокировано до разрешения замечания.' : '') : 'Для отклонения откройте проверку текущего изменения.';
+    kindNote.textContent = canReject ? (type.value === 'reject' ? feedbackLabels.rejectNote : '') : 'Для отклонения откройте проверку текущего изменения.';
   };
   type.onchange = updateKind;
   const attachmentsHeading = element('h3', 'Вложения · до 5 файлов'); form.append(attachmentsHeading);
@@ -96,7 +97,7 @@ export function mountBugReporter(config = {}, actions = {}) {
     outcome.append(element('h3', messages[result.status] || 'Отчёт сохранён'));
     if (result.message) outcome.append(element('p', result.message));
     if (result.rejection?.status === 'applied') {
-      outcome.append(element('p', 'Нужны изменения: блокирующее замечание добавлено.'));
+      outcome.append(element('p', feedbackLabels.rejectApplied));
       const review = element('a', 'Открыть изменение с замечанием'); review.href = `/solutions?id=${result.context.solutionId}&view=review&artifact=${result.context.artifactId}`; outcome.append(review);
     }
     if (result.issue) { const link = element('a', 'Открыть GitHub issue #' + result.issue.number); link.href = result.issue.url; link.target = '_blank'; link.rel = 'noopener noreferrer'; outcome.append(link); }

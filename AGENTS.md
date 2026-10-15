@@ -2,6 +2,10 @@
 
 This is the canonical agent contract for this repository. The current owner request defines the assigned outcome and explicit authorization.
 
+## Portfolio governance
+
+ELMA Wiki inherits the portfolio governance of [engineering-platform](https://github.com/netbka/engineering-platform) by reference: its [Constitution](https://github.com/netbka/engineering-platform/blob/main/docs/CONSTITUTION.md), [Owner Intervention Contract](https://github.com/netbka/engineering-platform/blob/main/docs/OWNER_INTERVENTION.md) and [inheritance contract](https://github.com/netbka/engineering-platform/blob/main/docs/GOVERNANCE_INHERITANCE.md). Generic rules for the owner role, evidence, verification independence, release, incidents and blocker classes B0-B5 live there and are not restated in this repository. This file and the documents it routes hold only what is specific to Wiki. Wiki's own owner-reserved triggers and its classification of typical stops are in [Owner-reserved matters and blockers](docs/SOLUTION_FIRST_PRODUCT_PLAN.md#owner-reserved-matters-and-blockers).
+
 ## Product boundary
 
 The active product convergence target is the Solution-first contract in [docs/SOLUTION_FIRST_PRODUCT_PLAN.md](docs/SOLUTION_FIRST_PRODUCT_PLAN.md), with execution order in [docs/SOLUTION_FIRST_EXECUTION.md](docs/SOLUTION_FIRST_EXECUTION.md) and known contradictions in [docs/SOLUTION_FIRST_CONTRADICTIONS.md](docs/SOLUTION_FIRST_CONTRADICTIONS.md). Read these before product, domain, UI or integration changes. The earlier baseline-first direction remains implementation evidence to be reconciled, but must not reintroduce Workspace/file/release subsystems as competing user-facing products.
@@ -24,6 +28,8 @@ Before starting work, clean up finished worktrees:
 4. Verify the resolved absolute removal path matches the inspected secondary worktree, then use `git worktree remove <path>` without force. Respect filesystem approval boundaries; do not recursively delete directories or delete branches as part of routine cleanup. If removal refuses, investigate and preserve the work instead of forcing it.
 5. Run `git worktree prune` to clear stale registration metadata and `git worktree list --porcelain` to verify the result. Report removed worktrees and any retained work needing attention.
 
+Worktree location: every secondary worktree of this repository lives directly under `.worktrees/` at the primary checkout root (`git worktree add .worktrees/<name> -b <branch> origin/main`). Never create one beside the repository, in a temp/tool directory or nested deeper. `.worktrees/` is ignored by Git, Docker and Vercel. `npm run check:worktrees` fails on any registered worktree outside it. Relocate an out-of-place worktree with `git worktree move <path> .worktrees/<name>` only once it is inactive and its owner is not using it; otherwise retain it and report it.
+
 Classify the phase as investigate, design, change, verify or operate and select only boundaries/capabilities actually crossed. Use .agent/capabilities.yaml.
 
 A request to implement/fix/finish means investigate -> change -> focused verification without asking to switch modes. A roadmap item is not an assignment.
@@ -40,7 +46,16 @@ Read STATE only when implemented/deployed status matters and ROADMAP only for co
 
 ## Authority
 
-Order: explicit current owner request/override -> active product authority/decisions -> current code and verified runtime -> durable capability contract -> STATE/ROADMAP -> plans/history.
+Order, following [GOVERNANCE_INHERITANCE section 2](https://github.com/netbka/engineering-platform/blob/main/docs/GOVERNANCE_INHERITANCE.md#2-authority-order):
+
+1. explicit current owner request/override;
+2. the portfolio Constitution, including its non-weakenable baseline;
+3. Wiki product authority: #52 and docs/SOLUTION_FIRST_PRODUCT_PLAN.md;
+4. accepted decisions (docs/SOLUTION_FIRST_CONTRADICTIONS.md), inherited portfolio policies and durable capability/workflow contracts;
+5. current code, schema and verified runtime evidence, as recorded in STATE;
+6. ROADMAP, plans and history as evidence only.
+
+A Wiki rule may be stricter than a generic rule, never weaker; a contradiction without a declared exception is a governance gap, and the generic rule applies.
 
 #52 and docs/SOLUTION_FIRST_PRODUCT_PLAN.md remain the active product authority, incorporating the owner's #94 working-configuration correction. #33 and docs/PRODUCT_DIRECTION.md preserve the prior engine/lifecycle foundation, not a second user-facing authority. Later merge order does not override the owner's Solution-first and working-release decisions. Before merging overlapping work, reconcile current main, preserve other lanes and update the contradiction register; use the PR template. Final owner acceptance remains #38 after integrated verification and #59 uncoached usability, not a documentation or CI approval. A review milestone does not satisfy the additional native release outcome.
 
@@ -52,7 +67,7 @@ Scope is the requested outcome, not a filename allowlist. Follow root cause acro
 
 Do without asking: inspect, implement, focused refactor/tests, update stale docs, branch/PR mechanics.
 
-Ask only for unresolved choices materially changing product capability/expectation, security/privacy/data ownership, commercial/legal semantics, or an unexpected destructive/hard-to-reverse production action.
+Stop for the owner only as defined in [Owner-reserved matters and blockers](docs/SOLUTION_FIRST_PRODUCT_PLAN.md#owner-reserved-matters-and-blockers), and classify every other stop there before reporting it. Continue all other authorized work while an owner item is open.
 
 ## Data and credential safety
 

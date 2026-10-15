@@ -1,7 +1,7 @@
 # Solution-first execution plan
 
 Authority: [SOLUTION_FIRST_PRODUCT_PLAN.md](SOLUTION_FIRST_PRODUCT_PLAN.md), including the owner's 2026-10-08 working-configuration correction (#94 / PR #92).
-Coordination: #52 / #91. This plan records required product work; individual workers claim bounded outcomes, not the whole roadmap. Current task: GitHub-only documentation and handoff; no live execution.
+Coordination: #52 / #91. This plan records required product work; individual workers claim bounded outcomes, not the whole roadmap. Implementation status below was reconciled against main `139d8fc` on 2026-10-15. It records merged code with synthetic evidence. It does not record deployment, live execution or native acceptance; see [STATE.md](STATE.md).
 
 ## Goal
 
@@ -26,12 +26,25 @@ P6 may ship in bounded increments but is not optional in the full product. #94 o
 | --- | --- | --- |
 | MR-01 | Explicit base/ancestry and full/partial scope for two contributors | Existing immutable store/reducer; shared-server snapshots cannot masquerade as personal deltas |
 | MR-02 | Three-way semantic merge plan and durable conflict resolution | MR-01; independent changes preserved, ambiguous or conflicting changes cannot silently win |
-| MR-03 | Physical native materialization from resolved inputs | MR-02 plus native adapter; preserve baseline, resources and coupled runtime; exact output traceable to decisions |
+| MR-03 | Wiki request/output-verification adapter; the owner accepted it on 2026-10-11 with native validation deferred to P8. E1 `elma365-native-materialization@1` revision 1.2 is pinned at elma365 `a6e5684`. The bridge `materialize` transport is opt-in (`WIKI_NATIVE_MATERIALIZATION_*`, unconfigured by default) and no route calls it. No native materialization has run | PRs #113 (P6), #122, #127 |
 | MR-04 | Part/application/Solution/server configuration coverage and dependency closure | Start design alongside MR-01; scope expansion and global configuration accounted for; no inspection-bundle-as-release claim |
 | MR-05 | Locked target profile, paid/opaque dependency and environment-binding resolution | Start alongside MR-03; official distribution or verified licensed target prerequisites, not omitted dependencies |
-| MR-06 | Composed candidate integration with guarded delivery | MR-03/04/05; reuse #90 handoff design and #11 single reservation/coordinator |
-| MR-07 | Actual isolated native acceptance of the combined Contracts scenario | MR-06; both changes operate together and native source/runtime/business outputs match |
-| MR-08 | Controlled next-server/production promotion and recovery | MR-07 plus concrete operational permission; target-specific evidence, drift/retry/partial-failure handling |
+| MR-06 | Composed candidates through the single #11 coordinator, plus the Solution "Сборка" view with Compare/Resolve/Build/Verify next actions. Build is always shown blocked; synthetic build and Target only | PRs #117 (P7), #123 |
+| MR-07 | Open (PLAN-01 P8). dev2 is designated for the Contracts candidate (PR #118); presets and `import-normalized-v1` read-back are wired (PRs #119, #120). elma365 fixed hash-only read-back (#100) and added an offline E1 executor (#101). Open: operator restart of the dev2 bridge with `--materialize` (elma365 #102) and `WIKI_NATIVE_MATERIALIZATION_*`, then repeated read-back; Contracts section-ownership decision; real dev2 exports; P4/P5 native contracts; live evidence for manifest policy v2 (Wiki selects it for profile-2 identities; profile-2 edits stay catalog-unsupported); process-runtime compiler | none live |
+| MR-08 | Coordinator logic implemented, API only: promote to a baseline-equal destination, reconciliation, retry/forward recovery, evidence packets. PROD needs an owner grant the service never constructs. Open: UI, restore rehearsal, live target-specific acceptance (requires MR-07 and operational permission) | PR #124 |
+
+Status on main `139d8fc` (2026-10-15; synthetic evidence only, nothing deployed or run live):
+
+| Slice | Status | Evidence |
+| --- | --- | --- |
+| MR-01 | Implemented: declared bases, bounded scope, evidence-bound deletion, base/scope UI. Ancestry stays unverified | PRs #95, #103, #110 (PLAN-01 P1) |
+| MR-02 | Implemented: conservative whole-component three-way plan and durable, digest-bound resolutions with UI. No byte/part merge | PRs #107, #111 (P2, P3) |
+| MR-03 | Wiki request/validation adapter implemented; owner accepted it on 2026-10-11 with native validation deferred to P8. Native materialization is unavailable: no worker exists, and Wiki has not pinned `elma365-native-materialization@1` (netbka/elma365 PR #89) | PR #113 (P6) |
+| MR-04 | Pure planner and native-coverage adapter implemented, not wired. Real declarations fail closed because no native coverage contract is pinned | PRs #104, #109 (P4) |
+| MR-05 | Pure dependency/Target-profile resolver implemented, not wired. Real receipts fail closed because no native receipt contract exists | PR #108 (P5) |
+| MR-06 | Composed candidates through the single #11 coordinator implemented with synthetic build and Target only. No composer screen | PR #117 (P7) |
+| MR-07 | Open (PLAN-01 P8). dev2 is designated for the Contracts candidate (PR #118); DEV/DEV2 presets and `import-normalized-v1` read-back are wired (PRs #119, #120). Blocked: the bridge worker returns only `{inventory, version}`, so read-back fails closed; no native materialization worker exists | none live |
+| MR-08 | Not started; requires MR-07 and concrete operational permission | none |
 
 Detailed contracts, negative cases, evidence and team boundaries: [working-configuration-release.md](plans/working-configuration-release.md).
 
@@ -49,7 +62,7 @@ The updated [GitHub audit](audits/github-enterprise-audit-2026-10-08.md) retains
 
 ## Ready, verification and completion
 
-Before changes: record assigned outcome, owning issue, phase, capabilities/boundaries, base/head, existing owners reused and overlaps reserved in #91. Inspect current main and preserve other lanes. A new scope/architecture decision belongs to the owner; technical choices inside accepted invariants belong to the implementing agent.
+Before changes: record assigned outcome, owning issue, phase, capabilities/boundaries, base/head, existing owners reused and overlaps reserved in #91. Inspect current main and preserve other lanes. Owner stops follow [Owner-reserved matters and blockers](SOLUTION_FIRST_PRODUCT_PLAN.md#owner-reserved-matters-and-blockers); technical choices inside accepted invariants belong to the implementing agent.
 
 For a runtime slice: focused tests prove changed invariants and crossed boundaries. Visible state changes update the production renderer and synthetic Storybook in the same task. Verify trigger/ack/pending/success/failure/retry/cancel/return and dependent state; screenshots alone are not behavior evidence. Retest affected layers after integration, without ritual full-suite reruns.
 

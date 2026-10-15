@@ -33,6 +33,10 @@ test('managed first use requires explicit full scope and preserves artifact prov
   assert.equal(s.artifacts[0].checksum, a.checksum); assert.equal(s.current[0].team, 'Korus');
   assert.ok(Object.isFrozen(s.artifacts[0].components));
   assert.deepEqual(workspace(a), s);
+  // UX-02: the display name travels with the component; identity stays the key.
+  const named = await artifact('named', 'full', [{ code: 'a', value: 'a', name: 'Объект А' }]);
+  assert.equal(named.components[0].name, 'Объект А'); assert.equal(named.components[0].key, a.components[0].key);
+  assert.equal(a.components[0].name, 'a', 'the parser falls back to the code as name');
 });
 
 test('identity survives manifest reorder, parser array IDs and entity path movement', async () => {
