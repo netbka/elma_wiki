@@ -1,0 +1,237 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/netbka/elma365/tools/native-materialization/receipt.schema.json",
+  "title": "elma365-dependency-receipt@1",
+  "$comment": "Dependency and Target-profile receipt contract for netbka/elma365#60 (Wiki PLAN-01 P5, MR-05): the Target profile report a native worker produces from a read-only observation of its configured Target, and the dependency receipts Wiki lib/dependency-resolver.mjs evaluates. receipt.mjs validates documents against these $defs (strict: every object rejects unknown fields) and applies the semantic rules in docs/enterprise-development/native-coverage-and-receipts.md. Paid or licensed solutions are opaque identities: nothing is decrypted, no entitlement is forged, no licence key or secret is recorded. Patterns use JavaScript RegExp syntax. Only the JSON Schema keyword subset of schema-subset.mjs is used. $defs/schemaRevision names this file's revision; the contract document publishes its sha256 (of these LF bytes).",
+  "$defs": {
+    "schemaRevision": {
+      "$comment": "Revision of this schema file within contract version 1. 1.0 = first head of PR #103 (never merged or pinned). 1.1 = first published revision: observation provenance record on the Target profile report. Never used to validate a document; documents carry only {id, version}.",
+      "const": "1.1"
+    },
+    "contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "version"],
+      "properties": {
+        "id": { "const": "elma365-dependency-receipt" },
+        "version": { "const": 1 }
+      }
+    },
+    "semantics": {
+      "$comment": "The provenance, expiry and compatibility semantics Wiki NATIVE_RECEIPT_CONTRACTS requires a pinned receipt contract to declare; copied verbatim into that row.",
+      "const": {
+        "provenance": "elma365-worker-read-only-observation-v1",
+        "expiry": "verified-at-plus-at-most-P1D-and-stale-on-profile-change-v1",
+        "compatibility": "observed-active-at-exact-version-on-exact-platform-v1"
+      }
+    },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "gitRevision": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "text": { "type": "string", "minLength": 1, "maxLength": 2048 },
+    "identifier": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:@-]{0,255}$" },
+    "version": { "type": "string", "minLength": 1, "maxLength": 80, "pattern": "^[A-Za-z0-9][A-Za-z0-9_.+-]*$" },
+    "targetKey": {
+      "$comment": "The worker's configured Target or environment name (for example dev2); never a host, URL or origin.",
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
+    },
+    "timestamp": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{3})?Z$" },
+    "evidenceRef": { "anyOf": [{ "$ref": "#/$defs/text" }, { "type": "null" }] },
+    "observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "evidenceRef"],
+      "properties": {
+        "status": { "enum": ["verified", "unverified", "unknown"] },
+        "evidenceRef": { "$ref": "#/$defs/evidenceRef" }
+      }
+    },
+    "compatibilityObservation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "evidenceRef"],
+      "properties": {
+        "status": { "enum": ["compatible", "incompatible", "unknown"] },
+        "evidenceRef": { "$ref": "#/$defs/evidenceRef" }
+      }
+    },
+    "binding": {
+      "$comment": "A binding name and kind only; references and values never appear here.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "kind"],
+      "properties": {
+        "name": { "$ref": "#/$defs/identifier" },
+        "kind": { "enum": ["secret-reference", "environment"] }
+      }
+    },
+    "requiredBindings": {
+      "$comment": "null = not observed (Wiki: unknown-required-bindings).",
+      "anyOf": [{ "type": "array", "items": { "$ref": "#/$defs/binding" } }, { "type": "null" }]
+    },
+    "reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["service", "namespace", "code"],
+      "properties": {
+        "service": { "$ref": "#/$defs/identifier" },
+        "namespace": { "$ref": "#/$defs/identifier" },
+        "code": { "$ref": "#/$defs/identifier" }
+      }
+    },
+    "installedSolution": {
+      "$comment": "One installed Solution as the worker observed it. identity is the sha256 the worker computes over the native catalog identity fields of the installed package (opaque: never a licence key, never decrypted payload). paid is the catalog flag as reported; it never proves or disproves entitlement.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "version", "paid", "opaque", "identity", "namespaces", "entitlement", "activation", "compatibility", "requiredBindings"],
+      "properties": {
+        "code": { "$ref": "#/$defs/identifier" },
+        "version": { "anyOf": [{ "$ref": "#/$defs/version" }, { "type": "null" }] },
+        "paid": { "type": ["boolean", "null"] },
+        "opaque": { "type": "boolean" },
+        "identity": { "anyOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] },
+        "namespaces": { "type": "array", "items": { "$ref": "#/$defs/identifier" } },
+        "entitlement": { "$ref": "#/$defs/observation" },
+        "activation": { "$ref": "#/$defs/observation" },
+        "compatibility": { "$ref": "#/$defs/compatibilityObservation" },
+        "requiredBindings": { "$ref": "#/$defs/requiredBindings" }
+      }
+    },
+    "dependencyReceipt": {
+      "$comment": "Exactly the receipt row Wiki resolveDependencyEvidence evaluates. id = 'dr-' + first 32 hex of sha256(canonical({targetProfileDigest, kind, provider, provides})).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "contract", "kind", "status", "provider", "provides", "targetId", "environment", "targetProfileDigest", "verifiedAt", "expiresAt",
+        "provenance", "compatibility", "entitlement", "requiredBindings"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^dr-[0-9a-f]{32}$" },
+        "contract": { "$ref": "#/$defs/contract" },
+        "kind": { "enum": ["licensed-preinstallation", "official-distribution"] },
+        "status": { "enum": ["verified", "unverified", "revoked"] },
+        "provider": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["code", "version"],
+          "properties": {
+            "code": { "$ref": "#/$defs/identifier" },
+            "version": { "$ref": "#/$defs/version" }
+          }
+        },
+        "provides": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/reference" } },
+        "targetId": { "$ref": "#/$defs/targetKey" },
+        "environment": { "$ref": "#/$defs/targetKey" },
+        "targetProfileDigest": { "$ref": "#/$defs/sha256" },
+        "verifiedAt": { "$ref": "#/$defs/timestamp" },
+        "expiresAt": { "$ref": "#/$defs/timestamp" },
+        "provenance": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["source", "adapter", "evidenceRef"],
+          "properties": {
+            "source": { "const": "native-adapter" },
+            "adapter": { "$ref": "#/$defs/identifier" },
+            "evidenceRef": { "$ref": "#/$defs/text" }
+          }
+        },
+        "compatibility": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "platformVersion", "evidenceRef"],
+          "properties": {
+            "status": { "enum": ["compatible", "incompatible", "unknown"] },
+            "platformVersion": { "$ref": "#/$defs/version" },
+            "evidenceRef": { "$ref": "#/$defs/evidenceRef" }
+          }
+        },
+        "entitlement": { "$ref": "#/$defs/observation" },
+        "requiredBindings": { "$ref": "#/$defs/requiredBindings" },
+        "activation": { "$ref": "#/$defs/observation" },
+        "distribution": {
+          "$comment": "official-distribution only. The worker never fetches, stores or redistributes vendor artifacts; authorization is an owner-reserved grant.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["official", "intact", "artifactDigest", "authorization"],
+          "properties": {
+            "official": { "type": "boolean" },
+            "intact": { "type": "boolean" },
+            "artifactDigest": { "$ref": "#/$defs/sha256" },
+            "authorization": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["status", "evidenceRef"],
+              "properties": {
+                "status": { "enum": ["authorized", "unauthorized", "unknown"] },
+                "evidenceRef": { "$ref": "#/$defs/evidenceRef" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "targetProfileReport": {
+      "$comment": "What a worker reports about its configured Target. targetProfileDigest is the worker's E1 Target profile digest (the same value E1 requests and receipts carry); installed solutions are observations under it, summarised by inventoryDigest = sha256(canonical(installedSolutions sorted by code)). changedAt is the first observation time of the current (targetProfileDigest, inventoryDigest) pair.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contract", "document", "worker", "status", "targetId", "environment", "targetProfileDigest", "platformVersion", "observedAt", "changedAt",
+        "inventoryDigest", "installedSolutions", "receipts", "observation", "unavailable", "evidenceRef", "publicationReady", "executionEnabled"],
+      "properties": {
+        "contract": { "$ref": "#/$defs/contract" },
+        "document": { "const": "target-profile-report" },
+        "worker": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "nativeRevision"],
+          "properties": {
+            "id": { "$ref": "#/$defs/identifier" },
+            "nativeRevision": { "$ref": "#/$defs/gitRevision" }
+          }
+        },
+        "status": { "enum": ["observed", "unavailable"] },
+        "targetId": { "$ref": "#/$defs/targetKey" },
+        "environment": { "$ref": "#/$defs/targetKey" },
+        "targetProfileDigest": { "anyOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] },
+        "platformVersion": { "anyOf": [{ "$ref": "#/$defs/version" }, { "type": "null" }] },
+        "observedAt": { "$ref": "#/$defs/timestamp" },
+        "changedAt": { "anyOf": [{ "$ref": "#/$defs/timestamp" }, { "type": "null" }] },
+        "inventoryDigest": { "anyOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] },
+        "installedSolutions": { "type": "array", "items": { "$ref": "#/$defs/installedSolution" } },
+        "receipts": { "type": "array", "items": { "$ref": "#/$defs/dependencyReceipt" } },
+        "observation": {
+          "$comment": "Provenance of an observed report: the worker's read-only observation job and its run. Required for status observed, null otherwise. Reports and receipts are self-attested by their producer; a consumer accepts them only through the worker's observation job transport, never from a caller.",
+          "anyOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["job", "mode", "transport", "runId"],
+              "properties": {
+                "job": { "const": "target-profile-observation" },
+                "mode": { "const": "read-only" },
+                "transport": { "const": "elma-dev-bridge" },
+                "runId": { "$ref": "#/$defs/identifier" }
+              }
+            }
+          ]
+        },
+        "unavailable": {
+          "anyOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["reason", "missing", "requiredOperation"],
+              "properties": {
+                "reason": { "$ref": "#/$defs/text" },
+                "missing": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/identifier" } },
+                "requiredOperation": { "$ref": "#/$defs/text" }
+              }
+            }
+          ]
+        },
+        "evidenceRef": { "$ref": "#/$defs/evidenceRef" },
+        "publicationReady": { "const": false },
+        "executionEnabled": { "const": false }
+      }
+    }
+  }
+}
