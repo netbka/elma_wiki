@@ -10,6 +10,7 @@ Routing, not an always-read checklist.
 | Parallel export merge, physical materialization, paid dependencies and release acceptance | [plans/working-configuration-release.md](plans/working-configuration-release.md) |
 | Updated GitHub enterprise audit and retained Dyk/EW findings | [audits/github-enterprise-audit-2026-10-08.md](audits/github-enterprise-audit-2026-10-08.md) |
 | Contextual bug reports, screenshots and GitHub issue publication | [contracts/bug-reports.md](contracts/bug-reports.md) |
+| Contextual change-request persistence/API, attributed status/comments and opt-in publication (UX-07 backend; UI pending) | [contracts/change-requests.md](contracts/change-requests.md) |
 | Concrete agent task routing, verification and completion | [workflows/agent-execution.md](workflows/agent-execution.md) |
 | Canonical Solution-first product contract (PR #53 / #52, owner correction #94) | [SOLUTION_FIRST_PRODUCT_PLAN.md](SOLUTION_FIRST_PRODUCT_PLAN.md) |
 | Solution-first execution order | [SOLUTION_FIRST_EXECUTION.md](SOLUTION_FIRST_EXECUTION.md) |
