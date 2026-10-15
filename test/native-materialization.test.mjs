@@ -631,16 +631,29 @@ test('native contracts: current evidence still blocks; a fully valid synthetic d
   const originals = await env.originals(request.inputs.originals.map(row => row.artifactId));
   assert.deepEqual(validateE1Request(buildE1Envelope(request, originals), { originals }).errors, []);
 
-  // Native materialization is accepted, yet release needs native import and installation evidence.
+  // Through the configured bridge adapter (real store, configured worker revision) and a synthetic
+  // worker, native materialization is accepted, yet release needs native import and installation evidence.
+  const assemble = syntheticAdapter({ kind: 'widget' });
+  const bridge = await materializeServer(t, { owner, timeoutMs: 6000 });
+  bridge.worker({ handle: async ({ envelope, originals: fetched }) => {
+    const bytes = (await assemble.materialize({ request: envelope.request, originals: fetched })).artifacts[0].bytes;
+    return { receipt: e1Receipt(envelope.request, bytes), bytes };
+  } });
+  // A hand-made adapter with the E1 contract and a 40-hex revision is never native.
+  const unconfigured = await materializeNative({ request, originals, adapter: e1Adapter({ kind: 'widget' }), now: NOW, coverage: evidence.coverage });
+  assert.equal(unconfigured.manifest.status, 'materialized'); assert.equal(unconfigured.manifest.evidenceBasis, 'unknown');
+  assert.ok(reasons(unconfigured.manifest.blockers).includes('unconfigured-native-adapter')); assert.equal(unconfigured.manifest.releaseEligible, false);
+  const spread = await materializeNative({ request, originals, adapter: { ...bridge.adapter }, now: NOW, coverage: evidence.coverage });
+  assert.notEqual(spread.manifest.evidenceBasis, 'native'); assert.equal(spread.manifest.releaseEligible, false);
   for (const coverage of [evidence.coverage, null]) {
-    const { manifest } = await materializeNative({ request, originals, adapter: e1Adapter({ kind: 'widget' }), now: NOW, coverage });
+    const { manifest } = await materializeNative({ request, originals, adapter: bridge.adapter, now: NOW, coverage });
     assert.equal(manifest.status, 'materialized', JSON.stringify(manifest.blockers));
     assert.equal(manifest.evidenceBasis, 'native');
     assert.equal(manifest.releaseEligible, false);
     assert.ok(reasons(manifest.blockers).includes('native-installation-evidence-incomplete'));
     assert.equal(manifest.publicationReady, false); assert.equal(manifest.executionEnabled, false);
   }
-  const { manifest } = await materializeNative({ request, originals, adapter: e1Adapter({ kind: 'widget' }), now: NOW, coverage: evidence.coverage });
+  const { manifest } = await materializeNative({ request, originals, adapter: bridge.adapter, now: NOW, coverage: evidence.coverage });
   assert.deepEqual(manifest.blockers.find(row => row.reason === 'native-installation-evidence-incomplete').missing, ['native-import-receipt', 'native-installation-observation']);
 
   // A coverage checked against other changes, or a different Target profile, is not this request's evidence.
@@ -651,7 +664,7 @@ test('native contracts: current evidence still blocks; a fully valid synthetic d
   assert.ok(reasons(forged.blockers).includes('unverified-native-coverage')); assert.ok(reasons(forged.blockers).includes('unverified-dependency-resolution'));
   assert.equal(forged.status, 'blocked'); assert.equal(forged.evidenceBasis, 'unknown');
   // A copied request claiming native evidence is not this module's request: never native, never eligible.
-  const copied = await materializeNative({ request: structuredClone(request), originals, adapter: e1Adapter({ kind: 'widget' }), now: NOW, coverage: evidence.coverage });
+  const copied = await materializeNative({ request: structuredClone(request), originals, adapter: bridge.adapter, now: NOW, coverage: evidence.coverage });
   assert.notEqual(copied.manifest.evidenceBasis, 'native'); assert.equal(copied.manifest.releaseEligible, false);
   assert.ok(reasons(copied.manifest.blockers).includes('unverified-materialization-request'));
   assert.equal(isMaterializationManifest(manifest), true); assert.equal(isMaterializationManifest({ ...manifest, releaseEligible: true }), false);
