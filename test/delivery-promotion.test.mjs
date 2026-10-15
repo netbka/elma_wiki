@@ -336,3 +336,81 @@ test('API: promote, retry and packet use the existing release route; PROD stays 
   const source = await fs.readFile(new URL('../server.mjs', import.meta.url), 'utf8');
   assert.equal(source.includes('productionPromotions'), false, 'the service never constructs PROD grants');
 });
+
+test('review regression: an unreconciled failed or diverged attempt reserves the Target, so a fresh prepare cannot bypass the recovery gate', async t => {
+  const { projects, releases, delivery, calls, release, connect } = await setup(t);
+  // Exact review repro: partial install, no idempotent re-import capability.
+  const connection = await connect('test-a', {}, { sequence: ['diverge', 'apply'] });
+  let attempt = await delivery.prepare(release.id, 'alice', { revision: release.revision, connectionId: connection.id });
+  attempt = await delivery.confirm(release.id, attempt.id, 'alice', { idempotencyKey: 'k', confirmation: confirmation(attempt) });
+  assert.equal(attempt.state, 'failed');
+  const other = await approvedRelease(projects, releases);
+  const alias = await connect('alias', {}, { identity: { host: host('test-a'), version: VERSION } });
+  await assert.rejects(delivery.prepare(release.id, 'alice', { revision: release.revision, connectionId: connection.id }), status(409));
+  await assert.rejects(delivery.prepare(other.id, 'alice', { revision: other.revision, connectionId: alias.id }), status(409));
+  attempt = await delivery.verify(release.id, attempt.id, 'alice');
+  assert.equal(attempt.evidence.reconciliation.outcome, 'diverged');
+  // Diverged: still reserved; only the gated forward recovery (refused without idempotent re-import) may follow.
+  await assert.rejects(delivery.prepare(release.id, 'alice', { revision: release.revision, connectionId: connection.id }), status(409));
+  await assert.rejects(delivery.prepare(other.id, 'alice', { revision: other.revision, connectionId: alias.id }), status(409));
+  await assert.rejects(delivery.retry(release.id, attempt.id, 'alice', { idempotencyKey: 'r' }), error => /идемпотентный/.test(error.message));
+  assert.equal(calls.length, 1, 'no second import without read-back and the recovery gate');
+  assert.equal((await delivery.get(release.id, attempt.id, 'alice')).state, 'verification-failed');
+});
+
+test('review regression: a read-back never verifies an earlier attempt with a later attempt\'s import', async t => {
+  const { delivery, calls, release, connect } = await setup(t);
+  const connection = await connect('test-a', {}, { sequence: ['fail', 'apply'] });
+  let first = await delivery.prepare(release.id, 'alice', { revision: release.revision, connectionId: connection.id });
+  first = await delivery.confirm(release.id, first.id, 'alice', { idempotencyKey: 'k1', confirmation: confirmation(first) });
+  assert.equal(first.state, 'failed');
+  await assert.rejects(delivery.prepare(release.id, 'alice', { revision: release.revision, connectionId: connection.id }), status(409));
+  first = await delivery.verify(release.id, first.id, 'alice');
+  assert.equal(first.evidence.reconciliation.outcome, 'not-applied');
+  // Reconciled as not applied: a new, separately confirmed attempt is allowed again.
+  let second = await delivery.prepare(release.id, 'alice', { revision: release.revision, connectionId: connection.id });
+  second = await delivery.confirm(release.id, second.id, 'alice', { idempotencyKey: 'k2', confirmation: confirmation(second) });
+  assert.equal((await delivery.verify(release.id, second.id, 'alice')).state, 'verified');
+  await assert.rejects(delivery.verify(release.id, first.id, 'alice'), error => error.statusCode === 409 && /позже/.test(error.message));
+  const stored = await delivery.get(release.id, first.id, 'alice');
+  assert.equal(stored.state, 'verification-failed'); assert.equal(stored.evidence.reconciliation.outcome, 'not-applied');
+  // The superseded attempt is not promotable evidence either.
+  await assert.rejects(delivery.promote(release.id, first.id, 'alice', { revision: release.revision, connectionId: (await connect('stage-b')).id, idempotencyKey: 'p' }), status(409));
+  assert.equal(calls.length, 2);
+});
+
+test('review regression: a promotion key reused for another destination is a conflict', async t => {
+  const { delivery, release, connect } = await setup(t);
+  const source = await delivered(delivery, release, await connect('test-a'));
+  const stage = await connect('stage-b'), other = await connect('stage-c');
+  const promoted = await delivery.promote(release.id, source.id, 'alice', { revision: release.revision, connectionId: stage.id, idempotencyKey: 'same' });
+  await assert.rejects(delivery.promote(release.id, source.id, 'alice', { revision: release.revision, connectionId: other.id, idempotencyKey: 'same' }), error => error.statusCode === 409 && /другого Target/.test(error.message));
+  assert.equal((await delivery.promote(release.id, source.id, 'alice', { revision: release.revision, connectionId: stage.id, idempotencyKey: 'same' })).id, promoted.id);
+  assert.equal((await delivery.list(release.id, 'alice')).length, 2);
+});
+
+test('review regression: every delivery route, including the legacy release route, allowlists request keys', async t => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'e365-promotion-api-'));
+  t.after(() => fs.rm(directory, { recursive: true, force: true }));
+  const server = createServer({ directory, allowLocal: true, syntheticDelivery: true });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => new Promise(resolve => server.close(resolve)));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const headers = { 'X-Elma-Wiki-Request': '1', 'Content-Type': 'application/json' };
+  const login = await fetch(base + '/auth/local', { method: 'POST', headers, body: '{}' });
+  headers.Cookie = login.headers.get('set-cookie').split(';')[0];
+  const request = async (route, body) => { const response = await fetch(base + route, body ? { method: 'POST', headers, body: JSON.stringify(body) } : { headers }); return { status: response.status, body: await response.json() }; };
+  const owner = (await request('/api/session')).body.user.id;
+  const projects = projectStore(directory), releases = releaseStore(directory, projects, { sharedAccess: true });
+  const release = await approvedRelease(projects, releases, owner);
+  const connection = (await request('/api/connections', target('test-a'))).body;
+  const route = `/api/releases/${release.id}/delivery`;
+  assert.equal((await request(route, { action: 'prepare', revision: release.revision, connectionId: connection.id, owner: 'someone' })).status, 400);
+  assert.equal((await request(route, { action: 'unknown' })).status, 400);
+  const attempt = (await request(route, { action: 'prepare', revision: release.revision, connectionId: connection.id })).body;
+  const confirm = { action: 'confirm', attemptId: attempt.id, idempotencyKey: 'k', confirmation: confirmation(attempt) };
+  const refused = await request(route, { ...confirm, productionConfirmation: `PROMOTE PROD ${attempt.solutionCode} ${attempt.sha256.slice(0, 12)} ${host('test-a')}` });
+  assert.equal(refused.status, 400);
+  assert.equal((await request(`${route}?packet=${attempt.id}`)).body.outcome.state, 'prepared', 'a refused request dispatches nothing');
+  assert.equal((await request(route, confirm)).body.state, 'deployed-unverified');
+});

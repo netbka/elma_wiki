@@ -14,14 +14,16 @@ export function deliveryPanelView(release, { capabilities, connections = [], att
   const presetDeploys = connection => !connection.preset || (connection.preset.available === true && connection.preset.allowedOperations?.includes('deploy'));
   const selectable = connection => !!connection && connection.role === 'target' && connection.environment !== 'prod' && connection.probe?.protectedHost !== true && presetDeploys(connection) && (connection.adapter === 'synthetic' ? synthetic : connection.adapter === 'bridge' ? bridge : false);
   const usable = connection => !!connection && connection.role === 'target' && connection.environment !== 'prod' && connection.probe?.ok === true && !!connection.probe.identity?.host && connection.probe?.protectedHost !== true && presetDeploys(connection) && (connection.adapter === 'synthetic' ? synthetic : connection.adapter === 'bridge' ? bridge && (connection.preset ? connection.probe.hostMatches === true : bridges.some(b => b.id === connection.adapterOptions?.bridgeId && b.online)) : false);
-  const active = attempts.some(a => ['prepared', 'deploying', 'deployed-unverified', 'unknown-outcome', 'partial-outcome'].includes(a.state));
+  // An operation error or a diverged (partial) read-back keeps the Target reserved until reconciled (MR-08).
+  const diverged = attempt => attempt?.state === 'verification-failed' && attempt.evidence?.reconciliation?.outcome === 'diverged' && !attempt.retriedBy;
+  const active = attempts.some(a => ['prepared', 'deploying', 'deployed-unverified', 'unknown-outcome', 'partial-outcome', 'failed'].includes(a.state) || diverged(a));
   const approved = release.associationStatus !== 'stale' && release.approval?.revision === release.revision && !!release.candidate && !release.blockers.length;
   const viaBridge = latest?.connection?.adapter === 'bridge';
   return { latest, current, synthetic, bridge, enabled, selectable, usable, bridges, connections: connections.filter(c => c.role === 'target'),
     canPrepare: enabled && approved && !active,
     canConfirm: enabled && current && latest?.state === 'prepared' && usable(connections.find(c => c.id === latest.connection?.id)),
     canCancel: latest?.state === 'prepared',
-    canVerify: enabled && current && ['deployed-unverified', 'unknown-outcome', 'partial-outcome', 'verification-failed'].includes(latest?.state),
+    canVerify: enabled && current && ['deployed-unverified', 'unknown-outcome', 'partial-outcome', 'verification-failed', 'failed'].includes(latest?.state),
     confirmation: latest ? `DEPLOY ${latest.solutionCode} ${latest.sha256.slice(0, 12)}` : '',
     next: !enabled ? 'Доставка в ELMA пока недоступна. Используйте приватный пакет передачи.' :
       latest?.state === 'deploying' ? 'Операция выполняется. Обновите состояние; повторный запуск не нужен.' :
@@ -31,8 +33,9 @@ export function deliveryPanelView(release, { capabilities, connections = [], att
       latest?.state === 'deployed-unverified' ? 'Прочитайте и сравните результат. Завершение операции ещё не означает совпадение.' :
       latest?.state === 'verified' && latest.verificationCurrent === false ? 'Прежняя проверка не подтверждает текущий кандидат. Сохраните историю и подготовьте новую проверяемую доставку.' :
       latest?.state === 'verified' ? (viaBridge ? 'Read-back с Target совпал с кандидатом по политике проверки. Это сравнение файлов пакета, не проверка поведения в ELMA.' : 'Учебная проверка прошла. Это не доказательство доставки в ELMA.') :
+      diverged(latest) ? 'Read-back показал частичную установку: Target не совпадает ни с прежним состоянием, ни с кандидатом. Новая операция запрещена до восстановления по утверждённому плану и повторного read-back.' :
       latest?.state === 'verification-failed' ? (latest.evidence?.verificationError ? 'Не удалось подтвердить read-back. Проверьте доступность и личность Target и повторите чтение; новая операция требует новой подготовки и подтверждения.' : 'Результат не совпал. Изучите расхождения; повторная операция требует новой подготовки и подтверждения.') :
-      latest?.state === 'failed' ? 'Ошибка операции. Проверьте причину; повтор требует новой подготовки и отдельного подтверждения.' :
+      latest?.state === 'failed' ? 'Ошибка операции не доказывает, что ничего не применено. Сначала прочитайте и проверьте состояние Target; новая подготовка доступна после сверки.' :
       latest?.state === 'blocked' ? 'Доставка заблокирована. Проверьте личность и состояние Target; после исправления подготовьте новую попытку.' :
       latest?.state === 'cancelled' ? 'Подготовка отменена. Для доставки выберите Target и подготовьте новую попытку.' :
       latest?.state === 'prepared' ? (viaBridge ? 'Проверьте личность Target и точный кандидат, затем отдельно подтвердите доставку.' : 'Проверьте стенд и точный кандидат, затем отдельно подтвердите учебную операцию.') :

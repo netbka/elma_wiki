@@ -38,7 +38,9 @@ const presetFixture = state => {
   return { release: base.release, data: { ...base.data, connections: [dev, dev2], bridges: [bridge] } };
 };
 function story(state) {
-  const { release, data } = state.startsWith('bridge-presets') ? presetFixture(state) : state.startsWith('bridge-') ? bridgeFixture(state) : fixture(state === 'target-reserved' ? 'ready' : state);
+  const { release, data } = state.startsWith('bridge-presets') ? presetFixture(state) : state.startsWith('bridge-') ? bridgeFixture(state) : fixture(state === 'target-reserved' ? 'ready' : state === 'partial-install' ? 'verification-failed' : state);
+  // MR-08 synthetic partial install: the read-back matches neither the previous state nor the candidate.
+  if (state === 'partial-install') data.attempts[0].evidence.reconciliation = { outcome: 'diverged', fromState: 'failed', readBackInventoryHash: 'b'.repeat(64) };
   const unavailable = async () => { throw Error('Учебное состояние Storybook: выберите другую story. Здесь операции не запускаются.'); };
   const act = state === 'target-reserved' ? async () => { throw Object.assign(Error('На этом Target уже есть незавершённая доставка. Завершите, проверьте или отмените её подготовку.'), { status: 409 }); } : unavailable;
   return mountRelease({ release, open: unavailable, change: unavailable, preview: unavailable, download: unavailable,
@@ -72,6 +74,7 @@ export const Mismatch = { render: () => story('verification-failed') };
 export const Unknown = { render: () => story('unknown-outcome') };
 export const PartialOutcome = { render: () => story('partial-outcome') };
 export const Failed = { render: () => story('failed') };
+export const PartialInstall = { render: () => story('partial-install') };
 export const Blocked = { render: () => story('blocked') };
 export const Cancelled = { render: () => story('cancelled') };
 export const Stale = { render: () => story('stale') };

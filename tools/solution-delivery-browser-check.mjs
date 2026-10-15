@@ -174,8 +174,14 @@ try {
   const failure = await connection('Ошибка импорта', 'fail');
   await open(releases.failed); const failed = await prepare(releases.failed, failure); await confirm(failed);
   await panel().getByRole('heading', { name: 'Последняя попытка: Ошибка операции', exact: true }).waitFor();
+  // MR-08: an operation error is not proof that nothing applied: read back before a new preparation.
+  await panel().getByLabel('Учебный стенд для доставки', { exact: true }).selectOption(failure.id);
+  assert.equal(await button('Подготовить учебную доставку').isDisabled(), true);
+  await button('Прочитать и проверить результат').click();
+  await panel().getByRole('heading', { name: 'Последняя попытка: Результат проверки не совпал', exact: true }).waitFor();
   await panel().getByLabel('Учебный стенд для доставки', { exact: true }).selectOption(failure.id);
   assert.equal(await button('Подготовить учебную доставку').isEnabled(), true);
+  assert.equal((await api(endpoint(releases.failed))).length, 1, 'Read-back of a failed operation never redispatches');
   await open(releases['stale-prepared']); await prepare(releases['stale-prepared'], target);
   const current = await store.managed.get(state.id, SOLUTION_CATALOG);
   await store.managed.setArchived(state.id, SOLUTION_CATALOG, { archived: true, expectedRevision: current.revision }, actor);

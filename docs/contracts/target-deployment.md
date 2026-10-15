@@ -182,18 +182,34 @@ is claimed, and no UI control exists yet for these actions.
   and follows the normal path: typed `DEPLOY` confirmation, fresh drift check,
   durable `deploying`, dispatch once, read-back. At confirmation the source
   attempt is re-read; if it is no longer verified and current, the promotion is
-  `blocked` without dispatch. The same idempotency key replays the stored
-  promotion; another key while it is unresolved is refused by the existing
-  one-active-attempt rule.
+  `blocked` without dispatch. The same idempotency key with the same
+  destination replays the stored promotion; the same key for another
+  destination is a 409 conflict, and another key while it is unresolved is
+  refused by the existing one-active-attempt rule.
 - **Reconciliation.** Every observed read-back records
   `evidence.reconciliation = {outcome, fromState, readBackInventoryHash}`:
   `applied` (matching comparison), `not-applied` (read-back equals the
   pre-deploy inventory and no unit receipt reported `applied`) or `diverged`
   (anything else, including an applied receipt over an unchanged inventory). A
-  failed or unobserved read clears it. `verify` is also allowed from `failed`,
-  because an adapter error never proves that nothing applied; an unobserved
-  failure keeps `failed`, and an observed read-back moves it to `verified` or
+  read that fails before observing the Target keeps the previous state and
+  reconciliation. `verify` is also allowed from `failed`, because an adapter
+  error never proves that nothing applied; an unobserved failure keeps
+  `failed`, and an observed read-back moves it to `verified` or
   `verification-failed`. Unknown and partial outcomes are never success.
+- **Unreconciled outcomes reserve the Target.** Besides the active states, a
+  `failed` attempt and a `verification-failed` attempt with a `diverged`
+  reconciliation (and no retry) hold the host reservation and the
+  one-unresolved-attempt-per-release rule. A fresh `prepare` on that host, from
+  any release, owner or connection alias, is refused until a read-back
+  reconciles `failed` as `applied`/`not-applied`, or a gated forward-recovery
+  retry takes over the diverged attempt; a later read-back that shows the
+  previous state also releases it. The release UI follows: after `failed` it
+  offers read-back, not a new preparation, and a diverged read-back shows the
+  partial install (Storybook `delivery--partial-install`).
+- **No borrowed evidence.** A read-back observes the Target now, so `verify`
+  is refused (409, state unchanged) for an attempt that has a retry, or when
+  another attempt on the same host was dispatched at or after this attempt's
+  creation. An earlier attempt never becomes `verified` from a later import.
 - **Retry and recovery** (`retry`, keys `attemptId`, `idempotencyKey`). Allowed
   only from `verification-failed` with a reconciliation and a still current
   candidate. `not-applied` gives a `retry`; `diverged` (partial install) gives a
@@ -229,8 +245,9 @@ is claimed, and no UI control exists yet for these actions.
   exact candidate, connection, observed host and an expiry. `server.mjs`
   constructs no grants, so PROD is refused by default and over HTTP. With a
   grant, confirmation additionally requires `productionConfirmation: "PROMOTE
-  PROD <code> <first 12 hex of SHA-256> <host>"`, which no contextual HTTP route
-  accepts. The grant is re-evaluated at confirmation and read-back (an expired
+  PROD <code> <first 12 hex of SHA-256> <host>"`, which no HTTP route accepts:
+  the legacy, Solution handoff and composed delivery routes all allowlist
+  request keys per action and answer 400 otherwise. The grant is re-evaluated at confirmation and read-back (an expired
   grant blocks dispatch and keeps an unresolved attempt reserved). Protected
   hosts stay refused even with a grant, and the bridge worker still refuses
   PROD. How an owner records a grant is owner-reserved
@@ -246,8 +263,10 @@ Fail-closed defaults where the plan leaves the decision to the owner:
   implemented (the rollback reference stays a pre-deploy inventory hash);
 - verified evidence has no age limit beyond candidate currency; a maximum age
   or a mandatory re-verification interval is not defined;
-- a new direct `prepare` after `failed` remains allowed as before (fresh
-  inspection and drift check apply); only `retry` requires reconciliation.
+- an unreconciled `failed` or `diverged` attempt whose candidate became stale
+  cannot be read back (the candidate guard refuses) and keeps its reservation;
+  as for `unknown-outcome`, resolving it needs an owner/operator decision and
+  never deleting records.
 
 `lib/delivery.mjs` implements attempts behind the adapter interface from the [connections contract](source-target-connections.md). API: `/api/connections` (owner-scoped references, read-only `probe`), `GET/POST /api/releases/:id/delivery` with actions `prepare`, `confirm`, `verify`, `cancel`, `promote`, `retry` (and `GET …/delivery?packet=<attemptId>`; the contextual Solution and composed routes accept the same). Authenticated GET `/api/delivery/capabilities` reports `mode` (`synthetic` or `bridge`), `bridge: true` (the operator-bridge adapter is registered) and the adapter list; `liveDelivery` stays `false` until a live delivery has been verified. Every route authorizes the owner first; connections and attempts live in `.local/delivery/`, private file modes, outside Git.
 
@@ -369,7 +388,7 @@ With the bridge adapter the same panel lists the owner's bridges (online/offline
 - **A real `elma365pm import --version-up` cannot pass `exact-solution-inventory-v1`.** The import appends a `history` entry to `package.json`/`manifest.json` and may rewrite dependency metadata, so the exact policy reports them as `different`; a read-back export with `--allow-deps` can also list dependency files as `unexpected` when the candidate was exported without them. This is by design of the strict policy. The owner-approved versioned normalization is [`import-normalized-v1`](#import-normalized-read-back-policy); unexpected dependency files still fail it. The coordinator selects it only for an owner-designated DEV2 candidate ([selection](#read-back-policy-selection)); every other live attempt still ends as `verification-failed` with the exact discrepancies listed, which is the truthful result. Until the bridge worker returns `metadataFiles` ([B4 dependency](#read-back-metadata-bytes)), a DEV2 read-back under `import-normalized-v1` also fails closed and stays unverified.
 - Synthetic scenarios (apply, unapplied, fail, timeout, drift) stay disabled by default unless `DELIVERY_SYNTHETIC_ADAPTER=1`. Enabling them never proves an ELMA operation. `elma365pm import` limitations apply to the bridge path (`directory required` for widget-script changes; silent skip without a new `history` entry, which read-back reports as import not applied).
 - A bridge token is a bearer secret for the operator machine: it can read candidate artifacts of jobs addressed to it and report results, nothing else. Rotate by removing the bridge and issuing a new one. A worker restart mid-job leaves the job `taken` until the Wiki-side timeout (`DELIVERY_TIMEOUT_MS`).
-- One service process; the service queue reserves each observed Target host across releases, owners and connection aliases. Durable `prepared`, `deploying`, `deployed-unverified` and `unknown-outcome` attempts block another preparation on that host; case and a trailing DNS dot are normalized. Confirmation also rejects overlapping legacy preparations before dispatch. Reservation errors disclose no competing record or owner. Cancellation before dispatch or a terminal result releases the reservation. This is not a distributed lock and cannot protect a differently reported alias for the same host, external operators or another service process. Restart reconciliation is lazy on the next read; durable unresolved attempts still block preparation before that read.
+- One service process; the service queue reserves each observed Target host across releases, owners and connection aliases. Durable `prepared`, `deploying`, `deployed-unverified`, `unknown-outcome` and `partial-outcome` attempts, an unreconciled `failed` attempt and a `diverged` `verification-failed` attempt without a retry block another preparation on that host; case and a trailing DNS dot are normalized. Confirmation also rejects overlapping legacy preparations before dispatch. Reservation errors disclose no competing record or owner. Cancellation before dispatch or a terminal result releases the reservation. This is not a distributed lock and cannot protect a differently reported alias for the same host, external operators or another service process. Restart reconciliation is lazy on the next read; durable unresolved attempts still block preparation before that read.
 - Rollback reference is the pre-deploy inventory hash only; no package/data/process restore is performed.
 - The real Source/Target journey remains proposed; the 17 current delivery Storybook states cover the synthetic path (including protected Target refusal) and the bridge panel (no bridge yet, bridge offline, deploy in progress).
 

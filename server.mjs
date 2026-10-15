@@ -25,8 +25,9 @@ import { demoData } from './lib/demo.mjs';
 import { configSourceClient, configAcquisitions } from './lib/config-source.mjs';
 
 const project = path.dirname(fileURLToPath(import.meta.url));
-// Contextual delivery request keys. PROD confirmation is deliberately absent: no HTTP request can
-// supply `productionConfirmation`, and this server constructs the delivery store without PROD grants.
+// Delivery request keys for every delivery route (legacy, Solution handoff, composed). PROD
+// confirmation is deliberately absent: no HTTP request can supply `productionConfirmation`, and
+// this server constructs the delivery store without PROD grants.
 const contextualDeliveryKeys = { prepare: ['action', 'revision', 'connectionId'], confirm: ['action', 'attemptId', 'idempotencyKey', 'confirmation'], verify: ['action', 'attemptId'], cancel: ['action', 'attemptId'],
   promote: ['action', 'attemptId', 'connectionId', 'revision', 'idempotencyKey'], retry: ['action', 'attemptId', 'idempotencyKey'] };
 const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml' };
@@ -404,6 +405,8 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
         if (!input || typeof input !== 'object' || Array.isArray(input)) return send(res,400,{error:'Некорректный запрос'});
         if (action === 'change') return send(res,200,await releases.change(id,owner,input,session.user));
         if (action === 'delivery') {
+          if (!Object.hasOwn(contextualDeliveryKeys, input.action)) return send(res,400,{error:'Неизвестное действие доставки'});
+          if (Object.keys(input).some(key => !contextualDeliveryKeys[input.action].includes(key))) return send(res,400,{error:'Некорректный запрос доставки'});
           if (input.action === 'prepare') return send(res,201,await delivery.prepare(id,owner,input));
           if (input.action === 'confirm') return send(res,200,await delivery.confirm(id,input.attemptId,owner,input));
           if (input.action === 'verify') return send(res,200,await delivery.verify(id,input.attemptId,owner));
