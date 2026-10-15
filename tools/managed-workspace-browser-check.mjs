@@ -151,7 +151,7 @@ try {
   assert.equal(await page.getByRole('button', { name: 'Решение по версии', exact: true }).count(), 0);
   await page.screenshot({ path: 'qa/managed-review-accepted.png', fullPage: true });
   await page.goto(workspaceUrl);
-  await page.getByRole('link', { name: 'Решение', exact: true }).click();
+  await page.getByRole('link', { name: 'Экраны и данные', exact: true }).click();
   await page.getByRole('heading', { name: 'Текущее состояние · 3 объектов', exact: true }).waitFor();
   await page.getByRole('link', { name: 'Обновить', exact: true }).click();
   await upload(await archive([['contract', 'vendor'], ['untouched', 'base'], ['added', 'ours']]), true);
@@ -227,7 +227,7 @@ try {
   processState = await (await context.request.get(base + processRoute)).json();
   assert.equal(processState.current[0].responsibility.elements.find(part => part.code === 'y').team, 'Korus');
   assert.equal(processState.current[0].responsibility.elements.find(part => part.code === 'x').team, 'Internal');
-  await page.getByRole('link', { name: 'Решение', exact: true }).click(); await page.getByText('Internal: 3 · Korus: 1', { exact: true }).waitFor();
+  await page.getByRole('link', { name: 'Экраны и данные', exact: true }).click(); await page.getByText('Internal: 3 · Korus: 1', { exact: true }).waitFor();
   const boundary = structuredClone(additions); boundary.process.items.y.condition = 'reviewed edit';
   await prepareProcess(boundary, 'change'); await acceptBlocked();
   await page.getByLabel('Изменение принятого объекта проверено', { exact: true }).check();
@@ -252,7 +252,7 @@ try {
     } catch { res.writeHead(404); res.end(); }
   });
   await new Promise(resolve => stories.listen(0, '127.0.0.1', resolve));
-  for (const mode of ['empty','list','create','overview','pending','change','review','conflict','overlap','ambiguous','stale','archived','loading','load-error','changes','solution','no-source','needs-fixes','pending-conflict','review-comment','review-findings','review-resolved','review-accepted','review-stale-anchor','review-removed-anchor','review-ambiguous-anchor','elements-added','elements-boundary','elements-conflict','elements-unknown','create-legacy','pull-exporting','pull-ready','pull-failed','pull-unavailable','update','summary-mixed','summary-no-changes','summary-closed','decision']) {
+  for (const mode of ['empty','list','create','overview','pending','change','review','conflict','overlap','ambiguous','stale','archived','loading','load-error','changes','solution','no-source','needs-fixes','pending-conflict','review-comment','review-findings','review-resolved','review-accepted','review-stale-anchor','review-removed-anchor','review-ambiguous-anchor','elements-added','elements-boundary','elements-conflict','elements-unknown','create-legacy','pull-exporting','pull-ready','pull-failed','pull-unavailable','update','summary-mixed','summary-no-changes','summary-closed','decision','lifecycle-build','lifecycle-verified']) {
     await page.goto(`http://127.0.0.1:${stories.address().port}/iframe.html?id=managed-workspace--${mode}&viewMode=story`);
     await page.locator('.managed-shell h1').waitFor();
     if (['review','conflict','overlap','ambiguous'].includes(mode)) await acceptBlocked();
@@ -263,6 +263,18 @@ try {
     }
     if (mode === 'decision') { await dialog().waitFor(); assert.equal(await dialog().getByRole('radio', { name: 'Принять', exact: true }).isDisabled(), true); assert.equal(await dialog().getByRole('radio', { name: 'Запросить доработку', exact: true }).isChecked(), true); }
     if (mode === 'summary-no-changes') { await page.getByRole('button', { name: 'Закрыть без изменений', exact: true }).waitFor(); assert.equal(await page.getByRole('button', { name: 'Решение по версии', exact: true }).count(), 0); }
+    if (['lifecycle-build', 'lifecycle-verified', 'overview', 'pending', 'archived'].includes(mode)) {
+      // UX-04: six lifecycle steps, one current while active, unavailable steps carry a reason.
+      const steps = page.getByRole('list', { name: 'Этапы решения', exact: true }).getByRole('listitem');
+      assert.equal(await steps.count(), 6, 'six lifecycle steps: ' + mode);
+      assert.equal(await page.locator('.managed-step[aria-current=step]').count(), mode === 'archived' ? 0 : 1, 'one current step: ' + mode);
+      await page.getByText(/^Выпуск ещё не доступно$/).waitFor();
+      if (mode === 'lifecycle-build') { await page.locator('.managed-step[aria-current=step]').getByText('Сборка', { exact: true }).waitFor(); await page.getByText('Принято', { exact: true }).first().waitFor(); }
+      if (mode === 'overview') await page.locator('.managed-step[aria-disabled=true]').getByText('Сборка', { exact: true }).waitFor();
+      if (mode === 'lifecycle-verified') assert.equal(await page.locator('.managed-step[data-state=done]').count(), 5);
+      if (mode === 'pending') { await page.locator('.managed-step[aria-current=step]').getByText('Рассмотрение', { exact: true }).waitFor(); await page.getByText('Ожидает рассмотрения', { exact: true }).first().waitFor(); }
+      if (mode === 'archived') await page.getByText('В архиве', { exact: true }).first().waitFor();
+    }
     if (mode === 'summary-closed') { await page.getByText(/^Закрыто без изменений:/).waitFor(); assert.equal(await page.getByRole('button', { name: 'Решение по версии', exact: true }).count(), 0); }
     if (!mode.startsWith('review-') && !mode.startsWith('elements-') && !['create','create-legacy','update','change','review','conflict','overlap','ambiguous','archived','loading','summary-mixed','summary-no-changes','summary-closed','decision'].includes(mode) && !mode.startsWith('pull-')) assert.equal(await page.locator('.managed-content a.button').count(), 1, 'one primary action: ' + mode);
     if (mode === 'create') { assert.equal(await page.getByRole('button', { name: 'Загрузить', exact: true }).count(), 1, 'one button on the fixed entry'); assert.equal(await page.getByLabel('Это полный экспорт решения', { exact: true }).count(), 0); }

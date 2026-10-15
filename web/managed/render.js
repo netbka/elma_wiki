@@ -1,6 +1,6 @@
 import { componentName, dateLabel, labels, elementLabels, elementKinds, responsibilityLabel, responsibilityReport, reviewGate, workspaceSummary, workspaceUrl as buildUrl, solutionNextAction, objectLabel, objectFromKey, groupObjects, reviewSummary, reviewBucket, objectModule } from './model.js';
-import { nouns, grouping, ribbon, facts, reviewSummary as summaryLabels, decision as decisionLabels, diagram as diagramLabels } from './labels.js';
-import { decisionChoices, decisionDefault, canCloseWithoutChanges } from './model.js';
+import { nouns, grouping, ribbon, facts, reviewSummary as summaryLabels, decision as decisionLabels, diagram as diagramLabels, tabs as tabLabels, header as headerLabels, stepStates } from './labels.js';
+import { decisionChoices, decisionDefault, canCloseWithoutChanges, solutionStatus, lifecycleSteps } from './model.js';
 import { mountSnapshotVisual } from '../visual/render.js';
 import { mountExplanation } from '../explanations/render.js';
 import { mountRelease } from '../releases/render.js';
@@ -99,9 +99,27 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
 
   if (state) {
     const summary = workspaceSummary(state), context = el('div', undefined, 'managed-context');
-    context.append(el('p', `${state.status === 'archived' ? 'Архив' : 'В работе'} · Текущая версия: ${dateLabel(state.baselineAcceptedAt)}`));
-    const tabs = el('nav', undefined, 'solution-tabs'); tabs.setAttribute('aria-label', 'Разделы решения');
-    for (const [label, mode] of [['Обзор', 'overview'], ['Изменения', 'changes'], ['Решение', 'solution']]) {
+    // UX-04: the header carries the status badge, the version date and the lifecycle
+    // stepper, all projected from `solutionNextAction`; nothing here adds state.
+    const next = solutionNextAction(state, model), status = solutionStatus(next);
+    const headline = el('p', undefined, 'managed-headline'), badge = el('span', status.label, 'managed-badge managed-badge-' + status.key);
+    badge.setAttribute('aria-label', `${headerLabels.status}: ${status.label}`);
+    headline.append(badge, ' · ', `${headerLabels.versionFrom} ${dateLabel(state.baselineAcceptedAt)}`);
+    context.append(headline);
+    const stepper = el('ol', undefined, 'managed-stepper'); stepper.setAttribute('aria-label', headerLabels.steps);
+    for (const step of lifecycleSteps(state, next)) {
+      const item = el('li', undefined, 'managed-step'); item.dataset.state = step.state;
+      if (step.current) item.setAttribute('aria-current', 'step');
+      if (step.state === 'unavailable') item.setAttribute('aria-disabled', 'true');
+      item.append(el('span', step.label), ' ', el('small', step.reason || stepStates[step.state], 'managed-muted'));
+      stepper.append(item);
+    }
+    if (stepper.childElementCount) context.append(stepper);
+    const tabs = el('nav', undefined, 'solution-tabs'); tabs.setAttribute('aria-label', headerLabels.sections);
+    // Tab names and order follow the plan's vocabulary (§6.2). "Как работает" and
+    // "Запросы" arrive with UX-06 and UX-07; until then the object inventory, processes
+    // included, sits under "Экраны и данные".
+    for (const [label, mode] of [[tabLabels.about, 'overview'], [tabLabels.screensAndData, 'solution'], [tabLabels.changes, 'changes']]) {
       const a = link(label, workspaceUrl(state.id, mode));
       if (view === mode || mode === 'changes' && ['change', 'full', 'review'].includes(view)) a.setAttribute('aria-current', 'page');
       tabs.append(a);
@@ -109,11 +127,11 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
     // The composer lives inside the Solution once a change was accepted; it is not a top-level destination.
     const composeHref = candidate => workspaceUrl(state.id, 'compose') + (candidate ? '&candidate=' + encodeURIComponent(candidate) : '');
     if (model.shared && (state.changes?.length || state.reconciliations?.length || view === 'compose')) {
-      const tab = link('Сборка', composeHref());
+      const tab = link(tabLabels.build, composeHref());
       if (view === 'compose') tab.setAttribute('aria-current', 'page'); tabs.append(tab);
     }
     if (model.shared && (hasAcceptedFullExport(state) || view === 'handoff')) {
-      const tab = link('Передача', workspaceUrl(state.id, 'handoff'));
+      const tab = link(headerLabels.handoff, workspaceUrl(state.id, 'handoff'));
       if (view === 'handoff') tab.setAttribute('aria-current', 'page'); tabs.append(tab);
     }
     content.append(tabs);
@@ -130,7 +148,6 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
       return root;
     }
     if (['overview', 'changes', 'solution'].includes(view)) {
-      const next = solutionNextAction(state, model);
       const actionsBar = el('div', undefined, 'managed-actions');
       if (next.action !== 'reopen') actionsBar.append(link(next.label, next.view === 'compose' ? composeHref(next.candidate) : workspaceUrl(state.id, next.view, next.artifact), true));
       // The only secondary way to create a new version is to pull again. The

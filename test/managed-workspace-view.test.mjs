@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { managedFixture } from '../web/managed/fixtures.js';
-import { reviewGate, workspaceSummary, componentName, workspaceUrl, solutionNextAction, responsibilityLabel, responsibilityReport, hasAcceptedFullExport, objectLabel, objectCode, objectFromKey, objectKindLabel, objectModule, isSystemObject, groupObjects, reviewSummary, reviewBucket, groupDependencies } from '../web/managed/model.js';
+import { solutionStatus, lifecycleSteps, reviewGate, workspaceSummary, componentName, workspaceUrl, solutionNextAction, responsibilityLabel, responsibilityReport, hasAcceptedFullExport, objectLabel, objectCode, objectFromKey, objectKindLabel, objectModule, isSystemObject, groupObjects, reviewSummary, reviewBucket, groupDependencies } from '../web/managed/model.js';
 import { solutionHandoffFixture } from '../web/managed/handoff-fixtures.js';
 
 test('handoff navigation requires a matching accepted full state and stays separate from delivery evidence', () => {
@@ -145,4 +145,34 @@ test('UX-03b decision choices: a closed gate disables acceptance with its reason
   assert.equal(canCloseWithoutChanges(mixed, reviewSummary(mixed)), false);
   assert.equal(canCloseWithoutChanges({ ...none, ambiguities: [{ reason: 'x' }] }, reviewSummary({ ...none, ambiguities: [{ reason: 'x' }] })), false);
   assert.equal(canCloseWithoutChanges(managedFixture('summary-closed').review, reviewSummary(none)), false);
+});
+
+test('UX-04: the header badge and stepper project every row of the next-action map; unavailable steps carry a reason', async () => {
+  const { composerNextActionFixture } = await import('../web/managed/composer-fixtures.js');
+  const project = model => { const next = solutionNextAction(model.workspace, model); return { status: solutionStatus(next).key, steps: lifecycleSteps(model.workspace, next) }; };
+  const shape = steps => steps.map(step => step.id + ':' + step.state + (step.reason ? '/' + step.reason : '')).join(' ');
+  const rest = 'build:next verify:next release:unavailable/ещё не доступно';
+  const cases = [
+    [managedFixture('no-source'), 'working', 'load:current compare:next review:next ' + rest],
+    [composerNextActionFixture('compare'), 'awaitingReview', 'load:done compare:current review:next ' + rest],
+    [managedFixture('pending'), 'awaitingReview', 'load:done compare:done review:current ' + rest],
+    [managedFixture('needs-fixes'), 'awaitingReview', 'load:done compare:done review:current ' + rest],
+    [managedFixture('pending-conflict'), 'conflict', 'load:done compare:done review:current ' + rest],
+    [composerNextActionFixture('unknown-base'), 'conflict', 'load:done compare:done review:current ' + rest],
+    [managedFixture('overview'), 'accepted', 'load:done compare:done review:done build:unavailable/нет сборщика verify:next release:unavailable/ещё не доступно'],
+    [composerNextActionFixture('build-blocked'), 'accepted', 'load:done compare:done review:done build:unavailable/нет сборщика verify:next release:unavailable/ещё не доступно'],
+    [managedFixture('lifecycle-build'), 'accepted', 'load:done compare:done review:done build:current verify:next release:unavailable/ещё не доступно'],
+    [composerNextActionFixture('review-build'), 'accepted', 'load:done compare:done review:done build:current verify:next release:unavailable/ещё не доступно'],
+    [composerNextActionFixture('verify'), 'accepted', 'load:done compare:done review:done build:done verify:current release:unavailable/ещё не доступно'],
+    [managedFixture('lifecycle-verified'), 'accepted', 'load:done compare:done review:done build:done verify:done release:unavailable/ещё не доступно'],
+    [managedFixture('archived'), 'archived', 'load:done compare:done review:done ' + rest]
+  ];
+  for (const [model, status, steps] of cases) assert.deepEqual([project(model).status, shape(project(model).steps)], [status, steps]);
+  const ready = managedFixture('overview'); ready.workspace.changes = [];
+  assert.equal(shape(project(ready).steps), 'load:done compare:current review:next ' + rest);
+  assert.equal(solutionStatus(solutionNextAction(ready.workspace)).label, 'В работе');
+  // Exactly one current step while the Solution is active, none in the archive, no stepper on error or stale pages.
+  for (const [model] of cases) assert.equal(project(model).steps.filter(step => step.current).length, model.workspace.status === 'archived' ? 0 : 1);
+  assert.deepEqual(lifecycleSteps(ready.workspace, { state: 'stale' }), []);
+  assert.deepEqual(lifecycleSteps(null, solutionNextAction(null)), []);
 });

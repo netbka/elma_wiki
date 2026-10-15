@@ -159,6 +159,10 @@ export function managedFixture(mode = 'overview') {
   if (mode === 'no-source') workspace.baselineId = null;
   if (mode === 'needs-fixes') workspace.pending = [{ artifactId: review.artifactId, kind: 'change', revision: 1, stale: false, decision: 'needs-changes', options: review.options }];
   if (mode === 'pending-conflict') workspace.pending = [{ artifactId: review.artifactId, kind: 'reconciliation', revision: 1, stale: false, attention: { conflicts: 1, unknown: 0 }, options: { baselineOwner: 'Команда внедрения' } }];
+  // UX-04: header stepper states after acceptance. The build step is current only when the
+  // server reported an available builder; a verified delivery leaves release unavailable.
+  if (mode === 'lifecycle-build') model.composed = { candidates: [], build: { available: true } };
+  if (mode === 'lifecycle-verified') workspace.delivery = { supported: true, state: 'verified' };
   if (mode === 'loading') model.loading = true;
   if (mode === 'load-error') model.error = 'Сервис временно недоступен. Сохранённые пространства не изменены.';
   if (mode === 'stale') { model.view = 'review'; model.stale = true; model.error = 'База изменилась в другой вкладке.'; }
