@@ -168,7 +168,11 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
           text: [row.text, row.reason && `Reason: ${row.reason}`, `Kind: ${row.kind}; urgency: ${row.urgency}`].filter(Boolean).join('\n\n'),
           context: { route: '/solutions', solutionId,
             artifactId: row.target.artifactId, changeRequestId: row.id }, attachments: input.attachments, publishConfirmed: input.publishConfirmed };
-        return send(res, 200, await store.withActive(solutionId, SOLUTION_CATALOG, () => bugs.submit(report, session.user)));
+        // Never submit inside the managed queue: the reject path holds the bug
+        // queue while it waits on the managed one, and GitHub I/O would stall
+        // every Solution. A Solution archived after this check keeps the receipt.
+        await store.assertActive(solutionId, SOLUTION_CATALOG);
+        return send(res, 200, await bugs.submit(report, session.user));
       }
       const bugMatch = /^\/api\/bug-reports(?:\/([^/]+)(?:\/(retry)|\/attachments\/([^/]+))?)?$/.exec(pathname);
       if (bugMatch) {

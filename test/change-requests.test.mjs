@@ -154,9 +154,12 @@ test('captured anchors become stale after an accepted edit; archives remain read
     reviewedBoundaryKeys: preview.rows.filter(row => row.boundaryCrossing).map(row => row.key) }));
   const stale = await json(await request(`${route}/${row.id}`, b)); assert.equal(stale.anchorStatus, 'stale');
   assert.deepEqual(stale.target, row.target, 'correction never rewrites the original anchor');
-  await json(await post(solution + '/archive', a, { expectedRevision: accepted.revision, archived: true }));
+  const archived = await json(await post(solution + '/archive', a, { expectedRevision: accepted.revision, archived: true }));
   await json(await request(`${route}/${row.id}`, b));
   await json(await post(route, b, { ...input(), id: crypto.randomUUID() }), 409);
+  // At the archived revision the revision guard passes, so only the archive check refuses.
+  const refused = await json(await post(route, b, { ...input(), id: crypto.randomUUID(), expectedRevision: archived.revision }), 409);
+  assert.match(refused.error, /Reopen the Solution before creating requests/);
   await json(await post(`${route}/${row.id}/events`, b, event(0, 'comment', { text: 'Blocked while archived' })), 409);
   await json(await post(`${route}/${row.id}/publish`, b, { attachments: [], publishConfirmed: true }), 409);
   assert.equal((await json(await request(`${route}/${row.id}`, b))).publication, null);
@@ -192,4 +195,33 @@ test('GitHub transport labels change requests while omitting authenticated ident
   } });
   await github.publish({ id: crypto.randomUUID(), title: 'Synthetic request', text: 'Requested behavior', kind: 'change-request', attachments: [], actor: { login: 'private@example.org' } }, 'https://wiki.example.org');
   assert.match(sent.body, /Запрос на изменение/); assert.ok(!sent.body.includes('private@example.org'));
+});
+
+test('a well-formed change-request report cannot be submitted through the general bug route', async t => {
+  const { a, b, state, route, input, post, request, json } = await setup(t);
+  const row = await json(await post(route, a, input()), 201);
+  const forged = await json(await post('/api/bug-reports', b, { id: row.id, kind: 'change-request', title: 'Forged title', text: 'Forged text',
+    context: { route: '/solutions', solutionId: state.id, changeRequestId: row.id }, attachments: [], publishConfirmed: true }), 400);
+  assert.match(forged.error, /Solution change-request publication route/);
+  assert.equal((await json(await request(`${route}/${row.id}`, a))).publication, null, 'no receipt exists for the forged report');
+  await json(await post('/api/bug-reports', b, { id: crypto.randomUUID(), kind: 'bug', title: 'Plain bug', text: 'Synthetic text',
+    context: { route: '/solutions', changeRequestId: row.id, viewport: { width: 1000, height: 800, devicePixelRatio: 1 } },
+    attachments: [], publishConfirmed: true }), 400);
+});
+
+test('publication waits on GitHub outside the Solution queue, so other Solution operations keep working', async t => {
+  let entered, release;
+  const inPublish = new Promise(resolve => { entered = resolve; }), gate = new Promise(resolve => { release = resolve; });
+  const github = { repository: 'example/synthetic', recover: async () => null,
+    publish: async () => { entered(); await gate; return { number: 9, url: 'https://github.com/example/synthetic/issues/9' }; } };
+  const { a, b, state, route, input, post, request, json } = await setup(t, github);
+  const row = await json(await post(route, a, input()), 201);
+  const publishing = post(`${route}/${row.id}/publish`, a, { attachments: [], publishConfirmed: true });
+  await inPublish;
+  const timeout = new Promise((_, reject) => setTimeout(() => reject(Error('Solution operation blocked while publication waited on GitHub')), 3000));
+  try {
+    await Promise.race([request(`/api/solutions/${state.id}`, b).then(response => json(response)), timeout]);
+    await Promise.race([post(route, b, input()).then(response => json(response, 201)), timeout]);
+  } finally { release(); }
+  assert.equal((await json(await publishing)).status, 'published');
 });
