@@ -17,7 +17,10 @@ import { materializeServer } from './bridge-worker-fixture.mjs';
 import { changesFromRequest, wikiTargetProfile } from '../lib/elma365-native-contracts.mjs';
 import { observedTargetProfileReport } from '../lib/native-materialization-bridge.mjs';
 import { nativeDeclaration, installed as installedSolution, observe as observeTargetProfile } from './native-contract-fixtures.mjs';
-import { E1_SOURCE, E1_SCHEMA_INTACT, E1_SCHEMA_REVISION, E1_REQUIRED_CHECKS, buildE1Envelope, validateE1Request, validateE1Receipt, validateE1ReceiptArtifacts, e1HygieneErrors } from '../lib/native-materialization-e1.mjs';
+import { E1_SOURCE, E1_SCHEMA_INTACT, E1_SCHEMA_REVISION, E1_REQUIRED_CHECKS, E1_MANIFEST_POLICY, E1_MANIFEST_POLICY_V2, buildE1Envelope, validateE1Request, validateE1Receipt,
+  validateE1ReceiptArtifacts, e1HygieneErrors, e1ManifestPolicyOf, e1EntityIdentity, checkE1ManifestRegeneration } from '../lib/native-materialization-e1.mjs';
+import { CAPABILITY_CATALOG } from '../lib/elma365-native-contracts.mjs';
+import { policyScenario, policyAdapter, editions as policyEditions, keyOf as policyKey, TEMPLATE, SETTINGS, PAGE, WIDGET } from './manifest-policy-fixtures.mjs';
 
 // Synthetic Contracts-shaped B/A/C archives. Every component carries a declared
 // resource; `div` also carries coupled client source. The manifest keeps an
@@ -581,9 +584,10 @@ const VENDOR_BINDING = { name: 'VENDOR_API', kind: 'secret-reference', reference
 // only from an admitted bridge observation. `today` mirrors current evidence: no observed
 // Target profile report, so no Target precondition and no receipt.
 async function nativeEvidence(resolution, changes, { today = false } = {}) {
+  // A 4-part key is Wiki identity profile 2 [service, namespace, kind, code]; 3-part keys here are widgets.
   const components = resolution.result.filter(row => row.digest).map(row => {
-    const [service, namespace, code] = JSON.parse(row.key);
-    return { key: row.key, service, namespace, code, kind: 'widget', digest: row.digest };
+    const parts = JSON.parse(row.key), [service, namespace] = parts;
+    return { key: row.key, service, namespace, code: parts.at(-1), kind: parts.length === 4 ? parts[2] : 'widget', digest: row.digest };
   });
   const dependencies = dependencyReport([]);
   dependencies.rows = [{ category: 'dependencies', service: 'widgets', targetNamespace: 'vendor', targetCode: 'signer', source: { service: 'widgets', namespace: 'contracts', code: 'div' },
@@ -687,22 +691,150 @@ test('native contracts: an operation proven on the synthetic fixture only keeps 
   assert.ok(reasons(claimed.blockers).includes('unverified-native-coverage')); assert.notEqual(claimed.evidenceBasis, 'native');
 });
 
-// E1 1.3 (elma365 #104): opt-in manifest policy 2. Wiki emits policy 1 only.
-test('E1 1.3: v1 traffic is unchanged; a receipt naming policy 2 or a request selecting it is refused', async t => {
+// E1 1.3 (elma365 #104): opt-in manifest policy 2. Wiki selects it only for profile-2 identities.
+const POLICY_1 = { id: 'elma365-manifest-regeneration', version: 1 }, POLICY_2 = { id: 'elma365-manifest-regeneration', version: 2 };
+test('E1 1.3: a widget-only release selects no policy and stays policy 1; its receipt must name policy 1', async t => {
   assert.deepEqual([E1_SOURCE.pullRequest, E1_SOURCE.commit, E1_SOURCE.sha256],
     [104, '3d819be5cfbb24c490d323ad845da050f01d6a5e', '6cab239e81fb33bfadc3e667ab7f171feb4405cf10c6e8103141900b1729cb9c']);
+  assert.deepEqual([E1_MANIFEST_POLICY, E1_MANIFEST_POLICY_V2], [POLICY_1, POLICY_2]);
   const { request, originals } = await e1Scenario(t);
-  assert.equal(Object.hasOwn(request, 'manifestPolicy'), false, 'Wiki requests select no policy (version 1)');
+  assert.equal(Object.hasOwn(request, 'manifestPolicy'), false, 'a widget-only request selects no policy (version 1)');
+  assert.equal(e1ManifestPolicyOf(request).version, 1);
   const envelope = buildE1Envelope(request, originals);
   assert.deepEqual(validateE1Request(envelope, { originals }).errors, []);
   const out = await syntheticAdapter().materialize({ request, originals });
   const bytes = out.artifacts[0].bytes, receipt = e1Receipt(request, bytes), artifacts = [{ solution: request.inputs.solution, bytes }];
   assert.equal(validateE1Receipt(receipt, request, { artifacts }).state, 'validated');
-  const v2 = { ...receipt, manifestPolicy: { id: 'elma365-manifest-regeneration', version: 2 } };
-  assert.ok(validateE1Receipt(v2, request, { artifacts }).errors.some(row => row.reason === 'manifest-policy-mismatch'));
-  const selecting = { ...request, manifestPolicy: { id: 'elma365-manifest-regeneration', version: 2 } };
-  const errors = validateE1Request({ ...envelope, request: selecting }, { originals }).errors.map(row => row.reason);
-  assert.ok(errors.includes('manifest-policy-unsupported'), errors.join());
-  const explicit = { ...request, manifestPolicy: { id: 'elma365-manifest-regeneration', version: 1 } };
-  assert.deepEqual(validateE1Request({ ...envelope, request: explicit }, { originals }).errors, []);
+  assert.ok(validateE1Receipt({ ...receipt, manifestPolicy: POLICY_2 }, request, { artifacts }).errors.some(row => row.reason === 'manifest-policy-mismatch'));
+  // Explicit version 1 is the same policy; policy 2 accepts a 3-part widget key as its own identity.
+  for (const manifestPolicy of [POLICY_1, POLICY_2])
+    assert.deepEqual(validateE1Request({ ...envelope, request: { ...request, manifestPolicy } }, { originals }).errors, []);
+  // An unknown policy is outside the schema.
+  assert.ok(reasons(validateE1Request({ ...envelope, request: { ...request, manifestPolicy: { ...POLICY_2, version: 3 } } }, { originals }).errors).includes('invalid-value'));
+});
+
+test('E1 1.3 policy 2: a process template change selects policy 2, is accepted by E1 and materializes, still synthetic only', async t => {
+  const scenario = await policyScenario({ base: policyEditions.base, change: policyEditions.process });
+  t.after(scenario.cleanup);
+  const { request, originals } = scenario;
+  assert.equal(request.status, 'ready', JSON.stringify(request.blockers));
+  assert.deepEqual(request.manifestPolicy, POLICY_2);
+  assert.deepEqual(request.operations.map(op => [op.op, op.key]), [['replace', policyKey(TEMPLATE)]]);
+  // The policy is part of the request, so it is bound by requestDigest but not by inputsDigest.
+  const { manifestPolicy, ...unselected } = request;
+  assert.notEqual(sha(canonicalJson(request)), sha(canonicalJson(unselected)));
+  const envelope = buildE1Envelope(request, originals);
+  assert.deepEqual(validateE1Request(envelope, { originals }).errors, []);
+  const adapter = policyAdapter();
+  const { manifest, artifacts } = await materializeNative({ request, originals, adapter, now: NOW });
+  assert.equal(adapter.calls.length, 1); assert.deepEqual(adapter.calls[0].request.manifestPolicy, POLICY_2);
+  assert.equal(manifest.status, 'materialized', JSON.stringify(manifest.blockers));
+  assert.deepEqual(reasons(manifest.blockers), ['synthetic-evidence-only']); assert.equal(manifest.releaseEligible, false);
+
+  // Policy 1 cannot certify this output: the template and the process record share namespace and code.
+  const read = async bytes => new Map(await readArchive(Buffer.from(bytes)));
+  const [base, output] = [await read(originals.get(request.inputs.base.artifactId)), await read(artifacts[0].bytes)];
+  const incoming = await read(originals.get(scenario.artifact.id));
+  const manifestOf = files => JSON.parse(files.get('processor/manifest.json'));
+  const check = policy => reasons(checkE1ManifestRegeneration({ service: 'processor', base: manifestOf(base), output: manifestOf(output), policy,
+    operations: request.operations, sources: new Map([[scenario.artifact.id, manifestOf(incoming)]]) }));
+  assert.deepEqual(check(2), []);
+  assert.ok(check(1).includes('ambiguous-entity'), check(1).join());
+  assert.deepEqual(reasons(checkE1ManifestRegeneration({ service: 'processor', base: {}, output: {}, operations: [], policy: 3 })), ['unknown-manifest-policy']);
+
+  // A receipt issued under policy 1 is never accepted for a policy 2 request.
+  const v1Receipt = await materializeNative({ request, originals, adapter: policyAdapter({ receipt: row => ({ ...row, manifestPolicy: POLICY_1 }) }), now: NOW });
+  assert.equal(v1Receipt.manifest.status, 'failed');
+  assert.ok(v1Receipt.manifest.blockers.find(row => row.reason === 'native-receipt-invalid').errors.includes('manifest-policy-mismatch'));
+});
+
+test('E1 1.3 policy 2: operation keys must re-derive from a profile-2 identity before any work', async t => {
+  const scenario = await policyScenario({ base: policyEditions.base, change: policyEditions.process });
+  t.after(scenario.cleanup);
+  const { request, originals } = scenario, envelope = buildE1Envelope(request, originals);
+  const withKey = key => ({ ...envelope, request: { ...request, operations: request.operations.map(op => ({ ...op, key })) } });
+  const invalid = key => reasons(validateE1Request(withKey(key), { originals }).errors);
+  for (const key of [JSON.stringify(['processor', 'contracts', 'process', 'approval']), // 4-part key of a non-keyed processor kind
+    JSON.stringify(['widgets', 'contracts', 'template', 'approval']), // another service
+    JSON.stringify(['permissionsSettings', 'contracts', null, 'archive']), // Wiki's key of a kindless permission record
+    'not json'])
+    assert.ok(invalid(key).includes('operation-identity-invalid'), key + ' -> ' + invalid(key).join());
+  // The 3-part key is the profile-2 identity of the unchanged `process` record, so its shape is valid;
+  // which record changed is then bound by Wiki's component digests and the manifest rule.
+  assert.deepEqual(invalid(JSON.stringify(['processor', 'contracts', 'approval'])), []);
+  // A request the contract rejects is blocked; the worker is never called.
+  const adapter = policyAdapter();
+  const { manifest } = await materializeNative({ request: { ...request, operations: withKey('not json').request.operations }, originals, adapter, now: NOW });
+  assert.equal(manifest.status, 'blocked'); assert.deepEqual(adapter.calls, []);
+  assert.ok(manifest.blockers.find(row => row.reason === 'native-request-contract-invalid').errors.includes('operation-identity-invalid'));
+  // Identity profile 2 itself.
+  const identity = (service, record) => e1EntityIdentity(service, record, 2);
+  assert.deepEqual(identity('permissionsSettings', { namespace: 'contracts', code: 'archive' }), { reason: 'unproven-entity-identity' });
+  assert.deepEqual(identity('permissionsSettings', { namespace: 'contracts', code: 'a', kind: 'futureKind' }), { key: JSON.stringify(['permissionsSettings', 'contracts', 'futureKind', 'a']) });
+  assert.deepEqual(identity('processor', { namespace: 'contracts', code: 'a', kind: 'process' }), { key: JSON.stringify(['processor', 'contracts', 'a']) });
+  assert.deepEqual(identity('localizer', { namespace: 'contracts', code: '', kind: 'localization' }), { key: JSON.stringify(['localizer', 'contracts', 'localization', '']) });
+  assert.deepEqual(identity('widgets', { namespace: 'contracts', code: '' }), { reason: 'unproven-entity-identity' });
+  assert.deepEqual(e1EntityIdentity('widgets', {}, 3), { reason: 'unknown-manifest-policy' });
+});
+
+test('E1 1.3 policy 2: Wiki applies the policy to the regenerated manifest; reordered, changed or kindless records fail', async t => {
+  const scenario = await policyScenario({ base: policyEditions.base, change: policyEditions.permissions });
+  t.after(scenario.cleanup);
+  const { request, originals } = scenario;
+  assert.equal(request.status, 'ready', JSON.stringify(request.blockers)); assert.deepEqual(request.manifestPolicy, POLICY_2);
+  // Two records with one namespace and code, told apart only by kind: replaced and added.
+  assert.deepEqual(request.operations.map(op => [op.op, op.key]), [['replace', policyKey(SETTINGS)], ['add', policyKey(PAGE)]]);
+  const ok = await materializeNative({ request, originals, adapter: policyAdapter(), now: NOW });
+  assert.equal(ok.manifest.status, 'materialized', JSON.stringify(ok.manifest.blockers));
+  const editManifest = (service, change) => files => {
+    const path = service + '/manifest.json', manifest = JSON.parse(files.get(path));
+    change(manifest.entities); files.set(path, Buffer.from(JSON.stringify(manifest))); return files;
+  };
+  const cases = [
+    // Order alone changes no component digest: only the manifest rule catches it.
+    [editManifest('permissionsSettings', rows => rows.reverse()), 'entity-order-changed'],
+    [editManifest('permissionsSettings', rows => { rows.push({ code: 'archive', namespace: 'contracts', path: 'archive.json' }); }), 'unproven-entity-identity'],
+    [editManifest('permissionsSettings', rows => { rows.push({ ...rows[0] }); }), 'ambiguous-entity'],
+    [editManifest('permissionsSettings', rows => { const at = rows.findIndex(row => row.kind === 'permissionSettings'); rows[at] = { ...rows[at], nativeHistory: [{ v: 9 }] }; }), 'entity-not-from-source'],
+    [editManifest('permissionsSettings', rows => { const at = rows.findIndex(row => row.kind === 'applicationDirectoriesPermissions'); rows[at] = { ...rows[at], nativeHistory: [{ v: 9 }] }; }), 'unchanged-entity-modified'],
+    [editManifest('permissionsSettings', rows => { rows.splice(rows.findIndex(row => row.kind === 'applicationDirectoriesPermissions'), 1); }), 'unchanged-entity-missing']
+  ];
+  for (const [tamper, detail] of cases) {
+    const { manifest, artifacts } = await materializeNative({ request, originals, adapter: policyAdapter({ tamper }), now: NOW });
+    assert.equal(manifest.status, 'failed', detail); assert.deepEqual(artifacts, []);
+    const found = manifest.blockers.filter(row => row.reason === 'manifest-regeneration-violation').map(row => row.detail);
+    assert.ok(found.includes(detail), detail + ' -> ' + JSON.stringify(manifest.blockers));
+  }
+  // Policy 1 requests keep their existing checks only: a reordered widget manifest is still Wiki-valid there.
+  const v1 = await e1Scenario(t);
+  const reordered = await materializeNative({ request: v1.request, originals: v1.originals, now: NOW,
+    adapter: e1Adapter({ tamper: editManifest('widgets', rows => rows.reverse()) }) });
+  assert.equal(reordered.manifest.status, 'materialized', JSON.stringify(reordered.manifest.blockers));
+});
+
+test('E1 1.3 policy 2: a mixed release selects policy 2; native coverage still refuses a process template edit', async t => {
+  const mixed = await policyScenario({ base: policyEditions.base, change: policyEditions.mixed });
+  t.after(mixed.cleanup);
+  assert.deepEqual(mixed.request.manifestPolicy, POLICY_2);
+  const widget = await policyScenario({ base: policyEditions.base, change: policyEditions.widget });
+  t.after(widget.cleanup);
+  assert.equal(Object.hasOwn(widget.request, 'manifestPolicy'), false);
+  for (const { request, originals } of [mixed, widget]) {
+    const { manifest } = await materializeNative({ request, originals, adapter: policyAdapter(), now: NOW });
+    assert.equal(manifest.status, 'materialized', JSON.stringify(manifest.blockers)); assert.equal(manifest.releaseEligible, false);
+  }
+
+  // Under the pinned native coverage catalog a process template edit stays `unsupported`
+  // (no processor compiler), so selecting policy 2 never makes it native.
+  assert.equal(CAPABILITY_CATALOG.capabilities.find(row => row.service === 'processor' && row.kind === 'template').edit.status, 'unsupported');
+  const scenario = await policyScenario({ base: [{ ...TEMPLATE, value: 0 }, { ...WIDGET, value: 0 }], change: policyEditions.process });
+  t.after(scenario.cleanup);
+  const changes = changesFromRequest(scenario.request);
+  const native = await scenario.prepare(await nativeEvidence(scenario.resolution, changes));
+  assert.equal(native.status, 'blocked'); assert.deepEqual(native.manifestPolicy, POLICY_2);
+  assert.deepEqual(native.blockers.find(row => row.reason === 'unsupported-native-operation'),
+    { reason: 'unsupported-native-operation', key: policyKey(TEMPLATE), op: 'replace', problem: 'edit-unsupported' });
+  const adapter = policyAdapter();
+  const { manifest } = await materializeNative({ request: native, originals: scenario.originals, adapter, now: NOW });
+  assert.equal(manifest.status, 'blocked'); assert.deepEqual(adapter.calls, []); assert.equal(manifest.releaseEligible, false);
 });
