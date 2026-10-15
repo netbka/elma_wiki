@@ -10,7 +10,12 @@ test('build is blocked unless the server reports it available; an absent capabil
     const view = composerBuildView(build);
     assert.equal(view.available, false); assert.match(view.reason, /недоступна|elma365#60/);
   }
-  assert.deepEqual(composerBuildView(solutionComposerFixture().model.composed.build).missing.length, 6);
+  const pinned = composerBuildView(solutionComposerFixture().model.composed.build);
+  assert.equal(pinned.missing.length, 4); assert.match(pinned.missing[0], /нативный исполнитель/);
+  assert.match(pinned.reason, /elma365-native-materialization@1 закреплён/); assert.doesNotMatch(pinned.reason, /не опубликован/);
+  assert.match(composerBuildView({ available: false, contracts: [], missing: [] }).reason, /закреплённого контракта .* нет/);
+  // Every key is rendered; an unknown future key keeps a safe neutral label.
+  assert.deepEqual(composerBuildView({ available: false, contracts: [], missing: ['future-gap'] }).missing, ['не описанное требование: future-gap']);
   assert.equal(composerBuildView({ available: true }).available, true);
   const empty = composerView({ candidates: [], build: null });
   assert.deepEqual(empty.rows, []); assert.match(empty.summary, /Собранных конфигураций нет/);
@@ -70,9 +75,11 @@ test('next action follows the product map: compare, resolve or establish base, b
   assert.deepEqual([action('unknown-base').state, action('unknown-base').view, action('unknown-base').artifact], ['unknown-base', 'change', 'synthetic-review']);
   const blocked = action('build-blocked');
   assert.deepEqual([blocked.state, blocked.view], ['build-blocked', 'compose']); assert.match(blocked.summary, /заблокирована/);
+  const review = action('review-build');
+  assert.deepEqual([review.state, review.label, review.view, review.candidate], ['review-build', 'Рассмотреть сборку', 'compose', composedCandidateFixture().id]);
   const verify = action('verify');
   assert.deepEqual([verify.state, verify.label, verify.candidate], ['verify', 'Проверить конфигурацию', composedCandidateFixture().id]);
-  assert.match(verify.summary, /учебная сборка/i);
+  assert.match(verify.summary, /принятая учебная сборка/i);
   // Available build only when the server says so; stale candidates do not count as built.
   const workspace = composerNextActionFixture('overview').workspace;
   assert.equal(solutionNextAction(workspace, { composed: { candidates: [composedCandidateFixture({ status: 'stale' })], build: { available: true } } }).state, 'build');
@@ -84,4 +91,7 @@ test('next action follows the product map: compare, resolve or establish base, b
   // Open review work still outranks the composer.
   const pending = composerNextActionFixture('resolve');
   assert.equal(solutionNextAction(pending.workspace, { composed: { candidates: [composedCandidateFixture()], build: null } }).state, 'conflict');
+  // An approval for an older candidate revision does not unlock verification.
+  const outdated = composedCandidateFixture({ approved: true }); outdated.revision = 3;
+  assert.equal(solutionNextAction(workspace, { composed: { candidates: [outdated], build: null } }).state, 'review-build');
 });

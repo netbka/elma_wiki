@@ -22,7 +22,7 @@ function story(mode) {
 function next(mode) { return mountManagedWorkspace(composerNextActionFixture(mode), { navigate: () => {} }); }
 export default { id: 'solution-composer', title: 'Решение/Сборка конфигурации', parameters: { layout: 'fullscreen' } };
 export const BuildBlocked = { render: () => story('build-blocked'), parameters: { docs: { description: { story:
-  'Нативная сборка недоступна (netbka/elma365#60): кнопка сборки заблокирована, недостающие части названы. Рабочей сборка не изображается.' } } } };
+  'Нативная сборка недоступна: контракт E1 закреплён, но исполнителя нет (netbka/elma365#60). Кнопка сборки заблокирована, недостающие части названы. Рабочей сборка не изображается.' } } } };
 export const List = { render: () => story('list') };
 export const AwaitingApproval = { render: () => story('awaiting-approval') };
 export const Approved = { render: () => story('approved') };
@@ -42,4 +42,5 @@ export const NextCompare = { render: () => next('compare') };
 export const NextResolve = { render: () => next('resolve') };
 export const NextUnknownBase = { render: () => next('unknown-base') };
 export const NextBuildBlocked = { render: () => next('build-blocked') };
+export const NextReviewBuild = { render: () => next('review-build') };
 export const NextVerify = { render: () => next('verify') };

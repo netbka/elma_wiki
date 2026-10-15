@@ -9,6 +9,7 @@ import { deliveryStore, syntheticAdapter } from '../lib/delivery.mjs';
 import { READ_BACK_POLICY } from '../lib/delivery-verification.mjs';
 import { deliveryPanelView } from '../web/releases/delivery-model.js';
 import { createServer } from '../server.mjs';
+import { INSPECTED_NATIVE_MATERIALIZATION, NATIVE_MATERIALIZATION_CONTRACTS } from '../lib/native-materialization.mjs';
 import { zip } from './fixture.mjs';
 
 const details = { title: 'Integration release', intent: 'Check the exact result', targetIntent: 'Synthetic TEST' };
@@ -113,9 +114,11 @@ test('delivery capability API remains authenticated and distinguishes unavailabl
       const response = await fetch(base + '/api/delivery/capabilities', { headers });
       // The operator bridge is always registered; `liveDelivery` only turns true with verified live evidence.
       const capabilities = await response.json();
-      // The composer build stays unavailable until a native materialization contract and a trusted build route exist.
+      // The composer build stays unavailable without a native worker and a trusted build route; the
+      // pinned contracts and observed gaps are reported verbatim from the native-materialization module.
       assert.deepEqual(capabilities.composedBuild, { available: false, reason: 'native-materialization-unavailable', reference: 'netbka/elma365#60',
-        missing: ['versioned-materialization-request-contract', 'baseline-preserving-stage-service', 'process-runtime-compiler', 'native-package-validation-receipt', 'manifest-regeneration-policy', 'isolated-native-assembler'] });
+        contracts: NATIVE_MATERIALIZATION_CONTRACTS.map(row => `${row.id}@${row.version}`), missing: [...INSPECTED_NATIVE_MATERIALIZATION.missing] });
+      assert.ok(capabilities.composedBuild.missing.length > 0);
       delete capabilities.composedBuild;
       assert.deepEqual(capabilities, { mode: syntheticDelivery ? 'synthetic' : 'bridge', liveDelivery: false, bridge: true, adapters: syntheticDelivery ? ['synthetic', 'bridge'] : ['bridge'] });
       assert.equal((await fetch(base + '/api/delivery/capabilities', { method: 'POST', headers, body: '{}' })).status, 405);

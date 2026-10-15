@@ -2,8 +2,8 @@ import { managedFixture } from './fixtures.js';
 
 // Synthetic composer evidence only: no ELMA, no native package, no release.
 const actor = { id: 'synthetic-reviewer', login: 'reviewer@example.org', provider: 'vk-teams' };
-const build = { available: false, reason: 'native-materialization-unavailable', reference: 'netbka/elma365#60',
-  missing: ['versioned-materialization-request-contract', 'baseline-preserving-stage-service', 'process-runtime-compiler', 'native-package-validation-receipt', 'manifest-regeneration-policy', 'isolated-native-assembler'] };
+const build = { available: false, reason: 'native-materialization-unavailable', reference: 'netbka/elma365#60', contracts: ['elma365-native-materialization@1'],
+  missing: ['native-materialization-worker', 'baseline-preserving-stage-service', 'process-runtime-compiler', 'isolated-native-assembler'] };
 export function composedCandidateFixture({ id = '11111111-1111-4111-8111-111111111111', sha = 'a', status = 'current', approved = false, createdAt = '2026-10-14T09:00:00Z' } = {}) {
   const revision = approved ? 2 : 1;
   return { schemaVersion: 1, id, solutionId: 'synthetic-workspace', code: 'synthetic_solution', revision, createdAt,
@@ -47,6 +47,7 @@ export function composerNextActionFixture(mode) {
   const model = managedFixture('overview');
   if (mode === 'build-blocked') model.composed = { candidates: [], build };
   if (mode === 'verify') model.composed = { candidates: [composedCandidateFixture({ approved: true })], build };
+  if (mode === 'review-build') model.composed = { candidates: [composedCandidateFixture()], build };
   if (mode === 'compare') model.workspace.pending = [{ artifactId: 'synthetic-review', kind: 'change', revision: 0, stale: true, options: { team: 'Внутренняя команда', taskRef: 'DEMO-12' } }];
   if (mode === 'resolve') model.workspace.pending = [{ artifactId: 'synthetic-review', kind: 'change', revision: 1, stale: false, attention: { conflicts: 1, unknown: 0 },
     baseDeclaration: { schemaVersion: 1, status: 'declared', method: 'explicit-assertion', artifactId: 'synthetic-baseline', ancestryVerified: false }, options: { team: 'Внутренняя команда', taskRef: 'DEMO-12' } }];

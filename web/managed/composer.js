@@ -4,6 +4,7 @@ import { mountDelivery } from '../releases/delivery.js';
 // candidates plus the server's build capability. The server stays authoritative:
 // HTTP never freezes build bytes, so "build" is shown only as the server reports it.
 export const composerMissingLabels = {
+  'native-materialization-worker': 'нативный исполнитель сборки, реализующий опубликованный контракт',
   'versioned-materialization-request-contract': 'версионированный запрос нативной сборки',
   'baseline-preserving-stage-service': 'подготовка с сохранением исходной версии',
   'process-runtime-compiler': 'компилятор процессов',
@@ -16,12 +17,18 @@ const statusLabels = {
   'awaiting-approval': 'Собран; точные байты ещё не приняты',
   approved: 'Точные байты приняты; доставка только через проверяемую попытку'
 };
-const unavailableBuild = 'Нативная сборка конфигурации недоступна: контракт материализации ELMA ещё не опубликован (netbka/elma365#60).';
-
+// Unknown gap keys stay visible with a neutral label; nothing is hidden or reworded as solved.
+export const composerMissingLabel = key => composerMissingLabels[key] || `не описанное требование: ${key}`;
+// The reason reflects what the server reports: pinned contracts vs. none, never a fixed claim.
 export function composerBuildView(build) {
-  const available = build?.available === true;
-  return { available, reason: available ? '' : build?.message || unavailableBuild,
-    missing: available ? [] : (build?.missing || []).map(key => composerMissingLabels[key] || key), reference: build?.reference || 'netbka/elma365#60' };
+  const available = build?.available === true, reference = build?.reference || 'netbka/elma365#60';
+  const contracts = Array.isArray(build?.contracts) ? build.contracts.filter(row => typeof row === 'string') : [];
+  const reason = available ? '' : contracts.length
+    ? `Нативная сборка конфигурации недоступна: контракт ${contracts.join(', ')} закреплён, но его ещё никто не исполняет (${reference}).`
+    : build?.contracts ? `Нативная сборка конфигурации недоступна: закреплённого контракта материализации ELMA нет (${reference}).`
+    : `Нативная сборка конфигурации недоступна: сервис не сообщил её возможность (${reference}).`;
+  return { available, reason, contracts, reference,
+    missing: available ? [] : (Array.isArray(build?.missing) ? build.missing : []).map(composerMissingLabel) };
 }
 
 export function composedCandidateRow(record) {

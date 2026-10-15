@@ -166,8 +166,12 @@ unit receipts, unknown outcome and lost-response recovery behave exactly as
 for the handoff; a stale candidate shows history read-only. Starting a build is
 always shown disabled: `GET /api/delivery/capabilities` reports
 `composedBuild: {available: false, reason: 'native-materialization-unavailable',
-reference: 'netbka/elma365#60', missing}` because freezing has no HTTP route and
-no native materialization contract is pinned. The screen never presents a build
+reference: 'netbka/elma365#60', contracts, missing}` because freezing has no HTTP
+route and no native worker implements a pinned contract. `contracts` lists
+`NATIVE_MATERIALIZATION_CONTRACTS` (E1 once pinned) and `missing` is
+`INSPECTED_NATIVE_MATERIALIZATION.missing` verbatim; the UI labels each key,
+shows unknown keys with a neutral fallback and derives its reason text from
+`contracts`. The screen never presents a build
 as working. Storybook: `solution-composer--*`; check:
 `npm run test:composer:storybook`.
 
@@ -177,7 +181,9 @@ from server state: a stale pending comparison → «Сравнить измен�
 (`conflict`), or «Указать базу изменения» (`unknown-base`) when its base is
 undeclared; with composer data loaded and accepted changes, no current candidate
 → `build-blocked` (or `build` only if the server reports `composedBuild.available`),
-and a current candidate → «Проверить конфигурацию» (`verify`). Without composer
+a current candidate awaiting exact-byte approval → «Рассмотреть сборку»
+(`review-build`), and a current approved candidate → «Проверить конфигурацию»
+(`verify`). Without composer
 data the review-only projection is unchanged.
 
 No live, native or business result is claimed:

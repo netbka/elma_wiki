@@ -96,8 +96,11 @@ export function solutionNextAction(state, { error, stale, view, composed } = {})
   const accepted = state.changes?.length || state.reconciliations?.length;
   if (accepted && composed) {
     const current = (composed.candidates || []).filter(row => row.inputsStatus === 'current').sort((a, b) => a.createdAt.localeCompare(b.createdAt)).at(-1);
+    // Exact bytes must be approved before a candidate can be verified on a Target.
+    if (current && current.approval?.revision !== current.revision) return { state: 'review-build', summary: 'Конфигурация собрана. Проверьте и примите точные байты сборки перед проверкой на Target.',
+      label: 'Рассмотреть сборку', view: 'compose', candidate: current.id };
     if (current) return { state: 'verify', summary: current.evidenceBasis === 'native' && current.releaseEligible === true
-      ? 'Конфигурация собрана, но не проверена на Target.' : 'Есть учебная сборка. Её можно проверить только на учебном стенде; это не пакет ELMA и не выпуск.',
+      ? 'Конфигурация собрана и принята, но не проверена на Target.' : 'Есть принятая учебная сборка. Её можно проверить только на учебном стенде; это не пакет ELMA и не выпуск.',
       label: 'Проверить конфигурацию', view: 'compose', candidate: current.id };
     return composed.build?.available === true
       ? { state: 'build', summary: 'Изменения приняты. Соберите конфигурацию из принятой версии.', label: 'Собрать конфигурацию', view: 'compose' }

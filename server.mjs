@@ -19,7 +19,7 @@ import { workspaceStore } from './lib/workspaces.mjs';
 import { managedWorkspaceStore } from './lib/managed-workspace-store.mjs';
 import { releaseStore } from './lib/releases.mjs';
 import { deliveryStore, syntheticAdapter } from './lib/delivery.mjs';
-import { INSPECTED_NATIVE_MATERIALIZATION } from './lib/native-materialization.mjs';
+import { INSPECTED_NATIVE_MATERIALIZATION, NATIVE_MATERIALIZATION_CONTRACTS } from './lib/native-materialization.mjs';
 import { bridgeStore } from './lib/bridge.mjs';
 import { targetPresets } from './lib/target-presets.mjs';
 import { demoData } from './lib/demo.mjs';
@@ -320,8 +320,10 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
         // `composedBuild` tells the Solution composer whether a build can be started. Freezing build
         // bytes is trusted server code with no HTTP route, and native materialization is unavailable
         // (netbka/elma365#60), so it stays false; the UI shows it as blocked, never as working.
+        // `contracts` lists the pinned native contracts and `missing` the observed gaps, verbatim.
         return send(res,200,{ mode: syntheticDelivery ? 'synthetic' : 'bridge', liveDelivery: false, bridge: true, adapters: delivery.adapterNames,
-          composedBuild: { available: false, reason: 'native-materialization-unavailable', reference: `${INSPECTED_NATIVE_MATERIALIZATION.repository}#${INSPECTED_NATIVE_MATERIALIZATION.issue}`, missing: [...INSPECTED_NATIVE_MATERIALIZATION.missing] } });
+          composedBuild: { available: false, reason: 'native-materialization-unavailable', reference: `${INSPECTED_NATIVE_MATERIALIZATION.repository}#${INSPECTED_NATIVE_MATERIALIZATION.issue}`,
+            contracts: NATIVE_MATERIALIZATION_CONTRACTS.map(row => `${row.id}@${row.version}`), missing: [...INSPECTED_NATIVE_MATERIALIZATION.missing] } });
       }
       if (pathname === '/api/releases') {
         if (!session) return send(res,401,{error:'Войдите в сервис'});

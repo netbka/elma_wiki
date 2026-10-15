@@ -39,7 +39,11 @@ try {
     const build = composer().getByRole('button', { name: 'Собрать конфигурацию', exact: true });
     assert.equal(await build.isDisabled(), true, id);
     assert.match(await text(composer()), /elma365#60/);
-    if (id === 'build-blocked') assert.equal(await composer().getByRole('list', { name: 'Чего не хватает для нативной сборки' }).locator('li').count(), 6);
+    if (id === 'build-blocked') {
+      const missing = await composer().getByRole('list', { name: 'Чего не хватает для нативной сборки' }).locator('li').allTextContents();
+      assert.equal(missing.length, 4); assert.match(missing[0], /нативный исполнитель/);
+      assert.match(await text(composer()), /elma365-native-materialization@1 закреплён/); assert.doesNotMatch(await text(composer()), /не опубликован/);
+    }
     if (id === 'list') assert.equal(await composer().getByRole('link', { name: 'Открыть сборку' }).count(), 2);
     if (id === 'missing') assert.match(await text(composer()), /Выбранная сборка не найдена/);
     if (id === 'awaiting-approval') {
@@ -77,12 +81,12 @@ try {
       assert.equal(await delivery().getByRole('button', { name: 'Подготовить учебную доставку' }).isDisabled(), true, 'no replay after a lost response');
     }
   }
-  for (const [id, label] of [['next-compare', 'Сравнить изменения'], ['next-resolve', 'Разрешить конфликт'], ['next-unknown-base', 'Указать базу изменения'], ['next-build-blocked', 'Открыть сборку'], ['next-verify', 'Проверить конфигурацию']]) {
+  for (const [id, label] of [['next-compare', 'Сравнить изменения'], ['next-resolve', 'Разрешить конфликт'], ['next-unknown-base', 'Указать базу изменения'], ['next-build-blocked', 'Открыть сборку'], ['next-review-build', 'Рассмотреть сборку'], ['next-verify', 'Проверить конфигурацию']]) {
     await open(id);
     const primary = page.locator('.managed-actions a.button').first();
     assert.equal(await primary.textContent(), label, id);
-    if (['next-build-blocked', 'next-verify'].includes(id)) assert.match(await primary.getAttribute('href'), /view=compose/);
-    if (id === 'next-verify') assert.match(await primary.getAttribute('href'), /candidate=/);
+    if (['next-build-blocked', 'next-review-build', 'next-verify'].includes(id)) assert.match(await primary.getAttribute('href'), /view=compose/);
+    if (['next-review-build', 'next-verify'].includes(id)) assert.match(await primary.getAttribute('href'), /candidate=/);
   }
   for (const width of [1280, 390]) {
     await page.setViewportSize({ width, height: 900 }); await open('partial-outcome');
