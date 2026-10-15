@@ -46,6 +46,8 @@ try {
   await solution.getByText('Источники объяснения',{exact:true}).first().click();
   await solution.getByRole('button',{name:'approval',exact:true}).click();
   await page.getByRole('heading',{name:'Учебное согласование',exact:true}).waitFor();
+  // UX-06: processes open on Как работает.
+  await page.getByRole('link',{name:'Как работает',exact:true}).click();
   await page.getByRole('button',{name:'Посмотреть процесс: approval',exact:true}).click();
   await page.locator('.solution-visual svg').waitFor();
   const processPanel=page.locator('.solution-visual > div .solution-explanation').first();

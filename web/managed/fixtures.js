@@ -1,3 +1,4 @@
+import { visualFixture } from '../visual/fixtures.js';
 const names = { contract: 'Заявка на командировку', approval: 'Утверждение командировки', comment: 'Комментарий к заявке' };
 const component = (code, team = 'Команда внедрения', changed = false) => ({ code, key: JSON.stringify(['widgets', 'synthetic.records', code]), team,
   service: 'widgets', namespace: 'synthetic.records', kind: 'WIDGET', name: names[code] || null,
@@ -90,8 +91,23 @@ export function managedFixture(mode = 'overview') {
   if (mode === 'update') { base.snapshot.source = { connectionId: 'config-api-dev', solutionRef: 'travel_expenses' }; model.view = 'full'; }
   if (mode === 'change') model.view = 'change';
   if (mode === 'changes') model.view = 'changes';
-  if (mode === 'solution') {
-    model.view = 'solution';
+  if (['flows', 'screens', 'flows-error'].includes(mode)) {
+    // UX-06: the solution inventory plus the captured projections of its artifact.
+    model.view = mode === 'screens' ? 'solution' : 'flows';
+    const visual = visualFixture('source'); visual.artifactId = base.id; visual.processes[0].name = names.approval;
+    visual.processes[0].object = ['processor', 'travel_expenses.trips', 'template', 'trip_approval'];
+    visual.objects = [
+      { object: ['widgets', 'synthetic.records', 'contract'], service: 'widgets', code: 'contract', name: names.contract, source: 'widgets/contract.json', fields: [
+        { code: 'number', name: 'Номер', type: 'STRING', required: true, pointer: 'widgets/contract.json#/descriptor/fields/0' },
+        { code: 'amount', name: 'Сумма', type: 'MONEY', required: false, pointer: 'widgets/contract.json#/descriptor/fields/1' }] },
+      { object: ['widgets', 'synthetic.records', 'approval'], service: 'widgets', code: 'approval', name: names.approval, source: 'widgets/approval.json', fields: [] },
+      { object: ['applications', 'travel_expenses', 'application', 'trips'], service: 'applications', code: 'trips', name: 'Командировки', source: 'applications/trips.json', fields: [
+        { code: 'title', name: 'Название', type: 'STRING', required: true, pointer: 'applications/trips.json#/fields/0' }] }
+    ];
+    model.visuals = { [base.id]: mode === 'flows-error' ? { error: 'Схема не получена: учебная ошибка.' } : visual };
+  }
+  if (['solution', 'flows', 'screens', 'flows-error'].includes(mode)) {
+    model.view = ['flows', 'flows-error'].includes(mode) ? 'flows' : 'solution';
     // UX-02: a second module, a process, data objects and system objects show grouping, names and the collapsed group.
     const extra = (service, namespace, code, kind, name) => ({ code, key: JSON.stringify(kind && service !== 'widgets' ? [service, namespace, kind, code] : [service, namespace, code]), team: 'Команда внедрения',
       service, namespace, kind, name, interventionId: null, digest: 'a'.repeat(64) });
@@ -101,6 +117,7 @@ export function managedFixture(mode = 'overview') {
       extra('permissionsSettings', 'travel_expenses', 'trips', 'permissionSettings', null),
       extra('widgets', 'travel_expenses', '__default', 'WIDGET', null),
       extra('localizer', 'travel_expenses', '', 'localization', null));
+    base.components = workspace.current.map(row => ({ key: row.key, digest: row.digest }));
   }
   if (mode === 'native-components') {
     model.view = 'solution';
@@ -169,7 +186,9 @@ export function managedFixture(mode = 'overview') {
   if (mode === 'lifecycle-build') model.composed = { candidates: [], build: { available: true } };
   if (mode === 'lifecycle-verified') workspace.delivery = { supported: true, state: 'verified' };
   if (mode.startsWith('about-')) {
-    const draft = { text: 'Решение объединяет модули «synthetic».\n\nsynthetic. Экраны: Договор, Согласование договора, Комментарий к договору.\n\nНазначение описано по названиям объектов экспорта. Работа в ELMA не наблюдалась; проверьте и дополните описание.', sources: [], engine: 'declared-names-v1', evidence: 'declared-names', nativeObservation: 'absent' };
+    // A screen without a namespace makes a "Без модуля" card: titled, counted, not explainable.
+    workspace.current.push({ code: 'orphan_form', key: JSON.stringify(['widgets', '', 'orphan_form']), team: 'Команда внедрения', service: 'widgets', namespace: '', kind: 'WIDGET', name: 'Экран без модуля', interventionId: null, digest: 'a'.repeat(64) });
+    const draft = { text: 'Решение объединяет модули «synthetic».\n\nsynthetic. Экраны: Заявка на командировку, Утверждение командировки, Комментарий к заявке.\n\nНазначение описано по названиям объектов экспорта. Работа в ELMA не наблюдалась; проверьте и дополните описание.', sources: [], engine: 'declared-names-v1', evidence: 'declared-names', nativeObservation: 'absent' };
     const purpose = { key: 'solution-purpose', title: workspace.name, fingerprint: 'p'.repeat(64), expectedRevision: 1, version: 0, writable: true, reason: null, related: [], draft, saved: null, history: [] };
     const entry = { id: 'synthetic-purpose', key: 'solution-purpose', title: workspace.name, fingerprint: 'p'.repeat(64), text: 'Командировки сотрудников: заявка, утверждение руководителем и бухгалтерией, выдача аванса и отчёт о расходах. Решением пользуются сотрудники и бухгалтерия.', sources: [], actor: uploader, at: '2026-10-07T11:00:00Z' };
     if (['about-saved', 'about-stale'].includes(mode)) Object.assign(purpose, { version: 1, saved: { ...entry, sourceStatus: mode === 'about-stale' ? 'stale' : 'current' }, history: [entry] });

@@ -126,3 +126,19 @@ test('visual API authorizes the captured shared artifact, rejects private/absent
   await fs.writeFile(path.join(directory,'shared-solutions','managed-workspaces',state.id,artifact+'.e365'),'tampered');
   assert.equal((await fetch(route,{headers})).status,409);
 });
+
+test('UX-06: screens and data objects project only their declared fields; a missing field list is null, scripts never leave the archive', async () => {
+  const bytes = await zip([
+    ['package.json', { code: 'synthetic_fields', type: 'SOLUTION' }],
+    ['widgets/manifest.json', { entities: [{ code: 'card', namespace: 'travel', kind: 'WIDGET', name: 'Заявка', path: 'card.json' }, { code: 'plain', namespace: 'travel', kind: 'WIDGET', name: 'Без полей', path: 'plain.json' }] }],
+    ['widgets/card.json', { descriptor: { fields: [{ code: 'amount', view: { name: 'Сумма' }, type: 'MONEY', required: true }, { code: 'note', name: 'Примечание', type: 'STRING' }, null], clientScripts: 'function secret(){}' } }],
+    ['widgets/plain.json', { descriptor: { clientScripts: 'function other(){}' } }]
+  ]);
+  const visual = await snapshotVisual(bytes, 'synthetic-artifact');
+  const card = visual.objects.find(object => object.code === 'card'), plain = visual.objects.find(object => object.code === 'plain');
+  assert.deepEqual(card.fields.map(field => [field.code, field.name, field.type, field.required]), [['amount', 'Сумма', 'MONEY', true], ['note', 'Примечание', 'STRING', false]]);
+  assert.equal(card.fields[0].pointer, 'widgets/card.json#/descriptor/fields/0');
+  assert.equal(plain.fields, null);
+  assert.ok(!JSON.stringify(visual).includes('secret'));
+  assert.deepEqual(card.object, ['widgets', 'travel', 'card']);
+});
