@@ -16,14 +16,17 @@ export function deliveryPanelView(release, { capabilities, connections = [], att
   const usable = connection => !!connection && connection.role === 'target' && connection.environment !== 'prod' && connection.probe?.ok === true && !!connection.probe.identity?.host && connection.probe?.protectedHost !== true && presetDeploys(connection) && (connection.adapter === 'synthetic' ? synthetic : connection.adapter === 'bridge' ? bridge && (connection.preset ? connection.probe.hostMatches === true : bridges.some(b => b.id === connection.adapterOptions?.bridgeId && b.online)) : false);
   const active = attempts.some(a => ['prepared', 'deploying', 'deployed-unverified', 'unknown-outcome', 'partial-outcome'].includes(a.state));
   const approved = release.associationStatus !== 'stale' && release.approval?.revision === release.revision && !!release.candidate && !release.blockers.length;
+  // AR-05: an edited candidate has no native package (elma365#60), so it is never delivered.
+  const edited = release.candidate?.provenance === 'supported-edit';
   const viaBridge = latest?.connection?.adapter === 'bridge';
   return { latest, current, synthetic, bridge, enabled, selectable, usable, bridges, connections: connections.filter(c => c.role === 'target'),
-    canPrepare: enabled && approved && !active,
+    canPrepare: enabled && approved && !edited && !active,
     canConfirm: enabled && current && latest?.state === 'prepared' && usable(connections.find(c => c.id === latest.connection?.id)),
     canCancel: latest?.state === 'prepared',
     canVerify: enabled && current && ['deployed-unverified', 'unknown-outcome', 'partial-outcome', 'verification-failed'].includes(latest?.state),
     confirmation: latest ? `DEPLOY ${latest.solutionCode} ${latest.sha256.slice(0, 12)}` : '',
-    next: !enabled ? 'Доставка в ELMA пока недоступна. Используйте приватный пакет передачи.' :
+    next: edited && !latest ? 'Кандидат с правками только для рецензии: он не устанавливается до нативной сборки изменённого пакета (elma365#60).' :
+      !enabled ? 'Доставка в ELMA пока недоступна. Используйте приватный пакет передачи.' :
       latest?.state === 'deploying' ? 'Операция выполняется. Обновите состояние; повторный запуск не нужен.' :
       latest && !current ? 'Попытка относится к прежнему кандидату или условиям. Её результат не подтверждает текущий релиз.' :
       latest?.state === 'partial-outcome' ? 'Часть единиц установки не подтвердила применение. Прочитайте и проверьте состояние Target; повтор операции запрещён, нужен план восстановления.' :

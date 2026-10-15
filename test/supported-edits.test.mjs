@@ -8,6 +8,8 @@ import { projectStore } from '../lib/projects.mjs';
 import { workspaceStore } from '../lib/workspaces.mjs';
 import { releaseStore } from '../lib/releases.mjs';
 import { createServer } from '../server.mjs';
+import { releaseView } from '../web/releases/model.js';
+import { deliveryPanelView } from '../web/releases/delivery-model.js';
 import { installSyntheticProfile } from './compiler-fixture.mjs';
 import { zip } from './fixture.mjs';
 
@@ -84,7 +86,11 @@ test('supported edit round trip: compiled edit is attributed, kept separate from
   assert.notEqual(release.candidate.sha256, release.source.checksum); assert.equal(release.candidate.deployable, false);
   assert.deepEqual(release.candidate.edits, [{ id: edit.id, archivePath: 'widgets/form', sha256: edit.generated.sha256 }]);
   release = await releases.change(release.id, 'local', { revision: release.revision, action: 'approve', reason: 'Правка рассмотрена' }, bob);
-  assert.equal(release.state, 'prepared'); assert.equal(release.approval.scope, 'edited-review-only');
+  assert.equal(release.state, 'edited-review-only'); assert.equal(release.approval.scope, 'edited-review-only'); assert.equal(release.deliverable, false);
+  assert.equal((await releases.list('local'))[0].state, 'edited-review-only');
+  // The delivery panel never offers preparation of an edited candidate.
+  const panel = deliveryPanelView(release, { capabilities: { mode: 'synthetic', liveDelivery: false } });
+  assert.equal(panel.canPrepare, false); assert.match(panel.next, /elma365#60/);
   // Fail closed: no native package exists for an edited candidate.
   await assert.rejects(releases.bundle(release.id, 'local', release.revision, bob), /нативная сборка/);
   await assert.rejects(releases.candidateArtifact(release.id, 'local'), /нативная сборка/);
@@ -92,11 +98,13 @@ test('supported edit round trip: compiled edit is attributed, kept separate from
   // Restart keeps the edit, its attribution and status derivation.
   const restarted = releaseStore(directory, projectStore(directory), { workspaces: workspaceStore(projectStore(directory)) });
   const again = await restarted.get(release.id, 'local');
-  assert.equal(again.edits[0].status, 'current'); assert.equal(again.state, 'prepared');
+  assert.equal(again.edits[0].status, 'current'); assert.equal(again.state, 'edited-review-only');
   // Tampering with the generated artifact blocks the release.
   await fs.writeFile(path.join(root, edit.generated.file), '{}');
   const tampered = await restarted.get(release.id, 'local');
   assert.equal(tampered.edits[0].status, 'corrupt'); assert.ok(tampered.blockers.some(b => /устарела/.test(b)));
+  // Approval stops counting once edit evidence is not current.
+  assert.equal(tampered.state, 'candidate'); assert.equal((await restarted.list('local'))[0].state, 'candidate');
 });
 
 test('unsupported entities stay read-only and cannot be attached', async t => {
@@ -149,7 +157,7 @@ test('editing after approval invalidates candidate, approval and the earlier edi
   release = await releases.change(release.id, 'local', { revision: release.revision, action: 'freeze' }, bob);
   const frozen = release.candidate;
   release = await releases.change(release.id, 'local', { revision: release.revision, action: 'approve', reason: 'Принято' }, bob);
-  assert.equal(release.state, 'prepared');
+  assert.equal(release.state, 'edited-review-only');
   await checkedEdit(editor, project, 'function onOpen() { const t: string = Context.data.title; Context.data.title = t.toUpperCase(); }');
   release = await attach(releases, release);
   assert.equal(release.candidate, null); assert.equal(release.approval, null); assert.equal(release.state, 'review');
@@ -180,4 +188,18 @@ test('release API attaches edits only for authenticated actors and keeps unsuppo
   assert.equal(attached.status, 200);
   const view = await attached.json();
   assert.equal(view.edits[0].actor.provider, 'local'); assert.equal(view.edits[0].status, 'current'); assert.equal(view.owner, undefined);
+});
+
+test('release view fails closed for edits without derived status and keeps unedited delivery available', () => {
+  const snapshot = { checksum: 'a'.repeat(64), code: 'synthetic', inventory: [], report: { status: 'structural', diagnostics: [] }, entities: [] };
+  const edit = { id: 'e', archivePath: 'widgets/form', generated: { sha256: 'b'.repeat(64) }, compiler: { compilerContract: 'c', platformVersion: 'p' },
+    review: { decision: 'accepted', sha256: 'b'.repeat(64) } };
+  const record = { id: 'r', revision: 2, source: snapshot, baseline: snapshot, reviews: {}, history: [], limitations: '',
+    candidate: { id: 'c', sha256: 'c'.repeat(64), provenance: 'supported-edit' }, approval: { revision: 2 }, edits: [edit] };
+  const unknown = releaseView(record);
+  assert.equal(unknown.state, 'candidate'); assert.ok(unknown.blockers.some(b => /не проверены/.test(b)));
+  assert.equal(releaseView({ ...record, edits: [{ ...edit, status: 'current' }] }).state, 'edited-review-only');
+  const plain = releaseView({ ...record, candidate: { id: 'c', sha256: snapshot.checksum, provenance: 'unchanged-original' }, edits: [] });
+  assert.equal(plain.state, 'prepared'); assert.equal(plain.deliverable, true);
+  assert.equal(deliveryPanelView(plain, { capabilities: { mode: 'synthetic', liveDelivery: false } }).canPrepare, true);
 });

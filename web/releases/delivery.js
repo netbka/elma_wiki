@@ -56,7 +56,7 @@ export function mountDelivery({ release, client, onAction, onRefresh, onState, i
       const retry = button(root, 'Повторить загрузку доставки', onRefresh || (() => refresh())); retry.dataset.recovery = 'true'; retry.disabled = false; return;
     }
     if (!data) {
-      root.append(el('p', client ? 'Загружаем состояние доставки…' : 'Доставка в ELMA пока недоступна. Используйте приватный пакет передачи.'));
+      root.append(el('p', client ? 'Загружаем состояние доставки…' : release?.candidate?.provenance === 'supported-edit' ? 'Кандидат с правками только для рецензии: он не устанавливается до нативной сборки изменённого пакета (elma365#60).' : 'Доставка в ELMA пока недоступна. Используйте приватный пакет передачи.'));
       return;
     }
     const view = deliveryPanelView(release, data);
