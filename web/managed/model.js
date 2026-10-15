@@ -1,4 +1,4 @@
-import { classificationLabels, elementClassificationLabels, elementKindLabels, actions as actionLabels, summaries, kindGroups, displayLabel, isTechnicalKey } from './labels.js';
+import { classificationLabels, elementClassificationLabels, elementKindLabels, actions as actionLabels, summaries, kindGroups, displayLabel, isTechnicalKey, ribbon } from './labels.js';
 // Review classification wording lives in labels.js (UX-00); these names stay for
 // existing importers.
 export const labels = classificationLabels;
@@ -76,6 +76,33 @@ export function groupObjects(rows = []) {
   const order = Object.keys(kindGroups);
   return { modules: [...modules].sort(([a], [b]) => a.localeCompare(b, 'ru')).map(([module, kinds]) => ({ module, count: [...kinds.values()].reduce((n, list) => n + list.length, 0),
     kinds: [...kinds].sort(([a], [b]) => order.indexOf(a) - order.indexOf(b)).map(([kind, list]) => ({ kind, label: kindGroups[kind], rows: list })) })), system };
+}
+// UX-03: one summary of a review. Buckets follow the existing classifications;
+// nothing here changes gates, digests or decisions.
+export const reviewBucket = row => row.conflict || row.classification === 'conflict' ? 'conflicts'
+  : row.classification === 'unchanged' ? 'unchanged' : row.classification === 'intervention-added' ? 'added'
+  : row.classification === 'component-deleted' ? 'removed' : row.classification === 'ambiguous' ? 'unknown' : 'modified';
+export function reviewSummary(review, rows = review?.rows || []) {
+  const counts = { modified: 0, added: 0, removed: 0, conflicts: 0, unchanged: 0, unknown: 0 };
+  for (const row of rows) counts[reviewBucket(row)]++;
+  const changed = rows.length - counts.unchanged;
+  const line = [[ribbon.modified, counts.modified], [ribbon.added, counts.added], [ribbon.removed, counts.removed], [ribbon.conflicts, counts.conflicts], [ribbon.unchanged, counts.unchanged]]
+    .map(([label, count]) => `${label} ${count}`).join(' · ');
+  return { counts, changed, line, total: rows.length,
+    noDifference: rows.length > 0 && changed === 0 && !(review?.ambiguities?.length),
+    unknownParts: review?.ambiguities?.length || 0,
+    dependencyProblems: (review?.dependencies?.rows || []).filter(row => row.status !== 'component-source-present').length };
+}
+// Dependency rows grouped by target and status, with a count, so a target
+// referenced from many components reads as one line.
+export function groupDependencies(rows = []) {
+  const groups = new Map();
+  for (const row of rows) {
+    const id = [row.required ? 'required' : 'optional', row.service || '?', row.targetNamespace || '?', row.targetCode || '?', row.status || ''].join('\u0000');
+    if (!groups.has(id)) groups.set(id, { ...row, count: 0, candidates: row.candidates || [] });
+    groups.get(id).count++;
+  }
+  return [...groups.values()].sort((a, b) => (b.required - a.required) || (a.status === 'component-source-present') - (b.status === 'component-source-present') || b.count - a.count);
 }
 export const dateLabel = value => value ? new Date(value).toLocaleString('ru-RU', { dateStyle: 'medium', timeStyle: 'short' }) : 'Дата не зафиксирована';
 export function workspaceSummary(state) {

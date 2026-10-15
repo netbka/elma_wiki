@@ -1,5 +1,5 @@
-import { componentName, dateLabel, labels, elementLabels, elementKinds, responsibilityLabel, responsibilityReport, reviewGate, workspaceSummary, workspaceUrl as buildUrl, solutionNextAction, objectLabel, groupObjects } from './model.js';
-import { nouns, grouping } from './labels.js';
+import { componentName, dateLabel, labels, elementLabels, elementKinds, responsibilityLabel, responsibilityReport, reviewGate, workspaceSummary, workspaceUrl as buildUrl, solutionNextAction, objectLabel, groupObjects, reviewSummary, reviewBucket, objectModule } from './model.js';
+import { nouns, grouping, ribbon, facts, reviewSummary as summaryLabels } from './labels.js';
 import { mountSnapshotVisual } from '../visual/render.js';
 import { mountExplanation } from '../explanations/render.js';
 import { mountRelease } from '../releases/render.js';
@@ -405,7 +405,30 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
     const full = review.kind === 'reconciliation', form = el('form'), boundaryKeys = new Set(), resolutions = {};
     content.append(el('h2', full ? 'Рассмотреть обновление версии' : 'Рассмотреть изменение'),
       el('p', full ? `После принятия это станет текущей версией. Заявленная ответственность: ${review.options.baselineOwner}.` : `Ответственная команда: ${review.options.team} · ${review.options.taskRef}.`));
-    if (review.uploadedBy) content.append(el('p', `Загрузил: ${review.uploadedBy.login}`));
+    // UX-03: the answer first. One summary line with counts, the facts as chips,
+    // and the provenance evidence behind one "Подробнее". Gates and decisions
+    // below are unchanged; this is a projection of the same review rows.
+    const rowsWithMeta = review.rows.map(row => ({ ...objectOf(row.key, review.artifactId), ...row }));
+    const summary = reviewSummary(review, rowsWithMeta);
+    const summaryBlock = el('section', undefined, 'managed-summary');
+    if (summary.noDifference) summaryBlock.append(el('p', facts.noDifference, 'managed-note'), link(actionLabels.refreshAgain, workspaceUrl(state.id, 'full')));
+    const line = el('p', summary.line, 'managed-summary-line'); line.setAttribute('role', 'status'); summaryBlock.append(line);
+    const chips = el('ul', undefined, 'managed-chips'); chips.setAttribute('aria-label', 'Факты');
+    const chip = (text, tone) => chips.append(el('li', text, tone));
+    if (review.baseDeclaration) {
+      const declared = review.baseDeclaration.status === 'declared', baseArtifact = declared ? state.artifacts?.find(row => row.id === review.baseDeclaration.artifactId) : null;
+      chip(!declared ? facts.baseUnknown : baseArtifact?.snapshot?.createdAt ? `${facts.baseVersion} ${dateLabel(baseArtifact.snapshot.createdAt)}` : `${summaryLabels.baseRevision} ${review.baseDeclaration.revision}`, declared ? undefined : 'managed-chip-warn');
+    }
+    const server = serverFromConnection(review.snapshot?.source?.connectionId);
+    if (server) chip(`${facts.server}: ${pullLabels.serverNames[server] || server}`);
+    if (review.uploadedBy) chip(`${facts.loadedBy}: ${review.uploadedBy.login}`);
+    chip(`${summaryLabels.responsibility}: ${full ? review.options.baselineOwner : review.options.team}`);
+    if (summary.unknownParts) chip(`${summaryLabels.unknownParts}: ${summary.unknownParts}`, 'managed-chip-warn');
+    if (summary.dependencyProblems) chip(`${summaryLabels.dependencyProblems}: ${summary.dependencyProblems}`, 'managed-chip-warn');
+    summaryBlock.append(chips); content.append(summaryBlock);
+    const more = el('details', undefined, 'managed-more'); more.append(el('summary', actionLabels.details));
+    if (review.uploadedBy) more.append(el('p', `Загрузил: ${review.uploadedBy.login}`));
+    content.append(more);
     if (review.baseDeclaration || review.changeScopeDeclaration) {
       const provenance = el('section', undefined, 'managed-card managed-provenance'), declared = baseEvidence(review.baseDeclaration);
       provenance.append(el('h3', 'Исходная версия и состав'), el('p', declared.title),
@@ -420,7 +443,7 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
         if (scoped.deletions.length) provenance.append(el('p', `Явных удалений: ${scoped.deletions.length}. Каждое требует отдельной проверки ниже.`));
       }
       technical(provenance, 'Доказательства базы и состава', { baseDeclaration: review.baseDeclaration ?? null, changeScopeDeclaration: review.changeScopeDeclaration ?? null });
-      content.append(provenance);
+      more.append(provenance);
     }
     if (!full && review.merge && mergeResolutionView(review.merge).visible)
       content.append(mountMergeResolution(review.merge, { technical, submit: input => run(() => actions.resolveMerge(review.artifactId, input), workspaceUrl(state.id, 'review', review.artifactId)) }));
@@ -436,8 +459,35 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
     const gate = el('p', '', 'managed-note'); gate.setAttribute('role', 'status');
     const submit = el('button', full ? 'Принять версию' : 'Принять изменение'); submit.type = 'submit';
     const update = () => { gate.textContent = reviewGate(review, [...boundaryKeys], resolutions); submit.disabled = !!gate.textContent; submit.dataset.unavailable = String(submit.disabled); };
-    for (const row of review.rows) {
-      const card = el('section', undefined, 'managed-card'); card.append(objectTitle('h3', objectOf(row.key, review.artifactId)), el('p', row.conflict ? 'Конфликт с изменением другой команды' : labels[row.classification] || row.classification));
+    // UX-03: status ribbon with counts filters the cards; changed objects come
+    // first, grouped by module when there is more than one; unchanged objects
+    // are one collapsed group. Hidden cards keep their controls; the gate reads
+    // the same sets either way.
+    const filter = el('nav', undefined, 'managed-ribbon'); filter.setAttribute('aria-label', summaryLabels.filterLabel);
+    const unchanged = el('details', undefined, 'managed-unchanged'); unchanged.append(el('summary', `${ribbon.unchanged} · ${summary.counts.unchanged} · ${actionLabels.show}`));
+    const modules = new Map(); let activeFilter = 'changed';
+    const applyFilter = () => {
+      for (const card of form.querySelectorAll('[data-bucket]')) card.hidden = !(activeFilter === 'all' || (activeFilter === 'changed' ? card.dataset.bucket !== 'unchanged' : card.dataset.bucket === activeFilter));
+      for (const section of form.querySelectorAll('.managed-module')) section.hidden = ![...section.querySelectorAll('[data-bucket]')].some(card => !card.hidden);
+      if (activeFilter === 'all') unchanged.open = true;
+      for (const node of filter.querySelectorAll('button')) node.setAttribute('aria-pressed', String(node.dataset.filter === activeFilter));
+    };
+    const ribbonButtons = [['changed', nouns.changes, summary.changed], ['modified', ribbon.modified, summary.counts.modified], ['added', ribbon.added, summary.counts.added],
+      ['removed', ribbon.removed, summary.counts.removed], ['conflicts', ribbon.conflicts, summary.counts.conflicts], ['all', ribbon.all, summary.total]];
+    for (const [id, caption, count] of ribbonButtons) {
+      if (!count && !['changed', 'all'].includes(id)) continue;
+      const node = el('button', `${caption} · ${count}`, 'secondary managed-ribbon-button'); node.type = 'button'; node.dataset.filter = id; node.onclick = () => { activeFilter = id; applyFilter(); }; filter.append(node);
+    }
+    if (review.rows.length) form.append(filter);
+    const place = (card, row) => {
+      card.dataset.bucket = reviewBucket(row);
+      if (card.dataset.bucket === 'unchanged') return unchanged.append(card);
+      const module = objectModule(row);
+      if (!modules.has(module)) { const section = el('section', undefined, 'managed-module'); section.append(el('h3', `${grouping.module} ${module || grouping.withoutModule}`)); modules.set(module, section); form.append(section); }
+      modules.get(module).append(card);
+    };
+    for (const row of rowsWithMeta) {
+      const card = el('section', undefined, 'managed-card'); card.append(objectTitle('h3', row), el('p', row.conflict ? 'Конфликт с изменением другой команды' : labels[row.classification] || row.classification));
       if (row.elements) {
         card.append(el('h4', 'Ответственность частей процесса'),
           el('p', 'Заявленная командой ответственность. Авторы публикаций ELMA и договорная ответственность не установлены.', 'managed-muted'));
@@ -484,8 +534,13 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
           finally { show.disabled = false; }
         }, card); show.className = 'secondary'; card.append(target);
       }
-      technical(card, 'Идентичность и доказательства сравнения', row); form.append(card);
+      technical(card, 'Идентичность и доказательства сравнения', row); place(card, row);
     }
+    // A single module needs no module heading; its cards sit directly in the form.
+    if (modules.size === 1) { const [section] = modules.values(); section.replaceWith(...[...section.children].slice(1)); modules.clear(); }
+    if (summary.counts.unchanged) form.append(unchanged);
+    if (review.rows.length && !summary.changed) form.append(el('p', summaryLabels.noChangedObjects, 'managed-muted'));
+    applyFilter();
     if (!review.rows.length) form.append(el('p', 'Изменений распознанных объектов нет. Проверьте полноту исходного снимка перед принятием.'));
     if (review.dependencies) form.append(mountDependencies(review.dependencies));
     if (review.ambiguities.length) technical(form, 'Нераспознанные части', review.ambiguities);

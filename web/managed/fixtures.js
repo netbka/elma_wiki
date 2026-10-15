@@ -29,6 +29,25 @@ export function managedFixture(mode = 'overview') {
     review.contexts = [{ key: review.rows[0].key, objectRef: 'd'.repeat(64), beforeArtifactId: 'synthetic-before', afterArtifactId: review.artifactId }];
     if (mode === 'review-accepted') { review.acceptedAt = at; review.acceptedDecision = { actor, boundaryKeys: [finding.anchor.key], resolutions: null }; }
   }
+  // UX-03: summary line, chips, ribbon and grouping on a mixed review and on a no-change version.
+  if (mode === 'summary-mixed' || mode === 'summary-no-changes') {
+    const extra = (service, namespace, code, kind, name, classification, extraFields = {}) => ({ code, key: JSON.stringify(service === 'widgets' ? [service, namespace, code] : [service, namespace, kind, code]),
+      service, namespace, kind, name, classification, previousTeam: 'Команда внедрения', digest: 'a'.repeat(64), ...extraFields });
+    review.kind = 'reconciliation'; review.options = { baselineOwner: 'Команда внедрения' };
+    review.snapshot = { ...base.snapshot, source: { connectionId: 'config-api-dev', solutionRef: 'contract_management' } };
+    review.baseDeclaration = { schemaVersion: 1, status: 'declared', method: 'source-sequence', artifactId: base.id, revision: 0, checksum: base.checksum, scope: 'full', ancestryVerified: false };
+    review.dependencies = { provenance: 'configured-source-capture', rows: [
+      ...Array.from({ length: 14 }, () => ({ required: false, service: 'processor', targetNamespace: '_system_catalogs', targetCode: '_my_companies', status: 'provider-not-observed' })),
+      { required: true, service: 'widgets', targetNamespace: '_clients', targetCode: '_companies', status: 'component-source-present' }] };
+    review.rows = mode === 'summary-no-changes'
+      ? [{ ...component('contract'), classification: 'unchanged' }, { ...component('approval'), classification: 'unchanged' }, extra('permissionsSettings', 'synthetic', 'contract', 'permissionSettings', null, 'unchanged')]
+      : [extra('processor', 'contract_management.contracts', 'approval_process', 'template', 'Согласование договора', 'external-change'),
+        extra('widgets', 'contract_management.contracts', 'create_form', 'WIDGET', 'Форма создания договора', 'intervention-added', { previousTeam: null }),
+        extra('applications', 'contract_management', 'currencies', 'directory', 'Валюты', 'component-deleted', { removed: true }),
+        { ...component('contract'), classification: 'conflict' },
+        { ...component('approval'), classification: 'unchanged' }, { ...component('comment'), classification: 'unchanged' },
+        extra('permissionsSettings', 'contract_management', 'contracts', 'permissionSettings', null, 'unchanged')];
+  }
   if (mode === 'conflict') review.rows[0].classification = 'conflict';
   if (mode === 'overlap') review.rows[0].conflict = true;
   if (mode === 'ambiguous') review.ambiguities = [{ reason: 'unknown', source: 'synthetic/unknown.json' }];
@@ -46,7 +65,7 @@ export function managedFixture(mode = 'overview') {
   if (mode === 'archived') { workspace.status = 'archived'; workspace.history.push({ type: 'archived' }); }
   if (mode === 'pending') workspace.pending = [{ artifactId: review.artifactId, kind: review.kind, revision: 1, stale: false, options: review.options }];
   const model = { synthetic: true, shared: true, home: '/solutions', api: '/api/solutions', view: 'overview', workspace };
-  if (['review', 'conflict', 'overlap', 'ambiguous'].includes(mode) || mode.startsWith('review-') || mode.startsWith('elements-')) Object.assign(model, { view: 'review', review });
+  if (['review', 'conflict', 'overlap', 'ambiguous'].includes(mode) || mode.startsWith('review-') || mode.startsWith('elements-') || mode.startsWith('summary-')) Object.assign(model, { view: 'review', review });
   if (['create', 'create-legacy', 'empty', 'list', 'loading', 'load-error'].includes(mode) || mode.startsWith('pull-')) {
     delete model.workspace; model.view = ['create', 'create-legacy'].includes(mode) || mode.startsWith('pull-') ? 'create' : 'list';
     model.rows = mode === 'list' ? [{ ...workspace, baselineSnapshot: base.snapshot, changedComponents: 1, pendingCount: 2, current: undefined, pending: undefined }] : [];
