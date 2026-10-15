@@ -157,15 +157,107 @@ synthetic P6 assembler and the synthetic Target adapter only. The native
 release eligibility of a composed candidate remains blocked on the open P8 gate
 (netbka/elma365#60).
 
-`lib/delivery.mjs` implements attempts behind the adapter interface from the [connections contract](source-target-connections.md). API: `/api/connections` (owner-scoped references, read-only `probe`), `GET/POST /api/releases/:id/delivery` with actions `prepare`, `confirm`, `verify`, `cancel`. Authenticated GET `/api/delivery/capabilities` reports `mode` (`synthetic` or `bridge`), `bridge: true` (the operator-bridge adapter is registered) and the adapter list; `liveDelivery` stays `false` until a live delivery has been verified. Every route authorizes the owner first; connections and attempts live in `.local/delivery/`, private file modes, outside Git.
+### Promotion, recovery and evidence packets (MR-08)
+
+The same `deliveryStore`, queue, reservations and guards handle promotion and
+recovery for every namespace (legacy, shared original, composed). There is no
+second coordinator. All evidence is synthetic: `node --test
+test/delivery-promotion.test.mjs test/composed-delivery.test.mjs` uses fictional
+hosts and the synthetic adapter only. No live, native, PROD or business result
+is claimed, and no UI control exists yet for these actions.
+
+- **Promotion** (`promote`, keys `attemptId`, `connectionId`, `revision`,
+  `idempotencyKey`). The source attempt must be `verified` under its recorded
+  policy, bound to the current candidate (revision, candidate ID, SHA-256,
+  approval and, for contextual roots, the review association), and on a
+  non-production connection. The destination is another connection whose
+  observed host differs from the source host and whose platform `version`
+  equals the source Target version (composed candidates also keep the bound
+  profile guard). The destination is inspected fresh. Its inventory must equal
+  the state the source evidence was verified from (`preDeploy` of the source).
+  A destination already holding the candidate is refused (read it back instead),
+  and any other difference is drift and blocks before an attempt exists. The new
+  attempt records `promotion` (source attempt, connection, identity, verified
+  pre/read-back hashes, policy, verification time and the source packet digest)
+  and follows the normal path: typed `DEPLOY` confirmation, fresh drift check,
+  durable `deploying`, dispatch once, read-back. At confirmation the source
+  attempt is re-read; if it is no longer verified and current, the promotion is
+  `blocked` without dispatch. The same idempotency key replays the stored
+  promotion; another key while it is unresolved is refused by the existing
+  one-active-attempt rule.
+- **Reconciliation.** Every observed read-back records
+  `evidence.reconciliation = {outcome, fromState, readBackInventoryHash}`:
+  `applied` (matching comparison), `not-applied` (read-back equals the
+  pre-deploy inventory and no unit receipt reported `applied`) or `diverged`
+  (anything else, including an applied receipt over an unchanged inventory). A
+  failed or unobserved read clears it. `verify` is also allowed from `failed`,
+  because an adapter error never proves that nothing applied; an unobserved
+  failure keeps `failed`, and an observed read-back moves it to `verified` or
+  `verification-failed`. Unknown and partial outcomes are never success.
+- **Retry and recovery** (`retry`, keys `attemptId`, `idempotencyKey`). Allowed
+  only from `verification-failed` with a reconciliation and a still current
+  candidate. `not-applied` gives a `retry`; `diverged` (partial install) gives a
+  `forward-recovery` only when the adapter declares `capabilities.reimport ===
+  'idempotent'`. No live adapter declares it, so a partial install on a live
+  Target is refused and needs a recovery plan. Unreconciled (`unknown-outcome`,
+  `partial-outcome`, `deployed-unverified`, `failed`), verified, never-dispatched
+  (`prepared`, `blocked`, `cancelled`) and stale-candidate attempts are refused.
+  The retry runs on the same connection, requires an identical observed
+  identity, and the fresh inspection must equal the reconciled read-back hash
+  (a change since reconciliation is drift). It creates a new `prepared` attempt
+  with `retryOf` and carries the original `promotion`; it still requires its own
+  typed confirmation. The source records `retriedBy`; the same key returns that
+  retry and another key is refused, so one reconciled attempt yields at most one
+  retry. Nothing is redispatched automatically.
+- **Evidence packet** (`GET …/delivery?packet=<attemptId>`, owner-scoped).
+  `delivery-evidence-packet-v1` contains the exact `inputs` (reference,
+  revision, candidate ID and SHA-256, candidate inventory hash, review
+  association digest, composed units and Target profile) with `inputsDigest`;
+  the destination `environmentProfile` (connection, observed identity and host,
+  platform version, capabilities, read-back policy) with `environmentDigest`;
+  pre-deploy, operation, unit, read-back, comparison, reconciliation and
+  rollback evidence; promotion and retry lineage; the outcome with
+  `candidateStatus` and `verificationCurrent`; `evidenceBasis` (`synthetic` or
+  `adapter-reported`) and `notEstablished` (always `native-business-acceptance`,
+  plus `live-delivery` for synthetic evidence); and `packetDigest` over the
+  key-sorted packet. Two destinations of one candidate share `inputsDigest` and
+  differ in `environmentDigest`.
+- **PROD stays protected.** A direct preparation on an `environment: prod`
+  connection is refused (403) as before. A promotion to PROD needs a grant that
+  only trusted code can pass to `deliveryStore({productionPromotions})`: an owner
+  record `{authorizationRef, sha256, connectionId, host, expiresAt}` bound to the
+  exact candidate, connection, observed host and an expiry. `server.mjs`
+  constructs no grants, so PROD is refused by default and over HTTP. With a
+  grant, confirmation additionally requires `productionConfirmation: "PROMOTE
+  PROD <code> <first 12 hex of SHA-256> <host>"`, which no contextual HTTP route
+  accepts. The grant is re-evaluated at confirmation and read-back (an expired
+  grant blocks dispatch and keeps an unresolved attempt reserved). Protected
+  hosts stay refused even with a grant, and the bridge worker still refuses
+  PROD. How an owner records a grant is owner-reserved
+  ([`live-selection-and-release`](../SOLUTION_FIRST_PRODUCT_PLAN.md#owner-reserved-matters-and-blockers)).
+
+Fail-closed defaults where the plan leaves the decision to the owner:
+
+- a promotion destination whose baseline is not identical to the verified
+  source baseline is refused; accepting an equivalent but different baseline
+  needs an owner-approved versioned baseline-equivalence policy;
+- a partial install is forward-recovered only with a declared idempotent
+  re-import; restore of a previous package and of business data is not
+  implemented (the rollback reference stays a pre-deploy inventory hash);
+- verified evidence has no age limit beyond candidate currency; a maximum age
+  or a mandatory re-verification interval is not defined;
+- a new direct `prepare` after `failed` remains allowed as before (fresh
+  inspection and drift check apply); only `retry` requires reconciliation.
+
+`lib/delivery.mjs` implements attempts behind the adapter interface from the [connections contract](source-target-connections.md). API: `/api/connections` (owner-scoped references, read-only `probe`), `GET/POST /api/releases/:id/delivery` with actions `prepare`, `confirm`, `verify`, `cancel`, `promote`, `retry` (and `GET …/delivery?packet=<attemptId>`; the contextual Solution and composed routes accept the same). Authenticated GET `/api/delivery/capabilities` reports `mode` (`synthetic` or `bridge`), `bridge: true` (the operator-bridge adapter is registered) and the adapter list; `liveDelivery` stays `false` until a live delivery has been verified. Every route authorizes the owner first; connections and attempts live in `.local/delivery/`, private file modes, outside Git.
 
 Attempt states: `prepared -> deploying -> deployed-unverified -> verified | verification-failed`, plus `failed` (adapter error), `unknown-outcome` (timeout or service restart during `deploying`), `partial-outcome` (composed candidates only: mixed or incomplete per-unit receipts), `blocked` (identity or target state changed after preparation), and `cancelled` (owner cancelled preparation before dispatch). Only a matching read-back produces `verified`. The release's `target` check is `pass` only for a verified attempt bound to its current revision, candidate ID/hash and acceptance. Changing conditions or the candidate makes historical evidence `stale`, including in mutation responses. Synthetic results are training evidence, not ELMA delivery.
 
 Guards enforced server-side:
 - `prepare` requires current acceptance and the frozen candidate, a target-role connection, a reachable Target with confirmed identity, deploy/read-back capabilities and no active attempt for this release. It records identity and the pre-deploy solution inventory hash.
-- `environment: prod` is refused (403). A probed host in `PROTECTED_TARGET_HOSTS` is refused regardless of its name.
+- `environment: prod` is refused (403); the only exception is an MR-08 promotion with a trusted owner grant, which this service never constructs ([promotion](#promotion-recovery-and-evidence-packets-mr-08)). A probed host in `PROTECTED_TARGET_HOSTS` is refused regardless of its name or any grant.
 - `confirm` requires `DEPLOY <solution code> <first 12 hex of candidate SHA-256>` and an idempotency key. It checks release revision, candidate ID/hash and acceptance, then re-probes health/identity and re-inspects the Target. Unhealthy/changed identity or drift blocks dispatch. `deploying` is persisted before the adapter is called. Repeating the same key returns the existing attempt; another key on a non-prepared attempt is 409. At most one dispatch per attempt.
-- `verify` requires the exact approved candidate and matching byte hash. It probes healthy, unchanged identity before and after read-back and rechecks candidate/revision/acceptance after the asynchronous operation. Invalid responses or changed identity persist `verificationError` with no passing comparison; an unresolved attempt (`deployed-unverified`, `unknown-outcome`, `partial-outcome`) keeps its state and Target reservation until a read-back observes the same Target, so a failed read never permits redispatch. A revision/candidate change after an observed read-back, or a failure from `verification-failed`, persists `verification-failed`. It is allowed from `deployed-unverified`, `unknown-outcome` and `verification-failed`.
+- `verify` requires the exact approved candidate and matching byte hash. It probes healthy, unchanged identity before and after read-back and rechecks candidate/revision/acceptance after the asynchronous operation. Invalid responses or changed identity persist `verificationError` with no passing comparison; an unresolved attempt (`deployed-unverified`, `unknown-outcome`, `partial-outcome`) keeps its state and Target reservation until a read-back observes the same Target, so a failed read never permits redispatch. A revision/candidate change after an observed read-back, or a failure from `verification-failed`, persists `verification-failed`. It is allowed from `deployed-unverified`, `unknown-outcome`, `partial-outcome`, `verification-failed` and `failed` (MR-08 reconciliation; an unobserved failure keeps `failed`).
 - `cancel` authorizes the release owner, releases only a prepared attempt's lock and retains history without calling the adapter. It cannot cancel a dispatched operation or resolve an unknown outcome.
 - Connections reject credential-like keys and URLs with embedded credentials. Adapters receive non-secret options only.
 

@@ -148,7 +148,10 @@ test('bridge: slow import returns deploying and finishes in the background; unap
   failing = await delivery.confirm(second.id, failing.id, 'alice', { idempotencyKey: 'f', confirmation: confirmation(failing) });
   failing = await waitForAttempt(delivery, second.id, failing.id, 'failed');
   assert.equal(failing.state, 'failed'); assert.match(failing.evidence.operation.error, /unresolved dependency/);
-  await assert.rejects(delivery.verify(second.id, failing.id, 'alice'), /невозможен/);
+  // MR-08: an adapter error is not proof that nothing applied. Read-back reconciles it without redispatch.
+  failing = await delivery.verify(second.id, failing.id, 'alice');
+  assert.equal(failing.state, 'verification-failed'); assert.equal(failing.evidence.reconciliation.outcome, 'not-applied');
+  assert.equal(failing.evidence.reconciliation.fromState, 'failed');
   // Removing the bridge rejects anything still queued and invalidates the token.
   await bridges.remove(bridge.id, 'alice');
   assert.deepEqual(await bridges.list('alice'), []);

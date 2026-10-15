@@ -25,6 +25,10 @@ import { demoData } from './lib/demo.mjs';
 import { configSourceClient, configAcquisitions } from './lib/config-source.mjs';
 
 const project = path.dirname(fileURLToPath(import.meta.url));
+// Contextual delivery request keys. PROD confirmation is deliberately absent: no HTTP request can
+// supply `productionConfirmation`, and this server constructs the delivery store without PROD grants.
+const contextualDeliveryKeys = { prepare: ['action', 'revision', 'connectionId'], confirm: ['action', 'attemptId', 'idempotencyKey', 'confirmation'], verify: ['action', 'attemptId'], cancel: ['action', 'attemptId'],
+  promote: ['action', 'attemptId', 'connectionId', 'revision', 'idempotencyKey'], retry: ['action', 'attemptId', 'idempotencyKey'] };
 const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml' };
 function send(res, status, value) { res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(value)); }
 async function body(req, max) {
@@ -168,16 +172,18 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
         if (releaseId) await handoffs.authorize(id, releaseId); else await solutions.managed.authorize(id, SOLUTION_CATALOG);
         if (action === 'delivery') {
           const contextual = delivery.forSolution(id), executionActor = session.user.id;
-          if (req.method === 'GET') return send(res, 200, await contextual.list(releaseId, executionActor));
+          if (req.method === 'GET') return send(res, 200, url.searchParams.has('packet') ? await contextual.packet(releaseId, url.searchParams.get('packet'), executionActor) : await contextual.list(releaseId, executionActor));
           if (req.method !== 'POST') return send(res, 405, { error: 'Метод не поддерживается' });
           if (req.headers['content-type']?.split(';')[0] !== 'application/json') return send(res, 415, { error: 'Требуется JSON' });
           const input = JSON.parse((await body(req, 32 * 1024)).toString('utf8'));
-          const keys = { prepare: ['action', 'revision', 'connectionId'], confirm: ['action', 'attemptId', 'idempotencyKey', 'confirmation'], verify: ['action', 'attemptId'], cancel: ['action', 'attemptId'] };
+          const keys = contextualDeliveryKeys;
           if (!input || typeof input !== 'object' || Array.isArray(input) || !Object.hasOwn(keys, input.action) || Object.keys(input).some(key => !keys[input.action].includes(key)))
             return send(res, 400, { error: 'Invalid contextual delivery request' });
           if (input.action === 'prepare') return send(res, 201, await contextual.prepare(releaseId, executionActor, input));
           if (input.action === 'confirm') return send(res, 200, await contextual.confirm(releaseId, input.attemptId, executionActor, input));
           if (input.action === 'verify') return send(res, 200, await contextual.verify(releaseId, input.attemptId, executionActor));
+          if (input.action === 'promote') return send(res, 201, await contextual.promote(releaseId, input.attemptId, executionActor, input));
+          if (input.action === 'retry') return send(res, 201, await contextual.retry(releaseId, input.attemptId, executionActor, input));
           return send(res, 200, await contextual.cancel(releaseId, input.attemptId, executionActor));
         }
         if (req.method === 'GET' && !action) return send(res, 200, releaseId ? await handoffs.get(id, releaseId) : await handoffs.list(id));
@@ -201,16 +207,18 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
         if (candidateId) await composed.authorize(id, candidateId); else await solutions.managed.authorize(id, SOLUTION_CATALOG);
         if (action === 'delivery') {
           const contextual = delivery.forComposed(id), executionActor = session.user.id;
-          if (req.method === 'GET') return send(res, 200, await contextual.list(candidateId, executionActor));
+          if (req.method === 'GET') return send(res, 200, url.searchParams.has('packet') ? await contextual.packet(candidateId, url.searchParams.get('packet'), executionActor) : await contextual.list(candidateId, executionActor));
           if (req.method !== 'POST') return send(res, 405, { error: 'Метод не поддерживается' });
           if (req.headers['content-type']?.split(';')[0] !== 'application/json') return send(res, 415, { error: 'Требуется JSON' });
           const input = JSON.parse((await body(req, 32 * 1024)).toString('utf8'));
-          const keys = { prepare: ['action', 'revision', 'connectionId'], confirm: ['action', 'attemptId', 'idempotencyKey', 'confirmation'], verify: ['action', 'attemptId'], cancel: ['action', 'attemptId'] };
+          const keys = contextualDeliveryKeys;
           if (!input || typeof input !== 'object' || Array.isArray(input) || !Object.hasOwn(keys, input.action) || Object.keys(input).some(key => !keys[input.action].includes(key)))
             return send(res, 400, { error: 'Invalid contextual delivery request' });
           if (input.action === 'prepare') return send(res, 201, await contextual.prepare(candidateId, executionActor, input));
           if (input.action === 'confirm') return send(res, 200, await contextual.confirm(candidateId, input.attemptId, executionActor, input));
           if (input.action === 'verify') return send(res, 200, await contextual.verify(candidateId, input.attemptId, executionActor));
+          if (input.action === 'promote') return send(res, 201, await contextual.promote(candidateId, input.attemptId, executionActor, input));
+          if (input.action === 'retry') return send(res, 201, await contextual.retry(candidateId, input.attemptId, executionActor, input));
           return send(res, 200, await contextual.cancel(candidateId, input.attemptId, executionActor));
         }
         if (req.method === 'GET') return send(res, 200, candidateId ? await composed.get(id, candidateId) : await composed.list(id));
@@ -389,7 +397,7 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
         await releases.authorize(id,owner);
         if (req.method === 'GET' && !action) return send(res,200,await releases.get(id,owner));
         if (req.method === 'GET' && action === 'preview') return send(res,200,await releases.preview(id,owner,url.searchParams.get('path'),url.searchParams.get('side')));
-        if (req.method === 'GET' && action === 'delivery') return send(res,200,await delivery.list(id,owner));
+        if (req.method === 'GET' && action === 'delivery') return send(res,200,url.searchParams.has('packet') ? await delivery.packet(id,url.searchParams.get('packet'),owner) : await delivery.list(id,owner));
         if (req.method !== 'POST' || !['change','bundle','delivery'].includes(action)) return send(res,405,{error:'Метод не поддерживается'});
         if (req.headers['content-type']?.split(';')[0] !== 'application/json') return send(res,415,{error:'Требуется JSON'});
         const input = JSON.parse((await body(req,64*1024)).toString('utf8'));
@@ -400,6 +408,8 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
           if (input.action === 'confirm') return send(res,200,await delivery.confirm(id,input.attemptId,owner,input));
           if (input.action === 'verify') return send(res,200,await delivery.verify(id,input.attemptId,owner));
           if (input.action === 'cancel') return send(res,200,await delivery.cancel(id,input.attemptId,owner));
+          if (input.action === 'promote') return send(res,201,await delivery.promote(id,input.attemptId,owner,input));
+          if (input.action === 'retry') return send(res,201,await delivery.retry(id,input.attemptId,owner,input));
           return send(res,400,{error:'Неизвестное действие доставки'});
         }
         const bundle = await releases.bundle(id,owner,input.revision,session.user);
