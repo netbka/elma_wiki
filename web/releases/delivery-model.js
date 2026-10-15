@@ -15,7 +15,10 @@ export function deliveryPanelView(release, { capabilities, connections = [], att
   const selectable = connection => !!connection && connection.role === 'target' && connection.environment !== 'prod' && connection.probe?.protectedHost !== true && presetDeploys(connection) && (connection.adapter === 'synthetic' ? synthetic : connection.adapter === 'bridge' ? bridge : false);
   const usable = connection => !!connection && connection.role === 'target' && connection.environment !== 'prod' && connection.probe?.ok === true && !!connection.probe.identity?.host && connection.probe?.protectedHost !== true && presetDeploys(connection) && (connection.adapter === 'synthetic' ? synthetic : connection.adapter === 'bridge' ? bridge && (connection.preset ? connection.probe.hostMatches === true : bridges.some(b => b.id === connection.adapterOptions?.bridgeId && b.online)) : false);
   // An operation error or a diverged (partial) read-back keeps the Target reserved until reconciled (MR-08).
-  const diverged = attempt => attempt?.state === 'verification-failed' && attempt.evidence?.reconciliation?.outcome === 'diverged' && !attempt.retriedBy;
+  const diverged = attempt => attempt?.state === 'verification-failed' && ['diverged', 'stale-applied'].includes(attempt.evidence?.reconciliation?.outcome) && !attempt.retriedBy;
+  // A dispatched attempt whose outcome is still open. When its candidate went stale, only a
+  // reconcile-only read-back (never a verification) can release the Target.
+  const open = attempt => !!attempt && (['deploying', 'deployed-unverified', 'unknown-outcome', 'partial-outcome', 'failed'].includes(attempt.state) || diverged(attempt));
   const active = attempts.some(a => ['prepared', 'deploying', 'deployed-unverified', 'unknown-outcome', 'partial-outcome', 'failed'].includes(a.state) || diverged(a));
   const approved = release.associationStatus !== 'stale' && release.approval?.revision === release.revision && !!release.candidate && !release.blockers.length;
   const viaBridge = latest?.connection?.adapter === 'bridge';
@@ -24,9 +27,11 @@ export function deliveryPanelView(release, { capabilities, connections = [], att
     canConfirm: enabled && current && latest?.state === 'prepared' && usable(connections.find(c => c.id === latest.connection?.id)),
     canCancel: latest?.state === 'prepared',
     canVerify: enabled && current && ['deployed-unverified', 'unknown-outcome', 'partial-outcome', 'verification-failed', 'failed'].includes(latest?.state),
+    canReconcile: enabled && !current && open(latest) && latest.state !== 'deploying',
     confirmation: latest ? `DEPLOY ${latest.solutionCode} ${latest.sha256.slice(0, 12)}` : '',
     next: !enabled ? 'Доставка в ELMA пока недоступна. Используйте приватный пакет передачи.' :
       latest?.state === 'deploying' ? 'Операция выполняется. Обновите состояние; повторный запуск не нужен.' :
+      latest && !current && open(latest) ? 'Кандидат изменился, но результат прежней операции на Target не сверен. Выполните сверку состояния Target: она не подтверждает прежний кандидат, а только освобождает Target, если ничего не применено.' :
       latest && !current ? 'Попытка относится к прежнему кандидату или условиям. Её результат не подтверждает текущий релиз.' :
       latest?.state === 'partial-outcome' ? 'Часть единиц установки не подтвердила применение. Прочитайте и проверьте состояние Target; повтор операции запрещён, нужен план восстановления.' :
       latest?.state === 'unknown-outcome' ? 'Результат неизвестен. Сначала прочитайте и проверьте состояние стенда; не повторяйте операцию.' :

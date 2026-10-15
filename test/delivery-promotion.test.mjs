@@ -414,3 +414,113 @@ test('review regression: every delivery route, including the legacy release rout
   assert.equal((await request(`${route}?packet=${attempt.id}`)).body.outcome.state, 'prepared', 'a refused request dispatches nothing');
   assert.equal((await request(route, confirm)).body.state, 'deployed-unverified');
 });
+
+// Second review: an unresolved attempt whose candidate changed must still have an in-product exit.
+async function reapproved(releases, release) {
+  let current = await releases.change(release.id, 'alice', { ...details, action: 'details', revision: release.revision, notes: 'Edited before read-back', limitations: '' });
+  current = await releases.change(release.id, 'alice', { action: 'freeze', revision: current.revision });
+  return releases.change(release.id, 'alice', { action: 'approve', revision: current.revision, reason: 'New candidate accepted' });
+}
+async function dispatchedAttempt(delivery, release, connection) {
+  const prepared = await delivery.prepare(release.id, 'alice', { revision: release.revision, connectionId: connection.id });
+  return delivery.confirm(release.id, prepared.id, 'alice', { idempotencyKey: 'k-' + prepared.id, confirmation: confirmation(prepared) });
+}
+
+test('review regression: a stale failed attempt is released by a reconcile-only read-back that never verifies it', async t => {
+  const { releases, delivery, calls, release, connect } = await setup(t);
+  const connection = await connect('test-a', {}, { sequence: ['fail', 'apply'] });
+  const failed = await dispatchedAttempt(delivery, release, connection);
+  assert.equal(failed.state, 'failed');
+  // The reconcile-only path is for stale candidates; a current one uses the verifying read-back.
+  await assert.rejects(delivery.reconcile(release.id, failed.id, 'alice'), error => error.statusCode === 409 && /актуален/.test(error.message));
+  const next = await reapproved(releases, release);
+  await assert.rejects(delivery.verify(release.id, failed.id, 'alice'), status(409));
+  await assert.rejects(delivery.prepare(release.id, 'alice', { revision: next.revision, connectionId: connection.id }), status(409));
+  await assert.rejects(delivery.prepare(release.id, 'alice', { revision: next.revision, connectionId: (await connect('test-b')).id }), status(409));
+  const reconciled = await delivery.reconcile(release.id, failed.id, 'alice');
+  assert.equal(reconciled.state, 'verification-failed');
+  assert.deepEqual([reconciled.evidence.reconciliation.outcome, reconciled.evidence.reconciliation.mode, reconciled.evidence.reconciliation.fromState], ['not-applied', 'reconcile-only', 'failed']);
+  assert.equal(reconciled.evidence.comparison, null);
+  const packet = await delivery.packet(release.id, failed.id, 'alice');
+  assert.equal(packet.outcome.verificationCurrent, false); assert.equal(packet.outcome.candidateStatus, 'stale');
+  await assert.rejects(delivery.promote(release.id, failed.id, 'alice', { revision: next.revision, connectionId: (await connect('stage-b')).id, idempotencyKey: 'p' }), status(409));
+  await assert.rejects(delivery.reconcile(release.id, failed.id, 'alice'), status(409));
+  // Released: the new candidate is delivered normally.
+  const fresh = await dispatchedAttempt(delivery, next, connection);
+  assert.equal((await delivery.verify(release.id, fresh.id, 'alice')).state, 'verified');
+  assert.equal(calls.length, 2);
+});
+
+test('review regression: reconcile-only keeps the reservation when the stale candidate applied or the install diverged', async t => {
+  for (const [scenario, outcome] of [['lost-response', 'stale-applied'], ['diverge', 'diverged']]) await t.test(scenario, async t => {
+    const { releases, delivery, calls, release, connect } = await setup(t);
+    const connection = await connect('test-a', {}, { scenario });
+    const attempt = await dispatchedAttempt(delivery, release, connection);
+    const next = await reapproved(releases, release);
+    const reconciled = await delivery.reconcile(release.id, attempt.id, 'alice');
+    assert.equal(reconciled.state, 'verification-failed'); assert.equal(reconciled.evidence.reconciliation.outcome, outcome);
+    await assert.rejects(delivery.prepare(release.id, 'alice', { revision: next.revision, connectionId: connection.id }), status(409));
+    await assert.rejects(delivery.verify(release.id, attempt.id, 'alice'), status(409));
+    await assert.rejects(delivery.retry(release.id, attempt.id, 'alice', { idempotencyKey: 'r' }), status(409));
+    // Still reconcilable, e.g. after an operator restored the Target; never verified.
+    assert.equal((await delivery.reconcile(release.id, attempt.id, 'alice')).state, 'verification-failed');
+    assert.equal(calls.length, 1);
+  });
+});
+
+test('review regression: a cancelled or blocked forward-recovery retry gives the diverged source back its reservation and retry eligibility', async t => {
+  for (const ending of ['cancel', 'block']) await t.test(ending, async t => {
+    const { delivery, calls, release, connect, external } = await setup(t);
+    const connection = await connect('test-a', {}, { sequence: ['diverge', 'apply'], reimport: 'idempotent' });
+    let source = await dispatchedAttempt(delivery, release, connection);
+    source = await delivery.verify(release.id, source.id, 'alice');
+    assert.equal(source.evidence.reconciliation.outcome, 'diverged');
+    const retry = await delivery.retry(release.id, source.id, 'alice', { idempotencyKey: 'r1' });
+    if (ending === 'cancel') assert.equal((await delivery.cancel(release.id, retry.id, 'alice')).state, 'cancelled');
+    else {
+      await external(connection, 'operator-change');
+      await assert.rejects(delivery.confirm(release.id, retry.id, 'alice', { idempotencyKey: 'c', confirmation: confirmation(retry) }), status(409));
+      assert.equal((await delivery.get(release.id, retry.id, 'alice')).state, 'blocked');
+    }
+    source = await delivery.get(release.id, source.id, 'alice');
+    assert.equal(source.retriedBy, undefined); assert.match(source.history.at(-1).note, /резервирование Target восстановлено/);
+    await assert.rejects(delivery.prepare(release.id, 'alice', { revision: release.revision, connectionId: connection.id }), status(409));
+    if (ending === 'cancel') {
+      let again = await delivery.retry(release.id, source.id, 'alice', { idempotencyKey: 'r2' });
+      again = await delivery.confirm(release.id, again.id, 'alice', { idempotencyKey: 'c2', confirmation: confirmation(again) });
+      assert.equal((await delivery.verify(release.id, again.id, 'alice')).state, 'verified');
+      assert.equal(calls.length, 2);
+    } else {
+      // The Target changed after reconciliation: read it back again before any new retry.
+      await assert.rejects(delivery.retry(release.id, source.id, 'alice', { idempotencyKey: 'r2' }), error => /drift/.test(error.message));
+      assert.equal(calls.length, 1);
+    }
+  });
+});
+
+test('review regression: reconcile goes through the key allowlist on the release route', async t => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'e365-promotion-api-'));
+  t.after(() => fs.rm(directory, { recursive: true, force: true }));
+  const server = createServer({ directory, allowLocal: true, syntheticDelivery: true });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => new Promise(resolve => server.close(resolve)));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const headers = { 'X-Elma-Wiki-Request': '1', 'Content-Type': 'application/json' };
+  const login = await fetch(base + '/auth/local', { method: 'POST', headers, body: '{}' });
+  headers.Cookie = login.headers.get('set-cookie').split(';')[0];
+  const request = async (route, body) => { const response = await fetch(base + route, body ? { method: 'POST', headers, body: JSON.stringify(body) } : { headers }); return { status: response.status, body: await response.json() }; };
+  const owner = (await request('/api/session')).body.user.id;
+  const projects = projectStore(directory), releases = releaseStore(directory, projects, { sharedAccess: true });
+  const release = await approvedRelease(projects, releases, owner);
+  const connection = (await request('/api/connections', target('test-a', {}, { scenario: 'fail' }))).body;
+  const route = `/api/releases/${release.id}/delivery`;
+  let attempt = (await request(route, { action: 'prepare', revision: release.revision, connectionId: connection.id })).body;
+  attempt = (await request(route, { action: 'confirm', attemptId: attempt.id, idempotencyKey: 'k', confirmation: confirmation(attempt) })).body;
+  assert.equal(attempt.state, 'failed');
+  let current = await releases.change(release.id, owner, { ...details, action: 'details', revision: release.revision, notes: 'Edited', limitations: '' });
+  current = await releases.change(release.id, owner, { action: 'freeze', revision: current.revision });
+  await releases.change(release.id, owner, { action: 'approve', revision: current.revision, reason: 'New candidate' });
+  assert.equal((await request(route, { action: 'reconcile', attemptId: attempt.id, force: true })).status, 400);
+  const reconciled = await request(route, { action: 'reconcile', attemptId: attempt.id });
+  assert.equal(reconciled.status, 200); assert.equal(reconciled.body.evidence.reconciliation.outcome, 'not-applied');
+});

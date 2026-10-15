@@ -206,6 +206,25 @@ is claimed, and no UI control exists yet for these actions.
   previous state also releases it. The release UI follows: after `failed` it
   offers read-back, not a new preparation, and a diverged read-back shows the
   partial install (Storybook `delivery--partial-install`).
+- **Reconcile-only read-back** (`reconcile`, keys `attemptId`). For a
+  dispatched unresolved attempt (`deployed-unverified`, `unknown-outcome`,
+  `partial-outcome`, `failed`, or `verification-failed` with `diverged` or
+  `stale-applied`) whose candidate is no longer current, so `verify` refuses
+  it. It observes the same Target (identity before and after, PROD grant rules
+  unchanged) and compares the read-back inventory hash only with the attempt's
+  own recorded `preDeploy` hash and candidate inventory hash: equal to
+  `preDeploy` with no applied unit receipt → `not-applied` (reservation
+  released); equal to the attempt's candidate → `stale-applied`; anything else
+  → `diverged`. Both keep the reservation. The attempt becomes
+  `verification-failed` with `reconciliation.mode: 'reconcile-only'`; no
+  comparison is stored, so it is never `verified`, never current verification
+  and never promotable. A current candidate uses `verify` instead (409). An
+  unobserved read keeps the state and reservation. The release panel offers it
+  as «Сверить состояние Target без подтверждения» (Storybook
+  `delivery--stale-unresolved`).
+- **Abandoned retries.** Cancelling a retry before dispatch, or a retry that
+  becomes `blocked`, clears `retriedBy` on its source. A `diverged` source then
+  reserves its Target again and stays eligible for a new retry or read-back.
 - **No borrowed evidence.** A read-back observes the Target now, so `verify`
   is refused (409, state unchanged) for an attempt that has a retry, or when
   another attempt on the same host was dispatched at or after this attempt's
@@ -246,7 +265,7 @@ is claimed, and no UI control exists yet for these actions.
   constructs no grants, so PROD is refused by default and over HTTP. With a
   grant, confirmation additionally requires `productionConfirmation: "PROMOTE
   PROD <code> <first 12 hex of SHA-256> <host>"`, which no HTTP route accepts:
-  the legacy, Solution handoff and composed delivery routes all allowlist
+  the legacy, Solution handoff and composed delivery routes (actions prepare, confirm, verify, cancel, promote, retry, reconcile) all allowlist
   request keys per action and answer 400 otherwise. The grant is re-evaluated at confirmation and read-back (an expired
   grant blocks dispatch and keeps an unresolved attempt reserved). Protected
   hosts stay refused even with a grant, and the bridge worker still refuses
@@ -263,10 +282,12 @@ Fail-closed defaults where the plan leaves the decision to the owner:
   implemented (the rollback reference stays a pre-deploy inventory hash);
 - verified evidence has no age limit beyond candidate currency; a maximum age
   or a mandatory re-verification interval is not defined;
-- an unreconciled `failed` or `diverged` attempt whose candidate became stale
-  cannot be read back (the candidate guard refuses) and keeps its reservation;
-  as for `unknown-outcome`, resolving it needs an owner/operator decision and
-  never deleting records.
+- a reconcile-only read-back that finds the stale candidate applied
+  (`stale-applied`) or a partial install (`diverged`) keeps the reservation;
+  accepting that state or restoring the Target is an owner/operator decision,
+  followed by another reconcile-only read-back. Records are never deleted;
+- release edits are not refused while an attempt is unresolved; the delivery
+  panel names the open outcome and offers the reconcile-only read-back.
 
 `lib/delivery.mjs` implements attempts behind the adapter interface from the [connections contract](source-target-connections.md). API: `/api/connections` (owner-scoped references, read-only `probe`), `GET/POST /api/releases/:id/delivery` with actions `prepare`, `confirm`, `verify`, `cancel`, `promote`, `retry` (and `GET …/delivery?packet=<attemptId>`; the contextual Solution and composed routes accept the same). Authenticated GET `/api/delivery/capabilities` reports `mode` (`synthetic` or `bridge`), `bridge: true` (the operator-bridge adapter is registered) and the adapter list; `liveDelivery` stays `false` until a live delivery has been verified. Every route authorizes the owner first; connections and attempts live in `.local/delivery/`, private file modes, outside Git.
 

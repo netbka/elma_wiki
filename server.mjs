@@ -29,7 +29,7 @@ const project = path.dirname(fileURLToPath(import.meta.url));
 // confirmation is deliberately absent: no HTTP request can supply `productionConfirmation`, and
 // this server constructs the delivery store without PROD grants.
 const contextualDeliveryKeys = { prepare: ['action', 'revision', 'connectionId'], confirm: ['action', 'attemptId', 'idempotencyKey', 'confirmation'], verify: ['action', 'attemptId'], cancel: ['action', 'attemptId'],
-  promote: ['action', 'attemptId', 'connectionId', 'revision', 'idempotencyKey'], retry: ['action', 'attemptId', 'idempotencyKey'] };
+  promote: ['action', 'attemptId', 'connectionId', 'revision', 'idempotencyKey'], retry: ['action', 'attemptId', 'idempotencyKey'], reconcile: ['action', 'attemptId'] };
 const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml' };
 function send(res, status, value) { res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(value)); }
 async function body(req, max) {
@@ -185,6 +185,7 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
           if (input.action === 'verify') return send(res, 200, await contextual.verify(releaseId, input.attemptId, executionActor));
           if (input.action === 'promote') return send(res, 201, await contextual.promote(releaseId, input.attemptId, executionActor, input));
           if (input.action === 'retry') return send(res, 201, await contextual.retry(releaseId, input.attemptId, executionActor, input));
+          if (input.action === 'reconcile') return send(res, 200, await contextual.reconcile(releaseId, input.attemptId, executionActor));
           return send(res, 200, await contextual.cancel(releaseId, input.attemptId, executionActor));
         }
         if (req.method === 'GET' && !action) return send(res, 200, releaseId ? await handoffs.get(id, releaseId) : await handoffs.list(id));
@@ -220,6 +221,7 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
           if (input.action === 'verify') return send(res, 200, await contextual.verify(candidateId, input.attemptId, executionActor));
           if (input.action === 'promote') return send(res, 201, await contextual.promote(candidateId, input.attemptId, executionActor, input));
           if (input.action === 'retry') return send(res, 201, await contextual.retry(candidateId, input.attemptId, executionActor, input));
+          if (input.action === 'reconcile') return send(res, 200, await contextual.reconcile(candidateId, input.attemptId, executionActor));
           return send(res, 200, await contextual.cancel(candidateId, input.attemptId, executionActor));
         }
         if (req.method === 'GET') return send(res, 200, candidateId ? await composed.get(id, candidateId) : await composed.list(id));
@@ -413,6 +415,7 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
           if (input.action === 'cancel') return send(res,200,await delivery.cancel(id,input.attemptId,owner));
           if (input.action === 'promote') return send(res,201,await delivery.promote(id,input.attemptId,owner,input));
           if (input.action === 'retry') return send(res,201,await delivery.retry(id,input.attemptId,owner,input));
+          if (input.action === 'reconcile') return send(res,200,await delivery.reconcile(id,input.attemptId,owner));
           return send(res,400,{error:'Неизвестное действие доставки'});
         }
         const bundle = await releases.bundle(id,owner,input.revision,session.user);
