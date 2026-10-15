@@ -1,0 +1,636 @@
+{
+  "contract": {
+    "id": "elma365-native-coverage",
+    "version": 1
+  },
+  "document": "capability-catalog",
+  "schemaRevision": "1.1",
+  "default": {
+    "preserve": "unknown",
+    "edit": "unknown"
+  },
+  "scopes": {
+    "solution": "listed-capabilities-only",
+    "part": "unsupported",
+    "application": "unsupported",
+    "server": "unsupported"
+  },
+  "importUnit": {
+    "granularity": "solution-package",
+    "importReceipts": "unavailable",
+    "targetPreservation": "unknown"
+  },
+  "liveChecks": {
+    "status": "unavailable",
+    "missing": [
+      "native-package-check",
+      "service-compile",
+      "native-import",
+      "target-read-back"
+    ]
+  },
+  "capabilities": [
+    {
+      "service": "appViews",
+      "kind": "collection",
+      "serializers": [
+        {
+          "id": "entity-json",
+          "preserve": "proven-offline",
+          "evidence": [
+            {
+              "kind": "test",
+              "path": "tools/config-workspace/test_roundtrip.py",
+              "name": "test_noedit_stage_preserves_every_original_path_and_byte"
+            }
+          ]
+        }
+      ],
+      "preserve": {
+        "status": "proven-offline",
+        "basis": "synthetic-fixture",
+        "evidence": [
+          {
+            "kind": "test",
+            "path": "tools/config-workspace/test_roundtrip.py",
+            "name": "test_noedit_stage_preserves_every_original_path_and_byte"
+          },
+          {
+            "kind": "test",
+            "path": "tools/config-workspace/test_roundtrip.py",
+            "name": "test_native_pack_of_the_noedit_stage_reproduces_the_original"
+          },
+          {
+            "kind": "fixture",
+            "path": "tools/native-materialization/fixtures/contracts-noedit.e365",
+            "name": null
+          },
+          {
+            "kind": "task-record",
+            "path": "docs/task-records/native-60-noedit-roundtrip-20261014/README.md",
+            "name": null
+          }
+        ],
+        "limits": [
+          "Proven on the committed synthetic Contracts-shaped fixture only (evidence basis synthetic-fixture).",
+          "Live native-package-check, service-compile, import and Target read-back are unavailable; offline proof is not native acceptance."
+        ]
+      },
+      "edit": {
+        "status": "proven-offline",
+        "operations": [
+          {
+            "op": "replace",
+            "basis": "synthetic-fixture"
+          }
+        ],
+        "evidence": [
+          {
+            "kind": "test",
+            "path": "tools/config-workspace/test_samebase.py",
+            "name": "test_disjoint_changes_take_each_component_from_its_side_and_preserve_everything_else"
+          },
+          {
+            "kind": "test",
+            "path": "tools/config-workspace/test_samebase.py",
+            "name": "test_native_pack_reproduces_the_merged_package"
+          },
+          {
+            "kind": "task-record",
+            "path": "docs/task-records/native-60-e4-same-base/README.md",
+            "name": null
+          }
+        ],
+        "limits": [
+          "Proven on the committed synthetic Contracts-shaped fixture only (evidence basis synthetic-fixture). Add and remove are not proven.",
+          "Live native-package-check, service-compile, import and Target read-back are unavailable; offline proof is not native acceptance."
+        ]
+      }
+    },
+    {
+      "service": "extensions",
+      "kind": "extension",
+      "serializers": [
+        {
+          "id": "entity-json",
+          "preserve": "unknown",
+          "evidence": []
+        }
+      ],
+      "preserve": {
+        "status": "unknown",
+        "basis": "none",
+        "evidence": [],
+        "limits": [
+          "No committed fixture or export run proves this kind."
+        ]
+      },
+      "edit": {
+        "status": "unsupported",
+        "operations": [],
+        "evidence": [
+          {
+            "kind": "policy",
+            "path": "tools/native-materialization/contract.mjs",
+            "name": "unlocatable-source-entity"
+          }
+        ],
+        "limits": [
+          "Manifest-regeneration policy v1 (the default) identifies entities by [service, namespace, code]; Wiki identity profile 2 adds the kind for this service, so a changed entity is unlocatable and the receipt fails. Opt-in policy v2 (request.manifestPolicy version 2, schema revision 1.3) uses the profile-2 identity and certifies the regenerated manifest offline on synthetic fixtures only; Wiki does not select it yet and no live check ran."
+        ]
+      }
+    },
+    {
+      "service": "extensions",
+      "kind": "scripts",
+      "serializers": [
+        {
+          "id": "entity-json",
+          "preserve": "unknown",
+          "evidence": []
+        }
+      ],
+      "preserve": {
+        "status": "unknown",
+        "basis": "none",
+        "evidence": [],
+        "limits": [
+          "No committed fixture or export run proves this kind."
+        ]
+      },
+      "edit": {
+        "status": "unsupported",
+        "operations": [],
+        "evidence": [
+          {
+            "kind": "policy",
+            "path": "tools/native-materialization/contract.mjs",
+            "name": "unlocatable-source-entity"
+          }
+        ],
+        "limits": [
+          "Manifest-regeneration policy v1 (the default) identifies entities by [service, namespace, code]; Wiki identity profile 2 adds the kind for this service, so a changed entity is unlocatable and the receipt fails. Opt-in policy v2 (request.manifestPolicy version 2, schema revision 1.3) uses the profile-2 identity and certifies the regenerated manifest offline on synthetic fixtures only; Wiki does not select it yet and no live check ran."
+        ]
+      }
+    },
+    {
+      "service": "extensions",
+      "kind": "scripts_runtime",
+      "serializers": [
+        {
+          "id": "entity-json",
+          "preserve": "unknown",
+          "evidence": []
+        }
+      ],
+      "preserve": {
+        "status": "unknown",
+        "basis": "none",
+        "evidence": [],
+        "limits": [
+          "No committed fixture or export run proves this kind."
+        ]
+      },
+      "edit": {
+        "status": "unsupported",
+        "operations": [],
+        "evidence": [
+          {
+            "kind": "policy",
+            "path": "tools/native-materialization/contract.mjs",
+            "name": "unlocatable-source-entity"
+          }
+        ],
+        "limits": [
+          "Manifest-regeneration policy v1 (the default) identifies entities by [service, namespace, code]; Wiki identity profile 2 adds the kind for this service, so a changed entity is unlocatable and the receipt fails. Opt-in policy v2 (request.manifestPolicy version 2, schema revision 1.3) uses the profile-2 identity and certifies the regenerated manifest offline on synthetic fixtures only; Wiki does not select it yet and no live check ran."
+        ]
+      }
+    },
+    {
+      "service": "permissionsSettings",
+      "kind": "applicationDirectoriesPermissions",
+      "serializers": [
+        {
+          "id": "entity-json",
+          "preserve": "unknown",
+          "evidence": []
+        }
+      ],
+      "preserve": {
+        "status": "unknown",
+        "basis": "none",
+        "evidence": [],
+        "limits": [
+          "No committed fixture or export run proves this kind."
+        ]
+      },
+      "edit": {
+        "status": "unsupported",
+        "operations": [],
+        "evidence": [
+          {
+            "kind": "policy",
+            "path": "tools/native-materialization/contract.mjs",
+            "name": "unlocatable-source-entity"
+          }
+        ],
+        "limits": [
+          "Manifest-regeneration policy v1 (the default) identifies entities by [service, namespace, code]; Wiki identity profile 2 adds the kind for this service, so a changed entity is unlocatable and the receipt fails. Opt-in policy v2 (request.manifestPolicy version 2, schema revision 1.3) uses the profile-2 identity and certifies the regenerated manifest offline on synthetic fixtures only; Wiki does not select it yet and no live check ran."
+        ]
+      }
+    },
+    {
+      "service": "permissionsSettings",
+      "kind": "pagePermissions",
+      "serializers": [
+        {
+          "id": "entity-json",
+          "preserve": "unknown",
+          "evidence": []
+        }
+      ],
+      "preserve": {
+        "status": "unknown",
+        "basis": "none",
+        "evidence": [],
+        "limits": [
+          "No committed fixture or export run proves this kind."
+        ]
+      },
+      "edit": {
+        "status": "unsupported",
+        "operations": [],
+        "evidence": [
+          {
+            "kind": "policy",
+            "path": "tools/native-materialization/contract.mjs",
+            "name": "unlocatable-source-entity"
+          }
+        ],
+        "limits": [
+          "Manifest-regeneration policy v1 (the default) identifies entities by [service, namespace, code]; Wiki identity profile 2 adds the kind for this service, so a changed entity is unlocatable and the receipt fails. Opt-in policy v2 (request.manifestPolicy version 2, schema revision 1.3) uses the profile-2 identity and certifies the regenerated manifest offline on synthetic fixtures only; Wiki does not select it yet and no live check ran."
+        ]
+      }
+    },
+    {
+      "service": "permissionsSettings",
+      "kind": "permissionSettings",
+      "serializers": [
+        {
+          "id": "entity-json",
+          "preserve": "proven-offline",
+          "evidence": [
+            {
+              "kind": "test",
+              "path": "tools/config-workspace/test_roundtrip.py",
+              "name": "test_noedit_stage_preserves_every_original_path_and_byte"
+            }
+          ]
+        }
+      ],
+      "preserve": {
+        "status": "proven-offline",
+        "basis": "synthetic-fixture",
+        "evidence": [
+          {
+            "kind": "test",
+            "path": "tools/config-workspace/test_roundtrip.py",
+            "name": "test_noedit_stage_preserves_every_original_path_and_byte"
+          },
+          {
+            "kind": "test",
+            "path": "tools/config-workspace/test_roundtrip.py",
+            "name": "test_native_pack_of_the_noedit_stage_reproduces_the_original"
+          },
+          {
+            "kind": "fixture",
+            "path": "tools/native-materialization/fixtures/contracts-noedit.e365",
+            "name": null
+          },
+          {
+            "kind": "task-record",
+            "path": "docs/task-records/native-60-noedit-roundtrip-20261014/README.md",
+            "name": null
+          }
+        ],
+        "limits": [
+          "Proven on the committed synthetic Contracts-shaped fixture only (evidence basis synthetic-fixture).",
+          "Live native-package-check, service-compile, import and Target read-back are unavailable; offline proof is not native acceptance."
+        ]
+      },
+      "edit": {
+        "status": "unsupported",
+        "operations": [],
+        "evidence": [
+          {
+            "kind": "policy",
+            "path": "tools/native-materialization/contract.mjs",
+            "name": "unlocatable-source-entity"
+          }
+        ],
+        "limits": [
+          "Manifest-regeneration policy v1 (the default) identifies entities by [service, namespace, code]; Wiki identity profile 2 adds the kind for this service, so a changed entity is unlocatable and the receipt fails. Opt-in policy v2 (request.manifestPolicy version 2, schema revision 1.3) uses the profile-2 identity and certifies the regenerated manifest offline on synthetic fixtures only; Wiki does not select it yet and no live check ran."
+        ]
+      }
+    },
+    {
+      "service": "processor",
+      "kind": "custom_activity",
+      "serializers": [
+        {
+          "id": "entity-json",
+          "preserve": "unknown",
+          "evidence": []
+        }
+      ],
+      "preserve": {
+        "status": "unknown",
+        "basis": "none",
+        "evidence": [],
+        "limits": [
+          "No committed fixture or export run proves this kind."
+        ]
+      },
+      "edit": {
+        "status": "unsupported",
+        "operations": [],
+        "evidence": [
+          {
+            "kind": "policy",
+            "path": "tools/native-materialization/contract.mjs",
+            "name": "unlocatable-source-entity"
+          }
+        ],
+        "limits": [
+          "Manifest-regeneration policy v1 (the default) identifies entities by [service, namespace, code]; Wiki identity profile 2 adds the kind for this service, so a changed entity is unlocatable and the receipt fails. Opt-in policy v2 (request.manifestPolicy version 2, schema revision 1.3) uses the profile-2 identity and certifies the regenerated manifest offline on synthetic fixtures only; Wiki does not select it yet and no live check ran."
+        ]
+      }
+    },
+    {
+      "service": "processor",
+      "kind": "custom_activity_group",
+      "serializers": [
+        {
+          "id": "entity-json",
+          "preserve": "unknown",
+          "evidence": []
+        }
+      ],
+      "preserve": {
+        "status": "unknown",
+        "basis": "none",
+        "evidence": [],
+        "limits": [
+          "No committed fixture or export run proves this kind."
+        ]
+      },
+      "edit": {
+        "status": "unsupported",
+        "operations": [],
+        "evidence": [
+          {
+            "kind": "policy",
+            "path": "tools/native-materialization/contract.mjs",
+            "name": "unlocatable-source-entity"
+          }
+        ],
+        "limits": [
+          "Manifest-regeneration policy v1 (the default) identifies entities by [service, namespace, code]; Wiki identity profile 2 adds the kind for this service, so a changed entity is unlocatable and the receipt fails. Opt-in policy v2 (request.manifestPolicy version 2, schema revision 1.3) uses the profile-2 identity and certifies the regenerated manifest offline on synthetic fixtures only; Wiki does not select it yet and no live check ran."
+        ]
+      }
+    },
+    {
+      "service": "processor",
+      "kind": "template",
+      "serializers": [
+        {
+          "id": "entity-json",
+          "preserve": "proven-offline",
+          "evidence": [
+            {
+              "kind": "test",
+              "path": "tools/config-workspace/test_roundtrip.py",
+              "name": "test_noedit_stage_preserves_every_original_path_and_byte"
+            }
+          ]
+        },
+        {
+          "id": "processor-template-script-sidecar",
+          "preserve": "proven-offline",
+          "evidence": [
+            {
+              "kind": "test",
+              "path": "tools/config-workspace/test_roundtrip.py",
+              "name": "test_archive_build_derives_exactly_the_native_unpack_sidecars"
+            },
+            {
+              "kind": "test",
+              "path": "tools/config-workspace/test_roundtrip.py",
+              "name": "test_entity_json_is_never_replaced_by_its_sidecar"
+            },
+            {
+              "kind": "test",
+              "path": "tools/config-workspace/test_roundtrip.py",
+              "name": "test_json_only_edit_of_a_sidecar_value_is_refused"
+            }
+          ]
+        }
+      ],
+      "preserve": {
+        "status": "proven-offline",
+        "basis": "native-real-export",
+        "evidence": [
+          {
+            "kind": "test",
+            "path": "tools/config-workspace/test_roundtrip.py",
+            "name": "test_noedit_stage_preserves_every_original_path_and_byte"
+          },
+          {
+            "kind": "test",
+            "path": "tools/config-workspace/test_roundtrip.py",
+            "name": "test_native_pack_of_the_noedit_stage_reproduces_the_original"
+          },
+          {
+            "kind": "fixture",
+            "path": "tools/native-materialization/fixtures/contracts-noedit.e365",
+            "name": null
+          },
+          {
+            "kind": "task-record",
+            "path": "docs/task-records/native-60-noedit-roundtrip-20261014/README.md",
+            "name": null
+          }
+        ],
+        "limits": [
+          "Live native-package-check, service-compile, import and Target read-back are unavailable; offline proof is not native acceptance."
+        ]
+      },
+      "edit": {
+        "status": "unsupported",
+        "operations": [],
+        "evidence": [
+          {
+            "kind": "test",
+            "path": "tools/native-materialization/samebase.test.mjs",
+            "name": "process template changes stay refused under manifest policy v1 (3-part entity identity)"
+          },
+          {
+            "kind": "policy",
+            "path": "tools/native-materialization/contract.mjs",
+            "name": "unlocatable-source-entity"
+          },
+          {
+            "kind": "test",
+            "path": "tools/native-materialization/samebase.test.mjs",
+            "name": "manifest policy 2 certifies the process template change that policy 1 refuses"
+          }
+        ],
+        "limits": [
+          "Manifest-regeneration policy v1 (the default) identifies entities by [service, namespace, code]; Wiki identity profile 2 adds the kind for this service, so a changed entity is unlocatable and the receipt fails. Opt-in policy v2 (request.manifestPolicy version 2, schema revision 1.3) uses the profile-2 identity and certifies the regenerated manifest offline on synthetic fixtures only; Wiki does not select it yet and no live check ran.",
+          "Process runtime has no supported compiler in this repository: edit stays unsupported until a live processor service-compile exists, even under policy v2."
+        ]
+      }
+    },
+    {
+      "service": "widgets",
+      "kind": "widget",
+      "serializers": [
+        {
+          "id": "entity-json",
+          "preserve": "proven-offline",
+          "evidence": [
+            {
+              "kind": "test",
+              "path": "tools/config-workspace/test_roundtrip.py",
+              "name": "test_noedit_stage_preserves_every_original_path_and_byte"
+            }
+          ]
+        },
+        {
+          "id": "descriptor-script-sidecars",
+          "preserve": "proven-offline",
+          "evidence": [
+            {
+              "kind": "test",
+              "path": "tools/config-workspace/test_roundtrip.py",
+              "name": "test_archive_build_derives_exactly_the_native_unpack_sidecars"
+            },
+            {
+              "kind": "test",
+              "path": "tools/config-workspace/test_roundtrip.py",
+              "name": "test_json_only_edit_of_a_sidecar_value_is_refused"
+            }
+          ]
+        },
+        {
+          "id": "template-code-node-sidecars",
+          "preserve": "proven-offline",
+          "evidence": [
+            {
+              "kind": "test",
+              "path": "tools/config-workspace/test_roundtrip.py",
+              "name": "test_archive_build_derives_exactly_the_native_unpack_sidecars"
+            },
+            {
+              "kind": "test",
+              "path": "tools/config-workspace/test_roundtrip.py",
+              "name": "test_conflicting_or_unsafe_template_nodes_are_not_guessed"
+            }
+          ]
+        }
+      ],
+      "preserve": {
+        "status": "proven-offline",
+        "basis": "native-real-export",
+        "evidence": [
+          {
+            "kind": "test",
+            "path": "tools/config-workspace/test_roundtrip.py",
+            "name": "test_noedit_stage_preserves_every_original_path_and_byte"
+          },
+          {
+            "kind": "test",
+            "path": "tools/config-workspace/test_roundtrip.py",
+            "name": "test_native_pack_of_the_noedit_stage_reproduces_the_original"
+          },
+          {
+            "kind": "fixture",
+            "path": "tools/native-materialization/fixtures/contracts-noedit.e365",
+            "name": null
+          },
+          {
+            "kind": "task-record",
+            "path": "docs/task-records/native-60-noedit-roundtrip-20261014/README.md",
+            "name": null
+          },
+          {
+            "kind": "test",
+            "path": "tools/config-workspace/test_roundtrip.py",
+            "name": "test_archive_build_derives_exactly_the_native_unpack_sidecars"
+          }
+        ],
+        "limits": [
+          "Only template code nodes with a plain identifier id are derived; embedded html nodes stay in the entity JSON.",
+          "Live native-package-check, service-compile, import and Target read-back are unavailable; offline proof is not native acceptance."
+        ]
+      },
+      "edit": {
+        "status": "proven-offline",
+        "operations": [
+          {
+            "op": "replace",
+            "basis": "native-real-export"
+          },
+          {
+            "op": "add",
+            "basis": "synthetic-fixture"
+          },
+          {
+            "op": "remove",
+            "basis": "synthetic-fixture"
+          }
+        ],
+        "evidence": [
+          {
+            "kind": "test",
+            "path": "tools/config-workspace/test_samebase.py",
+            "name": "test_disjoint_changes_take_each_component_from_its_side_and_preserve_everything_else"
+          },
+          {
+            "kind": "test",
+            "path": "tools/config-workspace/test_samebase.py",
+            "name": "test_removal_drops_component_files_and_manifest_record"
+          },
+          {
+            "kind": "test",
+            "path": "tools/config-workspace/test_samebase.py",
+            "name": "test_native_pack_reproduces_the_merged_package"
+          },
+          {
+            "kind": "test",
+            "path": "tools/native-materialization/samebase.test.mjs",
+            "name": "a materialized same-base merge is a valid E1 request with both editions as originals"
+          },
+          {
+            "kind": "test",
+            "path": "tools/native-materialization/samebase.test.mjs",
+            "name": "regenerated manifests satisfy elma365-manifest-regeneration@1 and a tampered one does not"
+          },
+          {
+            "kind": "task-record",
+            "path": "docs/task-records/native-60-e4-same-base/README.md",
+            "name": null
+          }
+        ],
+        "limits": [
+          "Replace is proven on the committed Contracts export editions (E4); add and remove on the synthetic fixture only.",
+          "Whole component only; a script change needs service-compile (elma-dev compile --verify) to refresh runtime, unavailable offline.",
+          "Live native-package-check, service-compile, import and Target read-back are unavailable; offline proof is not native acceptance."
+        ]
+      }
+    }
+  ],
+  "publicationReady": false,
+  "executionEnabled": false,
+  "catalogDigest": "1f926e601b7a163ceb13609f3ba9c9f0dd281f37e8b611063109b3a4df7bb53d"
+}
