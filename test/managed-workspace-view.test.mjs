@@ -208,7 +208,9 @@ test('UX-06: search matches name, code, namespace and key; captured artifacts re
   assert.deepEqual(summary.tasks, visual.nodes.filter(node => ['user', 'assignment'].includes(node.type)).map(node => node.name));
   assert.equal(summary.steps, visual.nodes.length); assert.equal(summary.more, 0);
   const task = visual.nodes.find(node => node.type === 'user'), lane = laneOf(visual, task);
-  assert.ok(lane === null || visual.lanes.includes(lane));
+  assert.equal(lane.name, 'Согласующий', 'the lane that contains the step');
+  assert.equal(laneOf({ ...visual, lanes: visual.lanes.map(row => ({ ...row, supported: false })) }, task), null, 'an unsupported lane never names who does it');
+  assert.equal(laneOf({ ...visual, lanes: [] }, task), null);
   assert.equal(laneOf(visual, { position: null }), null);
   assert.deepEqual(processSummary({ nodes: [] }), { tasks: [], more: 0, steps: 0 });
 });

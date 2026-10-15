@@ -11,6 +11,7 @@ export function mountSnapshotVisual(model={},actions={}) {
   root.append(style,el('h2','Процесс и форма'),el('p','Схема восстановлена из экспорта. Поведение и права ELMA не проверены.'));
   if(model.loading){root.append(el('p','Загружаем визуальный обзор…'));return root;}
   if(model.error){const e=el('p',model.error);e.setAttribute('role','alert');root.append(e);if(actions.retry){const b=el('button','Повторить загрузку');b.type='button';b.onclick=actions.retry;root.append(b);}return root;}
+  if(model.processLimit){root.append(el('p',flowLabels.tooManyProcesses+' · '+model.processLimit));return root;}
   if(!model.processes?.length){root.append(el('p','В этом снимке нет поддерживаемой схемы процесса. Исходный файл сохранён.'));return root;}
   if(model.synthetic)root.append(el('p','Учебный пример. Данные и сценарии синтетические.'));
   const badges=el('div');badges.className='visual-evidence';

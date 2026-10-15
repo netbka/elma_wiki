@@ -900,7 +900,8 @@
         "managed-workspace--about-error",
         "managed-workspace--flows",
         "managed-workspace--flows-error",
-        "managed-workspace--screens"
+        "managed-workspace--screens",
+        "managed-workspace--flows-unknown"
       ],
       "requiredVisibleStates": [
         "empty",
@@ -961,7 +962,8 @@
         "about-error",
         "flows",
         "flows-error",
-        "screens"
+        "screens",
+        "flows-unknown"
       ],
       "sources": [
         "docs/workflows/solutions.md",

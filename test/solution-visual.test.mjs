@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { projectProcess, relatedForm } from '../web/visual/model.js';
 import { visualSource } from '../web/visual/fixtures.js';
-import { snapshotVisual, sourceAnchorIndex } from '../lib/solution-visual.mjs';
+import { snapshotVisual, sourceAnchorIndex, SOURCE_ANCHOR_VERSION } from '../lib/solution-visual.mjs';
 import { zip } from './fixture.mjs';
 import fs from 'node:fs/promises';
 import os from 'node:os';
@@ -141,4 +141,28 @@ test('UX-06: screens and data objects project only their declared fields; a miss
   assert.equal(plain.fields, null);
   assert.ok(!JSON.stringify(visual).includes('secret'));
   assert.deepEqual(card.object, ['widgets', 'travel', 'card']);
+});
+
+test('UX-06 follow-ups: a null field keeps its slot in the pointer; past 50 processes screens and data are still projected', async () => {
+  const widgets = { entities: [{ code: 'card', namespace: 'travel', kind: 'WIDGET', name: 'Заявка', path: 'card.json' }] };
+  const card = { descriptor: { fields: [null, { code: 'amount', name: 'Сумма', type: 'MONEY', required: true }] } };
+  const small = await snapshotVisual(await zip([['package.json', { code: 'synthetic_slots', type: 'SOLUTION' }], ['widgets/manifest.json', widgets], ['widgets/card.json', card]]), 'a');
+  assert.deepEqual(small.objects[0].fields.map(field => [field.code, field.pointer]), [['amount', 'widgets/card.json#/descriptor/fields/1']]);
+  assert.equal(small.processLimit, 0);
+  const many = Array.from({ length: 51 }, (_, i) => ['p' + i, visualSource]);
+  const big = await snapshotVisual(await zip([['package.json', { code: 'synthetic_many', type: 'SOLUTION' }],
+    ['processor/manifest.json', { entities: many.map(([code]) => ({ code, namespace: 'travel', kind: 'PROCESS', path: code + '.json' })) }],
+    ...many.map(([code, source]) => ['processor/' + code + '.json', source]), ['widgets/manifest.json', widgets], ['widgets/card.json', card]]), 'b');
+  assert.equal(big.processLimit, 51); assert.deepEqual(big.processes, []);
+  assert.equal(big.objects.length, 1); assert.equal(big.objects[0].fields.length, 1);
+  // Past the limit, step anchors are unavailable: a finding on a replaced change reads 'ambiguous', never 'removed'.
+  const bigBytes = await zip([['package.json', { code: 'synthetic_many', type: 'SOLUTION' }],
+    ['processor/manifest.json', { entities: many.map(([code]) => ({ code, namespace: 'travel', kind: 'PROCESS', path: code + '.json' })) }],
+    ...many.map(([code, source]) => ['processor/' + code + '.json', source])]);
+  assert.deepEqual(await sourceAnchorIndex(bigBytes, 'b'), { version: SOURCE_ANCHOR_VERSION, available: false, nodes: [] });
+  const { anchorStatus } = await import('../lib/change-reviews.mjs');
+  const key = JSON.stringify(['processor', 'travel', 'p0']);
+  const artifact = { scope: 'full', ambiguities: [], components: [{ key, digest: 'd' }] };
+  const pending = { artifact, sourceAnchors: await sourceAnchorIndex(bigBytes, 'b') };
+  assert.equal(anchorStatus({ anchor: { key, digest: 'd' }, sourceAnchor: { nodeId: 'review', fingerprint: 'f' } }, pending), 'ambiguous');
 });
