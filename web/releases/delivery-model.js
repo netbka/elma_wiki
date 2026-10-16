@@ -24,7 +24,26 @@ export function deliveryPanelView(release, { capabilities, connections = [], att
   // AR-05: an edited candidate has no native package (elma365#60), so it is never delivered.
   const edited = release.candidate?.provenance === 'supported-edit';
   const viaBridge = latest?.connection?.adapter === 'bridge';
-  return { latest, current, synthetic, bridge, enabled, selectable, usable, bridges, connections: connections.filter(c => c.role === 'target'),
+  // MR-08: an observed read-back reconciles the outcome; retry and recovery depend only on it.
+  const reconciliation = latest?.evidence?.reconciliation || null;
+  const observed = enabled && current && latest?.state === 'verification-failed' && !!reconciliation && reconciliation.mode !== 'reconcile-only' && !latest.retriedBy;
+  // A diverged (partial) install is recovered forward only when the adapter declared an idempotent re-import.
+  const reimport = latest?.capabilities?.reimport === 'idempotent';
+  // MR-08 promotion: the latest attempt, verified for the current candidate on a non-production Target,
+  // goes to another usable Target on the same platform version. PROD is never a destination here:
+  // the server needs an owner grant it never constructs and a typed PROD confirmation no route accepts.
+  const promotable = enabled && current && !active && latest?.state === 'verified' && latest.verificationCurrent !== false && latest.connection?.environment !== 'prod' && !edited;
+  const promotionTarget = connection => promotable && usable(connection) && connection.id !== latest.connection.id &&
+    connection.probe.identity.host !== latest.targetIdentity?.host && !!connection.probe.identity.version && connection.probe.identity.version === latest.targetIdentity?.version;
+  const targets = connections.filter(c => c.role === 'target');
+  return { latest, current, synthetic, bridge, enabled, selectable, usable, bridges, connections: targets,
+    reconciliation, promotable, promotionTarget,
+    promotionDestinations: promotable ? targets.filter(c => c.id !== latest.connection.id) : [],
+    prodRefused: targets.some(c => c.environment === 'prod'),
+    canPromote: promotable && targets.some(promotionTarget),
+    canRetry: observed && reconciliation.outcome === 'not-applied',
+    canRecover: observed && reconciliation.outcome === 'diverged' && reimport,
+    recoveryRefused: observed && reconciliation.outcome === 'diverged' && !reimport,
     canPrepare: enabled && approved && !edited && !active,
     canConfirm: enabled && current && latest?.state === 'prepared' && usable(connections.find(c => c.id === latest.connection?.id)),
     canCancel: latest?.state === 'prepared',

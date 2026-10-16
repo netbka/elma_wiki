@@ -37,14 +37,32 @@ const presetFixture = state => {
   const bridge = { ...base.data.bridges[0], identity, worker: 'elma-dev bridge @ operator-pc → dev2' };
   return { release: base.release, data: { ...base.data, connections: [dev, dev2], bridges: [bridge] } };
 };
+// MR-08 promotion, reconciliation and retry states on synthetic Targets. PROD appears only as refused.
+const promotionStates = { applied: 'verified', 'promotion-drift': 'verified', 'prod-refused': 'verified', promoted: 'prepared', 'not-applied': 'verification-failed', 'forward-recovery': 'verification-failed' };
+const promotionFixture = state => {
+  const base = fixture(promotionStates[state]), [source] = base.data.connections, attempt = base.data.attempts[0];
+  const second = { ...source, id: 'synthetic-connection-2', name: 'Учебный TEST 2', probe: { ok: true, protectedHost: false, identity: { host: 'test-2.example.invalid', version: 'synthetic' } } };
+  const prod = { ...source, id: 'synthetic-prod', name: 'PROD', environment: 'prod', probe: { ok: true, protectedHost: false, identity: { host: 'prod.example.invalid', version: 'synthetic' } } };
+  const connections = state === 'prod-refused' ? [source, prod] : [source, second, prod];
+  if (state === 'promoted') Object.assign(attempt, { connection: second, targetIdentity: second.probe.identity, promotion: { fromAttemptId: 'synthetic-verified', idempotencyKey: 'synthetic', fromConnection: { id: source.id, name: source.name, environment: 'test', adapter: 'synthetic' }, fromTargetIdentity: source.probe.identity } });
+  else if (attempt.state === 'verified') Object.assign(attempt, { verificationCurrent: true, candidateStatus: 'current' });
+  const outcome = { 'not-applied': 'not-applied', 'forward-recovery': 'diverged' }[state] || (attempt.state === 'verified' ? 'applied' : null);
+  if (outcome) attempt.evidence.reconciliation = { outcome, fromState: 'deployed-unverified', readBackInventoryHash: 'b'.repeat(64) };
+  // Synthetic adapter that declares an idempotent re-import: no live adapter declares it.
+  if (state === 'forward-recovery') attempt.capabilities = { deploy: true, readBack: true, reimport: 'idempotent' };
+  return { release: releaseView(base.release, { attempts: 1, latest: { ...attempt, connectionName: attempt.connection.name, adapter: 'synthetic' } }), data: { ...base.data, connections } };
+};
 function story(state) {
-  const { release, data } = state.startsWith('bridge-presets') ? presetFixture(state) : state.startsWith('bridge-') ? bridgeFixture(state) : fixture(state === 'target-reserved' ? 'ready' : state === 'partial-install' ? 'verification-failed' : state === 'stale-unresolved' ? 'failed' : state);
+  const { release, data } = state in promotionStates ? promotionFixture(state) : state.startsWith('bridge-presets') ? presetFixture(state) : state.startsWith('bridge-') ? bridgeFixture(state) : fixture(state === 'target-reserved' ? 'ready' : state === 'partial-install' ? 'verification-failed' : state === 'stale-unresolved' ? 'failed' : state);
   // MR-08 synthetic partial install: the read-back matches neither the previous state nor the candidate.
   if (state === 'partial-install') data.attempts[0].evidence.reconciliation = { outcome: 'diverged', fromState: 'failed', readBackInventoryHash: 'b'.repeat(64) };
   // MR-08: the operation failed and the release was then edited; only a reconcile-only read-back is offered.
   if (state === 'stale-unresolved') data.attempts[0].releaseRevision = 3;
   const unavailable = async () => { throw Error('Учебное состояние Storybook: выберите другую story. Здесь операции не запускаются.'); };
-  const act = state === 'target-reserved' ? async () => { throw Object.assign(Error('На этом Target уже есть незавершённая доставка. Завершите, проверьте или отмените её подготовку.'), { status: 409 }); } : unavailable;
+  const act = state === 'target-reserved' ? async () => { throw Object.assign(Error('На этом Target уже есть незавершённая доставка. Завершите, проверьте или отмените её подготовку.'), { status: 409 }); }
+    // MR-08: the coordinator inspects the destination afresh and refuses a drifted state before any attempt exists.
+    : state === 'promotion-drift' ? async (_id, input) => { if (input.action !== 'promote' || input.connectionId !== 'synthetic-connection-2') return unavailable(); throw Object.assign(Error('Состояние назначения отличается от состояния, на котором кандидат проверен (drift). Продвижение заблокировано'), { status: 409 }); }
+    : unavailable;
   return mountRelease({ release, open: unavailable, change: unavailable, preview: unavailable, download: unavailable,
     deliveryClient: { load: async () => { if (state === 'load-error') throw Error('Учебная ошибка загрузки состояния'); return data; }, act, refresh: async () => release, createConnection: unavailable, probeConnection: unavailable, removeConnection: unavailable, createBridge: unavailable, removeBridge: unavailable } });
 }
@@ -78,6 +96,31 @@ export const PartialOutcome = { render: () => story('partial-outcome') };
 export const Failed = { render: () => story('failed') };
 export const PartialInstall = { render: () => story('partial-install') };
 export const StaleUnresolved = { render: () => story('stale-unresolved') };
+export const Applied = { render: () => story('applied') };
+export const NotApplied = { render: () => story('not-applied') };
+export const ForwardRecovery = { render: () => story('forward-recovery') };
+export const PromotionDrift = { render: () => story('promotion-drift'), play: async ({ canvasElement }) => {
+  for (let attempt = 0; attempt < 50; attempt++) {
+    const picker = canvasElement.querySelector('[aria-label="Продвижение проверенного кандидата"] select');
+    if (picker) {
+      if ([...picker.options].find(option => option.value === 'synthetic-prod')?.disabled !== true) throw Error('PROD must not be a selectable promotion destination');
+      if (!picker.value) { picker.value = 'synthetic-connection-2'; picker.dispatchEvent(new Event('change', { bubbles: true })); }
+      const promote = [...canvasElement.querySelectorAll('button')].find(button => button.textContent === 'Подготовить продвижение на Target назначения' && !button.disabled);
+      if (promote) {
+        promote.click();
+        for (let observation = 0; observation < 50; observation++) {
+          if (canvasElement.querySelector('[role="alert"]')?.textContent.includes('(drift)')) return;
+          await new Promise(resolve => setTimeout(resolve, 20));
+        }
+        throw Error('Promotion drift refusal was not displayed');
+      }
+    }
+    await new Promise(resolve => setTimeout(resolve, 20));
+  }
+  throw Error('Promotion fixture did not load');
+} };
+export const Promoted = { render: () => story('promoted') };
+export const ProdRefused = { render: () => story('prod-refused') };
 export const Blocked = { render: () => story('blocked') };
 export const Cancelled = { render: () => story('cancelled') };
 export const Stale = { render: () => story('stale') };

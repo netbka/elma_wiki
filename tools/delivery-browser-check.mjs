@@ -26,6 +26,7 @@ try {
     return releases.change(release.id, 'local', { revision: release.revision, action: 'approve', reason: 'Только учебная проверка' });
   };
   const positive = await approved('Учебная доставка'), cancelled = await approved('Отмена подготовки'), unapplied = await approved('Успех без изменений'), lost = await approved('Потерянный ответ');
+  const promoted = await approved('Продвижение проверенного кандидата'), retried = await approved('Повтор после сверки'), recovered = await approved('Восстановление частичной установки');
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   const base = `http://127.0.0.1:${server.address().port}`;
   browser = await chromium.launch({ headless: true, ...(process.env.BROWSER_CHANNEL ? { channel: process.env.BROWSER_CHANNEL } : {}) });
@@ -134,10 +135,78 @@ try {
   await api(`/api/connections/${protectedConnection.id}/probe`, {});
   await page.reload();
   await panel().getByText(/Фактический узел входит в защищённый список/).waitFor();
-  assert.equal(await panel().locator(`option[value="${protectedConnection.id}"]`).isDisabled(), true);
+  assert.equal(await panel().getByLabel('Учебный стенд для доставки', { exact: true }).locator(`option[value="${protectedConnection.id}"]`).isDisabled(), true);
+  assert.equal(await panel().getByLabel('Target назначения для продвижения', { exact: true }).locator(`option[value="${protectedConnection.id}"]`).isDisabled(), true);
   await panel().getByRole('button', { name: 'Удалить подключение — Временный учебный стенд', exact: true }).click();
   await panel().getByRole('heading', { name: 'Временный учебный стенд', exact: true }).waitFor({ state: 'detached' });
   assert.equal((await api('/api/connections')).some(c => c.id === disposable.id), false);
+
+  // MR-08 through the production renderer and the existing release delivery route only: promotion to another
+  // synthetic Target, retry after a not-applied reconciliation and forward recovery of a diverged install.
+  await page.setViewportSize({ width: 1280, height: 900 });
+  const posts = [];
+  page.on('request', request => { if (request.method() === 'POST' && /\/api\/releases\/[^/]+\/delivery$/.test(new URL(request.url()).pathname)) posts.push({ path: new URL(request.url()).pathname, action: request.postDataJSON().action, connectionId: request.postDataJSON().connectionId }); });
+  const synthetic = (name, options, environment = 'test') => api('/api/connections', { name, role: 'target', environment, adapter: 'synthetic', adapterOptions: options });
+  const identity = host => ({ host, version: '2025.10.97', company: 'synthetic' });
+  const deliver = async (release, attempt) => {
+    await confirm(attempt);
+    await panel().getByRole('button', { name: 'Прочитать и проверить результат', exact: true }).click();
+  };
+  const action = async (release, name) => {
+    const response = page.waitForResponse(r => r.url().endsWith(`/api/releases/${release.id}/delivery`) && r.request().method() === 'POST');
+    await panel().getByRole('button', { name, exact: true }).click();
+    const result = await response; assert.equal(result.status(), 201); const next = await result.json();
+    await panel().getByRole('heading', { name: 'Последняя попытка: Подготовлена', exact: true }).waitFor(); return next;
+  };
+  const verifiedHeading = () => panel().getByRole('heading', { name: 'Последняя попытка: Проверено чтением результата', exact: true }).waitFor();
+  const promoA = await synthetic('Учебный TEST A', { identity: identity('promo-a.example.invalid') }), promoB = await synthetic('Учебный TEST B', { identity: identity('promo-b.example.invalid') });
+  const prod = await synthetic('Учебный PROD', { identity: identity('prod-promo.example.invalid') }, 'prod');
+  for (const target of [promoB, prod]) await api(`/api/connections/${target.id}/probe`, {});
+  await open(promoted); await deliver(promoted, await prepare(promoted, promoA)); await verifiedHeading();
+  await panel().getByText('Сверка read-back: изменения применены, Target совпал с кандидатом.', { exact: true }).waitFor();
+  const promotionPanel = panel().getByRole('region', { name: 'Продвижение проверенного кандидата', exact: true });
+  await promotionPanel.getByText(/PROD: продвижение из интерфейса невозможно/).waitFor();
+  assert.equal(await promotionPanel.locator(`option[value="${prod.id}"]`).isDisabled(), true);
+  assert.equal(await promotionPanel.getByRole('button', { name: 'Подготовить продвижение на Target назначения', exact: true }).isDisabled(), true);
+  await promotionPanel.getByLabel('Target назначения для продвижения', { exact: true }).selectOption(promoB.id);
+  const promotion = await action(promoted, 'Подготовить продвижение на Target назначения');
+  assert.equal(promotion.connection.id, promoB.id); assert.ok(promotion.promotion.fromAttemptId);
+  await panel().getByText(/Продвижение кандидата, проверенного на Target «Учебный TEST A» \(promo-a.example.invalid\)/).waitFor();
+  await deliver(promoted, promotion); await verifiedHeading();
+  const promotedAttempts = await api(`/api/releases/${promoted.id}/delivery`);
+  assert.deepEqual(promotedAttempts.map(a => [a.connection.id, a.state]), [[promoA.id, 'verified'], [promoB.id, 'verified']]);
+  assert.equal(promotedAttempts[1].promotion.fromAttemptId, promotedAttempts[0].id);
+
+  const retryTarget = await synthetic('Учебный TEST повтора', { identity: identity('retry.example.invalid'), sequence: ['unapplied', 'apply'] });
+  await open(retried); await deliver(retried, await prepare(retried, retryTarget));
+  await panel().getByRole('heading', { name: 'Последняя попытка: Результат проверки не совпал', exact: true }).waitFor();
+  await panel().getByText('Сверка read-back: изменения не применены, Target в прежнем состоянии.', { exact: true }).waitFor();
+  const retry = await action(retried, 'Подготовить повтор после сверки');
+  await panel().getByText('Повтор после сверки read-back: прежняя попытка ничего не применила.', { exact: true }).waitFor();
+  await deliver(retried, retry); await verifiedHeading();
+  const retriedAttempts = await api(`/api/releases/${retried.id}/delivery`);
+  assert.equal(retriedAttempts[1].retryOf.attemptId, retriedAttempts[0].id); assert.equal(retriedAttempts[1].retryOf.mode, 'retry');
+
+  const recoveryTarget = await synthetic('Учебный TEST восстановления', { identity: identity('recover.example.invalid'), sequence: ['diverge', 'apply'], reimport: 'idempotent' });
+  await open(recovered); await confirm(await prepare(recovered, recoveryTarget));
+  await panel().getByRole('heading', { name: 'Последняя попытка: Ошибка операции', exact: true }).waitFor();
+  assert.equal(await panel().getByRole('button', { name: 'Подготовить учебную доставку', exact: true }).isDisabled(), true);
+  await panel().getByRole('button', { name: 'Прочитать и проверить результат', exact: true }).click();
+  await panel().getByText(/Сверка read-back: частичная установка/).waitFor();
+  const recovery = await action(recovered, 'Подготовить восстановление повторным импортом');
+  await panel().getByText(/Восстановление частичной установки повторным идемпотентным импортом/).waitFor();
+  await deliver(recovered, recovery); await verifiedHeading();
+  assert.equal((await api(`/api/releases/${recovered.id}/delivery`))[1].retryOf.mode, 'forward-recovery');
+  // Every MR-08 write went to the existing coordinator route; PROD was never a requested destination.
+  assert.ok(posts.length >= 12);
+  for (const post of posts) {
+    assert.ok([promoted, retried, recovered].some(release => post.path === `/api/releases/${release.id}/delivery`), post.path);
+    assert.ok(['prepare', 'confirm', 'verify', 'promote', 'retry'].includes(post.action), post.action);
+    assert.notEqual(post.connectionId, prod.id);
+  }
+  assert.deepEqual(posts.filter(post => post.action === 'promote').map(post => post.connectionId), [promoB.id]);
+  assert.equal(posts.filter(post => post.action === 'retry').length, 2);
+  await open(lost);
 
   // Isolated persisted evidence fixtures test the renderer; delivery.test.mjs covers comparator rejection.
   const evidenceFile = path.join(directory, 'delivery', 'attempts', lost.id, uncertain.id + '.json');
@@ -155,7 +224,7 @@ try {
   await page.reload(); await panel().getByText(/Проверка результата не подтверждена/).waitFor();
   assert.equal(await panel().getByRole('button', { name: 'Подтвердить учебную операцию', exact: true }).count(), 0);
   assert.deepEqual(errors, []);
-  console.log('Delivery UI: strict policy, extra files, invalid evidence, identity, confirmation, read-back, stale evidence, cancellation, lost-response recovery, protected Target, connection removal and mobile passed.');
+  console.log('Delivery UI: strict policy, extra files, invalid evidence, identity, confirmation, read-back, stale evidence, cancellation, lost-response recovery, protected Target, connection removal, MR-08 promotion (PROD refused), retry after not-applied, forward recovery and mobile passed.');
 } finally {
   await browser?.close();
   if (server.listening) await new Promise(resolve => server.close(resolve));

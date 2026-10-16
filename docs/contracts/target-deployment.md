@@ -232,7 +232,30 @@ recovery for every namespace (legacy, shared original, composed). There is no
 second coordinator. All evidence is synthetic: `node --test
 test/delivery-promotion.test.mjs test/composed-delivery.test.mjs` uses fictional
 hosts and the synthetic adapter only. No live, native, PROD or business result
-is claimed, and no UI control exists yet for these actions.
+is claimed.
+
+The shared delivery renderer (`web/releases/delivery.js` with
+`web/releases/delivery-model.js`, used by legacy releases, Solution handoffs and
+the composer) exposes these actions only through the existing per-namespace
+delivery route (PLAN-01 A1). It shows the observed reconciliation (`applied`,
+`not-applied`, diverged partial install) and the promotion or retry lineage of
+the latest attempt. «Подготовить повтор после сверки» appears only for a current
+`not-applied` reconciliation without a retry, and «Подготовить восстановление
+повторным импортом» only for a current diverged one whose adapter declared an
+idempotent re-import; otherwise the panel says that a recovery plan is needed.
+The promotion picker («Продвижение проверенного кандидата») appears for a
+verified current attempt on a non-production Target. It lists the other Target
+connections and enables only probed, usable non-production ones with another
+host and the same platform version. A PROD connection is listed as disabled,
+and the panel states that PROD promotion is impossible from the UI. The UI never
+sends `productionConfirmation`, and a drift refusal is shown as the server's
+message. Each of these steps creates a `prepared` attempt that needs the normal
+typed confirmation. Storybook: `delivery--applied`, `delivery--not-applied`,
+`delivery--partial-install`, `delivery--forward-recovery`,
+`delivery--promotion-drift`, `delivery--promoted` and `delivery--prod-refused`
+(`npm run test:delivery:storybook`). The real-server journey in
+`tools/delivery-browser-check.mjs` promotes, retries and forward-recovers
+through `POST /api/releases/:id/delivery` on synthetic Targets.
 
 - **Promotion** (`promote`, keys `attemptId`, `connectionId`, `revision`,
   `idempotencyKey`). The source attempt must be `verified` under its recorded
