@@ -379,6 +379,34 @@ reason to keep the manual upload primary.
 | Recording the fixed-path direction in product authority | resolved 2026-10-15 | Register row added in PR #126 (section 11) |
 | Human five-second and label tests (R3, UX-09) | resolved 2026-10-15 | Owner delegated; classified as design validation under the limits in section 2. Not #59/#41 evidence |
 | Merge of each UX PR | `merge-to-main` | Owner merges |
+| Restarting the independent visual audit (#41) and uncoached usability (#59) | `paused-work-resumption` | Not scheduled. Agents prepare the readiness below; the owner decides the restart |
+
+### 10.1 Readiness for #41/#59 resumption
+
+The last prepared #41/#59 packet is pinned to `usability-20261008-lane-a-88`.
+UX-00 to UX-07 replace the entry, review, header, tabs and request flow it
+covered, so that packet is history only: its findings are not carried forward
+as passed, and no new observation is backfilled into it.
+
+The agent reports "ready for owner decision" on #41 when all of these hold:
+
+1. UX-08 and UX-09 are merged and every label with under 2 of 3 correct
+   readings in UX-09 is replaced.
+2. The UX-09 records stay design validation (section 2) and no new
+   observation is written into a #59 record.
+3. A new integrated revision is tagged in a clean, separate checkout with
+   passing Windows/Linux CI, and its Storybook review manifest lists every
+   state of sections 6.1 to 6.7.
+4. The #41 checklist is updated to the new information architecture: fixed
+   entry, stepper and badge, О решении, Как работает, Экраны и данные,
+   Изменения with the decision dialog and Просмотрено, and Запросы. It keeps the
+   existing 1920/800/390/200% and keyboard/focus coverage.
+5. The #59 participant sheets are rewritten against the questions in section 3,
+   and the observation record is empty.
+
+Until the owner records the restart on #41/#59, agents keep doing their own
+developer visual passes, with screenshots in each PR (section 12). Those passes
+are not #41 evidence.
 
 ## 11. Contradiction-register row
 
