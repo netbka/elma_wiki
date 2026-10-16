@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { parseEnv } from 'node:util';
 import { spawnSync } from 'node:child_process';
 import { selectAuth } from './prod-auth.mjs';
+import { readRuntimeSettings } from './prod-settings.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const check = process.argv.includes('--check');
@@ -24,6 +25,9 @@ try {
   if (url.protocol !== 'https:' || url.username || url.password || url.pathname !== '/' || url.search || url.hash) throw Error('PROD_URL must be an HTTPS origin');
   const knownHosts = path.join(root, '.local', 'prod-known-hosts');
   if (!fs.existsSync(knownHosts)) throw Error('Missing trusted SSH pin: .local/prod-known-hosts; provision it from the verified CT host key');
+  // Optional named runtime settings to add or change; the CT revalidates them and prints changed key names only.
+  const settings = readRuntimeSettings(path.join(root, '.local', 'prod-runtime-settings.env'));
+  if (Object.keys(settings).length) console.log(`Runtime settings requested: ${Object.keys(settings).sort().join(', ')}`);
   if (!check) {
     if (run('git', ['branch', '--show-current']) !== 'main') throw Error('Run prod:update from main');
     if (run('git', ['status', '--porcelain', '--untracked-files=all'])) throw Error('Commit or preserve local changes before updating production');
@@ -36,7 +40,7 @@ try {
   if (!check) run('git', ['archive', '--format=tar.gz', `--output=${stage}`, revision]);
   // Key mode sends only the key file path (or the agent flag); the key itself is read by Paramiko.
   const config = { host: env.PROD_IP, user: env.PROD_USER, password: auth.password, keyFile: auth.keyFile,
-    useAgent: auth.useAgent, origin: url.origin, knownHosts, revision, archive: stage, check };
+    useAgent: auth.useAgent, origin: url.origin, knownHosts, revision, archive: stage, check, settings };
   console.log(check ? 'Checking CT production without changing it…' : `Updating Wiki production to ${revision.slice(0, 12)}…`);
   run(env.PROD_PYTHON || 'python', [path.join(root, 'deploy', 'prod-ssh.py')], {
     input: JSON.stringify(config), stdio: ['pipe', 'inherit', 'inherit'],
