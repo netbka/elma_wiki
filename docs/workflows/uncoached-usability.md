@@ -37,28 +37,54 @@ Start each participant at the Solutions list; the catalog is intentionally
 shared, so each creates a differently named Solution and can inspect the
 other participant's discussion later.
 
+Limits of the synthetic session: it has no configured ELMA server, so the
+primary entry **Загрузить решение** reads `Сервер недоступен` and participants
+add and update Solutions from the three files under **Прежние загрузки**; the
+fixed server path is covered by its Storybook states and the owner's live pass.
+GitHub is not configured, so a published request reads "Сохранён в Wiki.
+Отправка в GitHub не настроена". Nothing reaches ELMA.
+
+The tasks follow the questions of the
+[intuitive Solution UI plan](../plans/intuitive-solution-ui-2026-10-15.md),
+section 3: what the Solution is for, how it works, which screens and data it
+has, what changed and who changed it, what needs a decision, what happens next
+and how to ask for a change. The tasks name goals, never buttons.
+
 ## Participant tasks
 
-1. Add a Solution named for your test using `01-full.e365`, a full export.
-2. Explain the current state and what you would do next.
-3. Review `02-change.e365`, a partial export from the same Solution/Source.
-   Explain what changed and what needs attention.
-4. Leave a comment about the change; show who wrote it.
-5. Find the changed object's supported code and check it. Explain whether
+1. Add a Solution named for your test from `01-full.e365`, a full export.
+   Say what this Solution is for and which modules it has; if the text is
+   missing or wrong, write your own one-sentence purpose and reopen it.
+2. Say how the approval process works: who does each step, what they fill
+   in and where it goes next. Save your own one-sentence explanation of one
+   step, reopen it and say who wrote it.
+3. Say which screens the Solution has, which fields the contract screen
+   keeps and what data the Solution stores. Say which of this is known from
+   the export and what has not been checked in ELMA.
+4. Review `02-change.e365`, a partial export from the same Solution. Say what
+   changed since the first version, who loaded it and what needs your
+   decision.
+5. Mark the changed objects you have looked at, leave a comment about the
+   change and show who wrote it.
+6. Decide on the version and say what your decision changes and what happens
+   next in the Solution.
+7. Review `03-later-full.e365`, a later full export from the same source.
+   Say what conflicts and choose what to keep.
+8. Find the changed object's supported code and check it. Say whether
    checking or saving code changes the captured export or publishes to ELMA.
-6. Decide whether to accept the change and explain its consequence.
-7. Review `03-later-full.e365`, a later full export from the same Source.
-   Explain any conflict and choose what to keep.
-8. Find the captured approval process/form and explain what is known from
-   the export, what the preview simulates and what has not been checked live.
-9. Explain the next action, then archive and reopen the Solution.
-10. Open the other participant's Solution/comment in your own profile and
-    distinguish its author from your own identity.
+9. Ask for a change to the contract screen from the place where you see the
+   screen. Say where the request went, what its state is and whether it
+   reached GitHub.
+10. Say the next action for the Solution, then archive and reopen it. Open
+    the other participant's Solution and comment in your own profile and
+    distinguish their author from your own identity.
 
 ## Observer record
 
 Do not name buttons, guide clicks or explain terminology before the first
-attempt. Record the participant's first actions and words. If help is needed,
+attempt. Record the participant's first actions and words, and the exact label a
+participant reads aloud or misnames (a repeatedly misunderstood label is a
+product defect, not a documentation gap). If help is needed,
 record it as coaching; do not mark that task uncoached PASS. Record each task's
 outcome, actions, navigation transitions, choices, input and loss of context;
 note hesitation, wrong clicks and misunderstood labels. Preserve exact defect
@@ -68,7 +94,8 @@ renderer, update its Storybook state and re-test.
 The private `observations.local.json` starts with `performed: false` and null
 outcomes. Fill it only from actual participant observations. Use role labels
 instead of personal details in any public summary. Record an independent
-integrated visual review separately from automated checks. After both user
+integrated visual review separately from automated checks, using the
+[visual audit checklist](visual-audit-checklist.md). After both user
 passes and the visual gate, the owner walks the product and records accepted
 or deferred gaps for #38. Availability of people is not completion of a test.
 
