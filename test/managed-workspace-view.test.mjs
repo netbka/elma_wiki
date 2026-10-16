@@ -149,8 +149,8 @@ test('UX-03b decision choices: a closed gate disables acceptance with its reason
 
 test('UX-04: the header badge and stepper project every row of the next-action map; unavailable steps carry a reason', async () => {
   const { composerNextActionFixture } = await import('../web/managed/composer-fixtures.js');
-  const project = model => { const next = solutionNextAction(model.workspace, model); return { status: solutionStatus(next).key, steps: lifecycleSteps(model.workspace, next) }; };
-  const shape = steps => steps.map(step => step.id + ':' + step.state + (step.reason ? '/' + step.reason : '')).join(' ');
+  const project = model => { const next = solutionNextAction(model.workspace, model); return { status: solutionStatus(next).key, steps: lifecycleSteps(model.workspace, next, model.composed) }; };
+  const shape = steps => steps.map(step => step.id + ':' + step.state + (step.reason || step.note ? '/' + (step.reason || step.note) : '')).join(' ');
   const rest = 'build:next verify:next release:unavailable/ещё не доступно';
   const cases = [
     [managedFixture('no-source'), 'working', 'load:current compare:next review:next ' + rest],
@@ -163,7 +163,9 @@ test('UX-04: the header badge and stepper project every row of the next-action m
     [composerNextActionFixture('build-blocked'), 'accepted', 'load:done compare:done review:done build:unavailable/нет сборщика verify:next release:unavailable/ещё не доступно'],
     [managedFixture('lifecycle-build'), 'accepted', 'load:done compare:done review:done build:current verify:next release:unavailable/ещё не доступно'],
     [composerNextActionFixture('review-build'), 'accepted', 'load:done compare:done review:done build:current verify:next release:unavailable/ещё не доступно'],
-    [composerNextActionFixture('verify'), 'accepted', 'load:done compare:done review:done build:done verify:current release:unavailable/ещё не доступно'],
+    // A training build (evidence basis synthetic) is done only as "учебная сборка"; a native one reads as done.
+    [composerNextActionFixture('verify'), 'accepted', 'load:done compare:done review:done build:done/учебная сборка verify:current release:unavailable/ещё не доступно'],
+    [managedFixture('lifecycle-synthetic'), 'accepted', 'load:done compare:done review:done build:done/учебная сборка verify:current release:unavailable/ещё не доступно'],
     [managedFixture('lifecycle-verified'), 'accepted', 'load:done compare:done review:done build:done verify:done release:unavailable/ещё не доступно'],
     [managedFixture('archived'), 'archived', 'load:done compare:done review:done ' + rest]
   ];
@@ -173,6 +175,8 @@ test('UX-04: the header badge and stepper project every row of the next-action m
   assert.equal(solutionStatus(solutionNextAction(ready.workspace)).label, 'В работе');
   // Exactly one current step while the Solution is active, none in the archive, no stepper on error or stale pages.
   for (const [model] of cases) assert.equal(project(model).steps.filter(step => step.current).length, model.workspace.status === 'archived' ? 0 : 1);
+  const native = managedFixture('lifecycle-synthetic'); native.composed.candidates[0].evidenceBasis = 'native';
+  assert.equal(shape(project(native).steps), 'load:done compare:done review:done build:done verify:current release:unavailable/ещё не доступно');
   const unread = managedFixture('overview'); unread.composed = { loadError: 'x' };
   assert.equal(solutionNextAction(unread.workspace, unread).state, 'accepted');
   assert.equal(lifecycleSteps(unread.workspace, solutionNextAction(unread.workspace, unread), unread.composed).find(step => step.id === 'build').reason, 'сборщик не опрошен');

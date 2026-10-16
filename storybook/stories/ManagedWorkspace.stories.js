@@ -49,6 +49,8 @@ export const ViewedSecondActor = { render: () => story('viewed-second-actor'), p
 export const LifecycleBuild = { render: () => story('lifecycle-build'), parameters: { docs: { description: { story:
   'UX-04: header badge and lifecycle stepper. Загрузка, Сравнение and Рассмотрение are done, Сборка is the current step because the server reported an available builder and every build eligibility gate verified (hypothetical), Выпуск is unavailable with its reason.' } } } };
 export const LifecycleVerified = { render: () => story('lifecycle-verified') };
+export const LifecycleSynthetic = { render: () => story('lifecycle-synthetic'), parameters: { docs: { description: { story:
+  'UX-04: an approved training build is not an ELMA package. Сборка is done but reads "учебная сборка" instead of "готово"; Проверка is the current step with the next action "Проверить конфигурацию".' } } } };
 export const AboutEmpty = { render: () => story('about-empty'), parameters: { docs: { description: { story:
   'UX-05: О решении with no saved purpose: the empty sentence and one Написать button; module cards and the activity list with two distinct people.' } } } };
 export const AboutGenerated = { render: () => story('about-generated') };

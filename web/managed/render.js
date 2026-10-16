@@ -114,7 +114,7 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
       const item = el('li', undefined, 'managed-step'); item.dataset.state = step.state;
       if (step.current) item.setAttribute('aria-current', 'step');
       if (step.state === 'unavailable') item.setAttribute('aria-disabled', 'true');
-      item.append(el('span', step.label), ' ', el('small', step.reason || stepStates[step.state], 'managed-muted'));
+      item.append(el('span', step.label), ' ', el('small', step.reason || step.note || stepStates[step.state], 'managed-muted'));
       stepper.append(item);
     }
     if (stepper.childElementCount) context.append(stepper);
