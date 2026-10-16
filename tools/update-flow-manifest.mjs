@@ -9,7 +9,8 @@ const stories = {
   'feature-review': ['review--journey', 'review--rejected'],
   'source-target': ['target--journey', 'target--check-failed', 'target--unverified', 'target--mismatch'],
   approval: ['elma--approval', 'elma--rework'],
-  correspondence: ['elma--correspondence', 'elma--cleared']
+  correspondence: ['elma--correspondence', 'elma--cleared'],
+  'design-validation': ['design-validation--journey', 'design-validation--five-second', 'design-validation--five-second-review', 'design-validation--labels', 'design-validation--card-sort', 'design-validation--decide']
 };
 for (const flow of flows) manifest.capabilities[flow.id] = {
   entry: '/flows', kind: flow.kind,
