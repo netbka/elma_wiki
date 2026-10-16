@@ -856,7 +856,8 @@
         "web/managed/render.js",
         "web/managed/model.js",
         "web/managed/change-base.js",
-        "web/managed/merge.js"
+        "web/managed/merge.js",
+        "web/managed/requests.js"
       ],
       "storyIds": [
         "managed-workspace--empty",
@@ -920,7 +921,15 @@
         "managed-workspace--flows",
         "managed-workspace--flows-error",
         "managed-workspace--screens",
-        "managed-workspace--flows-unknown"
+        "managed-workspace--flows-unknown",
+        "managed-workspace--requests",
+        "managed-workspace--requests-empty",
+        "managed-workspace--requests-object",
+        "managed-workspace--requests-error",
+        "managed-workspace--request-form",
+        "managed-workspace--request-form-field",
+        "managed-workspace--request-record",
+        "managed-workspace--request-published"
       ],
       "requiredVisibleStates": [
         "empty",
@@ -984,7 +993,15 @@
         "flows",
         "flows-error",
         "screens",
-        "flows-unknown"
+        "flows-unknown",
+        "requests",
+        "requests-empty",
+        "requests-object",
+        "requests-error",
+        "request-form",
+        "request-form-field",
+        "request-record",
+        "request-published"
       ],
       "sources": [
         "docs/workflows/solutions.md",

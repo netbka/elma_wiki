@@ -98,16 +98,16 @@ export function managedFixture(mode = 'overview') {
     visual.processes[0].object = ['processor', 'travel_expenses.trips', 'template', 'trip_approval'];
     visual.objects = [
       { object: ['widgets', 'synthetic.records', 'contract'], service: 'widgets', code: 'contract', name: names.contract, source: 'widgets/contract.json', fields: [
-        { code: 'number', name: 'Номер', type: 'STRING', required: true, pointer: 'widgets/contract.json#/descriptor/fields/0' },
-        { code: 'amount', name: 'Сумма', type: 'MONEY', required: false, pointer: 'widgets/contract.json#/descriptor/fields/1' }] },
+        { code: 'number', name: 'Номер', type: 'STRING', required: true, fingerprint: '1'.repeat(64), pointer: 'widgets/contract.json#/descriptor/fields/0' },
+        { code: 'amount', name: 'Сумма', type: 'MONEY', required: false, fingerprint: '2'.repeat(64), pointer: 'widgets/contract.json#/descriptor/fields/1' }] },
       { object: ['widgets', 'synthetic.records', 'approval'], service: 'widgets', code: 'approval', name: names.approval, source: 'widgets/approval.json', fields: [] },
       { object: ['applications', 'travel_expenses', 'application', 'trips'], service: 'applications', code: 'trips', name: 'Командировки', source: 'applications/trips.json', fields: [
-        { code: 'title', name: 'Название', type: 'STRING', required: true, pointer: 'applications/trips.json#/fields/0' }] }
+        { code: 'title', name: 'Название', type: 'STRING', required: true, fingerprint: '3'.repeat(64), pointer: 'applications/trips.json#/fields/0' }] }
     ];
     model.visuals = { [base.id]: mode === 'flows-error' ? { error: 'Схема не получена: учебная ошибка.' } : visual };
   }
-  if (['solution', 'flows', 'screens', 'flows-error', 'flows-unknown'].includes(mode)) {
-    model.view = ['flows', 'flows-error', 'flows-unknown'].includes(mode) ? 'flows' : 'solution';
+  if (['solution', 'flows', 'screens', 'flows-error', 'flows-unknown'].includes(mode) || mode.startsWith('request')) {
+    model.view = ['flows', 'flows-error', 'flows-unknown'].includes(mode) ? 'flows' : mode.startsWith('request') ? 'requests' : 'solution';
     // UX-02: a second module, a process, data objects and system objects show grouping, names and the collapsed group.
     const extra = (service, namespace, code, kind, name) => ({ code, key: JSON.stringify(kind && service !== 'widgets' ? [service, namespace, kind, code] : [service, namespace, code]), team: 'Команда внедрения',
       service, namespace, kind, name, interventionId: null, digest: 'a'.repeat(64) });
@@ -118,6 +118,41 @@ export function managedFixture(mode = 'overview') {
       extra('widgets', 'travel_expenses', '__default', 'WIDGET', null),
       extra('localizer', 'travel_expenses', '', 'localization', null));
     base.components = workspace.current.map(row => ({ key: row.key, digest: row.digest }));
+  }
+  if (['flows', 'screens'].includes(mode) || mode.startsWith('request')) {
+    // UX-07: three requests of two people: a new one from a step (urgent), one in work on a
+    // field of a screen whose object changed since, one done in the accepted version; the
+    // whole-Solution one is rejected. Flows and screens show the chips (the field one on its
+    // field row too); the request modes show the tab.
+    const processKey = JSON.stringify(['processor', 'travel_expenses.trips', 'template', 'trip_approval']), screenKey = component('contract').key;
+    const amountField = { artifactId: base.id, checksum: base.checksum, object: JSON.parse(screenKey), code: 'amount', name: 'Сумма', type: 'MONEY', pointer: 'widgets/contract.json#/descriptor/fields/1', fingerprint: '2'.repeat(64) };
+    const sourceAnchor = { artifactId: base.id, checksum: base.checksum, object: ['processor', 'travel_expenses.trips', 'template', 'trip_approval'], nodeId: 'review', pointer: 'processor/trip_approval.json#/process/items/review', fingerprint: 'f'.repeat(64) };
+    const request = (id, extra) => ({ id, kind: 'process', urgency: 'normal', status: 'new', version: 0, fulfilledArtifactId: null, events: [], actor: reviewer, createdAt: '2026-10-07T12:30:00Z', updatedAt: '2026-10-07T12:30:00Z',
+      target: { artifactId: base.id, checksum: base.checksum, revision: 1, anchor: null }, anchorStatus: 'current', ...extra });
+    const rows = [
+      request('00000000-0000-4000-8000-000000000101', { title: 'Показывать сумму до утверждения', text: 'На шаге утверждения руководитель должен видеть сумму заявки и валюту, не открывая форму.', reason: 'Сейчас приходится открывать заявку отдельно.', urgency: 'urgent',
+        target: { artifactId: base.id, checksum: base.checksum, revision: 1, anchor: { key: processKey, digest: 'a'.repeat(64) }, sourceAnchor }, createdAt: '2026-10-07T13:40:00Z', updatedAt: '2026-10-07T13:40:00Z' }),
+      request('00000000-0000-4000-8000-000000000102', { kind: 'screen', title: 'Сумма обязательна', text: 'Заявку нельзя отправить без суммы.', status: 'in-progress', version: 2, actor: uploader, anchorStatus: 'stale',
+        target: { artifactId: base.id, checksum: base.checksum, revision: 1, anchor: { key: screenKey, digest: 'b'.repeat(64) }, fieldAnchor: amountField }, createdAt: '2026-10-06T09:10:00Z', updatedAt: '2026-10-07T10:00:00Z',
+        events: [{ id: '00000000-0000-4000-8000-000000000201', type: 'comment', text: 'Согласовано с бухгалтерией.', actor: reviewer, at: '2026-10-06T15:00:00Z' }, { id: '00000000-0000-4000-8000-000000000202', type: 'status', status: 'in-progress', fulfilledArtifactId: null, text: '', actor: reviewer, at: '2026-10-07T10:00:00Z' }] }),
+      request('00000000-0000-4000-8000-000000000103', { kind: 'data', title: 'Справочник валют: добавить код', text: 'В справочнике валют нужен буквенный код для отчётов.', status: 'done', version: 1, fulfilledArtifactId: base.id,
+        target: { artifactId: base.id, checksum: base.checksum, revision: 1, anchor: { key: JSON.stringify(['applications', 'travel_expenses', 'directory', 'currencies']), digest: 'a'.repeat(64) } }, createdAt: '2026-10-05T08:00:00Z', updatedAt: '2026-10-07T12:00:00Z',
+        events: [{ id: '00000000-0000-4000-8000-000000000203', type: 'status', status: 'done', fulfilledArtifactId: base.id, text: 'Код добавлен в принятой версии.', actor: uploader, at: '2026-10-07T12:00:00Z' }] }),
+      request('00000000-0000-4000-8000-000000000104', { kind: 'screen', title: 'Единый стиль кнопок', text: 'Кнопки на всех экранах решения должны выглядеть одинаково.', status: 'rejected', version: 1, anchorStatus: 'stale',
+        target: { artifactId: base.id, checksum: base.checksum, revision: 0, anchor: null }, createdAt: '2026-10-04T08:00:00Z', updatedAt: '2026-10-05T12:00:00Z',
+        events: [{ id: '00000000-0000-4000-8000-000000000204', type: 'status', status: 'rejected', fulfilledArtifactId: null, text: 'Стиль задаёт платформа.', actor: reviewer, at: '2026-10-05T12:00:00Z' }] })
+    ];
+    model.requests = { requests: mode === 'requests-empty' ? [] : rows, publication: { repository: 'example/synthetic', attachmentPolicy: 'github', limits: { attachments: 5 } } };
+    if (mode === 'requests-error') model.requests = { loadError: 'Сервис запросов недоступен.' };
+    if (mode === 'requests-object') model.object = processKey;
+    if (['request-record', 'request-published'].includes(mode)) {
+      model.request = rows[0].id;
+      if (mode === 'request-published') model.requests.selectedPublication = { id: '00000000-0000-4000-8000-000000000085', status: 'published', context: { changeRequestId: rows[0].id }, issue: { number: 85, url: 'https://github.com/example/synthetic/issues/85' } };
+    }
+    if (mode === 'request-form') model.requestForm = { kind: 'process', row: workspace.current.find(row => row.key === processKey), anchor: sourceAnchor, stepName: 'Проверить бюджет' };
+    // The form opened from the field row "Сумма" of Экраны и данные: the request anchors to that field.
+    if (mode === 'request-form-field') model.requestForm = { kind: 'screen', row: workspace.current.find(row => row.key === screenKey), fieldName: 'Сумма', fieldCode: 'amount',
+      field: { code: 'amount', name: 'Сумма', type: 'MONEY', required: false, fingerprint: '2'.repeat(64), pointer: amountField.pointer, artifactId: base.id } };
   }
   if (mode === 'native-components') {
     model.view = 'solution';

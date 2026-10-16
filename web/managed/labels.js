@@ -72,11 +72,30 @@ export const objectKinds = { process: 'Процесс', processes: 'Процес
 export const kindGroups = { processes: 'Процессы', forms: 'Экраны', data: 'Данные', permissions: 'Права', localization: 'Локализация', other: 'Прочее' };
 export const grouping = { module: 'Модуль', withoutModule: 'Без модуля', objects: 'объектов', showAll: 'показать все', code: 'код', andMore: 'и ещё' };
 
-// Change request form
+// Change request form (UX-07). Keys follow the stored request: kinds and statuses
+// are the server's enumerations, shown in the product vocabulary.
 export const requestForm = {
-  what: 'Что изменить', where: 'Где', shouldBe: 'Что должно быть', why: 'Зачем', urgency: 'Срочность',
-  kinds: { screen: 'Экран', flow: 'Процесс', data: 'Данные' }, urgencies: { normal: 'Обычная', urgent: 'Срочная' },
-  statuses: { new: 'Новый', inProgress: 'В работе', done: 'Выполнен', rejected: 'Отклонён' }
+  what: 'Что изменить', where: 'Где', shouldBe: 'Что должно быть', why: 'Зачем', whyOptional: 'Зачем, необязательно', urgency: 'Срочность',
+  kinds: { screen: 'Экран', process: 'Процесс', data: 'Данные' }, urgencies: { normal: 'Обычная', urgent: 'Срочная' },
+  statuses: { new: 'Новый', 'in-progress': 'В работе', done: 'Выполнен', rejected: 'Отклонён' }
+};
+// "Запросы" tab, record and publication (UX-07)
+export const requests = {
+  intro: 'Запрос описывает простыми словами, что должно измениться. Wiki хранит его в решении; в GitHub он уходит только после вашего подтверждения.',
+  title: 'Кратко', wholeSolution: 'Всё решение', step: 'Шаг', field: 'Поле', stepNote: 'шаг выбран на схеме', stepTextNote: 'шаг назван в тексте запроса', fieldNote: 'поле названо в тексте запроса', fieldAnchorNote: 'запрос привязан к полю',
+  chooseObject: 'Выберите объект из принятого состояния', saved: 'Запрос сохранён в Wiki', open: 'Открыть запрос', close: 'Закрыть', loading: 'Загружаем запрос…', notFound: 'Запрос не найден',
+  author: 'Автор', created: 'Создан', status: 'Состояние', fulfilledIn: 'Выполнен в версии', fulfillingVersion: 'Версия, в которой выполнено',
+  comment: 'Комментарий', commentOptional: 'Комментарий, необязательно', addComment: 'Добавить комментарий', changeStatus: 'Изменить состояние', saveStatus: 'Сохранить состояние',
+  events: 'История запроса', noEvents: 'Записей пока нет', statusChanged: 'Состояние изменено', chip: 'Запрос', urgentChip: 'Срочно',
+  publication: 'Публикация', publish: 'Отправить в GitHub', publishConsent: 'Опубликовать заголовок, описание, причину и вложения в GitHub', publishNote: 'Проверьте снимки перед отправкой.',
+  notPublished: 'В GitHub не отправлялся', checkResult: 'Проверить результат', retryPublish: 'Повторить отправку', openIssue: 'Открыть GitHub issue', reportInWiki: 'Отчёт и вложения в Wiki',
+  publicationStates: { published: 'Отправлен в GitHub', unconfigured: 'Сохранён в Wiki. Отправка в GitHub не настроена', failed: 'Не удалось отправить в GitHub', unknown: 'Результат отправки проверяется',
+    'attachment-failed': 'Вложение не загружено в GitHub', uploading: 'Отправляется', publishing: 'Отправляется' },
+  anchor: { current: 'Объект не менялся', stale: 'Объект изменился после запроса', removed: 'Объект удалён из решения', ambiguous: 'Объект определён неоднозначно', pending: 'Версия ещё рассматривается' },
+  attachments: 'Вложения', capture: 'Снимок окна', attachFiles: 'Прикрепить файлы', remove: 'Удалить', pencil: 'Карандаш', attachmentsNote: 'PNG, JPEG или WebP · до 5 МБ каждый · до 5 файлов',
+  tooManyFiles: 'Можно добавить не более пяти вложений', markError: 'Отметьте карандашом', undoStroke: 'Отменить штрих', clearMarks: 'Очистить отметки', saveMarks: 'Сохранить отметки',
+  attachmentRemoved: 'Вложение удалено', finishMarks: 'Сохраните или отмените отметки перед отправкой',
+  archived: 'Решение в архиве. Запросы доступны для чтения.', loadFailed: 'Запросы не получены', filteredBy: 'Запросы по объекту', showAll: 'показать все'
 };
 
 // Pull-from-server dialog states

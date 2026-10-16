@@ -144,3 +144,26 @@ test('HTTP enforces authentication, same-origin guards, session actor and privat
   const page = await fetch(base + '/solutions', { headers: { Cookie: cookie } }); assert.ok((await page.text()).includes('/feedback/page.js'));
   const secret = options({ ...input(), performedBy: other }); assert.equal((await fetch(base + '/api/bug-reports', secret)).status, 400);
 });
+
+test('a multi-megabyte image passes the attachment check without exhausting the regex stack', async t => {
+  const root = await directory(t), store = bugReportStore(root, { baseUrl });
+  const big = Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), Buffer.alloc(4 * 1024 * 1024)]);
+  const report = await store.submit({ ...input(), attachments: [{ name: 'big.png', mime: 'image/png', data: big.toString('base64') }] }, actor);
+  assert.equal(report.attachments[0].size, big.length);
+  await assert.rejects(store.submit({ ...input(), attachments: [{ name: 'bad.png', mime: 'image/png', data: 'not base64!' }] }, actor), /Некорректное вложение/);
+});
+
+test('derived report IDs are stable across stores and processes; concurrent first calls create one secret and agree', async t => {
+  const root = await directory(t), stores = [bugReportStore(root, { baseUrl }), bugReportStore(root, { baseUrl }), bugReportStore(root, { baseUrl })];
+  const ids = await Promise.all(stores.flatMap(store => [store.derivedId(['a', 'b']), store.derivedId(['a', 'b'])]));
+  assert.equal(new Set(ids).size, 1); assert.match(ids[0], /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/);
+  assert.notEqual(await stores[0].derivedId(['a', 'c']), ids[0]);
+  assert.deepEqual((await fs.readdir(path.join(root, 'bug-reports'))).filter(name => name.startsWith('.namespace')), ['.namespace'], 'no temp files remain');
+  // A reader that finds the file claimed but still empty waits for the value instead of failing.
+  const slow = await directory(t); await fs.mkdir(path.join(slow, 'bug-reports'), { recursive: true }); await fs.writeFile(path.join(slow, 'bug-reports', '.namespace'), '');
+  const pending = bugReportStore(slow, { baseUrl }).derivedId(['x']);
+  setTimeout(() => fs.writeFile(path.join(slow, 'bug-reports', '.namespace'), 'a'.repeat(64)), 60);
+  assert.match(await pending, /^[a-f0-9-]{36}$/);
+  await assert.rejects(bugReportStore(await (async () => { const d = await directory(t); await fs.mkdir(path.join(d, 'bug-reports'), { recursive: true }); await fs.writeFile(path.join(d, 'bug-reports', '.namespace'), 'not-hex'); return d; })(), { baseUrl }).derivedId(['x']), /namespace unreadable/);
+  assert.notEqual(await bugReportStore(await directory(t), { baseUrl }).derivedId(['a', 'b']), ids[0], 'another installation derives differently');
+});
