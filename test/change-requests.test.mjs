@@ -9,14 +9,21 @@ import { vkLoginLinks } from '../lib/vk-login-links.mjs';
 import { visualSource } from '../web/visual/fixtures.js';
 import { zip } from './fixture.mjs';
 import { bugGitHub } from '../lib/bug-reports.mjs';
+import { publicationText } from '../lib/change-requests.mjs';
 
 const secret = 'SYNTHETIC_CHANGE_REQUEST_LOGIN_SECRET';
-const archive = raw => zip([
+const archive = (raw, extra = []) => zip([
   ['package.json', { code: 'synthetic_requests', type: 'SOLUTION' }],
   ['processor/manifest.json', { entities: [{ code: 'approval', namespace: 'synthetic.processes', name: 'Synthetic approval', path: 'approval.json', kind: 'PROCESS' }] }],
-  ['processor/approval.json', raw]
+  ['processor/approval.json', raw], ...extra
 ]);
-async function setup(t, publisher = null) {
+// A screen with declared fields, one of them declared twice, for field anchors.
+const screens = (amountName = 'Сумма') => [
+  ['widgets/manifest.json', { entities: [{ code: 'card', namespace: 'synthetic.screens', kind: 'WIDGET', name: 'Заявка', path: 'card.json' }] }],
+  ['widgets/card.json', { descriptor: { fields: [{ code: 'amount', view: { name: amountName }, type: 'MONEY', required: true },
+    { code: 'note', name: 'Примечание', type: 'STRING' }, { code: 'twin', type: 'STRING' }, { code: 'twin', type: 'NUMBER' }] } }]
+];
+async function setup(t, publisher = null, extra = []) {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'wiki-change-requests-'));
   const cookies = new Map();
   let server;
@@ -38,8 +45,8 @@ async function setup(t, publisher = null) {
     const response = await request(link.pathname + link.search, null, { redirect: 'manual' }); assert.equal(response.status, 303);
     cookies.set(email, response.headers.getSetCookie()[0].split(';')[0]); return email;
   };
-  const upload = async (cookie, raw = visualSource) => json(await request('/api/solutions/uploads?filename=synthetic.e365', cookie, {
-    method: 'POST', headers: { 'X-Elma-Wiki-Request': '1', 'Content-Type': 'application/octet-stream' }, body: await archive(raw) }), 201);
+  const upload = async (cookie, raw = visualSource, entries = extra) => json(await request('/api/solutions/uploads?filename=synthetic.e365', cookie, {
+    method: 'POST', headers: { 'X-Elma-Wiki-Request': '1', 'Content-Type': 'application/octet-stream' }, body: await archive(raw, entries) }), 201);
   const ref = (project, scope) => ({ projectId: project.id, snapshotId: project.currentSnapshotId, scope, scopeConfirmed: true });
   const a = await login('alice@example.org'), b = await login('bob@example.org');
   const state = await json(await post('/api/solutions', a, { name: 'Synthetic requests', baselineOwner: 'Synthetic team', snapshot: ref(await upload(a), 'full') }), 201);
@@ -50,7 +57,7 @@ async function setup(t, publisher = null) {
     text: 'Show a clearer summary before approval.', reason: 'Make review easier.', target: {
       artifactId: state.baselineId, componentKey: JSON.stringify(sourceAnchor.object), sourceAnchor: structuredClone(sourceAnchor) } });
   const event = (version, type, extra) => ({ operationId: crypto.randomUUID(), expectedVersion: version, type, ...extra });
-  return { directory, a, b, state, route, input, event, post, request, json, upload, ref, restart: async () => {
+  return { directory, a, b, state, route, input, event, post, request, json, upload, ref, visual, restart: async () => {
     await close(); await start(); await login(a); await login(b);
   } };
 }
@@ -178,14 +185,56 @@ test('foreign captured artifacts and pending fulfilling versions are refused; ch
   await json(await request(route, a), 409);
 });
 
-test('a request cannot reconcile a bug report which happens to use the same UUID', async t => {
-  const { a, route, input, post, request, json } = await setup(t), value = input();
-  await json(await post('/api/bug-reports', a, { id: value.id, title: 'An unrelated bug', text: 'Synthetic unrelated report', kind: 'bug',
+test('a bug report squatting the request UUID cannot block or hijack its publication: the report ID is derived server-side', async t => {
+  const { a, b, route, input, post, request, json } = await setup(t), value = input();
+  await json(await post('/api/bug-reports', b, { id: value.id, title: 'An unrelated bug', text: 'Synthetic unrelated report', kind: 'bug',
     context: { route: '/solutions', viewport: { width: 1000, height: 800, devicePixelRatio: 1 } }, publishConfirmed: true, attachments: [] }), 201);
   await json(await post(route, a, value), 201);
-  await json(await request(`${route}/${value.id}`, a), 409);
+  assert.equal((await json(await request(`${route}/${value.id}`, a))).publication, null);
   await json(await post(`${route}/${value.id}/retry`, a, {}), 409);
-  await json(await post(`${route}/${value.id}/publish`, a, { attachments: [], publishConfirmed: true }), 409);
+  const receipt = await json(await post(`${route}/${value.id}/publish`, a, { attachments: [], publishConfirmed: true }));
+  assert.equal(receipt.status, 'unconfigured'); assert.notEqual(receipt.id, value.id); assert.match(receipt.id, /^[a-f0-9-]{36}$/);
+  assert.equal(receipt.context.changeRequestId, value.id);
+  // The published text speaks the product vocabulary, never the storage enumerations.
+  assert.match(receipt.text, /Зачем: Make review easier\./); assert.match(receipt.text, /Что изменить: Процесс · Срочность: Обычная/);
+  assert.doesNotMatch(receipt.text, /Reason:|Kind:|urgency/);
+  const again = await json(await request(`${route}/${value.id}`, a)); assert.equal(again.publication.id, receipt.id);
+  assert.equal((await json(await post(`${route}/${value.id}/retry`, a, {}))).id, receipt.id);
+  // The plain bug report stays itself; the request's report is not reachable under the request ID.
+  assert.equal((await json(await request('/api/bug-reports/' + value.id, a))).kind, 'bug');
+});
+
+test('caps: 500 requests per Solution, 200 events per request and the aggregate storage budget fail closed without partial writes', async () => {
+  const { createChangeRequest, appendRequestEvent, REQUEST_STORAGE_LIMIT } = await import('../lib/change-requests.mjs');
+  const user = { id: 'u', login: 'u@example.org', provider: 'vk-teams' };
+  const base = () => ({ state: { status: 'active', revision: 0, artifacts: [{ id: 'a' }], current: [] }, pending: [], changeRequests: [] });
+  const input = (i = 0) => ({ id: crypto.randomUUID(), expectedRevision: 0, kind: 'screen', title: 'Request ' + i, text: 'Desired', reason: '', urgency: 'normal', target: { artifactId: 'a' } });
+  const target = { artifactId: 'a', checksum: 'c', revision: 0, anchor: null };
+  const full = base(); for (let i = 0; i < 500; i++) createChangeRequest(full, input(i), target, user);
+  assert.throws(() => createChangeRequest(full, input(500), target, user), error => error.statusCode === 422 && /500/.test(error.message));
+  assert.equal(full.changeRequests.length, 500);
+  const record = base(), row = createChangeRequest(record, input(), target, user);
+  for (let i = 0; i < 200; i++) appendRequestEvent(record, row.id, { operationId: crypto.randomUUID(), expectedVersion: i, type: 'comment', text: 'Note ' + i }, user);
+  assert.throws(() => appendRequestEvent(record, row.id, { operationId: crypto.randomUUID(), expectedVersion: 200, type: 'comment', text: 'One more' }, user), error => error.statusCode === 422 && /200/.test(error.message));
+  assert.equal(row.events.length, 200); assert.equal(row.version, 200);
+  const heavy = base(); heavy.changeRequests = [{ id: crypto.randomUUID(), text: 'x'.repeat(REQUEST_STORAGE_LIMIT - 64), events: [] }];
+  assert.throws(() => createChangeRequest(heavy, input(), target, user), error => error.statusCode === 422 && /заполнено/.test(error.message));
+  assert.equal(heavy.changeRequests.length, 1);
+  const nearly = base(); const kept = createChangeRequest(nearly, input(), target, user); nearly.changeRequests.push({ id: crypto.randomUUID(), text: 'x'.repeat(REQUEST_STORAGE_LIMIT - 3000), events: [] });
+  assert.throws(() => appendRequestEvent(nearly, kept.id, { operationId: crypto.randomUUID(), expectedVersion: 0, type: 'status', status: 'done', fulfilledArtifactId: 'a', text: 'y'.repeat(3000) }, user), /заполнено/);
+  assert.equal(kept.status, 'new'); assert.equal(kept.version, 0); assert.equal(kept.events.length, 0, 'a refused event changes nothing');
+});
+
+test('a request aimed at a version still under review reads as pending, not stale, until that version is accepted', async t => {
+  const { a, state, route, input, post, request, json, upload, ref } = await setup(t);
+  const prepared = await json(await post(`/api/solutions/${state.id}/prepare`, a, { kind: 'change', snapshot: ref(await upload(a), 'partial'),
+    expectedRevision: state.revision, team: 'Synthetic', taskRef: 'Pending target', sameSourceConfirmed: true }), 201);
+  const value = input(); value.target = { artifactId: prepared.artifactId, componentKey: value.target.componentKey }; value.expectedRevision = prepared.revision;
+  const row = await json(await post(route, a, value), 201);
+  assert.equal(row.anchorStatus, 'pending');
+  await json(await post(`/api/solutions/${state.id}/artifacts/${prepared.artifactId}/accept`, a, { expectedRevision: prepared.revision,
+    reviewedDigest: prepared.artifactDigest, expectedDiscussionRevision: 0, reviewedBoundaryKeys: prepared.rows.filter(r => r.boundaryCrossing).map(r => r.key) }));
+  assert.equal((await json(await request(`${route}/${row.id}`, a))).anchorStatus, 'current');
 });
 
 test('GitHub transport labels change requests while omitting authenticated identity', async () => {
@@ -224,4 +273,40 @@ test('publication waits on GitHub outside the Solution queue, so other Solution 
     await Promise.race([post(route, b, input()).then(response => json(response, 201)), timeout]);
   } finally { release(); }
   assert.equal((await json(await publishing)).status, 'published');
+});
+
+test('a request from a field anchors to exactly that declared field; forged, duplicate or mixed anchors fail closed; an edited field makes it stale', async t => {
+  const { a, b, state, route, input, post, request, json, upload, ref, visual } = await setup(t, null, screens());
+  const card = visual.objects.find(object => object.code === 'card'), componentKey = JSON.stringify(card.object);
+  assert.ok(state.current.some(row => row.key === componentKey), 'the screen is a captured object');
+  const amount = card.fields.find(field => field.code === 'amount');
+  assert.match(amount.fingerprint, /^[a-f0-9]{64}$/);
+  const fieldInput = (field = amount, extra = {}) => ({ ...input(), kind: 'screen', target: { artifactId: state.baselineId, componentKey,
+    fieldAnchor: { code: field.code, pointer: field.pointer, fingerprint: field.fingerprint }, ...extra } });
+  const row = await json(await post(route, a, fieldInput()), 201);
+  assert.deepEqual(row.target.fieldAnchor, { artifactId: state.baselineId, checksum: row.target.checksum, object: card.object,
+    code: 'amount', name: 'Сумма', type: 'MONEY', pointer: 'widgets/card.json#/descriptor/fields/0', fingerprint: amount.fingerprint });
+  assert.equal(row.target.anchor.key, componentKey); assert.equal(row.anchorStatus, 'current');
+  assert.match(publicationText(row), /Поле: Сумма · amount/);
+  const twin = card.fields.find(field => field.code === 'twin');
+  for (const value of [
+    fieldInput({ ...amount, fingerprint: 'f'.repeat(64) }), fieldInput({ ...amount, pointer: 'widgets/card.json#/descriptor/fields/1' }),
+    fieldInput({ ...amount, code: 'note' }), fieldInput(twin)
+  ]) assert.equal((await post(route, a, value)).status, 409);
+  const process = visual.processes[0].nodes.find(node => node.id === 'review').anchor;
+  for (const value of [
+    fieldInput(amount, { sourceAnchor: process }), { ...fieldInput(), target: { artifactId: state.baselineId, fieldAnchor: fieldInput().target.fieldAnchor } },
+    (() => { const value = fieldInput(); value.target.fieldAnchor.name = 'Forged'; return value; })(),
+    (() => { const value = fieldInput(); value.target.fieldAnchor.code = ''; return value; })()
+  ]) assert.equal((await post(route, a, value)).status, 400);
+  assert.equal((await json(await request(route, b))).requests.length, 1, 'refused anchors write nothing');
+  // The field is renamed in an accepted version: the original anchor stays, now stale.
+  const solution = `/api/solutions/${state.id}`;
+  const preview = await json(await post(solution + '/prepare', a, { kind: 'change', snapshot: ref(await upload(a, visualSource, screens('Сумма заявки')), 'partial'),
+    expectedRevision: state.revision, team: 'Synthetic', taskRef: 'Synthetic field rename', sameSourceConfirmed: true }), 201);
+  await json(await post(`${solution}/artifacts/${preview.artifactId}/accept`, a, { expectedRevision: preview.revision,
+    reviewedDigest: preview.artifactDigest, expectedDiscussionRevision: 0,
+    reviewedBoundaryKeys: preview.rows.filter(row => row.boundaryCrossing).map(row => row.key) }));
+  const stale = await json(await request(`${route}/${row.id}`, b));
+  assert.equal(stale.anchorStatus, 'stale'); assert.deepEqual(stale.target, row.target);
 });

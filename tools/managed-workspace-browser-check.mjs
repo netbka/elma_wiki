@@ -254,6 +254,66 @@ try {
   await page.getByRole('button', { name: /^Посмотреть процесс: / }).first().click();
   await page.getByRole('img', { name: 'Схема процесса из экспорта', exact: true }).waitFor();
   await page.getByText(/^Кто выполняет: /).first().waitFor();
+  // UX-07: a request from the selected step is saved privately with its step anchor, published
+  // without GitHub as `unconfigured`, listed on Запросы with its chip on the process card,
+  // commented and moved to В работе.
+  await page.locator('.visual-form').getByRole('button', { name: 'Запросить изменение', exact: true }).click();
+  const requestDialog = page.locator('dialog.managed-request');
+  await requestDialog.getByText(/^Шаг: .* · шаг назван в тексте запроса$/).waitFor();
+  assert.match(await requestDialog.getByLabel('Что должно быть', { exact: true }).inputValue(), /^Шаг «.*»: $/);
+  assert.equal(await requestDialog.getByRole('radio', { name: 'Процесс', exact: true }).isChecked(), true);
+  await requestDialog.getByLabel('Кратко', { exact: true }).fill('Учебный запрос со шага');
+  await requestDialog.getByLabel('Что должно быть', { exact: true }).fill('На этом шаге нужна подсказка о сроке.');
+  await requestDialog.getByRole('button', { name: 'Отправить', exact: true }).click();
+  await requestDialog.getByText('Запрос сохранён в Wiki', { exact: true }).waitFor();
+  const requestList = await (await context.request.get(base + processRoute + '/change-requests')).json();
+  assert.equal(requestList.requests.length, 1); assert.equal(requestList.requests[0].target.sourceAnchor, undefined, 'an unsupported step is named in the text, not anchored');
+  assert.equal(requestList.requests[0].target.anchor.key, JSON.stringify(['processor', 'synthetic', 'approval'])); assert.equal(requestList.requests[0].anchorStatus, 'current');
+  await requestDialog.getByRole('checkbox').check();
+  await requestDialog.getByRole('button', { name: 'Отправить в GitHub', exact: true }).click();
+  await requestDialog.getByText('Сохранён в Wiki. Отправка в GitHub не настроена', { exact: true }).waitFor();
+  await requestDialog.getByRole('button', { name: 'Закрыть', exact: true }).click();
+  await page.reload(); await page.locator('.managed-flows').getByText('Запрос · 1', { exact: true }).waitFor();
+  await page.getByRole('link', { name: 'Запросы', exact: true }).click();
+  await page.getByRole('link', { name: 'Учебный запрос со шага', exact: true }).click();
+  await page.getByRole('heading', { name: 'Учебный запрос со шага', exact: true }).waitFor();
+  await page.getByText('Сохранён в Wiki. Отправка в GitHub не настроена', { exact: true }).waitFor();
+  await page.getByLabel('Комментарий', { exact: true }).fill('Учебный комментарий');
+  await page.getByRole('button', { name: 'Добавить комментарий', exact: true }).click();
+  await page.getByText(/Учебный комментарий$/).waitFor();
+  await page.getByLabel('Изменить состояние', { exact: true }).selectOption('in-progress');
+  await page.getByRole('button', { name: 'Сохранить состояние', exact: true }).click();
+  await page.getByText(/Состояние изменено: В работе/).waitFor();
+  assert.equal((await (await context.request.get(base + processRoute + '/change-requests')).json()).requests[0].version, 2);
+  // UX-07 field anchor: a request from a uniquely declared field of a captured screen is
+  // anchored to that field by the server and marks the field row with its chip.
+  const screenArchive = zip([['package.json', { code: 'synthetic_screens', type: 'SOLUTION' }],
+    ['widgets/manifest.json', { entities: [{ code: 'card', namespace: 'synthetic', kind: 'WIDGET', name: 'Учебная заявка', path: 'card.json' }] }],
+    ['widgets/card.json', { descriptor: { fields: [{ code: 'amount', view: { name: 'Сумма' }, type: 'MONEY', required: true }, { code: 'note', name: 'Примечание', type: 'STRING' }] } }]]);
+  const screenUpload = await context.request.post(base + '/api/solutions/uploads?sharedConfirmed=true', { headers: { 'X-Elma-Wiki-Request': '1', 'Content-Type': 'application/octet-stream' }, data: await screenArchive });
+  assert.equal(screenUpload.status(), 201); const screenProject = await screenUpload.json();
+  const screenState = await jsonPost('/api/solutions', { name: 'Учебные экраны', baselineOwner: 'Korus', sharedConfirmed: true,
+    snapshot: { projectId: screenProject.id, snapshotId: screenProject.currentSnapshotId, scope: 'full', scopeConfirmed: true } });
+  await page.goto(base + '/solutions?' + new URLSearchParams({ id: screenState.id, view: 'solution' }));
+  await page.locator('summary', { hasText: 'Поля · 2' }).click();
+  await page.getByRole('button', { name: 'Запросить изменение: Сумма', exact: true }).click();
+  await requestDialog.getByText('Поле: Сумма · запрос привязан к полю', { exact: true }).waitFor();
+  assert.equal(await requestDialog.getByLabel('Что должно быть', { exact: true }).inputValue(), '', 'an anchored field is not repeated in the text');
+  await requestDialog.getByLabel('Кратко', { exact: true }).fill('Учебный запрос с поля');
+  await requestDialog.getByLabel('Что должно быть', { exact: true }).fill('Сумма должна показываться с валютой.');
+  await requestDialog.getByRole('button', { name: 'Отправить', exact: true }).click();
+  await requestDialog.getByText('Запрос сохранён в Wiki', { exact: true }).waitFor();
+  const fieldRequest = (await (await context.request.get(base + '/api/solutions/' + screenState.id + '/change-requests')).json()).requests[0];
+  assert.equal(fieldRequest.target.fieldAnchor.code, 'amount'); assert.equal(fieldRequest.target.fieldAnchor.name, 'Сумма');
+  assert.equal(fieldRequest.target.fieldAnchor.pointer, 'widgets/card.json#/descriptor/fields/0'); assert.equal(fieldRequest.anchorStatus, 'current');
+  await requestDialog.getByRole('button', { name: 'Закрыть', exact: true }).click();
+  await page.reload(); await page.locator('summary', { hasText: 'Поля · 2' }).click();
+  assert.equal(await page.locator('.managed-screens table tr', { hasText: 'Сумма' }).getByText('Запрос · 1', { exact: true }).count(), 1, 'the field row carries its chip');
+  assert.equal(await page.locator('.managed-screens table tr', { hasText: 'Примечание' }).getByText(/^Запрос · /).count(), 0);
+  await page.getByRole('link', { name: 'Запросы', exact: true }).click();
+  await page.locator('.managed-requests table tr', { hasText: 'Учебный запрос с поля' }).getByText(/Поле: Сумма · amount/).waitFor();
+  await page.screenshot({ path: 'qa/managed-request-field.png', fullPage: true });
+  await page.goto(base + '/solutions?' + new URLSearchParams({ id: processState.id, view: 'flows' }));
   const boundary = structuredClone(additions); boundary.process.items.y.condition = 'reviewed edit';
   await prepareProcess(boundary, 'change'); await acceptBlocked();
   await page.getByLabel('Изменение принятого объекта проверено', { exact: true }).check();
@@ -278,7 +338,7 @@ try {
     } catch { res.writeHead(404); res.end(); }
   });
   await new Promise(resolve => stories.listen(0, '127.0.0.1', resolve));
-  const storyModes = ['empty','list','create','overview','pending','change','review','conflict','overlap','ambiguous','stale','archived','loading','load-error','changes','solution','no-source','needs-fixes','pending-conflict','review-comment','review-findings','review-resolved','review-accepted','review-stale-anchor','review-removed-anchor','review-ambiguous-anchor','elements-added','elements-boundary','elements-conflict','elements-unknown','create-legacy','pull-exporting','pull-ready','pull-failed','pull-unavailable','update','summary-mixed','summary-no-changes','summary-closed','decision','lifecycle-build','lifecycle-verified','about-empty','about-generated','about-saved','about-stale','about-error','flows','flows-error','flows-unknown','screens'];
+  const storyModes = ['empty','list','create','overview','pending','change','review','conflict','overlap','ambiguous','stale','archived','loading','load-error','changes','solution','no-source','needs-fixes','pending-conflict','review-comment','review-findings','review-resolved','review-accepted','review-stale-anchor','review-removed-anchor','review-ambiguous-anchor','elements-added','elements-boundary','elements-conflict','elements-unknown','create-legacy','pull-exporting','pull-ready','pull-failed','pull-unavailable','update','summary-mixed','summary-no-changes','summary-closed','decision','lifecycle-build','lifecycle-verified','about-empty','about-generated','about-saved','about-stale','about-error','flows','flows-error','flows-unknown','screens','requests','requests-empty','requests-object','requests-error','request-form','request-form-field','request-record','request-published'];
   for (const mode of storyModes) {
     await page.goto(`http://127.0.0.1:${stories.address().port}/iframe.html?id=managed-workspace--${mode}&viewMode=story`);
     await page.locator('.managed-shell h1').waitFor();
@@ -329,6 +389,84 @@ try {
       await page.setViewportSize({ width: 390, height: 844 }); assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'flows 390');
     }
     if (mode === 'flows-error') { await page.getByText(/^Схема не получена: /).first().waitFor(); }
+    if (mode === 'flows') {
+      // UX-07: the chip of the open request and the entry point on the captured process card.
+      await page.locator('.managed-flows').getByText('Запрос · 1', { exact: true }).waitFor();
+      assert.equal(await page.locator('.managed-flows .managed-card').getByRole('button', { name: 'Запросить изменение', exact: true }).count(), 1, 'one entry point per captured process card');
+      assert.equal(await page.locator('.visual-form').getByRole('button', { name: 'Запросить изменение', exact: true }).count(), 1, 'and one on the selected step');
+    }
+    if (mode === 'screens') {
+      // UX-07: a request from a field anchors to that field; the chips mark the screen and the field row.
+      await page.locator('.managed-request-entry').getByText('Запрос · 1', { exact: true }).first().waitFor();
+      await page.locator('summary', { hasText: 'Поля · 2' }).click();
+      assert.equal(await page.locator('.managed-screens table tr', { hasText: 'Сумма' }).getByText('Запрос · 1', { exact: true }).count(), 1, 'field chip');
+      assert.equal(await page.locator('.managed-screens table tr', { hasText: 'Номер' }).getByText(/^Запрос · /).count(), 0);
+      await page.getByRole('button', { name: 'Запросить изменение: Сумма', exact: true }).click();
+      const dialog = page.locator('dialog.managed-request');
+      await dialog.getByText('Поле: Сумма · запрос привязан к полю', { exact: true }).waitFor();
+      assert.equal(await dialog.getByRole('radio', { name: 'Экран', exact: true }).isChecked(), true);
+      assert.equal(await dialog.getByLabel('Что должно быть', { exact: true }).inputValue(), '');
+      await dialog.getByRole('button', { name: 'Отмена', exact: true }).click();
+      assert.equal(await dialog.evaluate(node => node.open), false);
+      await page.locator('summary', { hasText: 'Поля · 2' }).click();
+    }
+    if (mode === 'requests') {
+      await page.getByRole('heading', { name: 'Запросы', exact: true }).waitFor();
+      assert.equal(await page.locator('.managed-requests tbody tr, .managed-requests table tr').count(), 5, 'header plus four requests');
+      for (const text of ['Новый', 'В работе', 'Выполнен', 'Отклонён', 'Срочно', 'Объект изменился после запроса', 'Всё решение']) await page.getByText(text, { exact: true }).first().waitFor();
+      assert.match(await page.locator('.managed-requests table tr', { hasText: 'Сумма обязательна' }).innerText(), /Поле: Сумма · amount/, 'a field request names its field under Где');
+      assert.match(await page.locator('.managed-requests table tr').nth(1).innerText(), /^Показывать сумму до утверждения/, 'newest first');
+      await page.getByRole('button', { name: 'Новый запрос', exact: true }).click();
+      const dialog = page.locator('dialog.managed-request');
+      await dialog.getByText('Что изменить', { exact: true }).waitFor();
+      await dialog.getByLabel('Кратко', { exact: true }).fill('Учебный запрос');
+      await dialog.getByLabel('Что должно быть', { exact: true }).fill('Учебное описание.');
+      await dialog.getByRole('button', { name: 'Отправить', exact: true }).click();
+      await dialog.getByText('Запрос сохранён в Wiki', { exact: true }).waitFor();
+      await dialog.getByRole('checkbox').check();
+      await dialog.getByRole('button', { name: 'Отправить в GitHub', exact: true }).click();
+      await dialog.getByText('Сохранён в Wiki. Отправка в GitHub не настроена', { exact: true }).waitFor();
+      await dialog.getByRole('button', { name: 'Закрыть', exact: true }).click();
+      await page.getByRole('link', { name: 'Учебный запрос', exact: true }).waitFor();
+    }
+    if (mode === 'requests-empty') await page.getByText('Запросов пока нет', { exact: true }).waitFor();
+    if (mode === 'requests-object') { await page.getByText(/^Запросы по объекту: Утверждение командировки/).waitFor(); assert.equal(await page.locator('.managed-requests table tr').count(), 2); }
+    if (mode === 'requests-error') { await page.getByRole('alert').filter({ hasText: 'Запросы не получены' }).waitFor(); }
+    if (mode === 'request-form') {
+      const dialog = page.locator('dialog.managed-request');
+      await dialog.getByText('Шаг: Проверить бюджет · шаг выбран на схеме', { exact: true }).waitFor();
+      assert.equal(await dialog.getByRole('radio', { name: 'Процесс', exact: true }).isChecked(), true);
+      assert.match(await dialog.getByLabel('Где', { exact: true }).inputValue(), /trip_approval/);
+      // Choosing another object drops the step; choosing the object back restores it.
+      await dialog.getByLabel('Где', { exact: true }).selectOption({ label: 'Заявка на командировку · contract' });
+      assert.equal(await dialog.getByText(/^Шаг: /).count(), 0);
+      await dialog.getByLabel('Где', { exact: true }).selectOption(JSON.stringify(['processor', 'travel_expenses.trips', 'template', 'trip_approval']));
+      await dialog.getByText(/^Шаг: /).waitFor();
+    }
+    if (mode === 'request-form-field') {
+      const dialog = page.locator('dialog.managed-request');
+      await dialog.getByText('Поле: Сумма · запрос привязан к полю', { exact: true }).waitFor();
+      assert.equal(await dialog.getByRole('radio', { name: 'Экран', exact: true }).isChecked(), true);
+      assert.equal(await dialog.getByLabel('Что должно быть', { exact: true }).inputValue(), '');
+      // Choosing another object drops the field; choosing the object back restores it.
+      await dialog.getByLabel('Где', { exact: true }).selectOption(JSON.stringify(['processor', 'travel_expenses.trips', 'template', 'trip_approval']));
+      assert.equal(await dialog.getByText(/^Поле: /).count(), 0);
+      await dialog.getByLabel('Где', { exact: true }).selectOption(JSON.stringify(['widgets', 'synthetic.records', 'contract']));
+      await dialog.getByText('Поле: Сумма · запрос привязан к полю', { exact: true }).waitFor();
+      await dialog.getByLabel('Кратко', { exact: true }).fill('Учебный запрос с поля');
+      await dialog.getByLabel('Что должно быть', { exact: true }).fill('Сумма с валютой.');
+      await dialog.getByRole('button', { name: 'Отправить', exact: true }).click();
+      await dialog.getByText('Запрос сохранён в Wiki', { exact: true }).waitFor();
+    }
+    if (mode === 'request-record') {
+      await page.getByRole('heading', { name: 'Показывать сумму до утверждения', exact: true }).waitFor();
+      for (const text of ['Срочно', 'История запроса', 'Записей пока нет', 'Добавить комментарий', 'Сохранить состояние', 'Отправить в GitHub']) await page.getByText(text, { exact: true }).first().waitFor();
+      await page.getByText(/^Где: /).first().waitFor(); await page.getByText('review', { exact: true }).first().waitFor();
+      assert.equal(await page.getByLabel('Версия, в которой выполнено', { exact: true }).isVisible(), false);
+      await page.getByLabel('Изменить состояние', { exact: true }).selectOption('done');
+      await page.getByLabel('Версия, в которой выполнено', { exact: true }).waitFor();
+    }
+    if (mode === 'request-published') { await page.getByText('Отправлен в GitHub', { exact: true }).waitFor(); await page.getByRole('link', { name: 'Открыть GitHub issue #85', exact: true }).waitFor(); assert.equal(await page.getByRole('button', { name: 'Отправить в GitHub', exact: true }).count(), 0); }
     if (mode === 'flows-unknown') {
       // An unsupported lane and node: who does it is unknown, and the unsupported items are one collapsed list with a count.
       await page.getByRole('button', { name: 'Посмотреть процесс: trip_approval', exact: true }).click();

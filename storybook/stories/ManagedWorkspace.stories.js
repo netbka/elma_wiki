@@ -7,6 +7,9 @@ function story(mode) {
   const root = mountManagedWorkspace(model, { draft: { read: () => draft, write: value => { draft = value; }, clear: () => { draft = null; } }, upload: explain, create: explain, prepare: explain, accept: explain, close: explain, archive: explain, comment: explain, resolveMerge: explain,
     acquisition: { servers: async () => ({ servers: [], configured: true }), catalog: explain, start: explain, get: explain, upload: explain },
     explanations: { read: explain, save: explain },
+    // UX-07: synthetic request routes. Creation and events return the record as the server would; publication stays local.
+    requests: { create: async input => ({ ...input, actor: { id: 'synthetic-you', login: 'you@example.org', provider: 'vk-teams' }, status: 'new', version: 0, events: [], createdAt: new Date().toISOString(), anchorStatus: 'current', target: { ...input.target, anchor: input.target.componentKey ? { key: input.target.componentKey, digest: 'a'.repeat(64) } : null } }),
+      event: explain, publish: async id => ({ id: '00000000-0000-4000-8000-000000000086', status: 'unconfigured', context: { changeRequestId: id }, message: 'Отчёт сохранён. Для отправки или проверки результата настройте GitHub.' }), retry: explain },
     context: async id => ({ source: 'widgets/synthetic-contract.json', content: JSON.stringify({ descriptor: { clientScripts: id === 'synthetic-before' ? 'const value = 1;' : 'const value = 2;' } }, null, 2), editable: false,
       limitation: 'Синтетический исходный файл. Код не выполняется.' }),
     navigate: () => { root.querySelector('[role=status]').textContent = 'Учебная навигация: выберите нужное состояние в меню Storybook.'; } });
@@ -55,6 +58,18 @@ export const Flows = { render: () => story('flows'), parameters: { docs: { descr
   'UX-06: Как работает. Processes by module with business names, declared responsibility and a one-line reading from their human tasks; search by name or code; the selected process opens the shared diagram with step detail.' } } } };
 export const FlowsError = { render: () => story('flows-error') };
 export const FlowsUnknown = { render: () => story('flows-unknown') };
+export const Requests = { render: () => story('requests'), parameters: { docs: { description: { story:
+  'UX-07: the Запросы tab. Newest first; status, author, where (module · business name, with the anchor warning when the object changed), created, fulfilling version. "Новый запрос" opens the form.' } } } };
+export const RequestsEmpty = { render: () => story('requests-empty') };
+export const RequestsObject = { render: () => story('requests-object') };
+export const RequestsError = { render: () => story('requests-error') };
+export const RequestForm = { render: () => story('request-form'), parameters: { docs: { description: { story:
+  'UX-07: the form opened from a step of Как работает. Что изменить preselected, Где filled from the entry point (object and step), Кратко, Что должно быть, Зачем, Срочность, one Отправить.' } } } };
+export const RequestFormField = { render: () => story('request-form-field'), parameters: { docs: { description: { story:
+  'UX-07: the form opened from the field row Сумма of Экраны и данные. Где names the object and the field; the request anchors to that declared field (code, position and fingerprint checked by the server).' } } } };
+export const RequestRecord = { render: () => story('request-record'), parameters: { docs: { description: { story:
+  'UX-07: a request record: where it points and whether the object changed, author and date, text, publication consent, history, comment and status forms.' } } } };
+export const RequestPublished = { render: () => story('request-published') };
 export const Screens = { render: () => story('screens'), parameters: { docs: { description: { story:
   'UX-06: Экраны и данные. Forms and data objects by module with the fields their export declares; search; system objects collapsed; processes referenced on Как работает.' } } } };
 export const NativeComponents = { render: () => story('native-components') };

@@ -1,6 +1,6 @@
 import { relatedForm, checkScenarioStep, laneOf } from './model.js';
 import { mountExplanation } from '../explanations/render.js';
-import { diagram as diagramLabels, flows as flowLabels } from '../managed/labels.js';
+import { diagram as diagramLabels, flows as flowLabels, actions as actionLabels } from '../managed/labels.js';
 const el=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n;};
 const svg=(tag,attrs={})=>{const n=document.createElementNS('http://www.w3.org/2000/svg',tag);for(const [k,v] of Object.entries(attrs))n.setAttribute(k,String(v));return n;};
 export function mountSnapshotVisual(model={},actions={}) {
@@ -69,6 +69,8 @@ export function mountSnapshotVisual(model={},actions={}) {
       panel.replaceChildren(el('h3',node.name),source(node.pointer));
       // UX-06: who does it, from the lane that contains the step in the export.
       const lane=laneOf(process,node);panel.append(el('p',flowLabels.whoDoes+': '+(lane?lane.name:flowLabels.laneUnknown)));
+      // UX-07: a request from this step carries its source anchor.
+      if(actions.requestChange){const request=el('button',actionLabels.requestChange);request.type='button';request.className='secondary';request.onclick=()=>actions.requestChange({anchor:node.supported&&node.anchorIdentityKnown?node.anchor:null,stepName:node.name});panel.append(request);}
       if(actions.explanations)panel.append(explanation({scope:'step',artifactId:model.artifactId,source:process.source,nodeId:node.id},'Объяснить этот шаг',openSource));
       diagram.querySelectorAll('[data-node]').forEach(n=>n.setAttribute('stroke',n.dataset.node===node.id?'#087451':n.dataset.changed?'#b36b00':'#536660'));
       const relation=relatedForm(process,node.id);
