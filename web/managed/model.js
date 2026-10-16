@@ -102,6 +102,18 @@ export function reviewSummary(review, rows = review?.rows || []) {
     unknownParts: review?.ambiguities?.length || 0,
     dependencyProblems: (review?.dependencies?.rows || []).filter(row => row.status !== 'component-source-present').length };
 }
+// UX-08: the actor's "Просмотрено" progress over the changed objects. A mark
+// on an object whose digest changed since does not count; it is reported
+// separately so the row can say "Изменилось после просмотра".
+export function viewedProgress(review, rows = review?.rows || []) {
+  if (!review?.viewed) return null;
+  const marks = new Map(review.viewed.rows.map(row => [row.key, row]));
+  const changed = rows.filter(row => reviewBucket(row) !== 'unchanged');
+  const status = row => marks.get(row.key)?.status || 'unviewed';
+  const viewed = changed.filter(row => status(row) === 'viewed').length;
+  return { viewed, total: changed.length, changedSinceViewed: changed.filter(row => status(row) === 'changed').length,
+    line: `${ribbon.viewed} · ${viewed} ${ribbon.viewedOf} ${changed.length}` };
+}
 // Dependency rows grouped by target and status, with a count, so a target
 // referenced from many components reads as one line.
 export function groupDependencies(rows = []) {

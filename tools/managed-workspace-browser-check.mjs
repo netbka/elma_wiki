@@ -338,7 +338,7 @@ try {
     } catch { res.writeHead(404); res.end(); }
   });
   await new Promise(resolve => stories.listen(0, '127.0.0.1', resolve));
-  const storyModes = ['empty','list','create','overview','pending','change','review','conflict','overlap','ambiguous','stale','archived','loading','load-error','changes','solution','no-source','needs-fixes','pending-conflict','review-comment','review-findings','review-resolved','review-accepted','review-stale-anchor','review-removed-anchor','review-ambiguous-anchor','elements-added','elements-boundary','elements-conflict','elements-unknown','create-legacy','pull-exporting','pull-ready','pull-failed','pull-unavailable','update','summary-mixed','summary-no-changes','summary-closed','decision','lifecycle-build','lifecycle-verified','about-empty','about-generated','about-saved','about-stale','about-error','flows','flows-error','flows-unknown','screens','requests','requests-empty','requests-object','requests-error','request-form','request-form-field','request-record','request-published'];
+  const storyModes = ['empty','list','create','overview','pending','change','review','conflict','overlap','ambiguous','stale','archived','loading','load-error','changes','solution','no-source','needs-fixes','pending-conflict','review-comment','review-findings','review-resolved','review-accepted','review-stale-anchor','review-removed-anchor','review-ambiguous-anchor','elements-added','elements-boundary','elements-conflict','elements-unknown','create-legacy','pull-exporting','pull-ready','pull-failed','pull-unavailable','update','summary-mixed','summary-no-changes','summary-closed','decision','viewed-marked','viewed-changed','viewed-second-actor','lifecycle-build','lifecycle-verified','about-empty','about-generated','about-saved','about-stale','about-error','flows','flows-error','flows-unknown','screens','requests','requests-empty','requests-object','requests-error','request-form','request-form-field','request-record','request-published'];
   for (const mode of storyModes) {
     await page.goto(`http://127.0.0.1:${stories.address().port}/iframe.html?id=managed-workspace--${mode}&viewMode=story`);
     await page.locator('.managed-shell h1').waitFor();
@@ -349,6 +349,19 @@ try {
       assert.equal(await d.getByRole('button', { name: 'Принять версию', exact: true }).isVisible(), true); await d.getByRole('button', { name: 'Отмена', exact: true }).click();
     }
     if (mode === 'decision') { await dialog().waitFor(); assert.equal(await dialog().getByRole('radio', { name: 'Принять', exact: true }).isDisabled(), true); assert.equal(await dialog().getByRole('radio', { name: 'Запросить доработку', exact: true }).isChecked(), true); }
+    // UX-08: header progress counts only the actor's current marks; a changed object loses its mark and says so.
+    if (mode.startsWith('viewed-')) {
+      const progress = page.locator('.managed-viewed-progress');
+      assert.equal(await progress.textContent(), mode === 'viewed-marked' ? 'Просмотрено · 2 из 4' : 'Просмотрено · 1 из 4');
+      assert.equal(await page.locator('.managed-viewed-changed:visible').count(), mode === 'viewed-changed' ? 1 : 0);
+      const marks = page.getByRole('checkbox', { name: 'Просмотрено', exact: true });
+      assert.equal(await marks.count(), 4);
+      if (mode === 'viewed-changed') {
+        await page.locator('.managed-card', { has: page.locator('.managed-viewed-changed:visible') }).getByRole('checkbox', { name: 'Просмотрено', exact: true }).check();
+        await page.getByText('Просмотрено · 2 из 4', { exact: true }).waitFor(); assert.equal(await page.locator('.managed-viewed-changed:visible').count(), 0);
+      }
+      if (mode === 'viewed-marked') { await marks.first().uncheck(); await page.getByText('Просмотрено · 1 из 4', { exact: true }).waitFor(); await marks.first().check(); await page.getByText('Просмотрено · 2 из 4', { exact: true }).waitFor(); }
+    }
     if (mode === 'summary-no-changes') { await page.getByRole('button', { name: 'Закрыть без изменений', exact: true }).waitFor(); assert.equal(await page.getByRole('button', { name: 'Решение по версии', exact: true }).count(), 0); }
     if (['lifecycle-build', 'lifecycle-verified', 'overview', 'pending', 'archived'].includes(mode)) {
       // UX-04: six lifecycle steps, one current while active, unavailable steps carry a reason.
@@ -486,7 +499,7 @@ try {
       await page.setViewportSize({ width: 390, height: 844 }); assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'screens 390');
     }
     if (mode === 'summary-closed') { await page.getByText(/^Закрыто без изменений:/).waitFor(); assert.equal(await page.getByRole('button', { name: 'Решение по версии', exact: true }).count(), 0); }
-    if (!mode.startsWith('review-') && !mode.startsWith('elements-') && !['create','create-legacy','update','change','review','conflict','overlap','ambiguous','archived','loading','summary-mixed','summary-no-changes','summary-closed','decision'].includes(mode) && !mode.startsWith('pull-')) assert.equal(await page.locator('.managed-content a.button').count(), 1, 'one primary action: ' + mode);
+    if (!mode.startsWith('review-') && !mode.startsWith('elements-') && !['create','create-legacy','update','change','review','conflict','overlap','ambiguous','archived','loading','summary-mixed','summary-no-changes','summary-closed','decision'].includes(mode) && !mode.startsWith('pull-') && !mode.startsWith('viewed-')) assert.equal(await page.locator('.managed-content a.button').count(), 1, 'one primary action: ' + mode);
     if (mode === 'create') { assert.equal(await page.getByRole('button', { name: 'Загрузить', exact: true }).count(), 1, 'one button on the fixed entry'); assert.equal(await page.getByLabel('Это полный экспорт решения', { exact: true }).count(), 0); }
     if (mode === 'update') { await page.getByRole('button', { name: 'Обновить', exact: true }).waitFor(); assert.equal(await page.getByLabel('Сервер', { exact: true }).isDisabled(), true); }
     if (mode === 'pull-unavailable') assert.equal(await page.getByRole('button', { name: 'Загрузить', exact: true }).isDisabled(), true);

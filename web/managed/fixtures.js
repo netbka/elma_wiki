@@ -36,7 +36,7 @@ export function managedFixture(mode = 'overview') {
     if (mode === 'review-accepted') { review.acceptedAt = at; review.acceptedDecision = { actor, boundaryKeys: [finding.anchor.key], resolutions: null }; }
   }
   // UX-03: summary line, chips, ribbon and grouping on a mixed review and on a no-change version.
-  if (['summary-mixed', 'summary-no-changes', 'summary-closed'].includes(mode)) {
+  if (['summary-mixed', 'summary-no-changes', 'summary-closed'].includes(mode) || mode.startsWith('viewed-')) {
     const extra = (service, namespace, code, kind, name, classification, extraFields = {}) => ({ code, key: JSON.stringify(service === 'widgets' ? [service, namespace, code] : [service, namespace, kind, code]),
       service, namespace, kind, name, classification, previousTeam: 'Команда внедрения', digest: 'a'.repeat(64), ...extraFields });
     review.kind = 'reconciliation'; review.options = { baselineOwner: 'Команда внедрения' };
@@ -45,7 +45,7 @@ export function managedFixture(mode = 'overview') {
     review.dependencies = { provenance: 'configured-source-capture', rows: [
       ...Array.from({ length: 14 }, () => ({ required: false, service: 'processor', targetNamespace: '_system_catalogs', targetCode: '_my_companies', status: 'provider-not-observed' })),
       { required: true, service: 'widgets', targetNamespace: '_clients', targetCode: '_companies', status: 'component-source-present' }] };
-    review.rows = mode !== 'summary-mixed'
+    review.rows = mode !== 'summary-mixed' && !mode.startsWith('viewed-')
       ? [{ ...component('contract'), classification: 'unchanged' }, { ...component('approval'), classification: 'unchanged' }, extra('permissionsSettings', 'synthetic', 'contract', 'permissionSettings', null, 'unchanged')]
       : [extra('processor', 'travel_expenses.trips', 'trip_approval', 'template', 'Утверждение командировки', 'external-change'),
         extra('widgets', 'travel_expenses.trips', 'request_form', 'WIDGET', 'Форма заявки', 'intervention-added', { previousTeam: null }),
@@ -53,6 +53,19 @@ export function managedFixture(mode = 'overview') {
         { ...component('contract'), classification: 'conflict' },
         { ...component('approval'), classification: 'unchanged' }, { ...component('comment'), classification: 'unchanged' },
         extra('permissionsSettings', 'travel_expenses', 'trips', 'permissionSettings', null, 'unchanged')];
+  }
+  // UX-08: per-actor "Просмотрено" marks on the mixed review. Each projection is
+  // one actor's own marks: the reviewer marked two objects; in viewed-changed the
+  // second of them changed after the mark; the second reviewer sees only their
+  // own single mark, never the first reviewer's.
+  if (mode.startsWith('viewed-')) {
+    const secondReviewer = { id: 'synthetic-second-reviewer', login: 'second.reviewer@example.org', provider: 'vk-teams' };
+    const marks = { 'viewed-marked': ['viewed', 'viewed'], 'viewed-changed': ['viewed', 'changed'], 'viewed-second-actor': ['unviewed', 'unviewed', 'viewed'] }[mode] || [];
+    const changed = review.rows.filter(row => row.classification !== 'unchanged');
+    review.viewed = { actor: mode === 'viewed-second-actor' ? secondReviewer : actor, rows: review.rows.map((row, index) => {
+      const status = marks[changed.indexOf(row)] || 'unviewed';
+      return { key: row.key, digest: String(index).repeat(64), status, at: status === 'unviewed' ? null : at };
+    }) };
   }
   if (mode === 'conflict') review.rows[0].classification = 'conflict';
   if (mode === 'overlap') review.rows[0].conflict = true;
@@ -73,7 +86,7 @@ export function managedFixture(mode = 'overview') {
   if (mode === 'archived') { workspace.status = 'archived'; workspace.history.push({ type: 'archived' }); }
   if (mode === 'pending') workspace.pending = [{ artifactId: review.artifactId, kind: review.kind, revision: 1, stale: false, options: review.options }];
   const model = { synthetic: true, shared: true, home: '/solutions', api: '/api/solutions', view: 'overview', workspace };
-  if (['review', 'conflict', 'overlap', 'ambiguous', 'decision'].includes(mode) || mode.startsWith('review-') || mode.startsWith('elements-') || mode.startsWith('summary-')) Object.assign(model, { view: 'review', review });
+  if (['review', 'conflict', 'overlap', 'ambiguous', 'decision'].includes(mode) || mode.startsWith('review-') || mode.startsWith('elements-') || mode.startsWith('summary-') || mode.startsWith('viewed-')) Object.assign(model, { view: 'review', review });
   if (mode === 'decision') model.decisionOpen = true;
   if (['create', 'create-legacy', 'empty', 'list', 'loading', 'load-error'].includes(mode) || mode.startsWith('pull-')) {
     delete model.workspace; model.view = ['create', 'create-legacy'].includes(mode) || mode.startsWith('pull-') ? 'create' : 'list';

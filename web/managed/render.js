@@ -4,7 +4,7 @@ import { decisionChoices, decisionDefault, canCloseWithoutChanges, solutionStatu
 import { mountSnapshotVisual } from '../visual/render.js';
 import { mountExplanation } from '../explanations/render.js';
 import { mountRelease } from '../releases/render.js';
-import { hasAcceptedFullExport, requestCounts, fieldRequestCounts } from './model.js';
+import { hasAcceptedFullExport, requestCounts, fieldRequestCounts, viewedProgress } from './model.js';
 import { mountAcquisition, mountSolutionPull, serverFromConnection } from './acquisition.js';
 import { actions as actionLabels, pull as pullLabels } from './labels.js';
 import { mountDependencies } from './dependencies.js';
@@ -464,6 +464,37 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
       noChangeActions.append(link(actionLabels.refreshAgain, workspaceUrl(state.id, 'full'), !closable)); summaryBlock.append(noChangeActions);
     }
     const line = el('p', summary.line, 'managed-summary-line'); line.setAttribute('role', 'status'); summaryBlock.append(line);
+    // UX-08: the actor's own "Просмотрено" marks. A mark binds the object's
+    // digest; a changed object shows "Изменилось после просмотра" and stops
+    // counting. Marks are personal reading progress and never gate a decision.
+    const viewedState = new Map((review.viewed?.rows || []).map(row => [row.key, row])), viewedCards = new Map();
+    const markable = !!(review.viewed && actions.markViewed && !review.stale && state.status === 'active');
+    const viewedLine = el('p', '', 'managed-viewed-progress'); viewedLine.setAttribute('role', 'status');
+    const showViewed = () => {
+      const progress = viewedProgress({ viewed: { rows: [...viewedState.values()] } }, rowsWithMeta);
+      viewedLine.hidden = !progress?.total; viewedLine.textContent = progress?.total ? progress.line : '';
+      for (const [key, view] of viewedCards) {
+        const status = viewedState.get(key)?.status;
+        if (view.input) view.input.checked = status === 'viewed';
+        view.card.classList.toggle('managed-viewed', status === 'viewed'); view.badge.hidden = status !== 'changed';
+      }
+    };
+    const viewedControl = (card, row) => {
+      if (!review.viewed || reviewBucket(row) === 'unchanged' || !viewedState.has(row.key)) return;
+      const badge = el('p', facts.changedSinceViewed, 'managed-viewed-changed'), view = { card, badge, input: null };
+      if (markable) {
+        const input = check(card, facts.viewed); input.closest('label').classList.add('managed-viewed-check'); view.input = input;
+        input.onchange = async () => {
+          if (busy || blocked) { showViewed(); return; }
+          input.disabled = true; error.textContent = '';
+          try { for (const item of (await actions.markViewed(review.artifactId, { key: row.key, digest: viewedState.get(row.key).digest, viewed: input.checked })).rows) viewedState.set(item.key, item); }
+          catch (e) { error.textContent = e.message || facts.viewedFailed; }
+          finally { input.disabled = false; showViewed(); }
+        };
+      }
+      card.append(badge); viewedCards.set(row.key, view);
+    };
+    summaryBlock.append(viewedLine);
     const chips = el('ul', undefined, 'managed-chips'); chips.setAttribute('aria-label', 'Факты');
     const chip = (text, tone) => chips.append(el('li', text, tone));
     if (review.baseDeclaration) {
@@ -605,6 +636,7 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
     };
     for (const row of rowsWithMeta) {
       const card = el('section', undefined, 'managed-card'); card.append(objectTitle('h3', row), el('p', row.conflict ? 'Конфликт с изменением другой команды' : labels[row.classification] || row.classification));
+      viewedControl(card, row);
       if (row.elements) {
         card.append(el('h4', 'Ответственность частей процесса'),
           el('p', 'Заявленная командой ответственность. Авторы публикаций ELMA и договорная ответственность не установлены.', 'managed-muted'));
@@ -664,6 +696,7 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
     }
     // A single module needs no module heading; its cards sit directly in the form.
     if (modules.size === 1) { const [section] = modules.values(); section.replaceWith(...[...section.children].slice(1)); modules.clear(); }
+    showViewed();
     if (summary.counts.unchanged) form.append(unchanged);
     if (review.rows.length && !summary.changed) form.append(el('p', summaryLabels.noChangedObjects, 'managed-muted'));
     applyFilter();

@@ -12,6 +12,9 @@ function story(mode) {
       event: explain, publish: async id => ({ id: '00000000-0000-4000-8000-000000000086', status: 'unconfigured', context: { changeRequestId: id }, message: 'Отчёт сохранён. Для отправки или проверки результата настройте GitHub.' }), retry: explain },
     context: async id => ({ source: 'widgets/synthetic-contract.json', content: JSON.stringify({ descriptor: { clientScripts: id === 'synthetic-before' ? 'const value = 1;' : 'const value = 2;' } }, null, 2), editable: false,
       limitation: 'Синтетический исходный файл. Код не выполняется.' }),
+    // UX-08: a synthetic echo of the actor's own marks, kept for this story only.
+    markViewed: async (artifactId, input) => { const rows = model.review.viewed.rows; const index = rows.findIndex(row => row.key === input.key);
+      rows[index] = { ...rows[index], status: input.viewed ? 'viewed' : 'unviewed', at: input.viewed ? new Date().toISOString() : null }; return { actor: model.review.viewed.actor, rows }; },
     navigate: () => { root.querySelector('[role=status]').textContent = 'Учебная навигация: выберите нужное состояние в меню Storybook.'; } });
   return root;
 }
@@ -37,6 +40,12 @@ export const SummaryNoChanges = { render: () => story('summary-no-changes') };
 export const SummaryClosed = { render: () => story('summary-closed') };
 export const Decision = { render: () => story('decision'), parameters: { docs: { description: { story:
   'UX-03b: the one "Решение по версии" button opens one dialog with Принять, Запросить доработку and Только комментарий. A closed gate disables acceptance and shows its reason inside the dialog.' } } } };
+export const ViewedMarked = { render: () => story('viewed-marked'), parameters: { docs: { description: { story:
+  'UX-08: each changed object carries the reviewer’s own "Просмотрено" mark; the header counts "Просмотрено · 2 из 4". Marks are personal reading progress and never gate the decision.' } } } };
+export const ViewedChanged = { render: () => story('viewed-changed'), parameters: { docs: { description: { story:
+  'UX-08: an object changed after it was marked: the mark is cleared, the row says "Изменилось после просмотра" and the header counts only 1 of 4.' } } } };
+export const ViewedSecondActor = { render: () => story('viewed-second-actor'), parameters: { docs: { description: { story:
+  'UX-08: the same review seen by a second reviewer shows only their own single mark (1 of 4); the first reviewer’s marks stay theirs.' } } } };
 export const LifecycleBuild = { render: () => story('lifecycle-build'), parameters: { docs: { description: { story:
   'UX-04: header badge and lifecycle stepper. Загрузка, Сравнение and Рассмотрение are done, Сборка is the current step because the server reported an available builder and every build eligibility gate verified (hypothetical), Выпуск is unavailable with its reason.' } } } };
 export const LifecycleVerified = { render: () => story('lifecycle-verified') };
