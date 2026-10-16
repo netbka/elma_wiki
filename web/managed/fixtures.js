@@ -183,7 +183,9 @@ export function managedFixture(mode = 'overview') {
   if (mode === 'pending-conflict') workspace.pending = [{ artifactId: review.artifactId, kind: 'reconciliation', revision: 1, stale: false, attention: { conflicts: 1, unknown: 0 }, options: { baselineOwner: 'Команда внедрения' } }];
   // UX-04: header stepper states after acceptance. The build step is current only when the
   // server reported an available builder; a verified delivery leaves release unavailable.
-  if (mode === 'lifecycle-build') model.composed = { candidates: [], build: { available: true } };
+  // Hypothetical: a builder and every build eligibility gate verified (no such evidence exists today).
+  if (mode === 'lifecycle-build') model.composed = { candidates: [], build: { available: true },
+    eligibility: { eligible: true, gates: ['scope', 'coverage', 'dependencies', 'target-profile', 'materialization'].map(id => ({ id, status: 'verified', reasons: [] })) } };
   if (mode === 'lifecycle-verified') workspace.delivery = { supported: true, state: 'verified' };
   if (mode.startsWith('about-')) {
     // A screen without a namespace makes a "Без модуля" card: titled, counted, not explainable.

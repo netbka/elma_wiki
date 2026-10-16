@@ -124,6 +124,49 @@ export const feedback = {
   rejectApplied: 'Запрошена доработка: блокирующее замечание добавлено.'
 };
 
+// Composer build eligibility (#94 MR-04/MR-05): one row per gate, every blocking reason named.
+export const buildEligibility = {
+  heading: 'Условия сборки', listName: 'Условия сборки конфигурации', notLoaded: 'Проверка состава, покрытия, зависимостей и профиля Target не получена. Сборка недоступна.',
+  blockedSummary: 'Изменения приняты. Сборка конфигурации заблокирована: состав, покрытие, зависимости или профиль Target не подтверждены.',
+  unknownReason: 'не описанная причина:', unit: 'единица установки', object: 'объект', module: 'модуль', fact: 'не хватает:'
+};
+export const buildGateLabels = { scope: 'Состав выпуска', coverage: 'Нативное покрытие', dependencies: 'Зависимости и лицензии', 'target-profile': 'Профиль Target', materialization: 'Нативная сборка' };
+export const buildGateStatuses = { verified: 'подтверждено', blocked: 'заблокировано', unknown: 'не подтверждено' };
+export const buildBlockReasons = {
+  'missing-native-coverage': 'покрытие не рассчитано', 'unverified-native-coverage': 'покрытие получено не от адаптера покрытия',
+  'native-coverage-unavailable': 'нет заявления о нативном покрытии этого решения', 'invalid-native-coverage-declaration': 'заявление о покрытии не прошло проверку',
+  'unknown-native-coverage-contract': 'заявление о покрытии по неизвестному контракту', 'unknown-native-coverage': 'источник покрытия не подтверждён',
+  'unknown-native-import-unit': 'объект не входит ни в одну нативную единицу установки', 'ambiguous-native-import-unit': 'объект входит в несколько единиц установки',
+  'unsupported-native-import-unit': 'единица установки не поддерживается', 'unsupported-native-unit-member': 'вид объекта не поддерживается нативной сборкой',
+  'stale-native-unit-coverage': 'покрытие относится к другой версии объекта', 'native-import-unit-cycle': 'единицы установки зависят друг от друга по кругу',
+  'missing-native-evidence': 'нет нативного подтверждения установки', 'synthetic-evidence-only': 'только учебные данные, это не нативное подтверждение',
+  'duplicate-native-provider': 'одно и то же покрытие заявлено несколько раз', 'stale-native-capture-binding': 'заявление о покрытии относится к другому экспорту',
+  'unpinned-native-declaration': 'заявление о покрытии без закреплённой версии', 'unbound-capture': 'экспорт без контрольной суммы',
+  'dependency-cycle': 'объекты зависят друг от друга по кругу', 'missing-component': 'объект из состава не найден в экспорте',
+  'ambiguous-component': 'объект найден в экспорте несколько раз', 'incomplete-capture': 'в экспорте есть нераспознанные файлы',
+  'incomplete-solution-inventory': 'экспорт решения не полный', 'unknown-dependency-category': 'вид зависимости не распознан',
+  'unknown-dependency-inventory': 'список зависимостей не распознан', 'empty-required-scope': 'состав выпуска пуст', 'unproven-component': 'объект без доказанной идентичности',
+  'missing-reference': 'нужный модуль не найден в экспорте', 'ambiguous-reference': 'нужный модуль найден в нескольких решениях',
+  'unverified-licensed-prerequisite': 'платный модуль: лицензия на Target не подтверждена', 'unknown-reference-identity': 'ссылка на зависимость не распознана',
+  'unknown-reference-source': 'источник зависимости не распознан', 'unresolved-dependency': 'зависимость не закреплена',
+  'missing-dependency-resolution': 'зависимости не проверены', 'unverified-dependency-resolution': 'проверка зависимостей получена не от проверяющего модуля',
+  'stale-dependency-resolution': 'проверка зависимостей относится к другому составу', 'native-receipt-contract-unavailable': 'нет нативного контракта подтверждений',
+  'unknown-dependency-evidence': 'источник подтверждений зависимостей неизвестен', 'unobserved-native-receipt': 'подтверждение не прочитано с Target',
+  'unobserved-target-profile': 'профиль Target не прочитан с сервера', 'unknown-target-profile': 'профиль Target неизвестен',
+  'unbound-plan-target-profile': 'состав выпуска не привязан к профилю Target', 'stale-target-profile': 'профиль Target изменился после планирования',
+  'stale-target-profile-observation': 'профиль Target прочитан больше суток назад', 'stale-coverage-profile': 'покрытие рассчитано для другого профиля Target',
+  'stale-dependency-profile': 'зависимости проверены для другого профиля Target', 'stale-native-profile': 'заявление о покрытии составлено для другого профиля Target',
+  'unknown-target-precondition': 'неизвестно, пуст ли Target', 'unproven-target-preservation': 'не подтверждено сохранение остального содержимого Target',
+  'stale-target-baseline': 'содержимое Target изменилось', 'inconsistent-target-profile': 'части выпуска рассчитаны для разных профилей Target',
+  'unknown-observation-time': 'время чтения профиля неизвестно',
+  'native-materialization-unavailable': 'нативный сборщик недоступен', 'native-materialization-unknown': 'сервис не сообщил о нативном сборщике',
+  'missing-receipt': 'нет подтверждения с Target', 'assertion-only-receipt': 'подтверждение не проверено', 'unverified-entitlement': 'лицензия не подтверждена',
+  'unverified-activation': 'активация не подтверждена', 'duplicate-provider': 'несколько поставщиков', 'unknown-required-provider': 'поставщик неизвестен',
+  'ambiguous-provider': 'несколько возможных поставщиков', 'unknown-required-version': 'версия поставщика неизвестна', 'missing-binding': 'нет настройки подключения',
+  'native-import-receipt': 'квитанция импорта', 'native-installation-observation': 'наблюдение установки', 'pinned-native-coverage-contract': 'закреплённый контракт покрытия',
+  'global-domain-executable-handler': 'обработчик глобальных настроек', 'global-domain-verification': 'проверка глобальных настроек'
+};
+
 // Changed steps on the process diagram (UX-03b "Открыть схему")
 export const diagram = { changedSteps: 'Изменённые шаги выделены', changedStep: 'изменён', processNotFound: 'Схема этого процесса не найдена в экспорте' };
 

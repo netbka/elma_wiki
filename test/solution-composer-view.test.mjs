@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { composerView, composerGate, composedCandidateRow, composedDeliveryRelease, composerBuildView } from '../web/managed/composer.js';
-import { composedCandidateFixture, solutionComposerFixture, composerNextActionFixture } from '../web/managed/composer-fixtures.js';
+import { composerView, composerGate, composedCandidateRow, composedDeliveryRelease, composerBuildView, buildEligibilityView, buildReasonLine } from '../web/managed/composer.js';
+import { composedCandidateFixture, solutionComposerFixture, composerNextActionFixture, eligibilityFixtures } from '../web/managed/composer-fixtures.js';
 import { solutionNextAction } from '../web/managed/model.js';
 import { deliveryPanelView } from '../web/releases/delivery-model.js';
 
@@ -80,9 +80,14 @@ test('next action follows the product map: compare, resolve or establish base, b
   const verify = action('verify');
   assert.deepEqual([verify.state, verify.label, verify.candidate], ['verify', 'Проверить конфигурацию', composedCandidateFixture().id]);
   assert.match(verify.summary, /принятая учебная сборка/i);
-  // Available build only when the server says so; stale candidates do not count as built.
+  // Available build only when the server says so and every eligibility gate is verified; stale candidates do not count as built.
   const workspace = composerNextActionFixture('overview').workspace;
-  assert.equal(solutionNextAction(workspace, { composed: { candidates: [composedCandidateFixture({ status: 'stale' })], build: { available: true } } }).state, 'build');
+  const verified = { eligible: true, gates: ['scope', 'coverage', 'dependencies', 'target-profile', 'materialization'].map(id => ({ id, status: 'verified', reasons: [] })) };
+  assert.equal(solutionNextAction(workspace, { composed: { candidates: [composedCandidateFixture({ status: 'stale' })], build: { available: true }, eligibility: verified } }).state, 'build');
+  for (const eligibility of [undefined, { loadError: 'x' }, eligibilityFixtures.current, { ...verified, eligible: false }, { eligible: true, gates: [{ id: 'scope', status: 'blocked', reasons: [] }] }]) {
+    const next = solutionNextAction(workspace, { composed: { candidates: [], build: { available: true }, eligibility } });
+    assert.equal(next.state, 'build-blocked'); assert.match(next.summary, /профиль Target не подтверждены/);
+  }
   // Without composer data the review-only projection is unchanged.
   assert.equal(solutionNextAction(workspace).state, 'accepted');
   // A Solution with no accepted change never jumps to build.
@@ -94,4 +99,36 @@ test('next action follows the product map: compare, resolve or establish base, b
   // An approval for an older candidate revision does not unlock verification.
   const outdated = composedCandidateFixture({ approved: true }); outdated.revision = 3;
   assert.equal(solutionNextAction(workspace, { composed: { candidates: [outdated], build: null } }).state, 'review-build');
+});
+
+test('composer shows every eligibility gate and each blocking reason; a build is offered only when all gates are verified', () => {
+  const gates = buildEligibilityView(eligibilityFixtures.gates);
+  assert.equal(gates.loaded, true); assert.equal(gates.eligible, false);
+  assert.deepEqual(gates.gates.map(row => [row.id, row.label, row.statusLabel]), [['scope', 'Состав выпуска', 'заблокировано'], ['coverage', 'Нативное покрытие', 'заблокировано'],
+    ['dependencies', 'Зависимости и лицензии', 'заблокировано'], ['target-profile', 'Профиль Target', 'заблокировано'], ['materialization', 'Нативная сборка', 'заблокировано']]);
+  const lines = Object.fromEntries(gates.gates.map(row => [row.id, row.reasons]));
+  assert.deepEqual(lines.scope, ['объекты зависят друг от друга по кругу · contract → approval']);
+  assert.equal(lines.coverage[0], 'вид объекта не поддерживается нативной сборкой · единица установки package:synthetic_solution · объект mystery');
+  assert.match(lines.coverage[1], /нет нативного подтверждения установки .* не хватает: квитанция импорта/);
+  assert.deepEqual(lines.dependencies, ['платный модуль: лицензия на Target не подтверждена · модуль vendor.signature', 'зависимость не закреплена · модуль vendor.signature · нет подтверждения с Target']);
+  assert.deepEqual(lines['target-profile'], ['профиль Target прочитан больше суток назад', 'зависимости проверены для другого профиля Target']);
+  assert.match(lines.materialization[0], /^нативный сборщик недоступен · .*нативный исполнитель/);
+  // Today's service: nothing is eligible, the unverified gates name their reasons and the verified scope names none.
+  const current = buildEligibilityView(eligibilityFixtures.current);
+  assert.deepEqual(current.gates.map(row => row.status), ['verified', 'blocked', 'blocked', 'unknown', 'blocked']);
+  assert.deepEqual(current.gates[0].reasons, []); assert.ok(current.gates.slice(1).every(row => row.reasons.length > 0));
+  assert.match(current.gates[3].reasons.join(' '), /профиль Target не прочитан с сервера/);
+  // Unknown reasons stay visible; long per-object lists are capped with a count.
+  assert.equal(buildReasonLine({ reason: 'future-reason' }), 'не описанная причина: future-reason');
+  const many = buildEligibilityView({ eligible: false, gates: [{ id: 'coverage', status: 'blocked', reasons: Array.from({ length: 8 }, (_, i) => ({ reason: 'unknown-native-import-unit', solution: 's', key: JSON.stringify(['widgets', 'n', 'c' + i]) })) }] });
+  assert.equal(many.gates[0].reasons.length, 6); assert.match(many.gates[0].reasons.at(-1), /и ещё 3$/);
+  // Not loaded, failed or malformed eligibility never enables the build, even with an available builder.
+  for (const eligibility of [undefined, null, { loadError: 'x' }, { eligible: true }, { eligible: true, gates: [{ id: 'scope', status: 'unknown', reasons: [] }] }]) {
+    const view = composerView({ candidates: [], build: { available: true }, eligibility });
+    assert.equal(view.build.available, false); assert.match(view.build.reason, /не подтверждены/);
+  }
+  const verified = { eligible: true, gates: ['scope', 'coverage', 'dependencies', 'target-profile', 'materialization'].map(id => ({ id, status: 'verified', reasons: [] })) };
+  assert.equal(composerView({ candidates: [], build: { available: true }, eligibility: verified }).build.available, true);
+  // The materialization reason stays when the builder itself is unavailable.
+  assert.match(composerView({ candidates: [], build: solutionComposerFixture().model.composed.build, eligibility: verified }).build.reason, /elma365#60/);
 });

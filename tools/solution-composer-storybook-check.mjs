@@ -30,7 +30,7 @@ try {
   };
   const text = async locator => (await locator.textContent()).replace(/\s+/g, ' ');
 
-  for (const id of ['build-blocked', 'list', 'awaiting-approval', 'approved', 'stale', 'missing', 'load-error', 'delivery-prepared', 'partial-outcome', 'unknown-outcome', 'verified', 'verification-failed', 'failed', 'delivery-load-error', 'lost-response']) {
+  for (const id of ['build-blocked', 'build-gates', 'eligibility-load-error', 'list', 'awaiting-approval', 'approved', 'stale', 'missing', 'load-error', 'delivery-prepared', 'partial-outcome', 'unknown-outcome', 'verified', 'verification-failed', 'failed', 'delivery-load-error', 'lost-response']) {
     await open(id);
     assert.equal(await page.locator('.managed-shell').count(), 1, id);
     assert.equal(await page.getByRole('link', { name: 'Сборка', exact: true }).getAttribute('aria-current'), 'page', 'composer stays a Solution tab: ' + id);
@@ -43,6 +43,22 @@ try {
       const missing = await composer().getByRole('list', { name: 'Чего не хватает для нативной сборки' }).locator('li').allTextContents();
       assert.equal(missing.length, 4); assert.match(missing[0], /нативный исполнитель/);
       assert.match(await text(composer()), /elma365-native-materialization@1 закреплён/); assert.doesNotMatch(await text(composer()), /не опубликован/);
+    }
+    // Build eligibility: every gate with its status and each blocking reason, read from the server shape.
+    const gates = composer().getByRole('list', { name: 'Условия сборки конфигурации' });
+    if (id === 'eligibility-load-error') {
+      assert.equal(await gates.count(), 0);
+      assert.match(await text(composer()), /Проверка состава, покрытия, зависимостей и профиля Target не получена/);
+    } else {
+      const rows = await gates.locator(':scope > li').allTextContents();
+      assert.deepEqual(rows.map(row => row.split(':')[0]), ['Состав выпуска', 'Нативное покрытие', 'Зависимости и лицензии', 'Профиль Target', 'Нативная сборка'], id);
+      assert.match(await text(gates), /профиль Target не прочитан с сервера|профиль Target прочитан больше суток назад/);
+    }
+    if (id === 'build-gates') {
+      assert.match(await text(gates.getByRole('list', { name: 'Состав выпуска' })), /объекты зависят друг от друга по кругу · contract → approval/);
+      assert.match(await text(gates.getByRole('list', { name: 'Нативное покрытие' })), /вид объекта не поддерживается нативной сборкой/);
+      assert.match(await text(gates.getByRole('list', { name: 'Зависимости и лицензии' })), /платный модуль: лицензия на Target не подтверждена · модуль vendor\.signature/);
+      assert.match(await text(gates.getByRole('list', { name: 'Профиль Target' })), /зависимости проверены для другого профиля Target/);
     }
     if (id === 'list') assert.equal(await composer().getByRole('link', { name: 'Открыть сборку' }).count(), 2);
     if (id === 'missing') assert.match(await text(composer()), /Выбранная сборка не найдена/);
@@ -88,12 +104,12 @@ try {
     if (['next-build-blocked', 'next-review-build', 'next-verify'].includes(id)) assert.match(await primary.getAttribute('href'), /view=compose/);
     if (['next-review-build', 'next-verify'].includes(id)) assert.match(await primary.getAttribute('href'), /candidate=/);
   }
-  for (const width of [1280, 390]) {
-    await page.setViewportSize({ width, height: 900 }); await open('partial-outcome');
-    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'no horizontal scroll at ' + width);
+  for (const width of [1280, 390]) for (const id of ['partial-outcome', 'build-gates']) {
+    await page.setViewportSize({ width, height: 900 }); await open(id);
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `no horizontal scroll at ${width}: ${id}`);
   }
   assert.deepEqual(errors, []);
-  console.log('Solution composer stories: build blocked, candidate review, stale, delivery outcomes, failure/retry and next actions verified.');
+  console.log('Solution composer stories: build blocked with eligibility gates and reasons, candidate review, stale, delivery outcomes, failure/retry and next actions verified.');
 } finally {
   await browser?.close();
   server.close();

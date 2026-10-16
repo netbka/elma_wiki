@@ -2,7 +2,7 @@
 
 Owner: #94 MR-05 (PLAN-01 P5), Lane C in #91. Product authority: [Solution-first](../SOLUTION_FIRST_PRODUCT_PLAN.md) and [working configuration release](../plans/working-configuration-release.md). Implementation: `lib/dependency-resolver.mjs`. Upstream input: [release scope planner](release-scope-planner.md).
 
-`resolveDependencyEvidence` is a synchronous pure accounting function over one `planReleaseScope` result. It returns a deeply frozen JSON-serializable record and performs no IO, provider call, licence purchase/provisioning, installation, decryption or deployment. It adds no store, API, UI or eligibility switch. `publicationReady` and `executionEnabled` always remain false. `resolutionComplete` means only that the supplied evidence has no accounting blockers under a native receipt contract; it is not native entitlement, activation or business acceptance.
+`resolveDependencyEvidence` is a synchronous pure accounting function over one `planReleaseScope` result. It returns a deeply frozen JSON-serializable record and performs no IO, provider call, licence purchase/provisioning, installation, decryption or deployment. It adds no store; its result feeds the composer's build eligibility gate ([composed-build-eligibility.md](composed-build-eligibility.md)) and is never an eligibility switch by itself. `publicationReady` and `executionEnabled` always remain false. `resolutionComplete` means only that the supplied evidence has no accounting blockers under a native receipt contract; it is not native entitlement, activation or business acceptance.
 
 ## Inputs
 
