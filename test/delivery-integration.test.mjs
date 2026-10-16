@@ -114,9 +114,9 @@ test('delivery capability API remains authenticated and distinguishes unavailabl
       const response = await fetch(base + '/api/delivery/capabilities', { headers });
       // The operator bridge is always registered; `liveDelivery` only turns true with verified live evidence.
       const capabilities = await response.json();
-      // The composer build stays unavailable without a native worker and a trusted build route; the
+      // The composer build stays unavailable without WIKI_NATIVE_MATERIALIZATION_* configuration; the
       // pinned contracts and observed gaps are reported verbatim from the native-materialization module.
-      assert.deepEqual(capabilities.composedBuild, { available: false, reason: 'native-materialization-unavailable', reference: 'netbka/elma365#60',
+      assert.deepEqual(capabilities.composedBuild, { available: false, reason: 'native-materialization-unavailable', detail: 'native-materialization-unconfigured', reference: 'netbka/elma365#60',
         contracts: NATIVE_MATERIALIZATION_CONTRACTS.map(row => `${row.id}@${row.version}`), missing: [...INSPECTED_NATIVE_MATERIALIZATION.missing] });
       assert.ok(capabilities.composedBuild.missing.length > 0);
       delete capabilities.composedBuild;
