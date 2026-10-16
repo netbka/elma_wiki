@@ -159,5 +159,11 @@ test('derived report IDs are stable across stores and processes; concurrent firs
   assert.equal(new Set(ids).size, 1); assert.match(ids[0], /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/);
   assert.notEqual(await stores[0].derivedId(['a', 'c']), ids[0]);
   assert.deepEqual((await fs.readdir(path.join(root, 'bug-reports'))).filter(name => name.startsWith('.namespace')), ['.namespace'], 'no temp files remain');
+  // A reader that finds the file claimed but still empty waits for the value instead of failing.
+  const slow = await directory(t); await fs.mkdir(path.join(slow, 'bug-reports'), { recursive: true }); await fs.writeFile(path.join(slow, 'bug-reports', '.namespace'), '');
+  const pending = bugReportStore(slow, { baseUrl }).derivedId(['x']);
+  setTimeout(() => fs.writeFile(path.join(slow, 'bug-reports', '.namespace'), 'a'.repeat(64)), 60);
+  assert.match(await pending, /^[a-f0-9-]{36}$/);
+  await assert.rejects(bugReportStore(await (async () => { const d = await directory(t); await fs.mkdir(path.join(d, 'bug-reports'), { recursive: true }); await fs.writeFile(path.join(d, 'bug-reports', '.namespace'), 'not-hex'); return d; })(), { baseUrl }).derivedId(['x']), /namespace unreadable/);
   assert.notEqual(await bugReportStore(await directory(t), { baseUrl }).derivedId(['a', 'b']), ids[0], 'another installation derives differently');
 });
