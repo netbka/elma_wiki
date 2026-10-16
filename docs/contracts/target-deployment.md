@@ -163,11 +163,15 @@ existing review action with a required reason. An approved or stale candidate
 mounts the shared delivery renderer (`web/releases/delivery.js`) through
 `composedDeliveryClient`, so prepare/confirm/read-back, `partial-outcome`
 unit receipts, unknown outcome and lost-response recovery behave exactly as
-for the handoff; a stale candidate shows history read-only. Starting a build is
-always shown disabled: `GET /api/delivery/capabilities` reports
-`composedBuild: {available: false, reason: 'native-materialization-unavailable',
-reference: 'netbka/elma365#60', contracts, missing}` because freezing has no HTTP
-route and no native worker implements a pinned contract. `contracts` lists
+for the handoff; a stale candidate shows history read-only. The «Собрать
+конфигурацию» button stays disabled. `GET /api/delivery/capabilities` reports
+`composedBuild: {available, reason, detail, reference: 'netbka/elma365#60',
+contracts, missing}`. It is available only with `WIKI_NATIVE_MATERIALIZATION_*`
+configured and a healthy bridge; otherwise `reason` is
+`native-materialization-unavailable` and `detail` names the cause (see
+[composer build route](native-materialization.md#composer-build-route-plan-01-c2);
+`POST /api/solutions/:id/composed-build` builds, and freezing still has no HTTP
+route). `contracts` lists
 `NATIVE_MATERIALIZATION_CONTRACTS` (E1 once pinned) and `missing` is
 `INSPECTED_NATIVE_MATERIALIZATION.missing` verbatim; the UI labels each key,
 shows unknown keys with a neutral fallback and derives its reason text from
