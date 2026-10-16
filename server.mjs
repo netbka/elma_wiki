@@ -20,8 +20,8 @@ import { workspaceStore } from './lib/workspaces.mjs';
 import { managedWorkspaceStore } from './lib/managed-workspace-store.mjs';
 import { releaseStore } from './lib/releases.mjs';
 import { deliveryStore, syntheticAdapter } from './lib/delivery.mjs';
-import { INSPECTED_NATIVE_MATERIALIZATION, NATIVE_MATERIALIZATION_CONTRACTS } from './lib/native-materialization.mjs';
 import { solutionBuildEligibility } from './lib/composed-build-eligibility.mjs';
+import { composedBuildCapability, runComposedBuild } from './lib/composed-build.mjs';
 import { bridgeStore } from './lib/bridge.mjs';
 import { configuredMaterializationAdapter } from './lib/native-materialization-bridge.mjs';
 import { targetPresets } from './lib/target-presets.mjs';
@@ -35,10 +35,6 @@ const project = path.dirname(fileURLToPath(import.meta.url));
 const contextualDeliveryKeys = { prepare: ['action', 'revision', 'connectionId'], confirm: ['action', 'attemptId', 'idempotencyKey', 'confirmation'], verify: ['action', 'attemptId'], cancel: ['action', 'attemptId'],
   promote: ['action', 'attemptId', 'connectionId', 'revision', 'idempotencyKey'], retry: ['action', 'attemptId', 'idempotencyKey'], reconcile: ['action', 'attemptId'] };
 const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml' };
-// Native materialization as the composer sees it. Freezing build bytes is trusted server code
-// with no HTTP route, and no native worker runs the pinned contract (netbka/elma365#60).
-const composedBuildCapability = () => ({ available: false, reason: 'native-materialization-unavailable', reference: `${INSPECTED_NATIVE_MATERIALIZATION.repository}#${INSPECTED_NATIVE_MATERIALIZATION.issue}`,
-  contracts: NATIVE_MATERIALIZATION_CONTRACTS.map(row => `${row.id}@${row.version}`), missing: [...INSPECTED_NATIVE_MATERIALIZATION.missing] });
 function send(res, status, value) { res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(value)); }
 async function body(req, max) {
   if (Number(req.headers['content-length']) > max) throw Error('Размер запроса превышает лимит');
@@ -68,7 +64,10 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
   // Predefined DEV and DEV2 Targets from non-secret WIKI_TARGET_* variables; PROD has none.
   presets = targetPresets(process.env, { protectedHosts: protectedTargetHosts }),
   configSource = configSourceClient({ url: process.env.CONFIG_SOURCE_API_URL, token: process.env.CONFIG_SOURCE_API_TOKEN }),
-  requests = requestCoordinator(), bugPublisher = bugGitHub(), materializationEnv = process.env } = {}) {
+  requests = requestCoordinator(), bugPublisher = bugGitHub(), materializationEnv = process.env,
+  // Trusted source of native build evidence (coverage, dependency resolution, admitted Target profile
+  // observation, compiler lock) for the build route. The service has none, so builds stay blocked.
+  buildEvidence = null } = {}) {
   const actors = actorStore(directory);
   const base = new URL(baseUrl), auth = createAuth({ baseUrl, allowLocal, sendEmail, sendVk, now, onLogin: actors.resolve }), portals = portalStore(directory, { sharedAccess: true }), projects = projectStore(directory, { sharedAccess: true }), oldDemo = demoData(), sample = oldDemo.servers.showcase, demo = {entities:sample.entities,solution:sample.solutions[0],coverage:'structural',parserVersion:'2.0.0',inventory:[],provenance:{},synthetic:true};
   const solutions = solutionStore(directory);
@@ -88,6 +87,10 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
   // Native materialization over the bridge is opt-in through explicit WIKI_NATIVE_MATERIALIZATION_* variables
   // (bridge ID, owner, pinned worker revision). Without them it is null and materializeNative stays `unavailable`.
   const nativeMaterialization = configuredMaterializationAdapter({ env: materializationEnv, bridges });
+  const building = new Set(); // Solutions with a native build in progress: one at a time per Solution.
+  // The latest build per Solution when it validated, in process memory only: its manifest and evidence carry
+  // in-process provenance marks, so a restart drops it. Freezing it into a candidate is PLAN-01 B1.
+  const composedBuilds = new Map();
   delivery = deliveryStore(directory, releases, { solutionHandoffs: solutions.handoffs, composedCandidates: solutions.composed, adapters: { ...(syntheticDelivery ? { synthetic: syntheticAdapter } : {}), bridge: (options, connection) => bridges.adapter(options, connection) }, protectedHosts: protectedTargetHosts, timeoutMs: deliveryTimeoutMs, presets, presetAdapter: (preset, connection) => bridges.presetAdapter(preset, connection) });
   let uploading = false;
   const loginBot = createVkLoginBot({ directory, issueLink: auth.issueVkLink });
@@ -270,7 +273,27 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
         if (req.method !== 'GET') return send(res, 405, { error: 'Только чтение' });
         const { revision, capture } = await solutions.managed.buildCapture(id, SOLUTION_CATALOG);
         if (!capture) return send(res, 409, { error: 'Нет принятого полного экспорта решения' });
-        return send(res, 200, { solutionId: id, revision, ...solutionBuildEligibility({ capture, materialization: composedBuildCapability(), now: new Date().toISOString() }) });
+        return send(res, 200, { solutionId: id, revision, ...solutionBuildEligibility({ capture, materialization: await composedBuildCapability(nativeMaterialization), now: new Date().toISOString() }) });
+      }
+      // Native build of a resolved change (#94 MR-03, PLAN-01 C2): opt-in through WIKI_NATIVE_MATERIALIZATION_*
+      // and a healthy bridge. The body names only the change and revision; inputs, evidence and output are
+      // derived and verified server-side, and only a validated receipt bound to the exact request yields a manifest.
+      const buildRoute = /^\/api\/solutions\/([^/]+)\/composed-build$/.exec(pathname);
+      if (buildRoute) {
+        if (!session) return send(res, 404, { error: 'Решение не найдено' });
+        const [, id] = buildRoute;
+        await solutions.managed.authorize(id, SOLUTION_CATALOG);
+        if (req.method !== 'POST') return send(res, 405, { error: 'Метод не поддерживается' });
+        if (req.headers['content-type']?.split(';')[0] !== 'application/json') return send(res, 415, { error: 'Требуется JSON' });
+        const input = JSON.parse((await body(req, 4096)).toString('utf8'));
+        if (building.has(id)) return send(res, 409, { outcome: 'in-progress', error: 'Сборка этого решения уже выполняется' });
+        building.add(id);
+        try {
+          const { statusCode, body: result, build } = await runComposedBuild({ solutionId: id, input, managed: solutions.managed, catalog: SOLUTION_CATALOG,
+            adapter: nativeMaterialization, evidence: buildEvidence });
+          if (build) composedBuilds.set(id, build); else composedBuilds.delete(id);
+          return send(res, statusCode, result);
+        } finally { building.delete(id); }
       }
       // Frozen composed candidates (PLAN-01 P7). HTTP reads, reviews and delivers
       // them; freezing build bytes is trusted server code, never a request body.
@@ -402,12 +425,11 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
         if (req.method !== 'GET') return send(res,405,{error:'Метод не поддерживается'});
         // `liveDelivery` stays false until a live delivery has been verified end to end; `bridge` says the
         // operator-bridge adapter is registered (it still needs a bridge token and a running worker).
-        // `composedBuild` tells the Solution composer whether a build can be started. Freezing build
-        // bytes is trusted server code with no HTTP route, and native materialization is unavailable
-        // (netbka/elma365#60), so it stays false; the UI shows it as blocked, never as working.
+        // `composedBuild` tells the Solution composer whether a build can be started: only with
+        // WIKI_NATIVE_MATERIALIZATION_* configured and a healthy bridge (`detail` says which is missing).
         // `contracts` lists the pinned native contracts and `missing` the observed gaps, verbatim.
         return send(res,200,{ mode: syntheticDelivery ? 'synthetic' : 'bridge', liveDelivery: false, bridge: true, adapters: delivery.adapterNames,
-          composedBuild: composedBuildCapability() });
+          composedBuild: await composedBuildCapability(nativeMaterialization) });
       }
       if (pathname === '/api/releases') {
         if (!session) return send(res,401,{error:'Войдите в сервис'});
@@ -621,6 +643,7 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
   });
   server.loginBot = loginBot;
   server.nativeMaterialization = nativeMaterialization;
+  server.composedBuilds = composedBuilds;
   if (loginBot) {
     server.once('listening', () => { void loginBot.run(); });
     server.once('close', () => loginBot.stop());
