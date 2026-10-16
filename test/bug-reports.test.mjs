@@ -152,3 +152,12 @@ test('a multi-megabyte image passes the attachment check without exhausting the 
   assert.equal(report.attachments[0].size, big.length);
   await assert.rejects(store.submit({ ...input(), attachments: [{ name: 'bad.png', mime: 'image/png', data: 'not base64!' }] }, actor), /Некорректное вложение/);
 });
+
+test('derived report IDs are stable across stores and processes; concurrent first calls create one secret and agree', async t => {
+  const root = await directory(t), stores = [bugReportStore(root, { baseUrl }), bugReportStore(root, { baseUrl }), bugReportStore(root, { baseUrl })];
+  const ids = await Promise.all(stores.flatMap(store => [store.derivedId(['a', 'b']), store.derivedId(['a', 'b'])]));
+  assert.equal(new Set(ids).size, 1); assert.match(ids[0], /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/);
+  assert.notEqual(await stores[0].derivedId(['a', 'c']), ids[0]);
+  assert.deepEqual((await fs.readdir(path.join(root, 'bug-reports'))).filter(name => name.startsWith('.namespace')), ['.namespace'], 'no temp files remain');
+  assert.notEqual(await bugReportStore(await directory(t), { baseUrl }).derivedId(['a', 'b']), ids[0], 'another installation derives differently');
+});

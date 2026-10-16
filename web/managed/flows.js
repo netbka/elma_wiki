@@ -24,11 +24,10 @@ const visualFor = (visuals, artifactId) => artifactId ? visuals?.[artifactId] : 
 // UX-07: the chip "Запрос · n" when open requests name this object, and the
 // entry point "Запросить изменение" when the object is captured.
 const requestEntry = (card, row, actions, extra = {}) => {
-  const count = actions.requestCounts?.get(row.key);
-  if (count && actions.requestHref) card.append(requestChip(count, actions.requestHref(row.key), actions.navigate));
-  if (!actions.requestChange) return;
-  const request = el('button', actionLabels.requestChange, 'secondary'); request.type = 'button'; request.onclick = () => actions.requestChange({ kind: requestKindOf(row), row, ...extra });
-  card.append(request);
+  const count = actions.requestCounts?.get(row.key), bar = el('div', undefined, 'managed-actions managed-request-entry');
+  if (count && actions.requestHref) bar.append(requestChip(count, actions.requestHref(row.key), actions.navigate));
+  if (actions.requestChange) { const request = el('button', actionLabels.requestChange, 'secondary'); request.type = 'button'; request.onclick = () => actions.requestChange({ kind: requestKindOf(row), row, ...extra }); bar.append(request); }
+  if (bar.childElementCount) card.append(bar);
 };
 
 // UX-06 "Как работает": the processes of the accepted state grouped by module,
