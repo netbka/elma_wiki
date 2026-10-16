@@ -21,7 +21,7 @@ import { managedWorkspaceStore } from './lib/managed-workspace-store.mjs';
 import { releaseStore } from './lib/releases.mjs';
 import { deliveryStore, syntheticAdapter } from './lib/delivery.mjs';
 import { solutionBuildEligibility } from './lib/composed-build-eligibility.mjs';
-import { composedBuildCapability, runComposedBuild } from './lib/composed-build.mjs';
+import { composedBuildCapability, runComposedBuild, freezeComposedBuild } from './lib/composed-build.mjs';
 import { bridgeStore } from './lib/bridge.mjs';
 import { configuredMaterializationAdapter } from './lib/native-materialization-bridge.mjs';
 import { targetPresets } from './lib/target-presets.mjs';
@@ -89,7 +89,7 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
   const nativeMaterialization = configuredMaterializationAdapter({ env: materializationEnv, bridges });
   const building = new Set(); // Solutions with a native build in progress: one at a time per Solution.
   // The latest build per Solution when it validated, in process memory only: its manifest and evidence carry
-  // in-process provenance marks, so a restart drops it. Freezing it into a candidate is PLAN-01 B1.
+  // in-process provenance marks, so a restart drops it. POST /api/solutions/:id/composed freezes and consumes it (PLAN-01 B1).
   const composedBuilds = new Map();
   delivery = deliveryStore(directory, releases, { solutionHandoffs: solutions.handoffs, composedCandidates: solutions.composed, adapters: { ...(syntheticDelivery ? { synthetic: syntheticAdapter } : {}), bridge: (options, connection) => bridges.adapter(options, connection) }, protectedHosts: protectedTargetHosts, timeoutMs: deliveryTimeoutMs, presets, presetAdapter: (preset, connection) => bridges.presetAdapter(preset, connection) });
   let uploading = false;
@@ -295,8 +295,8 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
           return send(res, statusCode, result);
         } finally { building.delete(id); }
       }
-      // Frozen composed candidates (PLAN-01 P7). HTTP reads, reviews and delivers
-      // them; freezing build bytes is trusted server code, never a request body.
+      // Frozen composed candidates (PLAN-01 P7). HTTP reads, reviews and delivers them. POST to the
+      // list freezes the Solution's held validated build (PLAN-01 B1); the body only confirms which build.
       const composedRoute = /^\/api\/solutions\/([^/]+)\/composed(?:\/([^/]+)(?:\/(delivery))?)?$/.exec(pathname);
       if (composedRoute) {
         if (!session) return send(res, 404, { error: 'Решение не найдено' });
@@ -320,6 +320,19 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
           return send(res, 200, await contextual.cancel(candidateId, input.attemptId, executionActor));
         }
         if (req.method === 'GET') return send(res, 200, candidateId ? await composed.get(id, candidateId) : await composed.list(id));
+        if (req.method === 'POST' && !candidateId) {
+          if (req.headers['content-type']?.split(';')[0] !== 'application/json') return send(res, 415, { error: 'Требуется JSON' });
+          const input = JSON.parse((await body(req, 4096)).toString('utf8'));
+          // A build and a freeze of one Solution never overlap; the held build is consumed only by a freeze.
+          if (building.has(id)) return send(res, 409, { outcome: 'refused', reason: 'build-in-progress', candidate: null });
+          building.add(id);
+          try {
+            const { statusCode, body: result, frozen } = await freezeComposedBuild({ solutionId: id, input, held: composedBuilds.get(id),
+              adapter: nativeMaterialization, composed, actor: session.user });
+            if (frozen) composedBuilds.delete(id);
+            return send(res, statusCode, result);
+          } finally { building.delete(id); }
+        }
         if (req.method !== 'POST' || !candidateId) return send(res, 405, { error: 'Метод не поддерживается' });
         if (req.headers['content-type']?.split(';')[0] !== 'application/json') return send(res, 415, { error: 'Требуется JSON' });
         return send(res, 200, await composed.change(id, candidateId, JSON.parse((await body(req, 32 * 1024)).toString('utf8')), session.user));

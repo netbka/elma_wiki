@@ -361,7 +361,7 @@ test('multi-unit receipts stay truthful: partial, missing and errored units keep
 });
 
 test('contextual composed API uses the trusted execution actor and rejects forged fields, foreign roots and freezing', async t => {
-  const { directory, state, candidate } = await setup(t);
+  const { directory, state, change, candidate } = await setup(t);
   const secret = 'SYNTHETIC_COMPOSED_DELIVERY_SECRET';
   const server = createServer({ directory, syntheticDelivery: true, sendEmail: undefined,
     sendVk: Object.assign(async () => {}, { domain: 'example.org', linkSecret: secret }) });
@@ -386,8 +386,15 @@ test('contextual composed API uses the trusted execution actor and rejects forge
   await json(await request(`/api/solutions/${state.id}/handoffs/${candidate.id}/delivery`, alice.cookie), 404);
   const listed = await json(await request(`/api/solutions/${state.id}/composed`, alice.cookie));
   assert.deepEqual(listed.map(row => [row.id, row.inputsStatus, row.deliverable, row.evidenceBasis]), [[candidate.id, 'current', true, 'synthetic']]);
-  // No HTTP path freezes build bytes; review decisions require the exact revision.
-  await json(await post(`/api/solutions/${state.id}/composed`, alice.cookie, { action: 'freeze' }), 405);
+  // HTTP never supplies build bytes: freezing (PLAN-01 B1) only confirms a server-held validated build,
+  // and there is none here. Review decisions require the exact revision.
+  await json(await post(`/api/solutions/${state.id}/composed`, alice.cookie, { action: 'freeze' }), 400);
+  await json(await post(`/api/solutions/${state.id}/composed`, alice.cookie, { artifactId: change.artifactId, expectedRevision: 0, manifestDigest: candidate.binding.manifestDigest,
+    bytes: 'forged' }), 400);
+  const refused = await json(await post(`/api/solutions/${state.id}/composed`, alice.cookie, { artifactId: change.artifactId, expectedRevision: 0,
+    manifestDigest: candidate.binding.manifestDigest }), 409);
+  assert.equal(refused.reason, 'no-validated-build');
+  assert.equal((await json(await request(`/api/solutions/${state.id}/composed`, alice.cookie))).length, 1);
   await json(await post(candidateRoute, alice.cookie, { action: 'approve', revision: candidate.revision, reason: 'Again', bytes: 'forged' }), 400);
   const connection = await json(await post('/api/connections', alice.cookie, target()), 201);
   const input = { action: 'prepare', revision: candidate.revision, connectionId: connection.id };
