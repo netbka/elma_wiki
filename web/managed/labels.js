@@ -22,7 +22,7 @@ export const tabs = { about: 'О решении', flows: 'Как работае�
 
 // Lifecycle stepper (product plan one-next-action map)
 export const steps = { load: 'Загрузка', compare: 'Сравнение', review: 'Рассмотрение', build: 'Сборка', verify: 'Проверка', release: 'Выпуск' };
-export const stepReasons = { noBuilder: 'нет сборщика', builderUnknown: 'сборщик не опрошен', noTarget: 'нет цели', notYet: 'ещё не доступно' };
+export const stepReasons = { noBuilder: 'нет сборщика', builderUnknown: 'сборщик не опрошен', noTarget: 'нет цели', notYet: 'ещё не доступно', syntheticBuild: 'учебная сборка' };
 export const stepStates = { done: 'готово', current: 'сейчас', next: 'далее' };
 
 // Solution header (UX-04): status badge, version line, stepper and tab navigation names

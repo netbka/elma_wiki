@@ -256,11 +256,15 @@ export function lifecycleSteps(state, next = solutionNextAction(state), composed
   // builder is known. Release stays unavailable until P6 defines it.
   // 'accepted' with a failed composer read is unknown, not "no builder".
   const unavailable = { build: next.state === 'accepted' && composed?.loadError ? stepReasons.builderUnknown : ['accepted', 'build-blocked'].includes(next.state) ? stepReasons.noBuilder : '', release: stepReasons.notYet };
+  // A training (synthetic) build is not an ELMA package: a done Сборка step says
+  // so instead of reading as a finished build. The note never changes the state.
+  const candidate = next.candidate ? (composed?.candidates || []).find(row => row.id === next.candidate) : null;
+  const notes = { build: candidate && candidate.evidenceBasis !== 'native' ? stepReasons.syntheticBuild : '' };
   const index = order.indexOf(current);
   return order.map((id, position) => {
     const reason = unavailable[id] || '';
     const stateOf = reason ? 'unavailable' : position < index ? 'done' : position === index && next.state !== 'archived' ? 'current' : 'next';
-    return { id, label: stepLabels[id], state: stateOf, current: position === index && next.state !== 'archived', reason };
+    return { id, label: stepLabels[id], state: stateOf, current: position === index && next.state !== 'archived', reason, note: stateOf === 'done' ? notes[id] || '' : '' };
   });
 }
 

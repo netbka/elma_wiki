@@ -338,7 +338,7 @@ try {
     } catch { res.writeHead(404); res.end(); }
   });
   await new Promise(resolve => stories.listen(0, '127.0.0.1', resolve));
-  const storyModes = ['empty','list','create','overview','pending','change','review','conflict','overlap','ambiguous','stale','archived','loading','load-error','changes','solution','no-source','needs-fixes','pending-conflict','review-comment','review-findings','review-resolved','review-accepted','review-stale-anchor','review-removed-anchor','review-ambiguous-anchor','elements-added','elements-boundary','elements-conflict','elements-unknown','create-legacy','pull-exporting','pull-ready','pull-failed','pull-unavailable','update','summary-mixed','summary-no-changes','summary-closed','decision','viewed-marked','viewed-changed','viewed-second-actor','lifecycle-build','lifecycle-verified','about-empty','about-generated','about-saved','about-stale','about-error','flows','flows-error','flows-unknown','screens','requests','requests-empty','requests-object','requests-error','request-form','request-form-field','request-record','request-published'];
+  const storyModes = ['empty','list','create','overview','pending','change','review','conflict','overlap','ambiguous','stale','archived','loading','load-error','changes','solution','no-source','needs-fixes','pending-conflict','review-comment','review-findings','review-resolved','review-accepted','review-stale-anchor','review-removed-anchor','review-ambiguous-anchor','elements-added','elements-boundary','elements-conflict','elements-unknown','create-legacy','pull-exporting','pull-ready','pull-failed','pull-unavailable','update','summary-mixed','summary-no-changes','summary-closed','decision','viewed-marked','viewed-changed','viewed-second-actor','lifecycle-build','lifecycle-verified','lifecycle-synthetic','about-empty','about-generated','about-saved','about-stale','about-error','flows','flows-error','flows-unknown','screens','requests','requests-empty','requests-object','requests-error','request-form','request-form-field','request-record','request-published'];
   for (const mode of storyModes) {
     await page.goto(`http://127.0.0.1:${stories.address().port}/iframe.html?id=managed-workspace--${mode}&viewMode=story`);
     await page.locator('.managed-shell h1').waitFor();
@@ -363,7 +363,7 @@ try {
       if (mode === 'viewed-marked') { await marks.first().uncheck(); await page.getByText('Просмотрено · 1 из 4', { exact: true }).waitFor(); await marks.first().check(); await page.getByText('Просмотрено · 2 из 4', { exact: true }).waitFor(); }
     }
     if (mode === 'summary-no-changes') { await page.getByRole('button', { name: 'Закрыть без изменений', exact: true }).waitFor(); assert.equal(await page.getByRole('button', { name: 'Решение по версии', exact: true }).count(), 0); }
-    if (['lifecycle-build', 'lifecycle-verified', 'overview', 'pending', 'archived'].includes(mode)) {
+    if (['lifecycle-build', 'lifecycle-verified', 'lifecycle-synthetic', 'overview', 'pending', 'archived'].includes(mode)) {
       // UX-04: six lifecycle steps, one current while active, unavailable steps carry a reason.
       const steps = page.getByRole('list', { name: 'Этапы решения', exact: true }).getByRole('listitem');
       assert.equal(await steps.count(), 6, 'six lifecycle steps: ' + mode);
@@ -372,6 +372,12 @@ try {
       if (mode === 'lifecycle-build') { await page.locator('.managed-step[aria-current=step]').getByText('Сборка', { exact: true }).waitFor(); await page.getByText('Принято', { exact: true }).first().waitFor(); }
       if (mode === 'overview') await page.locator('.managed-step[aria-disabled=true]').getByText('Сборка', { exact: true }).waitFor();
       if (mode === 'lifecycle-verified') assert.equal(await page.locator('.managed-step[data-state=done]').count(), 5);
+      if (mode === 'lifecycle-synthetic') {
+        // A training build: Сборка is done but named as such; Проверка is current with its next action.
+        await page.locator('.managed-step[data-state=done]').filter({ hasText: 'Сборка' }).getByText('учебная сборка', { exact: true }).waitFor();
+        await page.locator('.managed-step[aria-current=step]').getByText('Проверка', { exact: true }).waitFor();
+        await page.getByRole('link', { name: 'Проверить конфигурацию', exact: true }).waitFor();
+      }
       if (mode === 'pending') { await page.locator('.managed-step[aria-current=step]').getByText('Рассмотрение', { exact: true }).waitFor(); await page.getByText('Ожидает рассмотрения', { exact: true }).first().waitFor(); }
       if (mode === 'archived') await page.getByText('В архиве', { exact: true }).first().waitFor();
     }

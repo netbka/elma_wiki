@@ -255,6 +255,16 @@ export function managedFixture(mode = 'overview') {
   if (mode === 'lifecycle-build') model.composed = { candidates: [], build: { available: true },
     eligibility: { eligible: true, gates: ['scope', 'coverage', 'dependencies', 'target-profile', 'materialization'].map(id => ({ id, status: 'verified', reasons: [] })) } };
   if (mode === 'lifecycle-verified') workspace.delivery = { supported: true, state: 'verified' };
+  // An approved training build (evidence basis synthetic, not native): Сборка is done
+  // only as "учебная сборка", Проверка is the current step.
+  if (mode === 'lifecycle-synthetic') {
+    const at = '2026-10-14T09:00:00Z', actor = { id: 'synthetic-actor-reviewer', login: 'reviewer@example.org', display: 'Reviewer' };
+    model.composed = { build: { available: true }, eligibility: { eligible: true, gates: [] }, candidates: [{ schemaVersion: 1, id: '11111111-1111-4111-8111-111111111111',
+      solutionId: workspace.id, code: 'synthetic_solution', revision: 2, createdAt: at, candidate: { id: '21111111-1111-4111-8111-111111111111', sha256: 'a'.repeat(64), size: 2048, provenance: 'composed-native-materialization', createdAt: at },
+      units: [{ id: 'contract-fields', adapter: 'synthetic' }], targetProfile: { digest: 'c'.repeat(64), platformVersion: 'synthetic-2026.10' }, evidenceBasis: 'synthetic', releaseEligible: false,
+      frozenBy: actor, approval: { actor, at, revision: 2, candidateId: '21111111-1111-4111-8111-111111111111', sha256: 'a'.repeat(64), reason: 'Учебная сборка сверена с принятыми изменениями.', scope: 'composed-candidate-review' },
+      history: [{ action: 'freeze', actor, at, revision: 1 }], inputsStatus: 'current', deliverable: true }] };
+  }
   if (mode.startsWith('about-')) {
     // A screen without a namespace makes a "Без модуля" card: titled, counted, not explainable.
     workspace.current.push({ code: 'orphan_form', key: JSON.stringify(['widgets', '', 'orphan_form']), team: 'Команда внедрения', service: 'widgets', namespace: '', kind: 'WIDGET', name: 'Экран без модуля', interventionId: null, digest: 'a'.repeat(64) });
