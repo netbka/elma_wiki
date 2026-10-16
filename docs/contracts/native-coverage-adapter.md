@@ -2,7 +2,7 @@
 
 Owner: #94 MR-04, PLAN-01 P4 (Wiki side). Native counterpart: netbka/elma365#60. Product authority: [Solution-first](../SOLUTION_FIRST_PRODUCT_PLAN.md) and [working configuration release](../plans/working-configuration-release.md). Implementation: `lib/native-coverage-adapter.mjs`; planner: [release-scope-planner.md](release-scope-planner.md).
 
-`adaptNativeCoverage({request, artifacts, declarations, targetProfile, changes})` is a synchronous pure function. It admits pinned native coverage declarations, projects them into the existing `planReleaseScope` inputs (`importUnits`, `applications`, `serverInventory`), runs that planner and returns a deeply frozen record. It performs no IO, provider call, native command, materialization or Target selection; `publicationReady` and `executionEnabled` are always false. It is not wired into a store, API or UI.
+`adaptNativeCoverage({request, artifacts, declarations, targetProfile, changes})` is a synchronous pure function. It admits pinned native coverage declarations, projects them into the existing `planReleaseScope` inputs (`importUnits`, `applications`, `serverInventory`), runs that planner and returns a deeply frozen record. It performs no IO, provider call, native command, materialization or Target selection; `publicationReady` and `executionEnabled` are always false. Its result feeds the composer's build eligibility gate ([composed-build-eligibility.md](composed-build-eligibility.md)); it is not stored and is never an eligibility switch by itself.
 
 ## Pinned native contract: `elma365-native-coverage@1`
 

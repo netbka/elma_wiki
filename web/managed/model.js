@@ -1,4 +1,4 @@
-import { grouping as groupingLabels, classificationLabels, elementClassificationLabels, elementKindLabels, actions as actionLabels, summaries, kindGroups, displayLabel, isTechnicalKey, ribbon, steps as stepLabels, stepReasons, statuses, activity as activityLabels } from './labels.js';
+import { grouping as groupingLabels, classificationLabels, elementClassificationLabels, elementKindLabels, actions as actionLabels, summaries, kindGroups, displayLabel, isTechnicalKey, ribbon, steps as stepLabels, stepReasons, statuses, activity as activityLabels, buildEligibility } from './labels.js';
 // Review classification wording lives in labels.js (UX-00); these names stay for
 // existing importers.
 export const labels = classificationLabels;
@@ -180,6 +180,9 @@ export function solutionNextAction(state, { error, stale, view, composed } = {})
     if (current) return { state: 'verify', summary: current.evidenceBasis === 'native' && current.releaseEligible === true
       ? 'Конфигурация собрана и принята, но не проверена на Target.' : 'Есть принятая учебная сборка. Её можно проверить только на учебном стенде; это не пакет ELMA и не выпуск.',
       label: 'Проверить конфигурацию', view: 'compose', candidate: current.id };
+    // Build is offered only when native materialization is available and every eligibility gate is verified.
+    const eligible = composed.eligibility?.eligible === true && (composed.eligibility.gates || []).every(gate => gate.status === 'verified');
+    if (composed.build?.available === true && !eligible) return { state: 'build-blocked', summary: buildEligibility.blockedSummary, label: 'Открыть сборку', view: 'compose' };
     return composed.build?.available === true
       ? { state: 'build', summary: 'Изменения приняты. Соберите конфигурацию из принятой версии.', label: 'Собрать конфигурацию', view: 'compose' }
       : { state: 'build-blocked', summary: 'Изменения приняты. Сборка конфигурации заблокирована: нативная материализация ELMA недоступна.', label: 'Открыть сборку', view: 'compose' };

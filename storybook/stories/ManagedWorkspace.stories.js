@@ -35,7 +35,7 @@ export const SummaryClosed = { render: () => story('summary-closed') };
 export const Decision = { render: () => story('decision'), parameters: { docs: { description: { story:
   'UX-03b: the one "Решение по версии" button opens one dialog with Принять, Запросить доработку and Только комментарий. A closed gate disables acceptance and shows its reason inside the dialog.' } } } };
 export const LifecycleBuild = { render: () => story('lifecycle-build'), parameters: { docs: { description: { story:
-  'UX-04: header badge and lifecycle stepper. Загрузка, Сравнение and Рассмотрение are done, Сборка is the current step because the server reported an available builder, Выпуск is unavailable with its reason.' } } } };
+  'UX-04: header badge and lifecycle stepper. Загрузка, Сравнение and Рассмотрение are done, Сборка is the current step because the server reported an available builder and every build eligibility gate verified (hypothetical), Выпуск is unavailable with its reason.' } } } };
 export const LifecycleVerified = { render: () => story('lifecycle-verified') };
 export const AboutEmpty = { render: () => story('about-empty'), parameters: { docs: { description: { story:
   'UX-05: О решении with no saved purpose: the empty sentence and one Написать button; module cards and the activity list with two distinct people.' } } } };

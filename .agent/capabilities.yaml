@@ -94,8 +94,8 @@ capabilities:
     routes: ["docs/contracts/developer-workspace.md"]
     boundaries: ["compiler"]
   deployment:
-    owners: ["lib/delivery.mjs", "lib/composed-candidates.mjs", "test/composed-delivery.test.mjs", "test/delivery-promotion.test.mjs", "server.mjs", "web/releases/model.js", "web/releases/delivery.js", "web/releases/delivery-model.js", "tools/delivery-browser-check.mjs", "storybook/stories/Delivery.stories.js", "tools/releases-browser-check.mjs"]
-    routes: ["docs/contracts/target-deployment.md", "docs/runbooks/target-deployment.md"]
+    owners: ["lib/delivery.mjs", "lib/composed-candidates.mjs", "lib/composed-build-eligibility.mjs", "test/composed-delivery.test.mjs", "test/composed-build-eligibility.test.mjs", "test/delivery-promotion.test.mjs", "server.mjs", "web/releases/model.js", "web/releases/delivery.js", "web/releases/delivery-model.js", "tools/delivery-browser-check.mjs", "storybook/stories/Delivery.stories.js", "tools/releases-browser-check.mjs"]
+    routes: ["docs/contracts/target-deployment.md", "docs/contracts/composed-build-eligibility.md", "docs/runbooks/target-deployment.md"]
     boundaries: ["ui", "domain", "connection", "security", "ops", "tooling"]
   verification:
     owners: ["lib/delivery.mjs", "lib/delivery-verification.mjs", "lib/delivery-import-normalization.mjs", "test/delivery.test.mjs", "test/delivery-import-normalization.test.mjs", "test/delivery-model.test.mjs", "tools/delivery-browser-check.mjs"]

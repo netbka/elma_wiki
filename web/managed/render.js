@@ -145,7 +145,7 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
       return root;
     }
     if (view === 'compose' && model.shared) {
-      content.append(mountComposer({ candidates: model.composed?.candidates || [], build: model.composed?.build, selected: model.composed?.selected || null,
+      content.append(mountComposer({ candidates: model.composed?.candidates || [], build: model.composed?.build, eligibility: model.composed?.eligibility, selected: model.composed?.selected || null,
         selectedId: model.composed?.selectedId, loadError: model.composed?.loadError, error: model.composed?.error }, { ...actions.composed, link, candidateHref: composeHref, listHref: composeHref() }));
       return root;
     }

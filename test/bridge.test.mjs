@@ -226,3 +226,23 @@ test('bridge API: worker routes need the bearer token, owner routes need a sessi
   assert.equal((await request(`/api/bridges/${created.body.bridge.id}`, { method: 'DELETE' }, cookie)).status, 200);
   assert.equal((await request('/api/bridge/poll', { method: 'POST', body: '{}', headers: auth })).status, 401, 'a removed bridge\'s token stops working');
 });
+
+test('bridge store: a transient Windows EPERM/EBUSY on the atomic rename is retried; other rename errors propagate', async t => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'e365-bridge-test-'));
+  t.after(() => fs.rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
+  const store = bridgeStore(directory), rename = fs.rename.bind(fs);
+  let failures = ['EPERM', 'EBUSY'];
+  const mocked = t.mock.method(fs, 'rename', async (from, to) => {
+    const code = failures.shift();
+    if (code) throw Object.assign(Error(`${code}: operation not permitted, rename`), { code });
+    return rename(from, to);
+  });
+  const { bridge } = await store.create('synthetic-owner', { name: 'Retry' });
+  assert.equal(mocked.mock.callCount(), 3);
+  assert.equal((await store.get(bridge.id, 'synthetic-owner')).name, 'Retry');
+  assert.deepEqual((await fs.readdir(path.join(directory, 'delivery', 'bridges'))).filter(name => name.endsWith('.tmp')), []);
+  failures = ['ENOSPC'];
+  await assert.rejects(store.create('synthetic-owner', { name: 'No space' }), { code: 'ENOSPC' });
+  failures = Array(10).fill('EPERM');
+  await assert.rejects(store.create('synthetic-owner', { name: 'Held' }), { code: 'EPERM' });
+});

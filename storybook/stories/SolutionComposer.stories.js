@@ -23,6 +23,9 @@ function next(mode) { return mountManagedWorkspace(composerNextActionFixture(mod
 export default { id: 'solution-composer', title: 'Решение/Сборка конфигурации', parameters: { layout: 'fullscreen' } };
 export const BuildBlocked = { render: () => story('build-blocked'), parameters: { docs: { description: { story:
   'Нативная сборка недоступна: контракт E1 закреплён, но исполнителя нет (netbka/elma365#60). Кнопка сборки заблокирована, недостающие части названы. Рабочей сборка не изображается.' } } } };
+export const BuildGates = { render: () => story('build-gates'), parameters: { docs: { description: { story:
+  'Условия сборки: каждое условие со своим состоянием и каждой причиной блокировки. Учебный пример: зависимость по кругу, неизвестный вид объекта, платный модуль без подтверждения лицензии и устаревший профиль Target.' } } } };
+export const EligibilityLoadError = { render: () => story('eligibility-load-error') };
 export const List = { render: () => story('list') };
 export const AwaitingApproval = { render: () => story('awaiting-approval') };
 export const Approved = { render: () => story('approved') };

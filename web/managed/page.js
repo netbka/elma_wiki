@@ -104,14 +104,18 @@ try {
   const accepted = workspace?.changes?.length || workspace?.reconciliations?.length;
   if (shared && workspace && view === 'compose') {
     try {
-      const [candidates, capabilities, selected] = await Promise.all([request(composedApi), request('/api/delivery/capabilities'),
-        candidateId ? request(`${composedApi}/${encodeURIComponent(candidateId)}`).catch(error => { if (error.status === 404) return null; throw error; }) : null]);
-      composed = { candidates, build: capabilities.composedBuild, selected, selectedId: candidateId };
+      // Eligibility (scope, coverage, dependencies, Target profile) is read separately: a failed
+      // read leaves the build unavailable with its own notice instead of hiding the candidates.
+      const [candidates, capabilities, selected, eligibility] = await Promise.all([request(composedApi), request('/api/delivery/capabilities'),
+        candidateId ? request(`${composedApi}/${encodeURIComponent(candidateId)}`).catch(error => { if (error.status === 404) return null; throw error; }) : null,
+        request(`${composedApi}-eligibility`).catch(error => ({ loadError: error.message }))]);
+      composed = { candidates, build: capabilities.composedBuild, eligibility, selected, selectedId: candidateId };
     } catch (error) { composed = { loadError: error.message }; }
   } else if (shared && workspace && accepted && ['overview', 'changes', 'solution'].includes(view)) {
     try {
-      const [candidates, capabilities] = await Promise.all([request(composedApi), request('/api/delivery/capabilities')]);
-      composed = { candidates, build: capabilities.composedBuild };
+      const [candidates, capabilities, eligibility] = await Promise.all([request(composedApi), request('/api/delivery/capabilities'),
+        request(`${composedApi}-eligibility`).catch(error => ({ loadError: error.message }))]);
+      composed = { candidates, build: capabilities.composedBuild, eligibility };
     } catch (error) { composed = { loadError: error.message }; }
   }
   // UX-05: О решении reads the saved purpose (or its generated draft) before rendering,
