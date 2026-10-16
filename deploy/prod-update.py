@@ -4,6 +4,51 @@ import fcntl, hashlib, json, os, pathlib, re, subprocess, sys, tarfile, time
 BASE = pathlib.Path('/opt/elma-wiki')
 NAME = 'elma-wiki'
 
+# Named non-secret runtime settings an operator may add or change during a rollout. Formats follow
+# lib/target-presets.mjs and lib/native-materialization-bridge.mjs, narrowed to production use.
+SETTINGS = {
+    'WIKI_TARGET_DEV2_URL': re.compile(r'https://[a-z0-9]([a-z0-9.-]*[a-z0-9])?(:[0-9]{1,5})?'),
+    'WIKI_NATIVE_MATERIALIZATION_BRIDGE_ID': re.compile(r'[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}'),
+    'WIKI_NATIVE_MATERIALIZATION_BRIDGE_OWNER': re.compile(r'(vk|email):[0-9a-f]{64}'),
+    'WIKI_NATIVE_MATERIALIZATION_REVISION': re.compile(r'[0-9a-f]{40}'),
+    'WIKI_NATIVE_TARGET_PROFILE_TARGET': re.compile(r'dev2'),
+}
+BRIDGE = ['WIKI_NATIVE_MATERIALIZATION_BRIDGE_ID', 'WIKI_NATIVE_MATERIALIZATION_BRIDGE_OWNER',
+          'WIKI_NATIVE_MATERIALIZATION_REVISION']
+
+class SettingsError(ValueError):
+    """A refused runtime setting; its message names keys only and may be printed."""
+
+def apply_settings(previous, settings):
+    """Return (env, changed key names): previous entries byte-identical except allowlisted settings."""
+    if not isinstance(settings, dict):
+        raise SettingsError('Runtime settings must be a mapping')
+    for key, value in settings.items():
+        # Messages name the key only, never a value.
+        if key not in SETTINGS:
+            raise SettingsError('Runtime setting is not allowlisted: ' + key)
+        if not isinstance(value, str) or not SETTINGS[key].fullmatch(value):
+            raise SettingsError('Runtime setting has an invalid format: ' + key)
+    env, seen, changed = [], set(), []
+    for item in previous:
+        key = item.split('=', 1)[0]
+        if key in settings:
+            seen.add(key)
+            if item != key + '=' + settings[key]:
+                item = key + '=' + settings[key]
+                changed.append(key)
+        env.append(item)
+    for key in sorted(set(settings) - seen):
+        env.append(key + '=' + settings[key])
+        changed.append(key)
+    merged = dict(item.split('=', 1) for item in env)
+    # The server ignores a partial bridge configuration; refuse it instead of rolling out a disabled one.
+    if any(merged.get(key) for key in BRIDGE + ['WIKI_NATIVE_TARGET_PROFILE_TARGET']):
+        missing = [key for key in BRIDGE if not merged.get(key)]
+        if missing:
+            raise SettingsError('Native materialization settings are incomplete: ' + ', '.join(missing))
+    return env, sorted(changed)
+
 def run(*args, **kwargs):
     return subprocess.check_output(args, text=True, stderr=subprocess.DEVNULL, **kwargs).strip()
 
@@ -42,6 +87,9 @@ def update(config, stage):
     ca = pathlib.Path('/var/lib/caddy/.local/share/caddy/pki/authorities/local/root.crt')
     assert ca.is_file()
     run('curl', '--fail', '--silent', '--show-error', '--cacert', str(ca), config['origin'] + '/healthz')
+    assert all('\n' not in item and '\r' not in item for item in previous['Config']['Env'])
+    env, changed = apply_settings(previous['Config']['Env'], config.get('settings') or {})
+    print(('Runtime settings to change: ' + ', '.join(changed)) if changed else 'Runtime settings: no change.', flush=True)
     if config['check']:
         print('CT preflight passed: healthy Wiki, expected origin, preserved volume, trusted HTTPS.', flush=True)
         return
@@ -75,9 +123,9 @@ def update(config, stage):
     backup = BASE / 'backups' / ('pre-' + revision[:12] + '-' + stamp)
     backup.mkdir(mode=0o700, parents=True)
     (backup / 'container.json').write_text(json.dumps(previous))
-    assert all('\n' not in item and '\r' not in item for item in previous['Config']['Env'])
+    # container.json keeps the previous environment; runtime.env is the one the new container receives.
     runtime = backup / 'runtime.env'
-    runtime.write_text('\n'.join(previous['Config']['Env']) + '\n')
+    runtime.write_text('\n'.join(env) + '\n')
     old = NAME + '-rollback-' + stamp
     renamed = False
     stopped = False
@@ -109,7 +157,8 @@ def update(config, stage):
         assert current['Config']['Image'] == image
         assert current['Config']['Labels']['org.opencontainers.image.revision'] == revision
         validate(current, config['origin'])
-        assert current['Config']['Env'] == previous['Config']['Env']
+        # Previous environment plus exactly the intended settings, nothing else.
+        assert current['Config']['Env'] == env
         immutable = {p: h for p, h in hashes.items() if p.startswith(('projects/', 'managed-workspaces/', 'portals/')) or p == 'portals.json'}
         assert all((data / p).is_file() for p in hashes)
         assert all(hashlib.sha256((data / p).read_bytes()).hexdigest() == h for p, h in immutable.items())
@@ -141,6 +190,9 @@ if __name__ == '__main__':
         with (BASE / '.update.lock').open('a') as lock:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             update(config, stage)
+    except SettingsError as error:
+        print(str(error) + '. Production was not changed.', file=sys.stderr)
+        sys.exit(1)
     except BaseException:
         print('Production update did not complete. Private build/test logs and backups remain on the CT.', file=sys.stderr)
         sys.exit(1)

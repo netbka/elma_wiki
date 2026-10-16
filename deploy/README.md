@@ -33,6 +33,30 @@ npm run prod:update -- --check
 The check connects and verifies the existing service without building or stopping
 it. It creates only a private staging directory and acquires the rollout lock.
 
+## Add or change named runtime settings
+
+A rollout copies the running container's environment unchanged. To add or change one
+of these non-secret settings, put it in the private, ignored file
+`.local/prod-runtime-settings.env` (`KEY=value` lines; a missing file changes nothing):
+
+| Key | Accepted value |
+| --- | --- |
+| `WIKI_TARGET_DEV2_URL` | lowercase HTTPS origin, no path or credentials, e.g. `https://dev2.example.invalid` |
+| `WIKI_NATIVE_MATERIALIZATION_BRIDGE_ID` | the bridge's UUID (v4, lowercase) |
+| `WIKI_NATIVE_MATERIALIZATION_BRIDGE_OWNER` | the owning Wiki user ID: `vk:` or `email:` plus 64 lowercase hex |
+| `WIKI_NATIVE_MATERIALIZATION_REVISION` | the pinned 40-hex elma365 worker revision |
+| `WIKI_NATIVE_TARGET_PROFILE_TARGET` | `dev2` |
+
+Any other key, an empty or malformed value, or a native materialization configuration
+that would remain incomplete after merging is refused before anything changes; the
+message names the key, never a value. Both `--check` and a normal update print the key
+names that would change (`Runtime settings to change: …` or `no change`). Every other
+environment entry stays byte-identical. After activation the new container must have
+exactly the previous environment plus those changes, otherwise the update rolls back to
+the previous container. Settings already applied report `no change` on later rollouts.
+Removing a setting is not supported by this path. The backup's `container.json` keeps the
+previous environment and `runtime.env` the one given to the new container.
+
 This updater targets the established CT layout: `/opt/elma-wiki`, container
 `elma-wiki`, volume `wiki-data` at `/app/.local`, loopback port 43171, and Caddy's
 local CA. It refuses incompatible layouts instead of silently converting them.

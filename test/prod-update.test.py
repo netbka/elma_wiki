@@ -24,6 +24,13 @@ def container():
                            'NetworkMode': 'default', 'CapDrop': ['ALL'], 'SecurityOpt': ['no-new-privileges:true'],
                            'Init': True, 'RestartPolicy': {'Name': 'unless-stopped'}, 'Privileged': False}}
 
+# Fictional values only.
+SETTINGS = {'WIKI_TARGET_DEV2_URL': 'https://dev2.example.test',
+            'WIKI_NATIVE_MATERIALIZATION_BRIDGE_ID': '0b0e5c1a-1111-4222-8333-444455556666',
+            'WIKI_NATIVE_MATERIALIZATION_BRIDGE_OWNER': 'vk:' + 'ab' * 32,
+            'WIKI_NATIVE_MATERIALIZATION_REVISION': 'c' * 40,
+            'WIKI_NATIVE_TARGET_PROFILE_TARGET': 'dev2'}
+
 class ProductionUpdateTests(unittest.TestCase):
     def test_rejects_wrong_origin_volume_or_public_binding(self):
         good = container()
@@ -36,7 +43,7 @@ class ProductionUpdateTests(unittest.TestCase):
             with self.assertRaises(AssertionError):
                 m.validate(bad, 'https://wiki.example.org')
 
-    def exercise(self, failure):
+    def exercise(self, failure, settings=None, drift=False):
         with tempfile.TemporaryDirectory() as tmp:
             base = pathlib.Path(tmp)
             stage = base / 'stage-12345678'
@@ -56,6 +63,9 @@ class ProductionUpdateTests(unittest.TestCase):
                     raise RuntimeError('container created but command failed')
                 if failure == 'success' and args[0:3] == ('docker', 'run', '-d'):
                     active[0] = container()
+                    # Docker receives exactly the environment file the updater wrote.
+                    env_file = pathlib.Path(args[args.index('--env-file') + 1])
+                    active[0]['Config']['Env'] = env_file.read_text().splitlines() + (['UNEXPECTED=1'] if drift else [])
                     active[0]['Config']['Image'] = 'elma-wiki:' + 'a' * 40
                     active[0]['Config']['Labels']['org.opencontainers.image.revision'] = 'a' * 40
                 if failure == 'success' and args[0] == 'curl' and '%{http_code}' in args:
@@ -64,12 +74,19 @@ class ProductionUpdateTests(unittest.TestCase):
                 if args[0:3] == ('docker', 'ps', '-a'):
                     return 'elma-wiki\nelma-wiki-rollback'
                 return ''
-            config = {'revision': 'a' * 40, 'origin': 'https://wiki.example.org', 'check': failure == 'check'}
+            config = {'revision': 'a' * 40, 'origin': 'https://wiki.example.org', 'check': failure == 'check', 'settings': settings}
+            printed = io.StringIO()
             with patch.object(m, 'BASE', base), patch.object(m, 'inspect', side_effect=lambda: active[0]), \
                  patch.object(m, 'validate', return_value=data), patch.object(m, 'run', side_effect=run), \
                  patch.object(m, 'wait_health', side_effect=[RuntimeError('health failed'), None] if failure == 'health' else None), patch.object(m.subprocess, 'run'), \
-                 patch.object(pathlib.Path, 'is_file', return_value=True):
-                if failure == 'check':
+                 patch.object(pathlib.Path, 'is_file', return_value=True), patch('sys.stdout', printed):
+                if drift:
+                    with patch.object(pathlib.Path, 'symlink_to'), patch.object(m.os, 'replace'), self.assertRaises(AssertionError):
+                        m.update(config, stage)
+                    # The unexpected container is set aside and the previous one restored and restarted.
+                    self.assertTrue(any(a[0:2] == ('docker', 'rename') and a[2].startswith('elma-wiki-rollback-') and a[3] == 'elma-wiki' for a in calls))
+                    self.assertIn(('docker', 'start', 'elma-wiki'), calls)
+                elif failure == 'check':
                     m.update(config, stage)
                     self.assertFalse(any(args[0] == 'docker' for args in calls))
                 elif failure == 'success':
@@ -81,6 +98,8 @@ class ProductionUpdateTests(unittest.TestCase):
                     self.assertEqual(len(creates), 1)
                     self.assertIn('wiki-data:/app/.local', creates[0])
                     self.assertEqual(len([a for a in calls if a[0] == 'curl']), 9)
+                    expected, _ = m.apply_settings(container()['Config']['Env'], settings or {})
+                    self.assertEqual(active[0]['Config']['Env'], expected)
                 else:
                     with self.assertRaises(RuntimeError):
                         m.update(config, stage)
@@ -91,15 +110,76 @@ class ProductionUpdateTests(unittest.TestCase):
                         self.assertIn(('docker', 'stop', 'elma-wiki'), calls)
                         renames = [a for a in calls if a[0:2] == ('docker', 'rename')]
                         self.assertEqual(len(renames), 3)
+                if failure not in ('check', 'success') and not drift:
                     saved = list((base / 'backups').glob('*/runtime.env'))[0].read_text()
                     self.assertEqual(saved, '\n'.join(container()['Config']['Env']) + '\n')
                     self.assertEqual((data / 'original.bin').read_bytes(), b'preserve me')
+            return printed.getvalue(), calls
 
     def test_check_never_stops_or_builds(self): self.exercise('check')
     def test_backup_failure_restarts_original_without_replacement(self): self.exercise('backup')
     def test_partial_container_creation_failure_restores_original(self): self.exercise('create')
     def test_health_failure_restores_and_checks_original(self): self.exercise('health')
-    def test_success_preserves_volume_and_verifies_https_routes(self): self.exercise('success')
+    def test_success_preserves_volume_and_verifies_https_routes(self):
+        output, _ = self.exercise('success')
+        self.assertIn('Runtime settings: no change.', output)
+
+    def test_success_applies_runtime_settings_and_prints_only_key_names(self):
+        output, _ = self.exercise('success', SETTINGS)
+        self.assertIn('Runtime settings to change: ' + ', '.join(sorted(SETTINGS)), output)
+        for value in SETTINGS.values():
+            self.assertNotIn(value, output)
+
+    def test_check_reports_runtime_setting_changes_without_docker(self):
+        output, calls = self.exercise('check', {'WIKI_TARGET_DEV2_URL': SETTINGS['WIKI_TARGET_DEV2_URL']})
+        self.assertIn('Runtime settings to change: WIKI_TARGET_DEV2_URL', output)
+        self.assertNotIn(SETTINGS['WIKI_TARGET_DEV2_URL'], output)
+        self.assertFalse(any(args[0] == 'docker' for args in calls))
+
+    def test_unexpected_environment_after_update_restores_previous_container(self):
+        self.exercise('success', SETTINGS, drift=True)
+
+    def test_invalid_setting_is_refused_before_any_docker_or_backup(self):
+        with self.assertRaises(m.SettingsError):
+            self.exercise('success', {'WIKI_TARGET_DEV2_URL': 'http://dev2.example.test'})
+
+class RuntimeSettingsTests(unittest.TestCase):
+    previous = ['PATH=/usr/local/bin', 'PUBLIC_BASE_URL=https://wiki.example.org', 'WIKI_TARGET_DEV2_URL=https://old.example.test',
+                'VK_BOT_AUTH_TOKEN=synthetic-token']
+
+    def test_replaces_in_place_appends_new_keys_and_keeps_other_entries_identical(self):
+        env, changed = m.apply_settings(self.previous, SETTINGS)
+        self.assertEqual(env[:4], ['PATH=/usr/local/bin', 'PUBLIC_BASE_URL=https://wiki.example.org',
+                                   'WIKI_TARGET_DEV2_URL=' + SETTINGS['WIKI_TARGET_DEV2_URL'], 'VK_BOT_AUTH_TOKEN=synthetic-token'])
+        self.assertEqual(env[4:], [k + '=' + SETTINGS[k] for k in sorted(SETTINGS) if k != 'WIKI_TARGET_DEV2_URL'])
+        self.assertEqual(changed, sorted(SETTINGS))
+
+    def test_no_settings_or_identical_values_change_nothing(self):
+        self.assertEqual(m.apply_settings(self.previous, {}), (self.previous, []))
+        self.assertEqual(m.apply_settings(self.previous, {'WIKI_TARGET_DEV2_URL': 'https://old.example.test'}), (self.previous, []))
+
+    def test_rejects_unlisted_keys_and_malformed_values_naming_only_the_key(self):
+        bad = [{'VK_BOT_AUTH_TOKEN': 'x'}, {'PUBLIC_BASE_URL': 'https://other.example.org'},
+               {'WIKI_TARGET_DEV2_URL': 'http://dev2.example.test'}, {'WIKI_TARGET_DEV2_URL': 'https://dev2.example.test/path'},
+               {'WIKI_TARGET_DEV2_URL': 'https://user:pass@dev2.example.test'}, {'WIKI_TARGET_DEV2_URL': 'https://dev2.example.test\nX=1'},
+               {'WIKI_NATIVE_MATERIALIZATION_BRIDGE_ID': 'not-a-uuid'}, {'WIKI_NATIVE_MATERIALIZATION_REVISION': 'A' * 40},
+               {'WIKI_NATIVE_MATERIALIZATION_BRIDGE_OWNER': 'local'}, {'WIKI_NATIVE_TARGET_PROFILE_TARGET': 'main-dev'},
+               {'WIKI_NATIVE_TARGET_PROFILE_TARGET': 'dev2\n'}, {'WIKI_NATIVE_TARGET_PROFILE_TARGET': ''}]
+        for settings in bad:
+            with self.assertRaises(m.SettingsError) as raised:
+                m.apply_settings(self.previous, settings)
+            value = next(iter(settings.values()))
+            if value:
+                self.assertNotIn(value, str(raised.exception))
+
+    def test_refuses_incomplete_native_materialization_configuration(self):
+        partial = {k: SETTINGS[k] for k in ['WIKI_NATIVE_MATERIALIZATION_BRIDGE_ID', 'WIKI_NATIVE_TARGET_PROFILE_TARGET']}
+        with self.assertRaises(m.SettingsError) as raised:
+            m.apply_settings(self.previous, partial)
+        self.assertIn('WIKI_NATIVE_MATERIALIZATION_BRIDGE_OWNER', str(raised.exception))
+        # Completing a configuration that already exists in the previous environment is accepted.
+        existing = self.previous + [k + '=' + SETTINGS[k] for k in ['WIKI_NATIVE_MATERIALIZATION_BRIDGE_OWNER', 'WIKI_NATIVE_MATERIALIZATION_REVISION']]
+        self.assertEqual(m.apply_settings(existing, partial)[1], sorted(partial))
 
 class SshTransportTests(unittest.TestCase):
     stage = '/home/wiki-deploy/wiki-update-0123'
