@@ -1169,6 +1169,59 @@
         "test/config-source.test.mjs",
         "tools/config-acquisition-browser-check.mjs"
       ]
+    },
+    "design-validation": {
+      "entry": "/flows",
+      "kind": "review-tool",
+      "actions": [
+        "start",
+        "next",
+        "labels",
+        "sort",
+        "decide",
+        "replace",
+        "keep",
+        "retest"
+      ],
+      "renderer": [
+        "web/flows/render.js",
+        "web/flows/model.js"
+      ],
+      "catalog": "web/flows/catalog.js",
+      "storyIds": [
+        "design-validation--journey",
+        "design-validation--five-second",
+        "design-validation--five-second-review",
+        "design-validation--labels",
+        "design-validation--card-sort",
+        "design-validation--decide"
+      ],
+      "requiredVisibleStates": [
+        "prepare",
+        "five-second-about",
+        "five-second-about-generated",
+        "five-second-review-summary",
+        "five-second-review-no-changes",
+        "five-second-decision",
+        "five-second-stepper",
+        "labels-entry",
+        "labels-tabs",
+        "labels-review",
+        "labels-requests",
+        "labels-lifecycle",
+        "card-sort",
+        "decide",
+        "replace",
+        "done"
+      ],
+      "sources": [
+        "docs/plans/intuitive-solution-ui-2026-10-15.md",
+        "docs/EXPERIENCE_REVIEW.md",
+        "web/flows/design-validation.js",
+        "web/managed/labels.js",
+        "storybook/stories/ManagedWorkspace.stories.js",
+        "test/design-validation.test.mjs"
+      ]
     }
   }
 }

@@ -209,7 +209,7 @@ Plan: [intuitive-solution-ui-2026-10-15.md](intuitive-solution-ui-2026-10-15.md)
 | UX-06 | "Как работает" and "Экраны и данные" tabs; "where it is used" for fields stays open (not in the export projection) | #140, #142 | — |
 | UX-07 | Backend only: durable contextual change requests, anchors, attributed status, opt-in publication through the bug-report transport. No form, list tab, chips or field anchors | #141 | A2 |
 | UX-08 | Per-actor "Просмотрено" marks bound to the row digest within the change lineage, cleared on a changed correction, header progress; implemented on campaign/elma-wiki-execution-6/A3 (stacked on A2 #151), awaiting verification | — | A3 |
-| UX-09 | Not started; design validation only, not #59/#41 work. Readiness criteria for a later #41/#59 owner decision are proposed in open PR #143 (docs only, `intuitive-solution-ui-2026-10-15.md`) | — | A4 |
+| UX-09 | Materials prepared on campaign/elma-wiki-execution-6/A4 (stacked on A3 #152), awaiting verification: `design-validation` Storybook journey and stories, five-second tests on six synthetic stories, label deck covering every section 7 label, card sort into the five tabs, the 2-of-3 replacement rule (`web/flows/design-validation.js`, `test/design-validation.test.mjs`, EXPERIENCE_REVIEW addendum). The sessions with three colleagues are not run and no answers are recorded; design validation only, not #59/#41 work. Readiness criteria for a later #41/#59 owner decision are proposed in open PR #143 (docs only, `intuitive-solution-ui-2026-10-15.md`) | — | A4 |
 
 ### Remaining work: this campaign's tasks
 

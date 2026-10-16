@@ -1,7 +1,44 @@
+import { nouns } from '../managed/labels.js';
+import { fiveSecondTests, labelGroups, cardSortCategories, cardSortCards, moduleQuestion, exposureSeconds, participantsPerItem, minimumCorrect } from './design-validation.js';
 // Canonical business journeys. Synthetic examples, never customer exports.
 // A state describes what changes and why; transitions are executable in model.js.
 const step = (id, title, explanation, actor, actions = [], evidence = '') => ({ id, title, explanation, actor, actions, evidence });
 const action = (id, label, to, effect = '') => ({ id, label, to, effect });
+// UX-09 design validation (web/flows/design-validation.js): five-second and label
+// tests on synthetic stories. Records stay in the local review panel; never #59/#41.
+const record = 'Запишите в панели рецензии к этому шагу по одному комментарию на участника: «Участник N · верно или неверно · дословный ответ». Имена участников не записываются.';
+const fiveSecondStep = (test, index, list) => step('five-second-' + test.id, `Пять секунд ${index + 1} из ${list.length}: ${test.question}`,
+  `Откройте story ${test.storyId}, покажите её ${exposureSeconds} секунд и скройте. Спросите: «${test.question}» Понято, если ответ по смыслу: ${test.correct} Проверяемое предположение: ${test.hypothesis} Если не понято: ${test.ifWrong} ${record}`,
+  'Ведущий и участник', [index + 1 < list.length
+    ? action('next', 'Следующий экран', 'five-second-' + list[index + 1].id)
+    : action('labels', 'Перейти к проверке названий', labelGroups[0].id)]);
+const labelStep = (group, index) => step(group.id, `Названия: ${group.title}`,
+  `Покажите каждое название отдельно, без экрана, и спросите: «Что вы ожидаете за этим названием?» ${group.cards.map(item => `«${item.label}» (${item.kind}) — понято, если: ${item.correct}`).join(' ')} ${record}`,
+  'Ведущий и участник', [index + 1 < labelGroups.length
+    ? action('next', 'Следующая группа названий', labelGroups[index + 1].id)
+    : action('sort', 'Перейти к сортировке карточек', 'card-sort')]);
+const designValidation = {
+  id: 'design-validation', title: 'UX-09: проверить понятность экранов и названий', kind: 'review-tool',
+  persona: 'Ведущий и три коллеги, не участвовавшие в разработке', situation: 'Перед решением владельца о возобновлении #59 нужно проверить, понятны ли новые экраны и слова без объяснений.',
+  outcome: 'По каждому экрану, названию и карточке записано три ответа; название, понятое меньше чем двумя из трёх, заменено и проверено снова.',
+  sources: ['docs/plans/intuitive-solution-ui-2026-10-15.md', 'docs/EXPERIENCE_REVIEW.md', 'web/flows/design-validation.js', 'web/managed/labels.js', 'storybook/stories/ManagedWorkspace.stories.js', 'test/design-validation.test.mjs'],
+  rules: ['Это проверка дизайна, а не #59 или #41: в запись наблюдений #59 ничего не пишется, человеческая рецензия #41 не начинается.', 'Только статические stories Storybook с синтетическими данными; настоящие экспорты и серверы не используются.', `Один вопрос на экран, показ ${exposureSeconds} секунд; не протокол из десяти задач.`, `Каждый экран, название и карточку оценивают ${participantsPerItem} участника; меньше ${minimumCorrect} верных ответов из ${participantsPerItem} — название заменяется в web/managed/labels.js и проверяется снова.`, 'Ведущий не подсказывает и не объясняет до конца ответа.', 'Имена, контакты и записи экрана участников не сохраняются; в панели только номер участника.'],
+  questions: ['Может ли человек за пять секунд сказать, для чего решение, что изменилось и что делать дальше?', 'Какие названия читаются не так, как задумано?', 'Совпадает ли деление на вкладки с тем, где люди ищут нужное?'],
+  initial: 'prepare', states: [
+    step('prepare', 'Подготовить проверку', `Запустите локальный Storybook и откройте этот сценарий. Пригласите ${participantsPerItem} коллег, которые не делали эти экраны и не читали план. Скажите, что проверяется интерфейс, а не они. Ничего не объясняйте заранее.`, 'Ведущий',
+      [action('start', 'Начать пятисекундные показы', 'five-second-' + fiveSecondTests[0].id)]),
+    ...fiveSecondTests.map(fiveSecondStep),
+    ...labelGroups.map(labelStep),
+    step('card-sort', 'Сортировка карточек по вкладкам', `Разложите карточки по вкладкам ${cardSortCategories.map(item => `«${item.label}»`).join(', ')}. ${cardSortCards.map(item => `«${item.text}» — ожидается «${cardSortCategories.find(category => category.id === item.category).label}».`).join(' ')} Затем спросите: «${moduleQuestion}» Ожидается «${nouns.module}»; другой ответ большинства означает переименование только в словаре UX-00. ${record}`, 'Ведущий и участник',
+      [action('decide', 'Подвести итог', 'decide')]),
+    step('decide', 'Подвести итог', `Для каждого экрана, названия и карточки посчитайте верные ответы. ${minimumCorrect} или ${participantsPerItem} из ${participantsPerItem} — оставить; меньше — заменить. Карточка, которую большинство положило в другую вкладку, ставит под сомнение название этой вкладки.`, 'Ведущий',
+      [action('replace', 'Есть название для замены', 'replace'), action('keep', 'Все названия поняты', 'done')]),
+    step('replace', 'Заменить и проверить снова', 'Замените название в web/managed/labels.js, обновите story и покажите новое название трём другим участникам. Прежние ответы остаются в истории прежней версии и к новому названию не переносятся.', 'Ведущий и разработчик',
+      [action('retest', 'Повторная проверка выполнена', 'decide')]),
+    step('done', 'Итог проверки записан', 'Все названия поняты не меньше чем двумя участниками из трёх. Решение о возобновлении #59 и #41 принимает владелец; эта проверка его не заменяет.', 'Ведущий', [],
+      'Ответы в локальной панели рецензии этой версии и итог в разделе UX-09 EXPERIENCE_REVIEW.md. Не доказательство #59/#41 и не приёмка #38.')
+  ]
+};
 export const flows = [
   {
     id: 'workspace', title: 'Изучить и изменить скрипт в отдельной рабочей копии', kind: 'implemented',
@@ -115,7 +152,8 @@ export const flows = [
       step('shown', 'Тематика видна во входящем', 'Обработчик пересчитывает копию; карточка и канбан читают поле входящего. Идентичное повторное событие не меняет результат.', 'Обработчик ELMA', [action('disable', 'Снять флаг', 'cleared', 'clear-topic'), action('unlink', 'Удалить связь', 'cleared', 'clear-topic')], 'Учебное значение: «Проверка обращения».'),
       step('cleared', 'Устаревшее значение очищено', 'Исходящее больше не подходит. Проекция пересчитана, старый текст не остаётся на канбане.', 'Обработчик ELMA', [action('relink', 'Связать заново', 'linked')], 'Проверить создание, изменение, удаление, права и гонки событий на выбранном сервере.')
     ]
-  }
+  },
+  designValidation
 ];
 export const kindLabels = { implemented: 'Реализовано в Wiki · учебное воспроизведение', 'review-tool': 'Рабочий инструмент рецензии · учебный сценарий', proposed: 'Проектируемый контракт · синтетическая модель', illustrative: 'Пример ELMA · требуется проверка конфигурации' };
 export const flowById = id => flows.find(flow => flow.id === id);
