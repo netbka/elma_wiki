@@ -404,6 +404,22 @@ The agent reports "ready for owner decision" on #41 when all of these hold:
 5. The #59 participant sheets are rewritten against the questions in section 3,
    and the observation record is empty.
 
+Status 2026-10-16 (after PR #152 and PR #153 merged):
+
+- Item 1: UX-08 merged (#152); UX-09 materials merged (#153), sessions with
+  people not run, so no label reading is recorded yet.
+- Item 2: holds; no #59 record has been written.
+- Item 3: the Storybook review manifest lists states for every section 6.1 to
+  6.7; the checklist below names them per section. No integrated revision is
+  tagged yet: the tag follows the UX-09 label decision, so the pinned revision
+  carries the final labels.
+- Item 4: done, [visual-audit-checklist.md](../workflows/visual-audit-checklist.md)
+  (the previous checklist lived only in the local packet).
+- Item 5: done, the participant tasks in
+  [uncoached-usability.md](../workflows/uncoached-usability.md) follow the
+  section 3 questions; `tools/usability-session.mjs` still creates the
+  observation record empty with ten unperformed tasks.
+
 Until the owner records the restart on #41/#59, agents keep doing their own
 developer visual passes, with screenshots in each PR (section 12). Those passes
 are not #41 evidence.
