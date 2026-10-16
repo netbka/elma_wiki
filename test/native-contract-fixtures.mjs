@@ -83,7 +83,8 @@ export async function bridgeWorker({ respond = () => { throw Error('no job expec
   };
   const env = { WIKI_NATIVE_MATERIALIZATION_BRIDGE_ID: bridge.id, WIKI_NATIVE_MATERIALIZATION_BRIDGE_OWNER: 'synthetic-owner',
     WIKI_NATIVE_MATERIALIZATION_REVISION: WORKER.nativeRevision, WIKI_NATIVE_TARGET_PROFILE_TARGET: 'synthetic-target' };
-  return { store, bridge, worker, env, jobs, serve, close: () => fs.rm(directory, { recursive: true, force: true }) };
+  // Windows may report ENOTEMPTY/EBUSY while the store's last write settles; fs.rm retries those.
+  return { store, bridge, worker, env, jobs, serve, close: () => fs.rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }) };
 }
 
 /** Bridge observation of `observedReport(options)` through a real store, echoing the job's run id. */
