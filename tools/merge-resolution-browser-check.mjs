@@ -89,7 +89,7 @@ try {
     } catch { res.writeHead(404); res.end(); }
   });
   await new Promise(resolve => stories.listen(0, '127.0.0.1', resolve));
-  for (const mode of ['merge-required', 'merge-resolved', 'merge-stale', 'merge-blocked']) {
+  for (const mode of ['merge-required', 'merge-resolved', 'merge-stale', 'merge-blocked', 'merge-parts', 'merge-parts-blocked']) {
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.goto(`http://127.0.0.1:${stories.address().port}/iframe.html?id=managed-workspace--${mode}&viewMode=story`);
     const story = page.getByRole('region', { name: 'Совмещение с принятыми изменениями' }); await story.waitFor();
@@ -97,6 +97,17 @@ try {
     if (mode === 'merge-resolved') await story.getByText('Действует для текущих версий').waitFor();
     if (mode === 'merge-stale') await story.getByText(/Устарело/).waitFor();
     if (mode === 'merge-blocked') { await story.getByText(/заблокировано/).waitFor(); assert.equal(await story.locator('select').count(), 0); }
+    if (mode === 'merge-parts') {
+      // Part choices appear only after the explicit part merge is selected.
+      const part = story.getByLabel(/Шаг Проверка руководителем/);
+      assert.equal(await part.isVisible(), false);
+      await story.getByLabel(/approval: /).selectOption('merge-parts'); await part.waitFor();
+      await story.getByRole('list', { name: 'Что проверить после совмещения' }).waitFor();
+    }
+    if (mode === 'merge-parts-blocked') {
+      await story.getByText(/Совместить части нельзя/).waitFor();
+      assert.equal(await story.getByLabel(/approval: /).locator('option[value="merge-parts"]').count(), 0);
+    }
     for (const width of [1440, 390]) {
       await page.setViewportSize({ width, height: 900 });
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), mode + ' ' + width);
@@ -105,7 +116,7 @@ try {
     evidence.storybook.push(mode);
   }
   assert.deepEqual(errors, []);
-  console.log('Merge resolution: explicit choice, attributed save, restart, competing write with retained draft, unchanged acceptance gate and 4 Storybook states passed.');
+  console.log('Merge resolution: explicit choice, attributed save, restart, competing write with retained draft, unchanged acceptance gate and 6 Storybook states passed.');
 } finally {
   await fs.mkdir('qa', { recursive: true }); await fs.writeFile('qa/merge-resolution-browser-evidence.json', JSON.stringify(evidence, null, 2));
   await browser?.close(); await new Promise(resolve => server.close(() => resolve()));
