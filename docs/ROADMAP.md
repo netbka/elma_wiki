@@ -10,7 +10,7 @@ Coordination only. Work starts from the owner request or assigned issue.
   - operator: restart the dev2 bridge worker from merged elma365 main with `--materialize` (elma365 PR #102, `materialize` job and dev2 check runners), set `WIKI_NATIVE_MATERIALIZATION_*` on the Wiki service and repeat read-back with the updated worker ([required fields](contracts/target-deployment.md#read-back-metadata-bytes)); no Wiki route calls the materialization adapter yet;
   - the Contracts section-ownership conflict (elma365 E3) needs an owner/composition decision;
   - real dev2 exports of the Contracts baseline and changes;
-  - P4/P5 native coverage and dependency receipt contracts (in progress in elma365); until then real coverage and dependency evidence fail closed;
+  - P4/P5 native coverage and dependency receipt contracts are pinned (PR #133), but no elma365 worker implements the read-only `targetProfile` observation, so real coverage and dependency evidence still fail closed;
   - manifest regeneration policy v2 (Wiki selects it for profile-2 identities; live evidence and catalog support pending);
   - a process-runtime compiler;
   - then a designated candidate SHA-256 in `WIKI_TARGET_DEV2_DEPLOY_CANDIDATES` on the running service, and the live evidence gate G2: install, read-back, affected business checks and reset/recovery on dev2.
