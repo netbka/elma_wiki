@@ -85,6 +85,17 @@ try {
   await step.getByText(human,{exact:true}).first().waitFor();
   await step.getByRole('button',{name:'Изменить объяснение',exact:true}).click();
   await step.getByLabel('Текст объяснения').fill('Мой несохранённый текст');
+  // UX-07: a request from this supported step carries the step's source anchor; the server verifies it against the captured file.
+  await page.locator('.visual-form').getByRole('button',{name:'Запросить изменение',exact:true}).click();
+  const requestDialog=page.locator('dialog.managed-request');
+  await requestDialog.getByText(/^Шаг: .* · шаг выбран на схеме$/).waitFor();
+  await requestDialog.getByLabel('Кратко',{exact:true}).fill('Учебный запрос с шага');
+  await requestDialog.getByLabel('Что должно быть',{exact:true}).fill('На этом шаге нужна подсказка.');
+  await requestDialog.getByRole('button',{name:'Отправить',exact:true}).click();
+  await requestDialog.getByText('Запрос сохранён в Wiki',{exact:true}).waitFor();
+  const requested=(await (await context.request.get(base+'/api/solutions/'+state.id+'/change-requests')).json()).requests;
+  assert.equal(requested.length,1);assert.equal(requested[0].target.sourceAnchor.nodeId,'review');assert.equal(requested[0].anchorStatus,'current');
+  await requestDialog.getByRole('button',{name:'Закрыть',exact:true}).click();
   const target={scope:'step',artifactId:state.baselineId,source:'processor/approval.json',nodeId:'review'};
   const endpoint='/api/solutions/'+state.id+'/explanations';
   const current=await (await context.request.get(base+endpoint+'?'+new URLSearchParams(target))).json();

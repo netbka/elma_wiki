@@ -144,3 +144,11 @@ test('HTTP enforces authentication, same-origin guards, session actor and privat
   const page = await fetch(base + '/solutions', { headers: { Cookie: cookie } }); assert.ok((await page.text()).includes('/feedback/page.js'));
   const secret = options({ ...input(), performedBy: other }); assert.equal((await fetch(base + '/api/bug-reports', secret)).status, 400);
 });
+
+test('a multi-megabyte image passes the attachment check without exhausting the regex stack', async t => {
+  const root = await directory(t), store = bugReportStore(root, { baseUrl });
+  const big = Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), Buffer.alloc(4 * 1024 * 1024)]);
+  const report = await store.submit({ ...input(), attachments: [{ name: 'big.png', mime: 'image/png', data: big.toString('base64') }] }, actor);
+  assert.equal(report.attachments[0].size, big.length);
+  await assert.rejects(store.submit({ ...input(), attachments: [{ name: 'bad.png', mime: 'image/png', data: 'not base64!' }] }, actor), /Некорректное вложение/);
+});

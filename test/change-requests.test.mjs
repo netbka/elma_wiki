@@ -178,14 +178,56 @@ test('foreign captured artifacts and pending fulfilling versions are refused; ch
   await json(await request(route, a), 409);
 });
 
-test('a request cannot reconcile a bug report which happens to use the same UUID', async t => {
-  const { a, route, input, post, request, json } = await setup(t), value = input();
-  await json(await post('/api/bug-reports', a, { id: value.id, title: 'An unrelated bug', text: 'Synthetic unrelated report', kind: 'bug',
+test('a bug report squatting the request UUID cannot block or hijack its publication: the report ID is derived server-side', async t => {
+  const { a, b, route, input, post, request, json } = await setup(t), value = input();
+  await json(await post('/api/bug-reports', b, { id: value.id, title: 'An unrelated bug', text: 'Synthetic unrelated report', kind: 'bug',
     context: { route: '/solutions', viewport: { width: 1000, height: 800, devicePixelRatio: 1 } }, publishConfirmed: true, attachments: [] }), 201);
   await json(await post(route, a, value), 201);
-  await json(await request(`${route}/${value.id}`, a), 409);
+  assert.equal((await json(await request(`${route}/${value.id}`, a))).publication, null);
   await json(await post(`${route}/${value.id}/retry`, a, {}), 409);
-  await json(await post(`${route}/${value.id}/publish`, a, { attachments: [], publishConfirmed: true }), 409);
+  const receipt = await json(await post(`${route}/${value.id}/publish`, a, { attachments: [], publishConfirmed: true }));
+  assert.equal(receipt.status, 'unconfigured'); assert.notEqual(receipt.id, value.id); assert.match(receipt.id, /^[a-f0-9-]{36}$/);
+  assert.equal(receipt.context.changeRequestId, value.id);
+  // The published text speaks the product vocabulary, never the storage enumerations.
+  assert.match(receipt.text, /Зачем: Make review easier\./); assert.match(receipt.text, /Что изменить: Процесс · Срочность: Обычная/);
+  assert.doesNotMatch(receipt.text, /Reason:|Kind:|urgency/);
+  const again = await json(await request(`${route}/${value.id}`, a)); assert.equal(again.publication.id, receipt.id);
+  assert.equal((await json(await post(`${route}/${value.id}/retry`, a, {}))).id, receipt.id);
+  // The plain bug report stays itself; the request's report is not reachable under the request ID.
+  assert.equal((await json(await request('/api/bug-reports/' + value.id, a))).kind, 'bug');
+});
+
+test('caps: 500 requests per Solution, 200 events per request and the aggregate storage budget fail closed without partial writes', async () => {
+  const { createChangeRequest, appendRequestEvent, REQUEST_STORAGE_LIMIT } = await import('../lib/change-requests.mjs');
+  const user = { id: 'u', login: 'u@example.org', provider: 'vk-teams' };
+  const base = () => ({ state: { status: 'active', revision: 0, artifacts: [{ id: 'a' }], current: [] }, pending: [], changeRequests: [] });
+  const input = (i = 0) => ({ id: crypto.randomUUID(), expectedRevision: 0, kind: 'screen', title: 'Request ' + i, text: 'Desired', reason: '', urgency: 'normal', target: { artifactId: 'a' } });
+  const target = { artifactId: 'a', checksum: 'c', revision: 0, anchor: null };
+  const full = base(); for (let i = 0; i < 500; i++) createChangeRequest(full, input(i), target, user);
+  assert.throws(() => createChangeRequest(full, input(500), target, user), error => error.statusCode === 422 && /500/.test(error.message));
+  assert.equal(full.changeRequests.length, 500);
+  const record = base(), row = createChangeRequest(record, input(), target, user);
+  for (let i = 0; i < 200; i++) appendRequestEvent(record, row.id, { operationId: crypto.randomUUID(), expectedVersion: i, type: 'comment', text: 'Note ' + i }, user);
+  assert.throws(() => appendRequestEvent(record, row.id, { operationId: crypto.randomUUID(), expectedVersion: 200, type: 'comment', text: 'One more' }, user), error => error.statusCode === 422 && /200/.test(error.message));
+  assert.equal(row.events.length, 200); assert.equal(row.version, 200);
+  const heavy = base(); heavy.changeRequests = [{ id: crypto.randomUUID(), text: 'x'.repeat(REQUEST_STORAGE_LIMIT - 64), events: [] }];
+  assert.throws(() => createChangeRequest(heavy, input(), target, user), error => error.statusCode === 422 && /заполнено/.test(error.message));
+  assert.equal(heavy.changeRequests.length, 1);
+  const nearly = base(); const kept = createChangeRequest(nearly, input(), target, user); nearly.changeRequests.push({ id: crypto.randomUUID(), text: 'x'.repeat(REQUEST_STORAGE_LIMIT - 3000), events: [] });
+  assert.throws(() => appendRequestEvent(nearly, kept.id, { operationId: crypto.randomUUID(), expectedVersion: 0, type: 'status', status: 'done', fulfilledArtifactId: 'a', text: 'y'.repeat(3000) }, user), /заполнено/);
+  assert.equal(kept.status, 'new'); assert.equal(kept.version, 0); assert.equal(kept.events.length, 0, 'a refused event changes nothing');
+});
+
+test('a request aimed at a version still under review reads as pending, not stale, until that version is accepted', async t => {
+  const { a, state, route, input, post, request, json, upload, ref } = await setup(t);
+  const prepared = await json(await post(`/api/solutions/${state.id}/prepare`, a, { kind: 'change', snapshot: ref(await upload(a), 'partial'),
+    expectedRevision: state.revision, team: 'Synthetic', taskRef: 'Pending target', sameSourceConfirmed: true }), 201);
+  const value = input(); value.target = { artifactId: prepared.artifactId, componentKey: value.target.componentKey }; value.expectedRevision = prepared.revision;
+  const row = await json(await post(route, a, value), 201);
+  assert.equal(row.anchorStatus, 'pending');
+  await json(await post(`/api/solutions/${state.id}/artifacts/${prepared.artifactId}/accept`, a, { expectedRevision: prepared.revision,
+    reviewedDigest: prepared.artifactDigest, expectedDiscussionRevision: 0, reviewedBoundaryKeys: prepared.rows.filter(r => r.boundaryCrossing).map(r => r.key) }));
+  assert.equal((await json(await request(`${route}/${row.id}`, a))).anchorStatus, 'current');
 });
 
 test('GitHub transport labels change requests while omitting authenticated identity', async () => {

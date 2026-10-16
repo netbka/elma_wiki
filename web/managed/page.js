@@ -4,6 +4,7 @@ import { solutionDeliveryClient, composedDeliveryClient } from './delivery-clien
 import { draftKey } from './change-base.js';
 const root = document.getElementById('managed-root'), query = new URLSearchParams(location.search);
 const id = query.get('id'), view = query.get('view') || (id ? 'overview' : 'list'), artifact = query.get('artifact');
+const requestsApi = `/api/solutions/${encodeURIComponent(id)}/change-requests`;
 const shared = location.pathname === '/solutions', home = shared ? '/solutions' : '/workspaces';
 const api = shared ? '/api/solutions' : '/api/managed-workspaces';
 const href = (id, view, artifact) => workspaceUrl(id, view, artifact, home);
@@ -30,6 +31,7 @@ async function request(url, input, upload, method = 'POST') {
 }
 const navigate = href => { location.href = href; };
 const actions = {
+  navigate,
   ...(shared ? { acquisition: {
     upload: file => request('/api/config-source/uploads', file, true),
     catalog: server => request('/api/config-source/servers/' + server + '/solutions'),
@@ -60,6 +62,14 @@ const actions = {
     change: async (candidateId, input) => { await request(`${composedApi}/${encodeURIComponent(candidateId)}`, input); navigate(composeHref(candidateId)); }
   } } : {}),
   ...(api === '/api/solutions' ? {
+    // UX-07: the request routes of this Solution (docs/contracts/change-requests.md).
+    requests: {
+      create: input => request(requestsApi, input),
+      get: requestId => request(`${requestsApi}/${encodeURIComponent(requestId)}`),
+      event: (requestId, input) => request(`${requestsApi}/${encodeURIComponent(requestId)}/events`, input),
+      publish: (requestId, input) => request(`${requestsApi}/${encodeURIComponent(requestId)}/publish`, input),
+      retry: requestId => request(`${requestsApi}/${encodeURIComponent(requestId)}/retry`, {})
+    },
     visual: artifactId => request(`${api}/${encodeURIComponent(id)}/artifacts/${encodeURIComponent(artifactId)}/visual`),
     explanations: {
       read: target => request(`${api}/${encodeURIComponent(id)}/explanations?`+new URLSearchParams(target)),
@@ -136,6 +146,13 @@ try {
       catch (error) { return [artifactId, { error: error.message }]; }
     })));
   }
+  // UX-07: the request list and the publication configuration, for the tab and for the
+  // chips and entry points of Как работает and Экраны и данные; a failed read is shown on the tab.
+  let requests;
+  if (api === '/api/solutions' && workspace && ['requests', 'flows', 'solution'].includes(view)) {
+    try { requests = await request(requestsApi); }
+    catch (error) { requests = { loadError: error.message }; }
+  }
   // Replacing a prepared change offers its exact captured keys as scope candidates.
   let previousReview = null;
   if (shared && workspace && artifact && view === 'change') {
@@ -147,7 +164,7 @@ try {
   if (shared && !config.legacy && (view === 'create' || view === 'full')) {
     try { pullUnavailable = (await request('/api/config-source/servers')).configured === false; } catch { pullUnavailable = true; }
   }
-  root.replaceChildren(mountManagedWorkspace({ ...config, workspace, view, review, rows, handoff, handoffs, exportEvidence, handoffReason, acquisition, previousReview, composed, pullUnavailable, about, visuals, object: query.get('object') }, actions));
+  root.replaceChildren(mountManagedWorkspace({ ...config, workspace, view, review, rows, handoff, handoffs, exportEvidence, handoffReason, acquisition, previousReview, composed, pullUnavailable, about, visuals, requests, object: query.get('object'), request: query.get('request') }, actions));
   document.title = (workspace?.name || (view === 'create' ? 'Загрузить решение' : 'Решения')) + ' · E365';
   root.querySelector('h1')?.focus({ preventScroll: true });
 } catch (error) {
