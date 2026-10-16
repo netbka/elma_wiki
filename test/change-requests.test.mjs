@@ -9,14 +9,21 @@ import { vkLoginLinks } from '../lib/vk-login-links.mjs';
 import { visualSource } from '../web/visual/fixtures.js';
 import { zip } from './fixture.mjs';
 import { bugGitHub } from '../lib/bug-reports.mjs';
+import { publicationText } from '../lib/change-requests.mjs';
 
 const secret = 'SYNTHETIC_CHANGE_REQUEST_LOGIN_SECRET';
-const archive = raw => zip([
+const archive = (raw, extra = []) => zip([
   ['package.json', { code: 'synthetic_requests', type: 'SOLUTION' }],
   ['processor/manifest.json', { entities: [{ code: 'approval', namespace: 'synthetic.processes', name: 'Synthetic approval', path: 'approval.json', kind: 'PROCESS' }] }],
-  ['processor/approval.json', raw]
+  ['processor/approval.json', raw], ...extra
 ]);
-async function setup(t, publisher = null) {
+// A screen with declared fields, one of them declared twice, for field anchors.
+const screens = (amountName = 'Сумма') => [
+  ['widgets/manifest.json', { entities: [{ code: 'card', namespace: 'synthetic.screens', kind: 'WIDGET', name: 'Заявка', path: 'card.json' }] }],
+  ['widgets/card.json', { descriptor: { fields: [{ code: 'amount', view: { name: amountName }, type: 'MONEY', required: true },
+    { code: 'note', name: 'Примечание', type: 'STRING' }, { code: 'twin', type: 'STRING' }, { code: 'twin', type: 'NUMBER' }] } }]
+];
+async function setup(t, publisher = null, extra = []) {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'wiki-change-requests-'));
   const cookies = new Map();
   let server;
@@ -38,8 +45,8 @@ async function setup(t, publisher = null) {
     const response = await request(link.pathname + link.search, null, { redirect: 'manual' }); assert.equal(response.status, 303);
     cookies.set(email, response.headers.getSetCookie()[0].split(';')[0]); return email;
   };
-  const upload = async (cookie, raw = visualSource) => json(await request('/api/solutions/uploads?filename=synthetic.e365', cookie, {
-    method: 'POST', headers: { 'X-Elma-Wiki-Request': '1', 'Content-Type': 'application/octet-stream' }, body: await archive(raw) }), 201);
+  const upload = async (cookie, raw = visualSource, entries = extra) => json(await request('/api/solutions/uploads?filename=synthetic.e365', cookie, {
+    method: 'POST', headers: { 'X-Elma-Wiki-Request': '1', 'Content-Type': 'application/octet-stream' }, body: await archive(raw, entries) }), 201);
   const ref = (project, scope) => ({ projectId: project.id, snapshotId: project.currentSnapshotId, scope, scopeConfirmed: true });
   const a = await login('alice@example.org'), b = await login('bob@example.org');
   const state = await json(await post('/api/solutions', a, { name: 'Synthetic requests', baselineOwner: 'Synthetic team', snapshot: ref(await upload(a), 'full') }), 201);
@@ -50,7 +57,7 @@ async function setup(t, publisher = null) {
     text: 'Show a clearer summary before approval.', reason: 'Make review easier.', target: {
       artifactId: state.baselineId, componentKey: JSON.stringify(sourceAnchor.object), sourceAnchor: structuredClone(sourceAnchor) } });
   const event = (version, type, extra) => ({ operationId: crypto.randomUUID(), expectedVersion: version, type, ...extra });
-  return { directory, a, b, state, route, input, event, post, request, json, upload, ref, restart: async () => {
+  return { directory, a, b, state, route, input, event, post, request, json, upload, ref, visual, restart: async () => {
     await close(); await start(); await login(a); await login(b);
   } };
 }
@@ -266,4 +273,40 @@ test('publication waits on GitHub outside the Solution queue, so other Solution 
     await Promise.race([post(route, b, input()).then(response => json(response, 201)), timeout]);
   } finally { release(); }
   assert.equal((await json(await publishing)).status, 'published');
+});
+
+test('a request from a field anchors to exactly that declared field; forged, duplicate or mixed anchors fail closed; an edited field makes it stale', async t => {
+  const { a, b, state, route, input, post, request, json, upload, ref, visual } = await setup(t, null, screens());
+  const card = visual.objects.find(object => object.code === 'card'), componentKey = JSON.stringify(card.object);
+  assert.ok(state.current.some(row => row.key === componentKey), 'the screen is a captured object');
+  const amount = card.fields.find(field => field.code === 'amount');
+  assert.match(amount.fingerprint, /^[a-f0-9]{64}$/);
+  const fieldInput = (field = amount, extra = {}) => ({ ...input(), kind: 'screen', target: { artifactId: state.baselineId, componentKey,
+    fieldAnchor: { code: field.code, pointer: field.pointer, fingerprint: field.fingerprint }, ...extra } });
+  const row = await json(await post(route, a, fieldInput()), 201);
+  assert.deepEqual(row.target.fieldAnchor, { artifactId: state.baselineId, checksum: row.target.checksum, object: card.object,
+    code: 'amount', name: 'Сумма', type: 'MONEY', pointer: 'widgets/card.json#/descriptor/fields/0', fingerprint: amount.fingerprint });
+  assert.equal(row.target.anchor.key, componentKey); assert.equal(row.anchorStatus, 'current');
+  assert.match(publicationText(row), /Поле: Сумма · amount/);
+  const twin = card.fields.find(field => field.code === 'twin');
+  for (const value of [
+    fieldInput({ ...amount, fingerprint: 'f'.repeat(64) }), fieldInput({ ...amount, pointer: 'widgets/card.json#/descriptor/fields/1' }),
+    fieldInput({ ...amount, code: 'note' }), fieldInput(twin)
+  ]) assert.equal((await post(route, a, value)).status, 409);
+  const process = visual.processes[0].nodes.find(node => node.id === 'review').anchor;
+  for (const value of [
+    fieldInput(amount, { sourceAnchor: process }), { ...fieldInput(), target: { artifactId: state.baselineId, fieldAnchor: fieldInput().target.fieldAnchor } },
+    (() => { const value = fieldInput(); value.target.fieldAnchor.name = 'Forged'; return value; })(),
+    (() => { const value = fieldInput(); value.target.fieldAnchor.code = ''; return value; })()
+  ]) assert.equal((await post(route, a, value)).status, 400);
+  assert.equal((await json(await request(route, b))).requests.length, 1, 'refused anchors write nothing');
+  // The field is renamed in an accepted version: the original anchor stays, now stale.
+  const solution = `/api/solutions/${state.id}`;
+  const preview = await json(await post(solution + '/prepare', a, { kind: 'change', snapshot: ref(await upload(a, visualSource, screens('Сумма заявки')), 'partial'),
+    expectedRevision: state.revision, team: 'Synthetic', taskRef: 'Synthetic field rename', sameSourceConfirmed: true }), 201);
+  await json(await post(`${solution}/artifacts/${preview.artifactId}/accept`, a, { expectedRevision: preview.revision,
+    reviewedDigest: preview.artifactDigest, expectedDiscussionRevision: 0,
+    reviewedBoundaryKeys: preview.rows.filter(row => row.boundaryCrossing).map(row => row.key) }));
+  const stale = await json(await request(`${route}/${row.id}`, b));
+  assert.equal(stale.anchorStatus, 'stale'); assert.deepEqual(stale.target, row.target);
 });

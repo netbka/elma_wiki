@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { managedFixture } from '../web/managed/fixtures.js';
-import { requestKindOf, requestTargetLabel, requestCounts, requestInput, capturedArtifact, matchesQuery, moduleCardView, dateLabel, moduleCards, activityFeed, relativeTime, solutionStatus, lifecycleSteps, reviewGate, workspaceSummary, componentName, workspaceUrl, solutionNextAction, responsibilityLabel, responsibilityReport, hasAcceptedFullExport, objectLabel, objectCode, objectFromKey, objectKindLabel, objectModule, isSystemObject, groupObjects, reviewSummary, reviewBucket, groupDependencies } from '../web/managed/model.js';
+import { requestKindOf, requestTargetLabel, requestCounts, fieldRequestCounts, fieldRequestKey, fieldAnchorable, requestInput, capturedArtifact, matchesQuery, moduleCardView, dateLabel, moduleCards, activityFeed, relativeTime, solutionStatus, lifecycleSteps, reviewGate, workspaceSummary, componentName, workspaceUrl, solutionNextAction, responsibilityLabel, responsibilityReport, hasAcceptedFullExport, objectLabel, objectCode, objectFromKey, objectKindLabel, objectModule, isSystemObject, groupObjects, reviewSummary, reviewBucket, groupDependencies } from '../web/managed/model.js';
 import { solutionHandoffFixture } from '../web/managed/handoff-fixtures.js';
 
 test('handoff navigation requires a matching accepted full state and stays separate from delivery evidence', () => {
@@ -233,7 +233,7 @@ test('UX-07: request projections name the object and step, count open requests p
   const model = managedFixture('requests'), state = model.workspace, rows = model.requests.requests;
   const process = state.current.find(row => row.service === 'processor'), screen = state.current.find(row => row.code === 'contract'), directory = state.current.find(row => row.code === 'currencies');
   assert.deepEqual([process, screen, directory].map(requestKindOf), ['process', 'screen', 'data']);
-  assert.deepEqual(requestTargetLabel(state, rows[0]), { text: 'travel_expenses · Утверждение командировки', technical: false, step: 'review' });
+  assert.deepEqual(requestTargetLabel(state, rows[0]), { text: 'travel_expenses · Утверждение командировки', technical: false, step: 'review', field: '' });
   assert.deepEqual(requestTargetLabel(state, rows[3]), { text: 'Всё решение', technical: false, step: '' });
   assert.equal(requestTargetLabel(state, { target: { anchor: { key: JSON.stringify(['widgets', 'gone', 'x']) } } }).text, 'gone · x', 'a removed object keeps its key as the label');
   const counts = requestCounts(rows);
@@ -248,4 +248,23 @@ test('UX-07: request projections name the object and step, count open requests p
   const whole = requestInput({ state, kind: 'screen', title: 'a', text: 'b', reason: ' why ' });
   assert.deepEqual(whole.target, { artifactId: state.baselineId }); assert.equal(whole.reason, 'why');
   assert.equal(requestInput({ state, kind: 'data', row: { ...directory, digest: 'z'.repeat(64) }, title: 'a', text: 'b' }), null, 'an object not captured in any version cannot be targeted');
+});
+
+test('UX-07 field anchors: a uniquely declared field travels with its own object only, is named under Где and counts on its field row', () => {
+  const model = managedFixture('requests'), state = model.workspace, rows = model.requests.requests;
+  const screen = state.current.find(row => row.code === 'contract'), process = state.current.find(row => row.service === 'processor');
+  const amount = rows[1].target.fieldAnchor, field = { code: 'amount', name: 'Сумма', type: 'MONEY', pointer: amount.pointer, fingerprint: amount.fingerprint, artifactId: state.baselineId };
+  assert.equal(requestTargetLabel(state, rows[1]).field, 'Сумма · amount');
+  assert.equal(requestTargetLabel(state, { target: { anchor: rows[1].target.anchor, fieldAnchor: { ...amount, name: 'amount' } } }).field, 'amount', 'a field without a business name shows its code once');
+  assert.deepEqual([...fieldRequestCounts(rows).entries()], [[fieldRequestKey(screen.key, amount.pointer), 1]]);
+  assert.deepEqual([...fieldRequestCounts(rows.map(row => ({ ...row, status: 'done' }))).entries()], [], 'closed requests do not mark the field');
+  const fromField = requestInput({ state, kind: 'screen', row: screen, field: { ...field, extra: 'ignored' }, title: 'a', text: 'b' });
+  assert.deepEqual(fromField.target, { artifactId: state.baselineId, componentKey: screen.key, fieldAnchor: { code: 'amount', pointer: amount.pointer, fingerprint: amount.fingerprint } });
+  assert.equal('fieldAnchor' in requestInput({ state, kind: 'screen', field, title: 'a', text: 'b' }).target, false, 'never without its object');
+  assert.equal('fieldAnchor' in requestInput({ state, kind: 'screen', row: screen, field: { ...field, artifactId: 'another-version' }, title: 'a', text: 'b' }).target, false, 'never from another captured version');
+  const both = requestInput({ state, kind: 'process', row: process, anchor: rows[0].target.sourceAnchor, field: { ...field, artifactId: state.baselineId }, title: 'a', text: 'b' });
+  assert.equal('fieldAnchor' in both.target, false, 'a step anchor wins; the API refuses both');
+  const fields = [field, { ...field, code: 'twin', pointer: 'p1' }, { ...field, code: 'twin', pointer: 'p2' }];
+  assert.deepEqual(fields.map(item => fieldAnchorable(item, fields)), [true, false, false], 'a code declared twice is named in the text instead');
+  assert.equal(fieldAnchorable({ ...field, fingerprint: undefined }, [field]), false);
 });

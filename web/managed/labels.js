@@ -82,7 +82,7 @@ export const requestForm = {
 // "Запросы" tab, record and publication (UX-07)
 export const requests = {
   intro: 'Запрос описывает простыми словами, что должно измениться. Wiki хранит его в решении; в GitHub он уходит только после вашего подтверждения.',
-  title: 'Кратко', wholeSolution: 'Всё решение', step: 'Шаг', field: 'Поле', stepNote: 'шаг выбран на схеме', stepTextNote: 'шаг назван в тексте запроса', fieldNote: 'поле названо в тексте запроса',
+  title: 'Кратко', wholeSolution: 'Всё решение', step: 'Шаг', field: 'Поле', stepNote: 'шаг выбран на схеме', stepTextNote: 'шаг назван в тексте запроса', fieldNote: 'поле названо в тексте запроса', fieldAnchorNote: 'запрос привязан к полю',
   chooseObject: 'Выберите объект из принятого состояния', saved: 'Запрос сохранён в Wiki', open: 'Открыть запрос', close: 'Закрыть', loading: 'Загружаем запрос…', notFound: 'Запрос не найден',
   author: 'Автор', created: 'Создан', status: 'Состояние', fulfilledIn: 'Выполнен в версии', fulfillingVersion: 'Версия, в которой выполнено',
   comment: 'Комментарий', commentOptional: 'Комментарий, необязательно', addComment: 'Добавить комментарий', changeStatus: 'Изменить состояние', saveStatus: 'Сохранить состояние',

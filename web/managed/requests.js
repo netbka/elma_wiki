@@ -106,9 +106,10 @@ export function mountPublication({ state, request, publication, config = {} }, a
 }
 
 // The form. `entry` carries what the entry point knows: the object row, the step
-// anchor and name, the field. "Где" is filled from it and may be changed to any
-// captured object of the accepted state or to the whole Solution.
-export function mountRequestForm({ state, config = {}, home = '/solutions', kind, row = null, anchor = null, stepName = '', fieldName = '', fieldCode = '' }, actions = {}) {
+// anchor and name, the field (with its anchor when the export declares it
+// uniquely). "Где" is filled from it and may be changed to any captured object of
+// the accepted state or to the whole Solution; a step or field stays only with its object.
+export function mountRequestForm({ state, config = {}, home = '/solutions', kind, row = null, anchor = null, stepName = '', fieldName = '', fieldCode = '', field: fieldAnchor = null }, actions = {}) {
   const dialog = el('dialog', undefined, 'managed-decision managed-request'); dialog.setAttribute('aria-label', nouns.request);
   const heading = el('h2', nouns.request); dialog.append(heading);
   const status = el('p', undefined, 'managed-error'); status.setAttribute('role', 'alert'); dialog.append(status);
@@ -136,12 +137,18 @@ export function mountRequestForm({ state, config = {}, home = '/solutions', kind
   // An unsupported step cannot anchor a request (the API refuses it): it is named in the text instead, as a field is.
   const describeStep = () => { stepLine.textContent = step ? `${requestLabels.step}: ${step.name || step.anchor.nodeId} · ${requestLabels.stepNote}` : stepName && !anchor ? `${requestLabels.step}: ${stepName} · ${requestLabels.stepTextNote}` : ''; };
   describeStep();
-  if (fieldName || fieldCode) fieldLine.textContent = `${requestLabels.field}: ${fieldName || fieldCode} · ${requestLabels.fieldNote}`;
-  select.onchange = () => { if (step && select.value !== row?.key) { step = null; describeStep(); } else if (anchor && select.value === row?.key) { step = { anchor, name: stepName }; describeStep(); } };
+  let fieldTarget = fieldAnchor;
+  const describeField = () => { fieldLine.textContent = fieldTarget ? `${requestLabels.field}: ${fieldName || fieldCode} · ${requestLabels.fieldAnchorNote}` : (fieldName || fieldCode) && !fieldAnchor ? `${requestLabels.field}: ${fieldName || fieldCode} · ${requestLabels.fieldNote}` : ''; };
+  describeField();
+  select.onchange = () => {
+    const own = select.value === row?.key;
+    if (anchor) { step = own ? { anchor, name: stepName } : null; describeStep(); }
+    if (fieldAnchor) { fieldTarget = own ? fieldAnchor : null; describeField(); }
+  };
   where.append(select, stepLine, fieldLine); form.append(where);
   const title = field(form, requestLabels.title); title.required = true; title.maxLength = 160; title.autocomplete = 'off';
   const text = field(form, formLabels.shouldBe, 'textarea'); text.required = true; text.maxLength = 8000; text.rows = 5;
-  if (fieldName || fieldCode) text.value = `${requestLabels.field} «${fieldName || fieldCode}»${fieldCode && fieldName ? ` · ${fieldCode}` : ''}: `;
+  if ((fieldName || fieldCode) && !fieldAnchor) text.value = `${requestLabels.field} «${fieldName || fieldCode}»${fieldCode && fieldName ? ` · ${fieldCode}` : ''}: `;
   else if (stepName && !anchor) text.value = `${requestLabels.step} «${stepName}»: `;
   const reason = field(form, formLabels.whyOptional, 'textarea'); reason.maxLength = 2000; reason.rows = 3;
   const urgency = el('fieldset'); urgency.append(el('legend', formLabels.urgency));
@@ -155,7 +162,7 @@ export function mountRequestForm({ state, config = {}, home = '/solutions', kind
   form.onsubmit = async event => {
     event.preventDefault(); if (busy || !form.reportValidity()) return;
     const selectedRow = select.value ? (state.current || []).find(item => item.key === select.value) : null;
-    const input = requestInput({ state, kind: kinds.find(item => item.checked).value, row: selectedRow, anchor: step?.anchor || null,
+    const input = requestInput({ state, kind: kinds.find(item => item.checked).value, row: selectedRow, anchor: step?.anchor || null, field: fieldTarget,
       title: title.value, text: text.value, reason: reason.value, urgency: urgencies.find(item => item.checked).value });
     if (!input) { status.textContent = requestLabels.chooseObject; return; }
     busy = true; submit.disabled = cancel.disabled = true; status.textContent = '';
@@ -195,6 +202,7 @@ function mountRecord({ state, request, publication, config, home, now }, actions
     const target = requestTargetLabel(state, current), whereLine = el('p');
     whereLine.append(`${formLabels.where}: `, el('span', target.text, target.technical ? 'managed-technical' : undefined));
     if (target.step) whereLine.append(' · ', `${requestLabels.step}: `, el('span', target.step, 'managed-code'));
+    if (target.field) whereLine.append(' · ', `${requestLabels.field}: `, el('span', target.field));
     if (current.anchorStatus !== 'current') whereLine.append(' · ', el('span', requestLabels.anchor[current.anchorStatus] || current.anchorStatus, 'managed-chip managed-chip-warn'));
     root.append(whereLine);
     const meta = el('p', undefined, 'managed-muted'); meta.append(`${requestLabels.author}: `, person(current.actor), ` · ${requestLabels.created}: ${dateLabel(current.createdAt)}`); root.append(meta);
@@ -258,6 +266,7 @@ export function mountRequests({ state, requests = [], publication = null, config
       open.onclick = event => { event.preventDefault(); show(row); }; titleCell.append(open);
       if (row.urgency === 'urgent') titleCell.append(' ', el('span', requestLabels.urgentChip, 'managed-chip managed-chip-warn'));
       const target = requestTargetLabel(state, row), whereCell = el('td'); whereCell.append(el('span', target.text, target.technical ? 'managed-technical' : undefined));
+      if (target.field) whereCell.append(' · ', `${requestLabels.field}: ${target.field}`);
       if (row.anchorStatus !== 'current') whereCell.append(' ', el('span', requestLabels.anchor[row.anchorStatus] || row.anchorStatus, 'managed-chip managed-chip-warn'));
       const authorCell = el('td'); authorCell.append(person(row.actor));
       tr.append(titleCell, (() => { const cell = el('td'); cell.append(statusChip(row)); return cell; })(), authorCell, whereCell, el('td', relativeTime(row.createdAt, now)), el('td', row.status === 'done' && row.fulfilledArtifactId ? versionLabel(state, row.fulfilledArtifactId) : ''));

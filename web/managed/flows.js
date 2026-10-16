@@ -1,5 +1,5 @@
 import { nouns, grouping, flows as flowLabels, tabs as tabLabels, facts, kindGroups, actions as actionLabels } from './labels.js';
-import { objectLabel, objectKind, groupObjects, responsibilityLabel, capturedArtifact, matchesQuery, requestKindOf } from './model.js';
+import { objectLabel, objectKind, groupObjects, responsibilityLabel, capturedArtifact, matchesQuery, requestKindOf, fieldAnchorable, fieldRequestKey } from './model.js';
 import { requestChip } from './requests.js';
 import { processSummary } from '../visual/model.js';
 import { mountSnapshotVisual } from '../visual/render.js';
@@ -103,14 +103,21 @@ export function mountScreens({ state, visuals = {} }, actions = {}) {
     for (const section of root.querySelectorAll('.managed-module, .managed-kind')) section.hidden = ![...section.querySelectorAll('.managed-card')].some(card => !card.hidden);
     status.textContent = query ? shown ? `${shown} ${grouping.objects}` : flowLabels.nothingFound : '';
   });
-  const fieldTable = (row, fields) => {
+  const fieldTable = (row, fields, artifactId) => {
     const table = el('table'), head = el('tr');
     for (const label of [flowLabels.field, flowLabels.fieldCode, flowLabels.fieldType, flowLabels.fieldRequired, ...(actions.requestChange ? [nouns.request] : [])]) head.append(el('th', label));
     table.append(head);
     for (const field of fields) {
       const tr = el('tr'); tr.append(el('td', field.name || field.code), el('td', field.code, 'managed-code'), el('td', field.type), el('td', field.required ? flowLabels.yes : flowLabels.no));
-      // UX-07: a request from a field names the field in its text; the API anchors to the object.
-      if (actions.requestChange) { const cell = el('td'), request = el('button', actionLabels.requestChange, 'secondary'); request.type = 'button'; request.setAttribute('aria-label', `${actionLabels.requestChange}: ${field.name || field.code}`); request.onclick = () => actions.requestChange({ kind: requestKindOf(row), row, fieldName: field.name, fieldCode: field.code }); cell.append(request); tr.append(cell); }
+      // UX-07: a request from a uniquely declared field anchors to that field; any
+      // other field is named in the request text and the request anchors to the object.
+      if (actions.requestChange) {
+        const cell = el('td'), request = el('button', actionLabels.requestChange, 'secondary'), count = actions.fieldRequestCounts?.get(fieldRequestKey(row.key, field.pointer));
+        if (count && actions.requestHref) cell.append(requestChip(count, actions.requestHref(row.key), actions.navigate), ' ');
+        request.type = 'button'; request.setAttribute('aria-label', `${actionLabels.requestChange}: ${field.name || field.code}`);
+        request.onclick = () => actions.requestChange({ kind: requestKindOf(row), row, fieldName: field.name, fieldCode: field.code, ...(fieldAnchorable(field, fields) ? { field: { ...field, artifactId } } : {}) });
+        cell.append(request); tr.append(cell);
+      }
       table.append(tr);
     }
     const scroll = el('div', undefined, 'managed-table'); scroll.append(table); return scroll;
@@ -119,7 +126,7 @@ export function mountScreens({ state, visuals = {} }, actions = {}) {
     const article = el('article', undefined, 'managed-card'); article.append(title('h4', row), el('p', responsibilityLabel(row), 'managed-muted'));
     const captured = capturedArtifact(state, row), value = visualFor(visuals, captured?.id);
     const object = value?.objects?.find(object => JSON.stringify(object.object) === row.key);
-    if (object?.fields?.length) { const details = el('details'); details.append(el('summary', `${flowLabels.fields} · ${object.fields.length}`), fieldTable(row, object.fields)); article.append(details); }
+    if (object?.fields?.length) { const details = el('details'); details.append(el('summary', `${flowLabels.fields} · ${object.fields.length}`), fieldTable(row, object.fields, captured.id)); article.append(details); }
     else if (object) article.append(el('p', flowLabels.fieldsUnknown, 'managed-muted'));
     // The projection was not read (failed read, or none loaded for a captured artifact): the card says so.
     else if (captured && (!value || value.error)) article.append(el('p', flowLabels.fieldsUnavailable, 'managed-muted'));

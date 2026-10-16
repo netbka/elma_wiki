@@ -65,6 +65,8 @@ export const RequestsObject = { render: () => story('requests-object') };
 export const RequestsError = { render: () => story('requests-error') };
 export const RequestForm = { render: () => story('request-form'), parameters: { docs: { description: { story:
   'UX-07: the form opened from a step of Как работает. Что изменить preselected, Где filled from the entry point (object and step), Кратко, Что должно быть, Зачем, Срочность, one Отправить.' } } } };
+export const RequestFormField = { render: () => story('request-form-field'), parameters: { docs: { description: { story:
+  'UX-07: the form opened from the field row Сумма of Экраны и данные. Где names the object and the field; the request anchors to that declared field (code, position and fingerprint checked by the server).' } } } };
 export const RequestRecord = { render: () => story('request-record'), parameters: { docs: { description: { story:
   'UX-07: a request record: where it points and whether the object changed, author and date, text, publication consent, history, comment and status forms.' } } } };
 export const RequestPublished = { render: () => story('request-published') };

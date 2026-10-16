@@ -913,6 +913,7 @@
         "managed-workspace--requests-object",
         "managed-workspace--requests-error",
         "managed-workspace--request-form",
+        "managed-workspace--request-form-field",
         "managed-workspace--request-record",
         "managed-workspace--request-published"
       ],
@@ -982,6 +983,7 @@
         "requests-object",
         "requests-error",
         "request-form",
+        "request-form-field",
         "request-record",
         "request-published"
       ],

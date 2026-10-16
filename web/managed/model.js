@@ -320,18 +320,33 @@ export function requestTargetLabel(state, request) {
   const key = request?.target?.anchor?.key;
   if (!key) return { text: requestLabels.wholeSolution, technical: false, step: '' };
   const row = (state?.current || []).find(item => item.key === key) || objectFromKey(key), label = objectLabel(row), module = objectModule(row);
-  return { text: (module ? `${module} · ` : '') + label.text, technical: label.technical, step: request.target.sourceAnchor?.nodeId || '' };
+  const field = request.target.fieldAnchor;
+  return { text: (module ? `${module} · ` : '') + label.text, technical: label.technical, step: request.target.sourceAnchor?.nodeId || '',
+    field: field ? field.name && field.name !== field.code ? `${field.name} · ${field.code}` : field.code : '' };
 }
 export function requestCounts(requests = []) {
   const counts = new Map();
   for (const row of requests) if (['new', 'in-progress'].includes(row.status) && row.target?.anchor?.key) counts.set(row.target.anchor.key, (counts.get(row.target.anchor.key) || 0) + 1);
   return counts;
 }
-export function requestInput({ state, kind, row = null, anchor = null, title = '', text = '', reason = '', urgency = 'normal' }) {
+// The key of a field-level chip: the object plus the field's pointer in the export.
+export const fieldRequestKey = (objectKey, pointer) => `${objectKey}#${pointer}`;
+export function fieldRequestCounts(requests = []) {
+  const counts = new Map();
+  for (const row of requests) if (['new', 'in-progress'].includes(row.status) && row.target?.anchor?.key && row.target.fieldAnchor) {
+    const key = fieldRequestKey(row.target.anchor.key, row.target.fieldAnchor.pointer); counts.set(key, (counts.get(key) || 0) + 1);
+  }
+  return counts;
+}
+// A field anchors only when the export declares it uniquely (code, pointer and
+// fingerprint); otherwise the request names the field in its text, as before.
+export const fieldAnchorable = (field, fields = []) => Boolean(field?.code && field.pointer && field.fingerprint && fields.filter(item => item.code === field.code).length === 1);
+export function requestInput({ state, kind, row = null, anchor = null, field = null, title = '', text = '', reason = '', urgency = 'normal' }) {
   const artifact = row ? capturedArtifact(state, row) : (state.artifacts || []).find(item => item.id === state.baselineId) || (state.artifacts || []).at(-1);
   if (!artifact) return null;
   const step = row && anchor && anchor.artifactId === artifact.id && JSON.stringify(anchor.object) === row.key
     ? { artifactId: anchor.artifactId, checksum: anchor.checksum, fingerprint: anchor.fingerprint, nodeId: anchor.nodeId, object: anchor.object, pointer: anchor.pointer } : null;
   return { id: crypto.randomUUID(), expectedRevision: state.revision, kind, title: title.trim(), text: text.trim(), ...(reason.trim() ? { reason: reason.trim() } : {}), urgency,
-    target: { artifactId: artifact.id, ...(row ? { componentKey: row.key } : {}), ...(step ? { sourceAnchor: step } : {}) } };
+    target: { artifactId: artifact.id, ...(row ? { componentKey: row.key } : {}), ...(step ? { sourceAnchor: step } : {}),
+      ...(row && !step && field?.artifactId === artifact.id ? { fieldAnchor: { code: field.code, pointer: field.pointer, fingerprint: field.fingerprint } } : {}) } };
 }

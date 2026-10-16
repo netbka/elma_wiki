@@ -4,7 +4,7 @@ import { decisionChoices, decisionDefault, canCloseWithoutChanges, solutionStatu
 import { mountSnapshotVisual } from '../visual/render.js';
 import { mountExplanation } from '../explanations/render.js';
 import { mountRelease } from '../releases/render.js';
-import { hasAcceptedFullExport, requestCounts } from './model.js';
+import { hasAcceptedFullExport, requestCounts, fieldRequestCounts } from './model.js';
 import { mountAcquisition, mountSolutionPull, serverFromConnection } from './acquisition.js';
 import { actions as actionLabels, pull as pullLabels } from './labels.js';
 import { mountDependencies } from './dependencies.js';
@@ -155,7 +155,7 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
     const requestConfig = model.requests?.publication || {}, requestActions = model.shared && actions.requests ? { ...actions.requests, navigate: actions.navigate } : {};
     const entryActions = model.shared && actions.requests ? {
       requestChange: entry => { const dialog = mountRequestForm({ state, config: requestConfig, home: model.home, ...entry }, requestActions); content.append(dialog); dialog.openModal(); },
-      requestCounts: requestCounts(model.requests?.requests || []), requestHref: key => workspaceUrl(state.id, 'requests', null, model.home) + '&object=' + encodeURIComponent(key)
+      requestCounts: requestCounts(model.requests?.requests || []), fieldRequestCounts: fieldRequestCounts(model.requests?.requests || []), requestHref: key => workspaceUrl(state.id, 'requests', null, model.home) + '&object=' + encodeURIComponent(key)
     } : {};
     if (['overview', 'changes', 'solution', 'flows', 'requests'].includes(view)) {
       // UX-04: the header carries the one primary button (the recommended action) and the

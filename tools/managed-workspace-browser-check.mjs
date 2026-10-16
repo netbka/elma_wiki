@@ -285,6 +285,34 @@ try {
   await page.getByRole('button', { name: 'Сохранить состояние', exact: true }).click();
   await page.getByText(/Состояние изменено: В работе/).waitFor();
   assert.equal((await (await context.request.get(base + processRoute + '/change-requests')).json()).requests[0].version, 2);
+  // UX-07 field anchor: a request from a uniquely declared field of a captured screen is
+  // anchored to that field by the server and marks the field row with its chip.
+  const screenArchive = zip([['package.json', { code: 'synthetic_screens', type: 'SOLUTION' }],
+    ['widgets/manifest.json', { entities: [{ code: 'card', namespace: 'synthetic', kind: 'WIDGET', name: 'Учебная заявка', path: 'card.json' }] }],
+    ['widgets/card.json', { descriptor: { fields: [{ code: 'amount', view: { name: 'Сумма' }, type: 'MONEY', required: true }, { code: 'note', name: 'Примечание', type: 'STRING' }] } }]]);
+  const screenUpload = await context.request.post(base + '/api/solutions/uploads?sharedConfirmed=true', { headers: { 'X-Elma-Wiki-Request': '1', 'Content-Type': 'application/octet-stream' }, data: await screenArchive });
+  assert.equal(screenUpload.status(), 201); const screenProject = await screenUpload.json();
+  const screenState = await jsonPost('/api/solutions', { name: 'Учебные экраны', baselineOwner: 'Korus', sharedConfirmed: true,
+    snapshot: { projectId: screenProject.id, snapshotId: screenProject.currentSnapshotId, scope: 'full', scopeConfirmed: true } });
+  await page.goto(base + '/solutions?' + new URLSearchParams({ id: screenState.id, view: 'solution' }));
+  await page.locator('summary', { hasText: 'Поля · 2' }).click();
+  await page.getByRole('button', { name: 'Запросить изменение: Сумма', exact: true }).click();
+  await requestDialog.getByText('Поле: Сумма · запрос привязан к полю', { exact: true }).waitFor();
+  assert.equal(await requestDialog.getByLabel('Что должно быть', { exact: true }).inputValue(), '', 'an anchored field is not repeated in the text');
+  await requestDialog.getByLabel('Кратко', { exact: true }).fill('Учебный запрос с поля');
+  await requestDialog.getByLabel('Что должно быть', { exact: true }).fill('Сумма должна показываться с валютой.');
+  await requestDialog.getByRole('button', { name: 'Отправить', exact: true }).click();
+  await requestDialog.getByText('Запрос сохранён в Wiki', { exact: true }).waitFor();
+  const fieldRequest = (await (await context.request.get(base + '/api/solutions/' + screenState.id + '/change-requests')).json()).requests[0];
+  assert.equal(fieldRequest.target.fieldAnchor.code, 'amount'); assert.equal(fieldRequest.target.fieldAnchor.name, 'Сумма');
+  assert.equal(fieldRequest.target.fieldAnchor.pointer, 'widgets/card.json#/descriptor/fields/0'); assert.equal(fieldRequest.anchorStatus, 'current');
+  await requestDialog.getByRole('button', { name: 'Закрыть', exact: true }).click();
+  await page.reload(); await page.locator('summary', { hasText: 'Поля · 2' }).click();
+  assert.equal(await page.locator('.managed-screens table tr', { hasText: 'Сумма' }).getByText('Запрос · 1', { exact: true }).count(), 1, 'the field row carries its chip');
+  assert.equal(await page.locator('.managed-screens table tr', { hasText: 'Примечание' }).getByText(/^Запрос · /).count(), 0);
+  await page.getByRole('link', { name: 'Запросы', exact: true }).click();
+  await page.locator('.managed-requests table tr', { hasText: 'Учебный запрос с поля' }).getByText(/Поле: Сумма · amount/).waitFor();
+  await page.screenshot({ path: 'qa/managed-request-field.png', fullPage: true });
   await page.goto(base + '/solutions?' + new URLSearchParams({ id: processState.id, view: 'flows' }));
   const boundary = structuredClone(additions); boundary.process.items.y.condition = 'reviewed edit';
   await prepareProcess(boundary, 'change'); await acceptBlocked();
@@ -310,7 +338,7 @@ try {
     } catch { res.writeHead(404); res.end(); }
   });
   await new Promise(resolve => stories.listen(0, '127.0.0.1', resolve));
-  const storyModes = ['empty','list','create','overview','pending','change','review','conflict','overlap','ambiguous','stale','archived','loading','load-error','changes','solution','no-source','needs-fixes','pending-conflict','review-comment','review-findings','review-resolved','review-accepted','review-stale-anchor','review-removed-anchor','review-ambiguous-anchor','elements-added','elements-boundary','elements-conflict','elements-unknown','create-legacy','pull-exporting','pull-ready','pull-failed','pull-unavailable','update','summary-mixed','summary-no-changes','summary-closed','decision','lifecycle-build','lifecycle-verified','about-empty','about-generated','about-saved','about-stale','about-error','flows','flows-error','flows-unknown','screens','requests','requests-empty','requests-object','requests-error','request-form','request-record','request-published'];
+  const storyModes = ['empty','list','create','overview','pending','change','review','conflict','overlap','ambiguous','stale','archived','loading','load-error','changes','solution','no-source','needs-fixes','pending-conflict','review-comment','review-findings','review-resolved','review-accepted','review-stale-anchor','review-removed-anchor','review-ambiguous-anchor','elements-added','elements-boundary','elements-conflict','elements-unknown','create-legacy','pull-exporting','pull-ready','pull-failed','pull-unavailable','update','summary-mixed','summary-no-changes','summary-closed','decision','lifecycle-build','lifecycle-verified','about-empty','about-generated','about-saved','about-stale','about-error','flows','flows-error','flows-unknown','screens','requests','requests-empty','requests-object','requests-error','request-form','request-form-field','request-record','request-published'];
   for (const mode of storyModes) {
     await page.goto(`http://127.0.0.1:${stories.address().port}/iframe.html?id=managed-workspace--${mode}&viewMode=story`);
     await page.locator('.managed-shell h1').waitFor();
@@ -368,14 +396,16 @@ try {
       assert.equal(await page.locator('.visual-form').getByRole('button', { name: 'Запросить изменение', exact: true }).count(), 1, 'and one on the selected step');
     }
     if (mode === 'screens') {
-      // UX-07: a request from a field names the field in the text; the chip marks the changed screen.
-      await page.getByText('Запрос · 1', { exact: true }).first().waitFor();
+      // UX-07: a request from a field anchors to that field; the chips mark the screen and the field row.
+      await page.locator('.managed-request-entry').getByText('Запрос · 1', { exact: true }).first().waitFor();
       await page.locator('summary', { hasText: 'Поля · 2' }).click();
+      assert.equal(await page.locator('.managed-screens table tr', { hasText: 'Сумма' }).getByText('Запрос · 1', { exact: true }).count(), 1, 'field chip');
+      assert.equal(await page.locator('.managed-screens table tr', { hasText: 'Номер' }).getByText(/^Запрос · /).count(), 0);
       await page.getByRole('button', { name: 'Запросить изменение: Сумма', exact: true }).click();
       const dialog = page.locator('dialog.managed-request');
-      await dialog.getByText('Поле: Сумма · поле названо в тексте запроса', { exact: true }).waitFor();
+      await dialog.getByText('Поле: Сумма · запрос привязан к полю', { exact: true }).waitFor();
       assert.equal(await dialog.getByRole('radio', { name: 'Экран', exact: true }).isChecked(), true);
-      assert.match(await dialog.getByLabel('Что должно быть', { exact: true }).inputValue(), /^Поле «Сумма» · amount: $/);
+      assert.equal(await dialog.getByLabel('Что должно быть', { exact: true }).inputValue(), '');
       await dialog.getByRole('button', { name: 'Отмена', exact: true }).click();
       assert.equal(await dialog.evaluate(node => node.open), false);
       await page.locator('summary', { hasText: 'Поля · 2' }).click();
@@ -384,6 +414,7 @@ try {
       await page.getByRole('heading', { name: 'Запросы', exact: true }).waitFor();
       assert.equal(await page.locator('.managed-requests tbody tr, .managed-requests table tr').count(), 5, 'header plus four requests');
       for (const text of ['Новый', 'В работе', 'Выполнен', 'Отклонён', 'Срочно', 'Объект изменился после запроса', 'Всё решение']) await page.getByText(text, { exact: true }).first().waitFor();
+      assert.match(await page.locator('.managed-requests table tr', { hasText: 'Сумма обязательна' }).innerText(), /Поле: Сумма · amount/, 'a field request names its field under Где');
       assert.match(await page.locator('.managed-requests table tr').nth(1).innerText(), /^Показывать сумму до утверждения/, 'newest first');
       await page.getByRole('button', { name: 'Новый запрос', exact: true }).click();
       const dialog = page.locator('dialog.managed-request');
@@ -411,6 +442,21 @@ try {
       assert.equal(await dialog.getByText(/^Шаг: /).count(), 0);
       await dialog.getByLabel('Где', { exact: true }).selectOption(JSON.stringify(['processor', 'travel_expenses.trips', 'template', 'trip_approval']));
       await dialog.getByText(/^Шаг: /).waitFor();
+    }
+    if (mode === 'request-form-field') {
+      const dialog = page.locator('dialog.managed-request');
+      await dialog.getByText('Поле: Сумма · запрос привязан к полю', { exact: true }).waitFor();
+      assert.equal(await dialog.getByRole('radio', { name: 'Экран', exact: true }).isChecked(), true);
+      assert.equal(await dialog.getByLabel('Что должно быть', { exact: true }).inputValue(), '');
+      // Choosing another object drops the field; choosing the object back restores it.
+      await dialog.getByLabel('Где', { exact: true }).selectOption(JSON.stringify(['processor', 'travel_expenses.trips', 'template', 'trip_approval']));
+      assert.equal(await dialog.getByText(/^Поле: /).count(), 0);
+      await dialog.getByLabel('Где', { exact: true }).selectOption(JSON.stringify(['widgets', 'synthetic.records', 'contract']));
+      await dialog.getByText('Поле: Сумма · запрос привязан к полю', { exact: true }).waitFor();
+      await dialog.getByLabel('Кратко', { exact: true }).fill('Учебный запрос с поля');
+      await dialog.getByLabel('Что должно быть', { exact: true }).fill('Сумма с валютой.');
+      await dialog.getByRole('button', { name: 'Отправить', exact: true }).click();
+      await dialog.getByText('Запрос сохранён в Wiki', { exact: true }).waitFor();
     }
     if (mode === 'request-record') {
       await page.getByRole('heading', { name: 'Показывать сумму до утверждения', exact: true }).waitFor();
