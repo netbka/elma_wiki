@@ -229,6 +229,27 @@ export const classificationLabels = {
 export const elementClassificationLabels = { ...classificationLabels, 'element-added': 'Добавлен', 'element-removed': 'Удалён', 'element-modified': 'Изменён' };
 export const elementKindLabels = { node: 'Шаг', transition: 'Переход', variable: 'Переменная', lane: 'Дорожка' };
 
+// MR-02 part-level merge inside «Совмещение с принятыми изменениями». The server
+// plan is authoritative; part merge is offered, never applied by default.
+export const partMerge = {
+  intro: 'Сравнение исходной версии, принятой версии и этого изменения. Автоматического объединения нет: для каждого конфликта выберите версию объекта, а для процесса можно совместить его части.',
+  choice: 'Совместить части процесса', parts: 'Части процесса', chooseVersion: 'Выберите версию',
+  explain: 'Шаги, переходы, дорожки и переменные сравниваются по идентификаторам ELMA, не по названиям и не по порядку.',
+  unavailable: 'Совместить части нельзя', findings: 'Что проверить после совмещения',
+  chooseParts: 'Выберите версию для каждой части с конфликтом.',
+  notMaterialized: 'Совмещённый процесс существует только как сохранённое решение: файл процесса не создан, сборка недоступна.',
+  residual: 'Прочие настройки процесса', order: 'Порядок элементов'
+};
+export const partMergeBlockers = {
+  'rename-uncertain': 'возможно, у части сменился идентификатор', 'duplicate-part-identity': 'несколько частей с одним идентификатором',
+  'unproven-part-identity': 'не у всех частей есть идентификатор', 'unexplained-change': 'правка не относится ни к одной части',
+  'dangling-transition': 'переход останется без своего шага'
+};
+export const partMergeFindings = {
+  renamed: 'Название изменено, идентификатор прежний', 'behaviour-combined': 'Совмещены правки обеих сторон; работа процесса не проверена',
+  'dependency-impact': 'Правка одной стороны может влиять на шаги и переходы другой'
+};
+
 // A technical identifier must never be the only label of a row. Keys of this
 // shape get the business name first and the key as muted secondary text.
 const guid = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;

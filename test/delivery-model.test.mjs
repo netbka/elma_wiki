@@ -89,3 +89,45 @@ test('predefined DEV is never selectable for delivery; DEV2 needs a configured p
   assert.equal(view.usable({ ...dev2, probe: { ...probe, hostMatches: false } }), false);
   assert.equal(view.selectable({ ...dev2, preset: { ...dev2.preset, available: false } }), false);
 });
+
+test('MR-08 promotion targets another usable non-production Target on the same platform version; PROD is only refused', () => {
+  const source = { ...connection, probe: { ok: true, identity: { host: 'test.example.invalid', version: '2025.5' } } };
+  const verified = { ...attempt('verified'), connection: source, targetIdentity: source.probe.identity, verificationCurrent: true, evidence: { reconciliation: { outcome: 'applied' } } };
+  const second = { ...connection, id: 'test-2', probe: { ok: true, identity: { host: 'test-2.example.invalid', version: '2025.5' } } };
+  const otherVersion = { ...second, id: 'test-3', probe: { ok: true, identity: { host: 'test-3.example.invalid', version: '2026.1' } } };
+  const sameHost = { ...second, id: 'alias', probe: { ok: true, identity: { host: 'test.example.invalid', version: '2025.5' } } };
+  const unprobed = { ...second, id: 'test-4', probe: null };
+  const prod = { ...second, id: 'prod', environment: 'prod', probe: { ok: true, identity: { host: 'prod.example.invalid', version: '2025.5' } } };
+  const view = deliveryPanelView(release, { capabilities, connections: [source, second, otherVersion, sameHost, unprobed, prod], attempts: [verified] });
+  assert.equal(view.promotable, true); assert.equal(view.canPromote, true); assert.equal(view.prodRefused, true);
+  assert.deepEqual(view.promotionDestinations.map(c => c.id), ['test-2', 'test-3', 'alias', 'test-4', 'prod']);
+  assert.deepEqual(view.promotionDestinations.filter(view.promotionTarget).map(c => c.id), ['test-2']);
+  assert.equal(view.promotionTarget(prod), false, 'PROD is never a promotion destination from the UI');
+  // Stale, historical, unverified, PROD-sourced or edited evidence never offers promotion.
+  for (const [candidate, data] of [[release, { attempts: [{ ...verified, releaseRevision: 3 }] }], [release, { attempts: [{ ...verified, verificationCurrent: false }] }],
+    [release, { attempts: [{ ...verified, state: 'deployed-unverified' }] }], [release, { attempts: [{ ...verified, connection: { ...source, environment: 'prod' } }] }],
+    [{ ...release, candidate: { ...release.candidate, provenance: 'supported-edit' } }, { attempts: [verified] }], [release, { attempts: [verified, attempt('prepared')] }]]) {
+    const refused = deliveryPanelView(candidate, { capabilities, connections: [source, second, prod], ...data });
+    assert.equal(refused.canPromote, false); assert.equal(refused.promotionTarget(second), false);
+  }
+  assert.equal(deliveryPanelView(release, { connections: [source, second], attempts: [verified] }).canPromote, false, 'delivery disabled');
+});
+
+test('MR-08 retry follows only an observed reconciliation of a current attempt', () => {
+  const reconciled = (outcome, extra = {}) => deliveryPanelView(release, { capabilities, connections: [connection], attempts: [{ ...attempt('verification-failed'), evidence: { reconciliation: { outcome } }, ...extra }] });
+  assert.equal(reconciled('not-applied').canRetry, true); assert.equal(reconciled('not-applied').canRecover, false);
+  assert.equal(reconciled('diverged').canRetry, false); assert.equal(reconciled('diverged').canRecover, false); assert.equal(reconciled('diverged').recoveryRefused, true);
+  assert.equal(reconciled('diverged', { capabilities: { reimport: 'idempotent' } }).canRecover, true);
+  assert.equal(reconciled('diverged', { capabilities: { reimport: 'idempotent' } }).recoveryRefused, false);
+  // A retry already created, a stale candidate or a reconcile-only read-back never offers another.
+  for (const view of [reconciled('not-applied', { retriedBy: 'retry' }), reconciled('not-applied', { releaseRevision: 3 }),
+    deliveryPanelView(release, { capabilities, connections: [connection], attempts: [{ ...attempt('verification-failed'), evidence: { reconciliation: { outcome: 'not-applied', mode: 'reconcile-only' } } }] })]) {
+    assert.equal(view.canRetry, false); assert.equal(view.canRecover, false);
+  }
+  // Unreconciled outcomes read back first.
+  for (const state of ['failed', 'unknown-outcome', 'partial-outcome', 'deployed-unverified', 'verified', 'prepared']) {
+    const view = deliveryPanelView(release, { capabilities, connections: [connection], attempts: [attempt(state)] });
+    assert.equal(view.canRetry, false, state); assert.equal(view.canRecover, false, state);
+  }
+  assert.equal(deliveryPanelView(release, { connections: [connection], attempts: [{ ...attempt('verification-failed'), evidence: { reconciliation: { outcome: 'not-applied' } } }] }).canRetry, false, 'delivery disabled');
+});

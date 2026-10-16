@@ -177,10 +177,39 @@ capture cannot carry a validated scope, so its tombstones are not used. A Source
 declaration bound to an earlier baseline fails as stale. Plan status is
 `blocked`, `resolution-required` or `clear`. Even `clear` is only a proposal.
 
-The plan itself has no acceptance, part-level process merge or generated
-artifact; durable resolutions are described below. Disjoint process-part edits stay
-whole-component `divergent`. Evidence: `node --test test/managed-merge-plan.test.mjs`
+The plan itself has no acceptance or generated artifact; durable resolutions are
+described below. Evidence: `node --test test/managed-merge-plan.test.mjs`
 (synthetic store-backed B/A/C fixtures).
+
+### Part-level plan for kinds with stable part IDs — MR-02 / #94 (B2)
+
+A `divergent` row whose B, A and C components all carry a process projection
+(`lib/process-elements.mjs`) additionally gets `parts`
+(`method: process-element-three-way`). Kinds without a complete stable-ID
+projection keep whole-component behaviour and get no `parts`. Parts are the
+native-ID nodes, transitions, lanes and variables, one `residual` part
+(everything outside those collections, including metadata and side/resource
+evidence) and an `order:<collection>` part per array collection, comparing only
+the relative order of IDs present in all three inputs. Each part row uses the same
+classification and proposal table as components; inside a supplied complete
+entity a missing part is a real removal. Names and positions never match parts.
+
+Part blockers set `parts.status: blocked`: duplicate (`duplicate-part-identity`)
+or unproven part IDs and incomplete projections in any input; a removal beside an
+addition of the same kind and display name involving C (`rename-uncertain`, never
+matched); a side whose component digest changed with no part change
+(`unexplained-change`); and a transition whose endpoint node, known in B/A/C,
+would be absent under the clear proposals (`dangling-transition`). `findings`
+record review-only impact: `renamed` (display name changed, ID stable),
+`behaviour-combined` (changes of both sides survive; behaviour unverified) and
+`dependency-impact` (a variable, lane or residual change on one side beside node
+or transition changes on the other, or a possibly dangling transition under a
+pending part choice). Findings are evidence for review, not proof of behaviour.
+
+The component row stays `resolution-required` with no proposal: a declared base
+or pull sequence is not verified ancestry (`ancestryVerified` stays `false`), so
+part merge is never automatic, and an unknown base still blocks the whole plan
+before any row exists.
 
 ## Durable merge resolutions — MR-02 / #94 (PLAN-01 P3)
 
@@ -236,10 +265,23 @@ shows **Совмещение с принятыми изменениями** (`we
 declared base yields a non-clear plan or history exists; existing acceptance
 gates are unchanged and a stale review still cannot be accepted.
 
-Applying a resolved revision to the working state, part-level/fine-grained
-resolution, package/dependency reconciliation and physical materialization
+For a `divergent` row with an unblocked part plan, `merge-parts` (`PART_MERGE_CHOICE`)
+is an additional explicit choice. `partDecisions[componentKey][partId]` must give a
+supported choice for every `resolution-required` part and nothing else; clear parts
+follow their proposals. Choices that leave a transition without its node are
+refused (422). The result row has `source: merged-parts`, the base digest, A's
+intervention and C's artifact references, per-part sources/digests, findings
+recomputed for the chosen parts and a digest over them; the decision lists the
+part choices. It is a reference record, not bytes: native materialization finds
+no physical source for it and blocks (`unlocatable-component-source`). The store's
+`resolveMerge` accepts `partDecisions` and `merge` returns `partMergeChoice`; the
+review renderer offers **Совместить части процесса**, part choices, blockers and
+findings (Storybook `merge-parts`, `merge-parts-blocked`).
+
+Applying a resolved revision to the working state, part-level adapters for other
+kinds, generating a merged process file, package/dependency reconciliation and physical materialization
 (P6) remain open. Evidence: `node --test test/managed-merge-resolution.test.mjs
-test/managed-merge-view.test.mjs`, the Solutions API case in
+test/managed-merge-parts.test.mjs test/managed-merge-view.test.mjs`, the Solutions API case in
 `test/solutions-api.test.mjs` and `npm run test:merge-resolution:browser`.
 
 State and proposals use one atomic JSON replacement after immutable artifact writes. A failed metadata replacement leaves the previous committed state; uncommitted artifacts are not discoverable. Restart reads the persisted baseline, decisions, proposals and archive status. This is single-process atomic persistence, not multi-process locking or a guarantee against storage-device power loss. A crash can leave unreferenced staging/artifact files; they are never auto-adopted. Operator retention/cleanup remains a follow-up.

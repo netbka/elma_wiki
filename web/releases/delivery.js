@@ -7,14 +7,14 @@ let sequence = 0;
 const freshTokens = new Map();
 export function mountDelivery({ release, client, onAction, onRefresh, onState, isBlocked = () => false, initialDrafts = new Map() } = {}) {
   const root = el('section', undefined, 'release-delivery'); root.setAttribute('aria-label', 'Доставка и проверка результата');
-  let data = null, busy = false, selected = '', loadError = '';
+  let data = null, busy = false, selected = '', destination = '', loadError = '';
   root.getDrafts = () => new Map([...initialDrafts, ...[...root.querySelectorAll('[data-draft-key]')].map(node => [node.dataset.draftKey, node.value])]);
   const execute = async input => {
     if (busy || isBlocked()) return;
     busy = true;
     freshTokens.clear();
     const status = root.querySelector('[role="status"]');
-    status.textContent = input.action === 'confirm' ? 'Операция выполняется. Дождитесь ответа; повторный запуск не нужен.' : input.action === 'verify' ? 'Читаем и сравниваем результат операции…' : 'Обновляем подготовку доставки…';
+    status.textContent = input.action === 'confirm' ? 'Операция выполняется. Дождитесь ответа; повторный запуск не нужен.' : input.action === 'verify' ? 'Читаем и сравниваем результат операции…' : input.action === 'promote' ? 'Заново читаем Target назначения и готовим продвижение…' : input.action === 'retry' ? 'Заново читаем Target и готовим повтор после сверки…' : 'Обновляем подготовку доставки…';
     try { await onAction(input); }
     finally {
       busy = false;
@@ -29,6 +29,31 @@ export function mountDelivery({ release, client, onAction, onRefresh, onState, i
     const wrap = el('div'), caption = el('label', label), node = el(tag);
     node.id = 'delivery-field-' + ++sequence; caption.htmlFor = node.id; node.value = value;
     node.dataset.draftKey = label; node.dataset.savedValue = value; wrap.append(caption, node); parent.append(wrap); return node;
+  };
+  // MR-08 promotion of the verified candidate to another non-production Target. PROD is listed only as refused.
+  const promotion = (view, latest) => {
+    const block = el('section', undefined, 'card'); block.setAttribute('aria-label', 'Продвижение проверенного кандидата');
+    block.append(el('h3', 'Продвижение проверенного кандидата'));
+    if (view.promotable) {
+      block.append(el('p', 'Тот же кандидат можно отправить на другой Target с той же версией платформы. Сервис заново читает Target назначения: если его состояние отличается от состояния, на котором кандидат проверен (drift), продвижение блокируется до создания попытки. Запуск требует отдельного подтверждения и read-back.', 'note'));
+      const picker = field(block, 'Target назначения для продвижения', '', 'select'); delete picker.dataset.draftKey;
+      const empty = el('option', 'Выберите Target назначения'); empty.value = ''; picker.append(empty);
+      for (const connection of view.promotionDestinations) {
+        const option = el('option', `${connection.name}${connection.environment === 'prod' ? ' — PROD: продвижение запрещено' : !view.usable(connection) ? ' — требуется проверка доступности' : !view.promotionTarget(connection) ? ' — тот же узел или другая версия платформы' : ''}`);
+        option.value = connection.id; option.disabled = !view.promotionTarget(connection); picker.append(option);
+      }
+      if (!view.promotionDestinations.some(c => c.id === destination && view.promotionTarget(c))) destination = '';
+      picker.value = destination; picker.onchange = () => { destination = picker.value; draw(); };
+      const chosen = view.promotionDestinations.find(c => c.id === destination);
+      if (!view.canPromote) block.append(el('p', 'Нет другого проверенного Target с той же версией платформы. Добавьте и проверьте подключение назначения.', 'note'));
+      // Only a destination the model accepts reaches the coordinator; PROD never does.
+      const promote = button(block, 'Подготовить продвижение на Target назначения', () => {
+        if (chosen && view.promotionTarget(chosen)) execute({ action: 'promote', attemptId: latest.id, connectionId: chosen.id, revision: release.revision, idempotencyKey: `release-ui-promote-${latest.id}-${chosen.id}-${data.attempts.length}` });
+      }, !chosen || !view.promotionTarget(chosen));
+      if (!promote.disabled) promote.classList.remove('secondary');
+    }
+    if (view.prodRefused) block.append(el('p', 'PROD: продвижение из интерфейса невозможно. Для него нужно отдельное разрешение владельца, которое сервис не выдаёт; агенты PROD не изменяют.', 'release-error'));
+    return block;
   };
   const refresh = async operation => {
     if (busy || isBlocked()) return;
@@ -149,7 +174,18 @@ export function mountDelivery({ release, client, onAction, onRefresh, onState, i
       if (view.canCancel) button(attempt, 'Отменить подготовку', () => execute({ action: 'cancel', attemptId: latest.id }));
       if (view.canVerify) button(attempt, 'Прочитать и проверить результат', () => execute({ action: 'verify', attemptId: latest.id })).classList.remove('secondary');
       if (view.canReconcile) button(attempt, 'Сверить состояние Target без подтверждения', () => execute({ action: 'reconcile', attemptId: latest.id })).classList.remove('secondary');
+      // MR-08 lineage: a promotion or a retry is a new attempt with its own typed confirmation.
+      if (latest.promotion) attempt.append(el('p', `Продвижение кандидата, проверенного на Target «${latest.promotion.fromConnection?.name || 'исходный'}» (${latest.promotion.fromTargetIdentity?.host || 'узел не сообщён'}). При подготовке состояние назначения совпадало с состоянием, на котором кандидат проверен.`, 'note'));
+      if (latest.retryOf) attempt.append(el('p', latest.retryOf.mode === 'forward-recovery' ? 'Восстановление частичной установки повторным идемпотентным импортом после сверки read-back.' : 'Повтор после сверки read-back: прежняя попытка ничего не применила.', 'note'));
+      if (latest.retriedBy) attempt.append(el('p', 'Для этой попытки уже создан повтор; следующий шаг — в новой попытке.', 'note'));
       const reconciliation = latest.evidence.reconciliation;
+      if (reconciliation && reconciliation.mode !== 'reconcile-only') attempt.append(el('p', reconciliation.outcome === 'applied' ? 'Сверка read-back: изменения применены, Target совпал с кандидатом.'
+        : reconciliation.outcome === 'not-applied' ? 'Сверка read-back: изменения не применены, Target в прежнем состоянии.'
+        : 'Сверка read-back: частичная установка — Target не совпадает ни с прежним состоянием, ни с кандидатом.', reconciliation.outcome === 'diverged' ? 'release-error' : 'note'));
+      if (view.canRetry) button(attempt, 'Подготовить повтор после сверки', () => execute({ action: 'retry', attemptId: latest.id, idempotencyKey: 'release-ui-retry-' + latest.id })).classList.remove('secondary');
+      if (view.canRecover) button(attempt, 'Подготовить восстановление повторным импортом', () => execute({ action: 'retry', attemptId: latest.id, idempotencyKey: 'release-ui-retry-' + latest.id })).classList.remove('secondary');
+      if (view.recoveryRefused) attempt.append(el('p', 'Адаптер не подтверждает идемпотентный повторный импорт: восстановление из интерфейса недоступно, нужен утверждённый план восстановления.', 'note'));
+      if (view.canRetry || view.canRecover) attempt.append(el('p', 'Повтор создаёт новую подготовленную попытку на том же Target. Перед ней Target читается заново: если он изменился после сверки (drift), повтор блокируется. Запуск требует отдельного подтверждения.', 'note'));
       if (reconciliation?.mode === 'reconcile-only') attempt.append(el('p', reconciliation.outcome === 'not-applied' ? 'Сверка без подтверждения: изменения не применены, Target освобождён. Прежний кандидат не подтверждён.'
         : reconciliation.outcome === 'stale-applied' ? 'Сверка без подтверждения: на Target применён устаревший кандидат. Target остаётся зарезервированным до решения владельца.'
         : 'Сверка без подтверждения: частичная установка. Target остаётся зарезервированным; нужен план восстановления.', 'note'));
@@ -171,6 +207,7 @@ export function mountDelivery({ release, client, onAction, onRefresh, onState, i
       if (latest.evidence.operation) attempt.append(el('p', latest.evidence.operation.nativeResult || latest.evidence.operation.error || 'Операция завершилась; требуется проверка результата'));
       if (latest.evidence.rollbackReference) attempt.append(el('p', 'Зафиксировано состояние до операции. Восстановление документов или процессов этим не гарантируется.'));
       root.append(attempt);
+      if (view.promotable || view.prodRefused) root.append(promotion(view, latest));
     }
     if (data.attempts.length) {
       const history = el('details'); history.append(el('summary', 'История доставок'));
