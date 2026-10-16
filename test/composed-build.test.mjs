@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -12,6 +13,8 @@ import { prepareMaterializationRequest } from '../lib/native-materialization.mjs
 import { observedTargetProfileReport } from '../lib/native-materialization-bridge.mjs';
 import { changesFromRequest } from '../lib/elma365-native-contracts.mjs';
 import { composedBuildCapability, buildBlockingGates, POST_BUILD_FACTS } from '../lib/composed-build.mjs';
+import { selectReadBackPolicy } from '../lib/delivery.mjs';
+import { targetPresets, guardPresetDeploy } from '../lib/target-presets.mjs';
 import { createServer } from '../server.mjs';
 import { archive, keyOf, assemble, receiptFor, COMPILER, WIDGET } from './manifest-policy-fixtures.mjs';
 import { hex, nativeDeclaration, observe } from './native-contract-fixtures.mjs';
@@ -41,7 +44,7 @@ async function solution(directory) {
   const current = await managed.get(state.id, SOLUTION_CATALOG), merge = await managed.merge(state.id, SOLUTION_CATALOG, change.artifactId);
   await managed.resolveMerge(state.id, SOLUTION_CATALOG, change.artifactId, { expectedRevision: current.revision, planDigest: merge.plan.planDigest,
     expectedResolutionId: merge.head?.id ?? null, decisions: {}, reason: 'Synthetic reviewed choice' }, uploader);
-  return { managed, id: state.id, artifactId: change.artifactId };
+  return { managed, composed: solutions.composed, id: state.id, artifactId: change.artifactId };
 }
 
 // The server's trusted evidence source in these tests: a native coverage declaration over the
@@ -94,7 +97,11 @@ async function setup(t, { configure = true, evidence = true, env = {} } = {}) {
     json: { artifactId: built.artifactId, expectedRevision: await revision(), ...input } });
   // Wait until the bridge reports the worker's latest poll.
   const settle = async expected => { for (let i = 0; i < 100 && (await capability()).detail !== expected; i++) await new Promise(resolve => setTimeout(resolve, 20)); return capability(); };
-  return { ...built, server, base, headers, answers, worker, capability, settle, build, revision, directory };
+  // Freeze the held build; the body defaults to confirming exactly that build.
+  const freeze = async (input = {}) => call(base, `/api/solutions/${built.id}/composed`, { method: 'POST', headers,
+    json: { artifactId: built.artifactId, expectedRevision: await revision(), manifestDigest: server.composedBuilds.get(built.id)?.result.manifest.manifestDigest ?? hex('0'), ...input } });
+  const candidates = async () => (await call(base, `/api/solutions/${built.id}/composed`, { headers })).body;
+  return { ...built, server, base, headers, answers, worker, capability, settle, build, freeze, candidates, revision, directory };
 }
 
 test('unconfigured: building stays unavailable with the reason, and the route never calls a worker', async t => {
@@ -230,4 +237,110 @@ test('post-build installation facts are the only coverage reasons a build may pr
   assert.deepEqual(buildBlockingGates(eligibility).map(row => [row.id, reasons(row.reasons)]), [['coverage', ['missing-native-evidence']]]);
   eligibility.gates[1].reasons = [{ reason: 'missing-native-evidence' }];
   assert.equal(buildBlockingGates(eligibility).length, 1, 'an unnamed native evidence gap still blocks');
+});
+
+// Freeze route (#94 MR-06, PLAN-01 B1): only the held validated build becomes a candidate.
+const sha = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
+const OTHER_SOLUTION = '00000000-0000-4000-8000-000000000000';
+
+test('freeze: the held validated build becomes a candidate bound to its manifest, units, locks, profile and artifact digest', async t => {
+  const env = await setup(t);
+  env.worker();
+  await env.settle(null);
+  assert.equal((await env.build()).body.outcome, 'validated');
+  const held = env.server.composedBuilds.get(env.id), manifest = held.result.manifest;
+  // The body only confirms which build; it can neither supply nor override a bound value.
+  for (const extra of [{ sha256: hex('1') }, { units: [] }, { targetProfile: { digest: hex('b') } }, { manifest: {} }, { dependencies: {} }, { bytes: 'AA==' }])
+    assert.equal((await env.freeze(extra)).status, 400, JSON.stringify(extra));
+  assert.equal((await env.freeze({ manifestDigest: hex('c') })).body.reason, 'foreign-build');
+  assert.equal((await env.freeze({ artifactId: env.id })).body.reason, 'foreign-build');
+  const moved = await env.freeze({ expectedRevision: (await env.revision()) + 1 });
+  assert.equal(moved.status, 409); assert.equal(moved.body.reason, 'stale-build'); assert.equal(moved.body.candidate, null);
+  assert.deepEqual(await env.candidates(), []);
+
+  const frozen = await env.freeze();
+  assert.equal(frozen.status, 201, JSON.stringify(frozen.body));
+  const { candidate } = frozen.body;
+  assert.equal(frozen.body.outcome, 'frozen');
+  assert.equal(candidate.candidate.sha256, manifest.artifacts[0].sha256);
+  assert.equal(candidate.candidate.sha256, sha(Buffer.from(held.result.artifacts[0].bytes)));
+  assert.equal(candidate.binding.manifestDigest, manifest.manifestDigest);
+  assert.equal(candidate.binding.requestDigest, manifest.requestDigest); assert.equal(candidate.binding.inputsDigest, manifest.inputsDigest);
+  assert.equal(candidate.binding.artifactId, env.artifactId); assert.equal(candidate.binding.revision, await env.revision());
+  assert.equal(candidate.binding.dependencyPlanDigest, held.dependencies.planDigest);
+  assert.equal(candidate.binding.targetProfileDigest, PROFILE); assert.equal(candidate.targetProfile.digest, PROFILE);
+  assert.deepEqual(candidate.compiler, { contract: COMPILER.contract, profileDigest: COMPILER.profileDigest });
+  assert.ok(candidate.units.length >= 1);
+  assert.equal(candidate.evidenceBasis, 'native'); assert.deepEqual(candidate.adapter, manifest.adapter);
+  assert.equal(candidate.validation.artifactSha256, candidate.candidate.sha256);
+  // Truthful: the import has not happened, so the candidate is not release-eligible.
+  assert.equal(candidate.releaseEligible, false); assert.deepEqual(candidate.pendingNativeEvidence, [...POST_BUILD_FACTS].sort());
+  assert.ok(candidate.frozenBy?.id);
+  assert.equal(candidate.inputsStatus, 'current'); assert.equal(candidate.deliverable, false);
+  // The held build is consumed: it cannot be frozen twice.
+  assert.equal(env.server.composedBuilds.has(env.id), false);
+  assert.equal((await env.freeze({ manifestDigest: manifest.manifestDigest })).body.reason, 'no-validated-build');
+  assert.deepEqual((await env.candidates()).map(row => row.id), [candidate.id]);
+
+  // The delivery coordinator's trusted consumer and the DEV2 designation refer to these exact bytes.
+  const approved = await call(env.base, `/api/solutions/${env.id}/composed/${candidate.id}`, { method: 'POST', headers: env.headers,
+    json: { action: 'approve', revision: candidate.revision, reason: 'Synthetic exact-byte review' } });
+  assert.equal(approved.status, 200, JSON.stringify(approved.body));
+  const consumed = await env.composed.withCandidate(env.id, candidate.id, async row => ({ sha256: row.candidate.sha256, digest: sha(row.bytes),
+    manifestDigest: row.sourceAssociation.manifestDigest, units: row.composed.units, profile: row.composed.targetProfile }));
+  assert.deepEqual(consumed, { sha256: candidate.candidate.sha256, digest: candidate.candidate.sha256, manifestDigest: manifest.manifestDigest,
+    units: candidate.units, profile: candidate.targetProfile });
+  const [, dev2] = targetPresets({ WIKI_TARGET_DEV2_URL: 'https://dev2.example.invalid', WIKI_TARGET_DEV2_DEPLOY_CANDIDATES: candidate.candidate.sha256 });
+  assert.equal(dev2.available, true, dev2.reason);
+  assert.doesNotThrow(() => guardPresetDeploy(dev2, candidate.candidate.sha256));
+  assert.equal(selectReadBackPolicy({ preset: dev2 }, candidate.candidate.sha256).selectedBy, 'dev2-designated-candidate');
+  assert.throws(() => guardPresetDeploy(dev2, hex('9')), error => error.statusCode === 403);
+});
+
+test('freeze: no build, a failed build, a hand-built or foreign held build is refused with a reason and creates nothing', async t => {
+  const env = await setup(t);
+  assert.equal((await env.freeze()).body.reason, 'no-validated-build', 'nothing was built');
+  env.worker();
+  await env.settle(null);
+  env.answers.push(() => ({ result: { ok: false, error: 'synthetic tool crash' } }));
+  assert.equal((await env.build()).body.outcome, 'tool-fault');
+  const failed = await env.freeze();
+  assert.equal(failed.status, 409); assert.equal(failed.body.reason, 'no-validated-build');
+  assert.equal((await env.build()).body.outcome, 'validated');
+  const held = env.server.composedBuilds.get(env.id), manifestDigest = held.result.manifest.manifestDigest;
+  // A copied manifest has no in-process provenance mark; it is not a validated build.
+  env.server.composedBuilds.set(env.id, { ...held, result: { ...held.result, manifest: structuredClone(held.result.manifest) } });
+  assert.equal((await env.freeze({ manifestDigest })).body.reason, 'no-validated-build');
+  for (const foreign of [{ ...held, solutionId: OTHER_SOLUTION }, { ...held, adapter: { ...held.adapter, nativeRevision: hex('b', 40) } }]) {
+    env.server.composedBuilds.set(env.id, foreign);
+    const refused = await env.freeze();
+    assert.equal(refused.status, 409); assert.equal(refused.body.reason, 'foreign-build');
+  }
+  // A build held for another Solution is never reachable from this one.
+  env.server.composedBuilds.delete(env.id);
+  env.server.composedBuilds.set(OTHER_SOLUTION, held);
+  assert.equal((await env.freeze({ manifestDigest })).body.reason, 'no-validated-build');
+  assert.deepEqual(await env.candidates(), []);
+  assert.equal((await call(env.base, `/api/solutions/${env.id}/composed`, { method: 'POST', json: { artifactId: env.artifactId, expectedRevision: 0, manifestDigest } })).status, 404);
+});
+
+test('freeze: a build whose inputs moved after validation is stale, and no freeze runs while a build is in progress', async t => {
+  const env = await setup(t);
+  env.worker();
+  await env.settle(null);
+  let during = null;
+  env.answers.push(async answer => { during = await env.freeze(); return answer; });
+  assert.equal((await env.build()).body.outcome, 'validated');
+  assert.equal(during.status, 409); assert.equal(during.body.reason, 'build-in-progress');
+  const held = env.server.composedBuilds.get(env.id);
+  // New review evidence after the build: the store re-derives the request and refuses it.
+  const review = await env.managed.review(env.id, SOLUTION_CATALOG, env.artifactId);
+  await env.managed.comment(env.id, SOLUTION_CATALOG, env.artifactId, { expectedRevision: await env.revision(), expectedDiscussionRevision: review.discussion.version,
+    type: 'comment', text: 'Later synthetic review evidence' }, uploader);
+  const stale = await env.freeze({ expectedRevision: held.revision });
+  assert.equal(stale.status, 409, JSON.stringify(stale.body)); assert.equal(stale.body.reason, 'stale-build');
+  assert.deepEqual(await env.candidates(), []);
+  // Rebuilt from the current inputs, it freezes.
+  assert.equal((await env.build()).body.outcome, 'validated');
+  assert.equal((await env.freeze()).status, 201);
 });

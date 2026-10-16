@@ -78,17 +78,41 @@ no second coordinator, connection catalog or dispatch path. The existing
 the legacy, shared-original and composed roots. Host reservations scan all
 three roots, including unresolved records after restart.
 
-- **Freeze** (`freeze`, trusted server code only, no HTTP route). The input is
+- **Freeze** (`freeze`, trusted server code). The input is
   one P6 `materializeNative` result plus the P4 coverage, P5 dependency
   evidence, compiler lock and Target profile it was built from. The store
   re-derives the materialization request from the current Solution state and
   its stored originals. It requires `materializationStatus(manifest, request) ===
   'current'`, a `materialized` manifest with no blockers other than
-  `synthetic-evidence-only`, and output bytes equal to the manifest sha256. The
+  `synthetic-evidence-only` or, for a native manifest, a
+  `native-installation-evidence-incomplete` naming only the post-build facts
+  (`native-import-receipt`, `native-installation-observation`), and output
+  bytes equal to the manifest sha256. Such a candidate records those facts as
+  `pendingNativeEvidence` and stays `releaseEligible: false`. Given the
+  build's Solution binding (`inputs`), any later revision, resolution or
+  review event is refused even when the request is equal. The
   dependency profile must equal the Target profile, and every selected native
   unit needs an import position. An `unavailable` (unpinned) build, tampered
   bytes or manifest, a relocked compiler, another profile, or a later resolution
   or review event is refused with 409.
+- **Freeze route** (PLAN-01 B1). `POST /api/solutions/:id/composed` freezes the
+  Solution's held validated C2 build (`server.composedBuilds`, see
+  [composer build route](native-materialization.md#composer-build-route-plan-01-c2)).
+  The body is exactly `{artifactId, expectedRevision, manifestDigest}` and only
+  confirms which build; any other key is 400, so a body can never supply or
+  override the manifest, bytes, units, locks, Target profile or compiler. The
+  route passes the held build's own manifest, output, evidence and Solution
+  binding to `freeze`. Refusals are 409 `{outcome: 'refused', reason}`:
+  `no-validated-build` (nothing held: never built, or the last build was
+  failed, tool-fault, unbound, stale or blocked; or a manifest without the
+  in-process mark), `foreign-build` (another Solution, change, manifest digest,
+  adapter or worker revision than the configured one, or a non-native
+  manifest), `stale-build` (the revision moved or `freeze` refused the current
+  inputs) and `build-in-progress`. A freeze is 201 `{outcome: 'frozen',
+  candidate}` and consumes the held build. The candidate's `candidate.sha256`
+  is the artifact digest the coordinator dispatches and the value an owner
+  lists in `WIKI_TARGET_DEV2_DEPLOY_CANDIDATES`. Freezing is not approval or a
+  deployment permission.
 - **Binding.** The candidate binds the Solution revision, change artifact,
   resolution id, revision, result and plan digests, review-event digest, P6
   request, inputs and manifest digests, coverage and dependency plan digests and
@@ -170,8 +194,8 @@ contracts, missing}`. It is available only with `WIKI_NATIVE_MATERIALIZATION_*`
 configured and a healthy bridge; otherwise `reason` is
 `native-materialization-unavailable` and `detail` names the cause (see
 [composer build route](native-materialization.md#composer-build-route-plan-01-c2);
-`POST /api/solutions/:id/composed-build` builds, and freezing still has no HTTP
-route). `contracts` lists
+`POST /api/solutions/:id/composed-build` builds and `POST
+/api/solutions/:id/composed` freezes the held validated build). `contracts` lists
 `NATIVE_MATERIALIZATION_CONTRACTS` (E1 once pinned) and `missing` is
 `INSPECTED_NATIVE_MATERIALIZATION.missing` verbatim; the UI labels each key,
 shows unknown keys with a neutral fallback and derives its reason text from
