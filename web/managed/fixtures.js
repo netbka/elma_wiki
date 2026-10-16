@@ -166,6 +166,26 @@ export function managedFixture(mode = 'overview') {
       row('category', 'incoming-only', 'clear', 'take-incoming', { incoming: ref('e'.repeat(64), { artifactId: review.artifactId }) }),
       row('contract', 'unchanged', 'clear', 'keep-current')
     ];
+    if (mode.startsWith('merge-parts')) {
+      // MR-02 part plan: both teams edited the approval process; parts are matched by native ID only.
+      const partsBlocked = mode === 'merge-parts-blocked';
+      const part = (kind, code, name, classification, status, proposal, digests, extra = {}) => ({ id: JSON.stringify([kind, code]), kind, code, classification,
+        currentChange: digests[1] === digests[0] ? 'none' : 'modified', incomingChange: digests[2] === digests[0] ? 'none' : 'modified',
+        base: { digest: digests[0], name }, current: { digest: digests[1], name }, incoming: { digest: digests[2], name }, blockers: [], status, proposal, ...extra });
+      const partRows = [
+        part('node', 'review', 'Проверка руководителем', partsBlocked ? 'current-only' : 'divergent', partsBlocked ? 'clear' : 'resolution-required', partsBlocked ? 'keep-current' : null, ['1'.repeat(64), '2'.repeat(64), partsBlocked ? '1'.repeat(64) : '3'.repeat(64)]),
+        part('node', 'accounting', 'Проверка бухгалтерией', 'incoming-only', 'clear', 'take-incoming', ['4'.repeat(64), '4'.repeat(64), '5'.repeat(64)]),
+        part('variable', 'limit', 'Лимит', 'current-only', 'clear', 'keep-current', ['6'.repeat(64), '7'.repeat(64), '6'.repeat(64)])
+      ];
+      if (partsBlocked) partRows.push({ ...part('node', 'notify', 'Уведомление', 'addition-incoming', 'blocked', null, [null, null, '8'.repeat(64)], { blockers: ['rename-uncertain'] }), base: null, current: null, currentChange: 'absent', incomingChange: 'added' },
+        { ...part('node', 'inform', 'Уведомление', 'current-only', 'blocked', null, ['9'.repeat(64), null, '9'.repeat(64)], { blockers: ['rename-uncertain'] }), current: null, currentChange: 'removed', incomingChange: 'none' });
+      rows.unshift({ key: JSON.stringify(['processor', 'synthetic', 'approval']), service: 'processor', namespace: 'synthetic', code: 'approval', kind: 'PROCESS',
+        classification: 'divergent', status: 'resolution-required', proposal: null, blockers: [], base: ref('a'.repeat(64), { artifactId: base.id }),
+        current: ref('c'.repeat(64), { team: 'Внутренняя команда', interventionId: 'synthetic-change' }), incoming: ref('d'.repeat(64), { artifactId: review.artifactId }),
+        parts: { method: 'process-element-three-way', status: partsBlocked ? 'blocked' : 'resolution-required', blockers: partsBlocked ? [{ reason: 'rename-uncertain' }] : [], rows: partRows,
+          findings: [{ type: 'behaviour-combined', severity: 'review', current: [partRows[0].id, partRows[2].id], incoming: [partRows[1].id] },
+            { type: 'dependency-impact', severity: 'review', dependency: 'variable', input: 'current', parts: [partRows[2].id], affected: [partRows[1].id] }] } });
+    }
     const plan = { schemaVersion: 1, method: 'whole-component-three-way', status: blocked ? 'blocked' : 'resolution-required', blockers: blocked ? [{ reason: 'rename-uncertain' }] : [], rows,
       inputs: { base: { status: 'declared', artifactId: base.id, revision: 0, checksum: base.checksum }, current: { workspaceId: workspace.id, revision: mode === 'merge-stale' ? 3 : 2, baselineId: base.id, digest: 'f'.repeat(64) },
         incoming: { artifactId: review.artifactId, checksum: 'b'.repeat(64), artifactDigest: review.artifactDigest } },
@@ -174,7 +194,7 @@ export function managedFixture(mode = 'overview') {
       inputs: { ...plan.inputs, current: { ...plan.inputs.current, revision: 2 } }, decisions: [{ key: rows[0].key, classification: 'divergent', choice: 'take-incoming' }],
       reason: 'Лимит согласован с финансовым отделом в DEMO-14.', actor, at, ancestryVerified: false, automaticMergeEnabled: false, acceptanceEnabled: false, buildEnabled: false, materialized: false };
     const head = ['merge-resolved', 'merge-stale'].includes(mode) ? { ...resolution, status: mode === 'merge-stale' ? 'stale' : 'current' } : null;
-    review.merge = { artifactId: review.artifactId, available: true, reason: null, message: null, plan,
+    review.merge = { artifactId: review.artifactId, available: true, reason: null, message: null, plan, partMergeChoice: 'merge-parts',
       choices: { divergent: ['keep-current', 'take-incoming'], 'addition-divergent': ['keep-current', 'take-incoming'], 'delete-edit': ['keep-current', 'remove'], 'edit-delete': ['keep-current', 'take-incoming'] },
       head, history: head ? [head] : [] };
   }
