@@ -85,3 +85,6 @@ export const MergeRequired = { render: () => story('merge-required'), parameters
 export const MergeResolved = { render: () => story('merge-resolved') };
 export const MergeStale = { render: () => story('merge-stale') };
 export const MergeBlocked = { render: () => story('merge-blocked') };
+export const MergeParts = { render: () => story('merge-parts'), parameters: { docs: { description: { story:
+  'Обе команды правили один процесс. Части сравниваются по идентификаторам ELMA; совмещение частей выбирается явно, конфликт части требует выбора, а влияние на поведение показано для проверки.' } } } };
+export const MergePartsBlocked = { render: () => story('merge-parts-blocked') };

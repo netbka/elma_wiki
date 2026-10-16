@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { managedFixture } from '../web/managed/fixtures.js';
-import { mergeResolutionView, mergeGate } from '../web/managed/merge.js';
+import { mergeResolutionView, mergeGate, partInput, mergeSubmission } from '../web/managed/merge.js';
 
 test('merge view requires an explicit supported choice and reason; no version is preselected', () => {
   const view = mergeResolutionView(managedFixture('merge-required').review.merge);
@@ -34,4 +34,38 @@ test('saved, stale and blocked resolutions stay attributed and never become edit
   const clear = structuredClone(managedFixture('merge-required').review.merge);
   clear.plan.status = 'clear'; assert.equal(mergeResolutionView(clear).visible, false);
   clear.plan.inputs.base.status = 'unknown'; clear.plan.status = 'blocked'; assert.equal(mergeResolutionView(clear).visible, false);
+});
+
+test('a process with complete stable part IDs offers an explicit part merge with part choices and findings', () => {
+  const view = mergeResolutionView(managedFixture('merge-parts').review.merge);
+  const process = view.required.find(row => row.parts);
+  assert.deepEqual(process.options.map(([value]) => value), ['keep-current', 'take-incoming', 'merge-parts']);
+  assert.equal(process.parts.available, true);
+  assert.deepEqual(process.parts.required.map(part => [part.name, part.options.map(([value]) => value)]), [['Шаг Проверка руководителем', ['keep-current', 'take-incoming']]]);
+  assert.deepEqual(process.parts.findings.map(finding => finding.type), ['behaviour-combined', 'dependency-impact']);
+  assert.deepEqual(process.parts.findings[1].parts, ['Переменная Лимит']);
+  // Widgets without part IDs keep whole-component choices only.
+  assert.deepEqual(view.required.find(row => row.name === 'limit').options.map(([value]) => value), ['keep-current', 'take-incoming']);
+  const decisions = { [process.key]: 'merge-parts', [view.required.find(row => row.name === 'limit').key]: 'keep-current' };
+  assert.match(mergeGate(view, decisions, 'Согласовано'), /каждой части/);
+  const partDecisions = { [process.key]: { [process.parts.required[0].id]: 'take-incoming' } };
+  assert.equal(mergeGate(view, decisions, 'Согласовано', partDecisions), '');
+  assert.deepEqual(partInput(view, decisions, partDecisions), { partDecisions });
+  assert.deepEqual(partInput(view, { ...decisions, [process.key]: 'keep-current' }, partDecisions), {});
+  // The submit path uses the same gate as the save button: a complete part choice is sent, a missing one is not.
+  const merge = managedFixture('merge-parts').review.merge;
+  assert.equal(mergeSubmission(merge, view, decisions, 'Согласовано'), null);
+  assert.deepEqual(mergeSubmission(merge, view, decisions, 'Согласовано', partDecisions), { expectedRevision: merge.plan.inputs.current.revision,
+    planDigest: merge.plan.planDigest, expectedResolutionId: view.head?.id ?? null, decisions, reason: 'Согласовано', partDecisions });
+});
+
+test('a blocked part plan keeps only the whole-component choice and names the reason', () => {
+  const view = mergeResolutionView(managedFixture('merge-parts-blocked').review.merge);
+  const process = view.required.find(row => row.parts);
+  assert.equal(process.parts.available, false);
+  assert.deepEqual(process.options.map(([value]) => value), ['keep-current', 'take-incoming']);
+  assert.match(process.parts.reasons[0], /идентификатор/);
+  // Without the server's part choice the option is never offered.
+  const merge = structuredClone(managedFixture('merge-parts').review.merge); delete merge.partMergeChoice;
+  assert.equal(mergeResolutionView(merge).required.find(row => row.parts).parts.available, false);
 });
