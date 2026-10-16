@@ -47,7 +47,7 @@ export const statuses = { working: 'В работе', awaitingReview: 'Ожид�
 export const changeKinds = { modified: 'Изменён', added: 'Добавлен', removed: 'Удалён', unchanged: 'Без изменений', conflict: 'Конфликт' };
 
 // Status ribbon on the review page
-export const ribbon = { modified: 'Изменено', added: 'Добавлено', removed: 'Удалено', conflicts: 'Конфликтов', all: 'Все', viewed: 'Просмотрено', unchanged: 'Без изменений' };
+export const ribbon = { modified: 'Изменено', added: 'Добавлено', removed: 'Удалено', conflicts: 'Конфликтов', all: 'Все', viewed: 'Просмотрено', viewedOf: 'из', unchanged: 'Без изменений' };
 
 // Review summary (UX-03)
 export const reviewSummary = {
@@ -59,7 +59,7 @@ export const reviewSummary = {
 export const facts = {
   baseVersion: 'Основа: версия от', baseUnknown: 'Основа: не указана', baseSequence: 'Основа записана Wiki по порядку загрузок с того же сервера. Происхождение экспорта в ELMA не проверено.', server: 'Сервер', loadedBy: 'Загрузил',
   diagramFromExport: 'Схема: из экспорта', behaviorNotChecked: 'Поведение в ELMA: не проверено',
-  noDifference: 'Эта версия не отличается от текущей', viewed: 'Просмотрено', changedSinceViewed: 'Изменилось после просмотра'
+  noDifference: 'Эта версия не отличается от текущей', viewed: 'Просмотрено', changedSinceViewed: 'Изменилось после просмотра', viewedFailed: 'Отметка не сохранена. Повторите.'
 };
 
 // Object kinds. R1 (2026-10-15, ELMA365 help): ELMA's own Russian nouns are

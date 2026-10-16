@@ -353,7 +353,7 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
           'Cache-Control': 'no-store', 'X-Artifact-SHA256': result.evidence.sha256, 'X-Solution-Revision': String(result.evidence.revision) });
         return res.end(result.bytes);
       }
-      const solutionMatch = /^\/api\/solutions(?:\/([^/]+)(?:\/(prepare|archive|explanations)|\/artifacts\/([^/]+)\/(preview|review|discussion|merge|accept|close|original|visual))?)?$/.exec(pathname);
+      const solutionMatch = /^\/api\/solutions(?:\/([^/]+)(?:\/(prepare|archive|explanations)|\/artifacts\/([^/]+)\/(preview|review|discussion|viewed|merge|accept|close|original|visual))?)?$/.exec(pathname);
       if (solutionMatch) {
         const [, id, operation, artifactId, artifactAction] = solutionMatch, action = operation || artifactAction;
         if (!session) return send(res, id ? 404 : 401, { error: id ? 'Решение не найдено' : 'Войдите в сервис' });
@@ -371,7 +371,7 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
           return send(res, 200, await store.list(SOLUTION_CATALOG, { archived: archived === 'true' }));
         }
         if (req.method === 'GET' && action === 'preview') return send(res, 200, await store.preview(id, SOLUTION_CATALOG, artifactId));
-        if (req.method === 'GET' && action === 'review') return send(res, 200, await store.review(id, SOLUTION_CATALOG, artifactId));
+        if (req.method === 'GET' && action === 'review') return send(res, 200, await store.review(id, SOLUTION_CATALOG, artifactId, session.user));
         if (req.method === 'GET' && action === 'merge') return send(res, 200, await store.merge(id, SOLUTION_CATALOG, artifactId));
         if (req.method === 'GET' && action === 'visual') return send(res, 200, await snapshotVisual(await store.original(id, SOLUTION_CATALOG, artifactId), artifactId));
         if (req.method === 'GET' && action === 'original') {
@@ -379,7 +379,7 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
           res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Disposition': 'attachment; filename="solution.e365"', 'Cache-Control': 'no-store' });
           return res.end(bytes);
         }
-        if (req.method !== 'POST' || (id && !['prepare', 'archive', 'accept', 'close', 'discussion', 'merge', 'explanations'].includes(action))) return send(res, 405, { error: 'Метод не поддерживается' });
+        if (req.method !== 'POST' || (id && !['prepare', 'archive', 'accept', 'close', 'discussion', 'viewed', 'merge', 'explanations'].includes(action))) return send(res, 405, { error: 'Метод не поддерживается' });
         if (req.headers['content-type']?.split(';')[0] !== 'application/json') return send(res, 415, { error: 'Требуется JSON' });
         const input = JSON.parse((await body(req, 256 * 1024)).toString('utf8'));
         if (!id) {
@@ -387,6 +387,7 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
           delete input.sharedConfirmed;
         }
         const result = !id ? await store.create(SOLUTION_CATALOG, input, session.user) : action === 'explanations' ? await store.explanation(id, SOLUTION_CATALOG, input, session.user) : action === 'discussion' ? await store.comment(id, SOLUTION_CATALOG, artifactId, input, session.user)
+          : action === 'viewed' ? await store.markViewed(id, SOLUTION_CATALOG, artifactId, input, session.user)
           : action === 'merge' ? await store.resolveMerge(id, SOLUTION_CATALOG, artifactId, input, session.user)
           : action === 'prepare' ? await store.prepare(id, SOLUTION_CATALOG, input, session.user)
           : action === 'accept' ? await store.accept(id, SOLUTION_CATALOG, artifactId, input, session.user)
