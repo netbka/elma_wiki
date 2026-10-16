@@ -74,7 +74,7 @@ Shared-content wording reconciled against main `9f8f17c` on 2026-10-09. This is 
   - the operator must restart the dev2 bridge from merged elma365 main with `--materialize` (elma365 PR #102), set `WIKI_NATIVE_MATERIALIZATION_*` on the Wiki service and repeat read-back;
   - the Contracts section-ownership conflict needs an owner/composition decision;
   - real dev2 exports must be captured;
-  - the P4/P5 native coverage and dependency receipt contracts are in progress in elma365;
+  - the P4/P5 native coverage and dependency receipt contracts are pinned (PR #133), but no elma365 worker implements the read-only `targetProfile` observation, so real coverage and dependency evidence still fail closed;
   - manifest regeneration policy v2 is selected by Wiki for profile-2 identities (synthetic evidence only; no live check), but processor-template and other profile-2 edits stay `unsupported` in the coverage catalog;
   - a process-runtime compiler is needed;
   - a designated candidate SHA-256 must be configured before any dev2 deploy.
