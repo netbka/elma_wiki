@@ -81,6 +81,13 @@ export function partInput(view, decisions, partDecisions = {}) {
   return merged.length ? { partDecisions: Object.fromEntries(merged.map(row => [row.key, { ...partDecisions[row.key] }])) } : {};
 }
 
+// Submit payload, or null while the same gate the save button shows still applies.
+export function mergeSubmission(merge, view, decisions, reason, partDecisions = {}) {
+  if (mergeGate(view, decisions, reason, partDecisions)) return null;
+  return { expectedRevision: merge.plan.inputs.current.revision, planDigest: merge.plan.planDigest,
+    expectedResolutionId: view.head?.id ?? null, decisions: { ...decisions }, reason, ...partInput(view, decisions, partDecisions) };
+}
+
 const el = (tag, text, className) => { const node = document.createElement(tag); if (text !== undefined) node.textContent = text; if (className) node.className = className; return node; };
 let sequence = 0;
 // Part plan of one process: blockers, findings and the per-part choices shown
@@ -147,9 +154,8 @@ export function mountMergeResolution(merge, { submit, technical } = {}) {
     }
     reason.oninput = update;
     form.append(reasonLabel, reason, el('p', 'Решение сохраняется отдельно с автором и точными версиями. Оно не принимает объединённую версию; сборка пакета и установка недоступны.', 'managed-muted'), gate, save);
-    form.onsubmit = event => { event.preventDefault(); if (mergeGate(view, decisions, reason.value) || !form.reportValidity()) return;
-      submit?.({ expectedRevision: merge.plan.inputs.current.revision, planDigest: merge.plan.planDigest,
-        expectedResolutionId: view.head?.id ?? null, decisions: { ...decisions }, reason: reason.value, ...partInput(view, decisions, partDecisions) }); };
+    form.onsubmit = event => { event.preventDefault(); const input = mergeSubmission(merge, view, decisions, reason.value, partDecisions);
+      if (!input) { update(); return; } if (form.reportValidity()) submit?.(input); };
     root.append(form); update();
   }
   technical?.(root, 'Доказательства сравнения и решений', { inputs: merge.plan?.inputs ?? null, planDigest: merge.plan?.planDigest ?? null, head: merge.head, history: merge.history });

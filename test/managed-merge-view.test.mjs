@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { managedFixture } from '../web/managed/fixtures.js';
-import { mergeResolutionView, mergeGate, partInput } from '../web/managed/merge.js';
+import { mergeResolutionView, mergeGate, partInput, mergeSubmission } from '../web/managed/merge.js';
 
 test('merge view requires an explicit supported choice and reason; no version is preselected', () => {
   const view = mergeResolutionView(managedFixture('merge-required').review.merge);
@@ -52,6 +52,11 @@ test('a process with complete stable part IDs offers an explicit part merge with
   assert.equal(mergeGate(view, decisions, 'Согласовано', partDecisions), '');
   assert.deepEqual(partInput(view, decisions, partDecisions), { partDecisions });
   assert.deepEqual(partInput(view, { ...decisions, [process.key]: 'keep-current' }, partDecisions), {});
+  // The submit path uses the same gate as the save button: a complete part choice is sent, a missing one is not.
+  const merge = managedFixture('merge-parts').review.merge;
+  assert.equal(mergeSubmission(merge, view, decisions, 'Согласовано'), null);
+  assert.deepEqual(mergeSubmission(merge, view, decisions, 'Согласовано', partDecisions), { expectedRevision: merge.plan.inputs.current.revision,
+    planDigest: merge.plan.planDigest, expectedResolutionId: view.head?.id ?? null, decisions, reason: 'Согласовано', partDecisions });
 });
 
 test('a blocked part plan keeps only the whole-component choice and names the reason', () => {

@@ -19,7 +19,7 @@ const archive = entries => zip([
   ['widgets/manifest.json', { entities: entries.map(([code]) => ({ code, namespace: 'synthetic.records', kind: 'WIDGET', path: code + '.json' })) }],
   ...entries.map(([code, value]) => ['widgets/' + code + '.json', { descriptor: { fields: [], clientScripts: `const value = ${JSON.stringify(value)};` } }])
 ]);
-const evidence = { synthetic: true, explicitChoiceRequired: false, saved: false, restartVisible: false, competingWrite: false, draftRetained: false, acceptanceUnchanged: false, storybook: [] };
+const evidence = { synthetic: true, explicitChoiceRequired: false, saved: false, restartVisible: false, competingWrite: false, draftRetained: false, acceptanceUnchanged: false, partSubmitReachesStore: false, storybook: [] };
 let browser, stories;
 try {
   browser = await chromium.launch({ headless: true, ...(process.env.BROWSER_CHANNEL ? { channel: process.env.BROWSER_CHANNEL } : {}) });
@@ -103,6 +103,13 @@ try {
       assert.equal(await part.isVisible(), false);
       await story.getByLabel(/approval: /).selectOption('merge-parts'); await part.waitFor();
       await story.getByRole('list', { name: 'Что проверить после совмещения' }).waitFor();
+      // Submit path: with every part chosen the resolution reaches the store action (the story's action refuses it visibly).
+      const save = story.getByRole('button', { name: /Сохранить/ });
+      for (const select of await story.locator('select').all()) if (await select.isVisible() && !(await select.inputValue())) await select.selectOption({ index: 1 });
+      await story.getByLabel('Причина решения').fill('Части согласованы в синтетической задаче');
+      assert.equal(await save.isDisabled(), false); await save.click();
+      await page.getByText(/Учебный пример: данные не сохраняются/).first().waitFor();
+      evidence.partSubmitReachesStore = true;
     }
     if (mode === 'merge-parts-blocked') {
       await story.getByText(/Совместить части нельзя/).waitFor();
