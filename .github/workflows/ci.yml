@@ -45,6 +45,8 @@ jobs:
       - if: runner.os == 'Linux'
         run: npm run test:delivery:browser
       - if: runner.os == 'Linux'
+        run: npm run test:delivery:storybook
+      - if: runner.os == 'Linux'
         run: npm run test:managed:browser
       - if: runner.os == 'Linux'
         run: npm run test:change-base:browser
