@@ -1,4 +1,4 @@
-import { grouping as groupingLabels, classificationLabels, elementClassificationLabels, elementKindLabels, actions as actionLabels, summaries, kindGroups, displayLabel, isTechnicalKey, ribbon, steps as stepLabels, stepReasons, statuses, activity as activityLabels, buildEligibility } from './labels.js';
+import { requests as requestLabels, grouping as groupingLabels, classificationLabels, elementClassificationLabels, elementKindLabels, actions as actionLabels, summaries, kindGroups, displayLabel, isTechnicalKey, ribbon, steps as stepLabels, stepReasons, statuses, activity as activityLabels, buildEligibility } from './labels.js';
 // Review classification wording lives in labels.js (UX-00); these names stay for
 // existing importers.
 export const labels = classificationLabels;
@@ -308,4 +308,30 @@ export function moduleCardView(card, limit = 6) {
   const parts = [['processes', card.processes], ['forms', card.forms], ['data', card.data]].filter(([, rows]) => rows.length)
     .map(([kind, rows]) => ({ kind, names: rows.slice(0, limit).map(row => objectLabel(row).text), more: Math.max(0, rows.length - limit) }));
   return { title: { text: label.text || groupingLabels.withoutModule, technical: label.technical || !label.text }, parts, explainable: !!card.module };
+}
+
+// UX-07: requests as data. The kind an object row suggests; the "Где" label of a
+// stored request (module · business name, plus the step id when anchored to a
+// step); open-request counts per object key for the chips; the creation payload
+// from what the form and the entry point know. Anchors are copied from the
+// captured projection untouched; a step anchor is sent only with its own object.
+export const requestKindOf = row => ({ processes: 'process', forms: 'screen' })[objectKind(row)] || 'data';
+export function requestTargetLabel(state, request) {
+  const key = request?.target?.anchor?.key;
+  if (!key) return { text: requestLabels.wholeSolution, technical: false, step: '' };
+  const row = (state?.current || []).find(item => item.key === key) || objectFromKey(key), label = objectLabel(row), module = objectModule(row);
+  return { text: (module ? `${module} · ` : '') + label.text, technical: label.technical, step: request.target.sourceAnchor?.nodeId || '' };
+}
+export function requestCounts(requests = []) {
+  const counts = new Map();
+  for (const row of requests) if (['new', 'in-progress'].includes(row.status) && row.target?.anchor?.key) counts.set(row.target.anchor.key, (counts.get(row.target.anchor.key) || 0) + 1);
+  return counts;
+}
+export function requestInput({ state, kind, row = null, anchor = null, title = '', text = '', reason = '', urgency = 'normal' }) {
+  const artifact = row ? capturedArtifact(state, row) : (state.artifacts || []).find(item => item.id === state.baselineId) || (state.artifacts || []).at(-1);
+  if (!artifact) return null;
+  const step = row && anchor && anchor.artifactId === artifact.id && JSON.stringify(anchor.object) === row.key
+    ? { artifactId: anchor.artifactId, checksum: anchor.checksum, fingerprint: anchor.fingerprint, nodeId: anchor.nodeId, object: anchor.object, pointer: anchor.pointer } : null;
+  return { id: crypto.randomUUID(), expectedRevision: state.revision, kind, title: title.trim(), text: text.trim(), ...(reason.trim() ? { reason: reason.trim() } : {}), urgency,
+    target: { artifactId: artifact.id, ...(row ? { componentKey: row.key } : {}), ...(step ? { sourceAnchor: step } : {}) } };
 }
