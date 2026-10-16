@@ -171,8 +171,12 @@ route and no native worker implements a pinned contract. `contracts` lists
 `NATIVE_MATERIALIZATION_CONTRACTS` (E1 once pinned) and `missing` is
 `INSPECTED_NATIVE_MATERIALIZATION.missing` verbatim; the UI labels each key,
 shows unknown keys with a neutral fallback and derives its reason text from
-`contracts`. The screen never presents a build
-as working. Storybook: `solution-composer--*`; check:
+`contracts`. The composer also reads `GET /api/solutions/:id/composed-eligibility`
+and lists «Условия сборки»: scope, native coverage, dependency locks, Target
+profile and materialization, each with every blocking reason
+([composed-build-eligibility.md](composed-build-eligibility.md)). Build is
+enabled only when the builder is available and every gate is verified. The
+screen never presents a build as working. Storybook: `solution-composer--*`; check:
 `npm run test:composer:storybook`.
 
 The Solution next action (`solutionNextAction`) projects the product plan map
@@ -180,7 +184,8 @@ from server state: a stale pending comparison → «Сравнить измен�
 (`compare`); a conflicting pending change → «Разрешить конфликт»
 (`conflict`), or «Указать базу изменения» (`unknown-base`) when its base is
 undeclared; with composer data loaded and accepted changes, no current candidate
-→ `build-blocked` (or `build` only if the server reports `composedBuild.available`),
+→ `build-blocked` (or `build` only if the server reports `composedBuild.available`
+and every build eligibility gate is verified),
 a current candidate awaiting exact-byte approval → «Рассмотреть сборку»
 (`review-build`), and a current approved candidate → «Проверить конфигурацию»
 (`verify`). Without composer

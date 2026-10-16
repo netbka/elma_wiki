@@ -21,6 +21,7 @@ import { managedWorkspaceStore } from './lib/managed-workspace-store.mjs';
 import { releaseStore } from './lib/releases.mjs';
 import { deliveryStore, syntheticAdapter } from './lib/delivery.mjs';
 import { INSPECTED_NATIVE_MATERIALIZATION, NATIVE_MATERIALIZATION_CONTRACTS } from './lib/native-materialization.mjs';
+import { solutionBuildEligibility } from './lib/composed-build-eligibility.mjs';
 import { bridgeStore } from './lib/bridge.mjs';
 import { configuredMaterializationAdapter } from './lib/native-materialization-bridge.mjs';
 import { targetPresets } from './lib/target-presets.mjs';
@@ -34,6 +35,10 @@ const project = path.dirname(fileURLToPath(import.meta.url));
 const contextualDeliveryKeys = { prepare: ['action', 'revision', 'connectionId'], confirm: ['action', 'attemptId', 'idempotencyKey', 'confirmation'], verify: ['action', 'attemptId'], cancel: ['action', 'attemptId'],
   promote: ['action', 'attemptId', 'connectionId', 'revision', 'idempotencyKey'], retry: ['action', 'attemptId', 'idempotencyKey'], reconcile: ['action', 'attemptId'] };
 const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml' };
+// Native materialization as the composer sees it. Freezing build bytes is trusted server code
+// with no HTTP route, and no native worker runs the pinned contract (netbka/elma365#60).
+const composedBuildCapability = () => ({ available: false, reason: 'native-materialization-unavailable', reference: `${INSPECTED_NATIVE_MATERIALIZATION.repository}#${INSPECTED_NATIVE_MATERIALIZATION.issue}`,
+  contracts: NATIVE_MATERIALIZATION_CONTRACTS.map(row => `${row.id}@${row.version}`), missing: [...INSPECTED_NATIVE_MATERIALIZATION.missing] });
 function send(res, status, value) { res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(value)); }
 async function body(req, max) {
   if (Number(req.headers['content-length']) > max) throw Error('Размер запроса превышает лимит');
@@ -254,6 +259,19 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
         }
         return send(res, releaseId ? 200 : 201, releaseId ? await handoffs.change(id, releaseId, input, session.user) : await handoffs.create(id, input, session.user));
       }
+      // Composer build eligibility (#94 MR-04/MR-05): scope, native coverage, dependency locks,
+      // Target profile and materialization, each with its blocking reasons. Read-only: it
+      // requests no Target observation and enables no build.
+      const eligibilityRoute = /^\/api\/solutions\/([^/]+)\/composed-eligibility$/.exec(pathname);
+      if (eligibilityRoute) {
+        if (!session) return send(res, 404, { error: 'Решение не найдено' });
+        const [, id] = eligibilityRoute;
+        await solutions.managed.authorize(id, SOLUTION_CATALOG);
+        if (req.method !== 'GET') return send(res, 405, { error: 'Только чтение' });
+        const { revision, capture } = await solutions.managed.buildCapture(id, SOLUTION_CATALOG);
+        if (!capture) return send(res, 409, { error: 'Нет принятого полного экспорта решения' });
+        return send(res, 200, { solutionId: id, revision, ...solutionBuildEligibility({ capture, materialization: composedBuildCapability(), now: new Date().toISOString() }) });
+      }
       // Frozen composed candidates (PLAN-01 P7). HTTP reads, reviews and delivers
       // them; freezing build bytes is trusted server code, never a request body.
       const composedRoute = /^\/api\/solutions\/([^/]+)\/composed(?:\/([^/]+)(?:\/(delivery))?)?$/.exec(pathname);
@@ -389,8 +407,7 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
         // (netbka/elma365#60), so it stays false; the UI shows it as blocked, never as working.
         // `contracts` lists the pinned native contracts and `missing` the observed gaps, verbatim.
         return send(res,200,{ mode: syntheticDelivery ? 'synthetic' : 'bridge', liveDelivery: false, bridge: true, adapters: delivery.adapterNames,
-          composedBuild: { available: false, reason: 'native-materialization-unavailable', reference: `${INSPECTED_NATIVE_MATERIALIZATION.repository}#${INSPECTED_NATIVE_MATERIALIZATION.issue}`,
-            contracts: NATIVE_MATERIALIZATION_CONTRACTS.map(row => `${row.id}@${row.version}`), missing: [...INSPECTED_NATIVE_MATERIALIZATION.missing] } });
+          composedBuild: composedBuildCapability() });
       }
       if (pathname === '/api/releases') {
         if (!session) return send(res,401,{error:'Войдите в сервис'});

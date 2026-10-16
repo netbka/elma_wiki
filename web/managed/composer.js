@@ -1,5 +1,6 @@
 import { dateLabel } from './model.js';
 import { mountDelivery } from '../releases/delivery.js';
+import { buildEligibility, buildGateLabels, buildGateStatuses, buildBlockReasons, grouping } from './labels.js';
 // Solution composer (#94 MR-06): a pure projection of server-frozen composed
 // candidates plus the server's build capability. The server stays authoritative:
 // HTTP never freezes build bytes, so "build" is shown only as the server reports it.
@@ -31,6 +32,38 @@ export function composerBuildView(build) {
     missing: available ? [] : (Array.isArray(build?.missing) ? build.missing : []).map(composerMissingLabel) };
 }
 
+// One readable line per blocking reason: its label plus the object, unit or module it names.
+// Unknown reason keys stay visible with a neutral label, never hidden or reworded as solved.
+const reasonText = key => buildBlockReasons[key] || `${buildEligibility.unknownReason} ${key}`;
+const codeOf = key => { try { const parts = JSON.parse(key); return Array.isArray(parts) ? parts.at(-1) : key; } catch { return key; } };
+export function buildReasonLine(row = {}) {
+  const subject = row.unitId ? `${buildEligibility.unit} ${row.unitId}`
+    : row.code && row.namespace ? `${buildEligibility.module} ${row.namespace}.${row.code}`
+    : row.key ? `${buildEligibility.object} ${codeOf(row.key)}`
+    : Array.isArray(row.components) ? row.components.map(item => codeOf(item.key)).join(' → ')
+    : Array.isArray(row.unitIds) ? row.unitIds.join(', ') : row.domain || '';
+  const details = [...(Array.isArray(row.members) ? [`${buildEligibility.object} ${row.members.map(item => codeOf(item.key)).join(', ')}`] : []),
+    ...(row.fact ? [`${buildEligibility.fact} ${reasonText(row.fact)}`] : []),
+    ...(Array.isArray(row.details) ? row.details.map(reasonText) : []), ...(Array.isArray(row.missing) ? row.missing.map(composerMissingLabel) : [])];
+  return [reasonText(row.reason), subject, details.join(', ')].filter(Boolean).join(' · ');
+}
+// A whole Solution can block per object: each reason keeps its first rows and counts the rest.
+const SHOWN_PER_REASON = 5;
+function reasonLines(rows) {
+  const groups = new Map();
+  for (const row of rows) groups.set(row.reason, [...(groups.get(row.reason) || []), row]);
+  return [...groups.values()].flatMap(group => [...group.slice(0, SHOWN_PER_REASON).map(buildReasonLine),
+    ...(group.length > SHOWN_PER_REASON ? [`${reasonText(group[0].reason)} · ${grouping.andMore} ${group.length - SHOWN_PER_REASON}`] : [])]);
+}
+// The server's per-Solution eligibility: every gate with its status and reasons. A missing
+// or failed read leaves the build unavailable and says so.
+export function buildEligibilityView(eligibility) {
+  if (!eligibility || eligibility.loadError || !Array.isArray(eligibility.gates)) return { eligible: false, loaded: false, gates: [] };
+  const gates = eligibility.gates.map(gate => ({ id: gate.id, label: buildGateLabels[gate.id] || gate.id, status: gate.status,
+    statusLabel: buildGateStatuses[gate.status] || buildGateStatuses.unknown, reasons: reasonLines(gate.reasons || []) }));
+  return { eligible: eligibility.eligible === true && gates.every(gate => gate.status === 'verified'), loaded: true, gates };
+}
+
 export function composedCandidateRow(record) {
   const approved = !!record.approval && record.approval.revision === record.revision;
   const status = record.inputsStatus === 'stale' ? 'stale' : approved ? 'approved' : 'awaiting-approval';
@@ -50,9 +83,13 @@ export function composedCandidateRow(record) {
 export const composedDeliveryRelease = record => ({ id: record.id, revision: record.revision, approval: record.approval, candidate: record.candidate,
   code: record.code, blockers: [], associationStatus: record.inputsStatus === 'stale' ? 'stale' : 'current' });
 
-export function composerView({ candidates = [], build = null, selectedId = null } = {}) {
+export function composerView({ candidates = [], build = null, eligibility = null, selectedId = null } = {}) {
   const rows = [...candidates].sort((a, b) => a.createdAt.localeCompare(b.createdAt)).map(composedCandidateRow);
-  const buildView = composerBuildView(build), current = rows.filter(row => row.status !== 'stale');
+  const gates = buildEligibilityView(eligibility), materialization = composerBuildView(build);
+  // A build is offered only when native materialization is available and every eligibility gate is verified.
+  const buildView = { ...materialization, available: materialization.available && gates.eligible, eligibility: gates,
+    reason: materialization.available && !gates.eligible ? buildEligibility.blockedSummary : materialization.reason };
+  const current = rows.filter(row => row.status !== 'stale');
   const selected = rows.find(row => row.id === selectedId) || null;
   const summary = !rows.length ? buildView.available ? 'Принятая версия ещё не собрана.' : 'Собранных конфигураций нет. ' + buildView.reason
     : !current.length ? 'Все сборки устарели. Нужна новая сборка для текущих принятых изменений.'
@@ -85,7 +122,7 @@ export function mountComposer(model = {}, actions = {}) {
     root.append(el('p', 'Состояние сборок не получено. Действия недоступны до успешной загрузки.'), link('Повторить загрузку сборок', actions.listHref, true));
     return root;
   }
-  const view = composerView({ candidates: model.candidates, build: model.build, selectedId: model.selected?.id ?? model.selectedId });
+  const view = composerView({ candidates: model.candidates, build: model.build, eligibility: model.eligibility, selectedId: model.selected?.id ?? model.selectedId });
   root.append(el('p', view.summary));
 
   const build = el('div', undefined, 'managed-card'); build.setAttribute('aria-label', 'Новая сборка');
@@ -97,6 +134,7 @@ export function mountComposer(model = {}, actions = {}) {
     if (view.build.missing.length) { const list = el('ul'); list.setAttribute('aria-label', 'Чего не хватает для нативной сборки'); view.build.missing.forEach(text => list.append(el('li', text))); build.append(list); }
     build.append(el('p', 'Нерабочая сборка не изображается рабочей: учебные сборки ниже созданы синтетическим сборщиком и не являются пакетом ELMA.', 'managed-muted'));
   }
+  build.append(mountEligibility(view.build.eligibility));
   root.append(build);
 
   if (view.missingSelection) root.append(el('p', 'Выбранная сборка не найдена в этом решении.', 'managed-note'));
@@ -112,6 +150,22 @@ export function mountComposer(model = {}, actions = {}) {
   }
   if (view.rows.length) root.append(el('h3', `Сборки · ${view.rows.length}`), list);
   if (view.selected && model.selected) root.append(mountCandidate(model.selected, view.selected, actions, { status, error }));
+  return root;
+}
+
+// Each gate with its status; a gate that is not verified lists every reason it blocks.
+function mountEligibility(eligibility) {
+  const root = el('div', undefined, 'managed-eligibility');
+  root.append(el('h4', buildEligibility.heading));
+  if (!eligibility.loaded) { root.append(el('p', buildEligibility.notLoaded, 'managed-note')); return root; }
+  const list = el('ul'); list.setAttribute('aria-label', buildEligibility.listName);
+  for (const gate of eligibility.gates) {
+    const item = el('li'); item.dataset.gate = gate.id; item.dataset.status = gate.status;
+    item.append(el('strong', gate.label), document.createTextNode(': ' + gate.statusLabel));
+    if (gate.reasons.length) { const reasons = el('ul'); reasons.setAttribute('aria-label', gate.label); gate.reasons.forEach(text => reasons.append(el('li', text))); item.append(reasons); }
+    list.append(item);
+  }
+  root.append(list);
   return root;
 }
 

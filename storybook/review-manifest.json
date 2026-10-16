@@ -24,6 +24,8 @@
       ],
       "storyIds": [
         "solution-composer--build-blocked",
+        "solution-composer--build-gates",
+        "solution-composer--eligibility-load-error",
         "solution-composer--list",
         "solution-composer--awaiting-approval",
         "solution-composer--approved",
@@ -47,6 +49,8 @@
       ],
       "requiredVisibleStates": [
         "build-blocked",
+        "build-gates",
+        "eligibility-load-error",
         "list",
         "awaiting-approval",
         "approved",
@@ -70,6 +74,7 @@
       ],
       "sources": [
         "lib/composed-candidates.mjs",
+        "lib/composed-build-eligibility.mjs",
         "docs/contracts/target-deployment.md",
         "test/composed-delivery.test.mjs",
         "test/solution-composer-view.test.mjs",
