@@ -1,4 +1,4 @@
-import { requests as requestLabels, grouping as groupingLabels, classificationLabels, elementClassificationLabels, elementKindLabels, actions as actionLabels, summaries, kindGroups, displayLabel, isTechnicalKey, ribbon, steps as stepLabels, stepReasons, statuses, activity as activityLabels, buildEligibility, candidateEvidence } from './labels.js';
+import { requests as requestLabels, grouping as groupingLabels, classificationLabels, elementClassificationLabels, elementKindLabels, actions as actionLabels, summaries, kindGroups, displayLabel, isTechnicalKey, ribbon, steps as stepLabels, stepReasons, statuses, activity as activityLabels, buildEligibility, candidateEvidence, gates as gateLabels, composerBuild } from './labels.js';
 // Review classification wording lives in labels.js (UX-00); these names stay for
 // existing importers.
 export const labels = classificationLabels;
@@ -137,7 +137,12 @@ export function reviewGate(review, boundaryKeys = [], resolutions = {}) {
   if (!review || review.stale) return 'Сравнение устарело. Обновите решение и подготовьте новое сравнение.';
   if (review.discussion?.blocking) return 'Есть замечания, требующие изменений. Устраните их перед принятием.';
   if (review.ambiguities.length) return 'Часть содержимого не распознана. Принятие заблокировано; проверьте исходный файл.';
-  if (review.kind === 'change' && review.rows.some(row => row.conflict)) return 'Другая команда уже изменила этот объект. Сначала согласуйте изменения через новый полный снимок.';
+  // A current whole-component resolution decides every conflicting object; the
+  // server re-checks it at acceptance. A part merge has no physical file yet.
+  const head = review.kind === 'change' && review.merge?.head?.status === 'current' ? review.merge.head : null;
+  if (head?.decisions?.some(row => row.parts)) return gateLabels.partMergeUnbuildable;
+  if (review.kind === 'change' && !head && review.rows.some(row => row.conflict))
+    return review.merge?.available ? gateLabels.resolveConflict : 'Другая команда уже изменила этот объект. Сначала согласуйте изменения через новый полный снимок.';
   if (review.kind === 'change' && review.rows.some(row => row.boundaryCrossing && !boundaryKeys.includes(row.key))) return 'Подтвердите каждое изменение объекта исходной базы.';
   if (review.kind === 'reconciliation' && review.rows.some(row => row.classification === 'conflict' && !['keep-working', 'take-snapshot'].includes(resolutions[row.key]))) return 'Выберите версию для каждого конфликта.';
   return '';
@@ -153,6 +158,15 @@ export function hasAcceptedFullExport(state) {
   const current = new Map(state.current.map(row => [row.key, row.digest]));
   return current.size === state.current.length && baseline.components.length === state.current.length
     && baseline.components.every(row => current.get(row.key) === row.digest);
+}
+
+// The change a build may name: the latest accepted change, carrying its merge
+// resolution, while that acceptance is still the current revision. A hint only;
+// the server re-derives and re-checks the accepted merged revision.
+export function acceptedMergeTarget(state) {
+  const last = state?.history?.at(-1);
+  if (state?.status !== 'active' || state.openFindings?.length || last?.type !== 'change-accepted' || last.revision !== state.revision) return null;
+  return state.changes?.find(row => row.id === last.id)?.resolution ? { artifactId: last.id, expectedRevision: state.revision } : null;
 }
 
 // The domain stays authoritative. This pure projection chooses one next action
@@ -197,6 +211,7 @@ export function solutionNextAction(state, { error, stale, view, composed } = {})
     // Build is offered only when native materialization is available and every eligibility gate is verified.
     const eligible = composed.eligibility?.eligible === true && (composed.eligibility.gates || []).every(gate => gate.status === 'verified');
     if (composed.build?.available === true && !eligible) return { state: 'build-blocked', summary: buildEligibility.blockedSummary, label: 'Открыть сборку', view: 'compose' };
+    if (composed.build?.available === true && !acceptedMergeTarget(state)) return { state: 'build-blocked', summary: composerBuild.noMergeSummary, label: 'Открыть сборку', view: 'compose' };
     return composed.build?.available === true
       ? { state: 'build', summary: 'Изменения приняты. Соберите конфигурацию из принятой версии.', label: 'Собрать конфигурацию', view: 'compose' }
       : { state: 'build-blocked', summary: 'Изменения приняты. Сборка конфигурации заблокирована: нативная материализация ELMA недоступна.', label: 'Открыть сборку', view: 'compose' };

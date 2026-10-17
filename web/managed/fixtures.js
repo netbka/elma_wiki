@@ -10,7 +10,8 @@ export function managedFixture(mode = 'overview') {
   const workspace = { id: 'synthetic-workspace', name: 'Командировки и расходы', status: 'active', revision: 1,
     baselineId: base.id, baselineOwner: 'Команда внедрения', baselineAcceptedAt: at, artifacts: [base],
     current: [component('contract'), component('approval'), component('comment', 'Внутренняя команда', true)],
-    changes: [{ id: 'synthetic-change' }], reconciliations: [], history: [{ type: 'created', baselineId: base.id }, { type: 'change-accepted' }], pending: [] };
+    changes: [{ id: 'synthetic-change', resolution: { id: 'synthetic-resolution', revisionDigest: 'd'.repeat(64), resultDigest: 'e'.repeat(64), planDigest: 'f'.repeat(64), acceptedFromRevision: 0 } }],
+    reconciliations: [], history: [{ type: 'created', baselineId: base.id }, { type: 'change-accepted', id: 'synthetic-change', revision: 1 }], pending: [] };
   base.components = ['contract', 'approval'].map(code => ({ key: component(code).key, digest: 'a'.repeat(64) }));
   // UX-05: attributed activity with two distinct people; the synthetic clock keeps relative times stable.
   const uploader = { id: 'synthetic-uploader', login: 'uploader@example.org', provider: 'vk-teams' }, reviewer = { id: 'synthetic-reviewer', login: 'reviewer@example.org', provider: 'vk-teams' };

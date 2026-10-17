@@ -26,7 +26,7 @@ async function request(url, input, upload, method = 'POST') {
   }
   let value;
   try { value = await response.json(); } catch { throw Object.assign(Error('Не удалось прочитать ответ сервиса. Обновите состояние.'), { requiresRefresh: input !== undefined }); }
-  if (!response.ok) throw Object.assign(Error(value.error || 'Не удалось выполнить действие.'), { status: response.status, requiresRefresh: input !== undefined && response.status >= 500 });
+  if (!response.ok) throw Object.assign(Error(value.error || 'Не удалось выполнить действие.'), { status: response.status, body: value, requiresRefresh: input !== undefined && response.status >= 500 });
   return value;
 }
 const navigate = href => { location.href = href; };
@@ -59,7 +59,14 @@ const actions = {
   },
   ...(shared && id ? { composed: {
     deliveryClient: composedDeliveryClient(id, request),
-    change: async (candidateId, input) => { await request(`${composedApi}/${encodeURIComponent(candidateId)}`, input); navigate(composeHref(candidateId)); }
+    change: async (candidateId, input) => { await request(`${composedApi}/${encodeURIComponent(candidateId)}`, input); navigate(composeHref(candidateId)); },
+    build: input => request(`${composedApi}-build`, input),
+    freeze: async input => {
+      const result = await request(composedApi, input);
+      if (result?.outcome !== 'frozen' || typeof result.candidate?.id !== 'string' || !result.candidate.id)
+        throw Object.assign(Error('Не удалось прочитать ответ сервиса. Обновите состояние.'), { requiresRefresh: true });
+      navigate(composeHref(result.candidate.id));
+    }
   } } : {}),
   ...(api === '/api/solutions' ? {
     // UX-07: the request routes of this Solution (docs/contracts/change-requests.md).

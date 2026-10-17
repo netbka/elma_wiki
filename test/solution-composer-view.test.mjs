@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { composerView, composerGate, composedCandidateRow, composedDeliveryRelease, composerBuildView, buildEligibilityView, buildReasonLine } from '../web/managed/composer.js';
-import { composedCandidateFixture, solutionComposerFixture, composerNextActionFixture, eligibilityFixtures } from '../web/managed/composer-fixtures.js';
-import { solutionNextAction } from '../web/managed/model.js';
+import { composerView, composerGate, composedCandidateRow, composedDeliveryRelease, composerBuildView, buildEligibilityView, buildReasonLine, buildFailureView } from '../web/managed/composer.js';
+import { composedCandidateFixture, solutionComposerFixture, composerNextActionFixture, eligibilityFixtures, availableBuild, verifiedEligibility, buildResponseFixtures } from '../web/managed/composer-fixtures.js';
+import { solutionNextAction, acceptedMergeTarget, reviewGate } from '../web/managed/model.js';
+import { managedFixture } from '../web/managed/fixtures.js';
 import { deliveryPanelView } from '../web/releases/delivery-model.js';
 
 test('build is blocked unless the server reports it available; an absent capability is never treated as working', () => {
@@ -149,4 +150,52 @@ test('composer shows every eligibility gate and each blocking reason; a build is
   assert.equal(composerView({ candidates: [], build: { available: true }, eligibility: verified }).build.available, true);
   // The materialization reason stays when the builder itself is unavailable.
   assert.match(composerView({ candidates: [], build: solutionComposerFixture().model.composed.build, eligibility: verified }).build.reason, /elma365#60/);
+});
+
+test('only the latest accepted change with a merge resolution, at the current revision, is offered for a build', () => {
+  const { workspace } = managedFixture('overview');
+  assert.deepEqual(acceptedMergeTarget(workspace), { artifactId: 'synthetic-change', expectedRevision: workspace.revision });
+  const variant = change => { const state = structuredClone(workspace); change(state); return acceptedMergeTarget(state); };
+  assert.equal(variant(state => { delete state.changes[0].resolution; }), null, 'accepted without a three-way merge');
+  assert.equal(variant(state => { state.revision++; state.history.push({ type: 'reopened', revision: state.revision }); }), null, 'archived and reopened since');
+  assert.equal(variant(state => { state.history.push({ type: 'baseline-accepted', id: 'later', revision: ++state.revision }); }), null, 'a later reconciliation');
+  assert.equal(variant(state => { state.status = 'archived'; }), null);
+  assert.equal(variant(state => { state.openFindings = [{ id: 'finding' }]; }), null);
+  assert.deepEqual(variant(state => { state.pending = [{ artifactId: 'next', kind: 'change' }]; }), { artifactId: 'synthetic-change', expectedRevision: workspace.revision }, 'a pending change does not move the accepted revision');
+  // The next action names the missing merge instead of offering a build that the server refuses.
+  const composed = { candidates: [], build: availableBuild, eligibility: verifiedEligibility };
+  assert.equal(solutionNextAction(workspace, { composed }).state, 'build');
+  const unmerged = structuredClone(workspace); delete unmerged.changes[0].resolution;
+  const next = solutionNextAction(unmerged, { composed });
+  assert.deepEqual([next.state, next.view], ['build-blocked', 'compose']); assert.match(next.summary, /не прошла сравнение трёх версий/);
+});
+
+test('a refused or lost build names its reason and asks for a fresh read only when inputs moved', () => {
+  const view = key => buildFailureView(buildResponseFixtures[key]);
+  const blocked = view('blocked');
+  assert.match(blocked.message, /заблокирована/); assert.equal(blocked.refresh, false);
+  assert.deepEqual(blocked.reasons, ['платный модуль: лицензия на Target не подтверждена · модуль vendor.signature', 'зависимость не закреплена · модуль vendor.signature · нет подтверждения с Target']);
+  assert.deepEqual([view('failed').refresh, view('failed').reasons], [false, ['нативная проверка пакета не пройдена']]);
+  for (const key of ['stale', 'notAccepted', 'inProgress', 'staleFreeze', 'lost']) assert.equal(view(key).refresh, true, key);
+  assert.deepEqual(view('stale').reasons, ['входные данные изменились во время сборки']);
+  assert.match(view('notAccepted').message, /не готова к сборке/, 'an English server refusal is never shown as the notice');
+  assert.match(view('lost').message, /не получен/);
+  assert.match(buildFailureView({ status: 500, body: { error: 'x' } }).message, /отказал/);
+  assert.match(buildFailureView({ status: 409, body: { outcome: 'blocked', gates: 'not-a-list', blockers: [null, { reason: 7 }] } }).message, /заблокирована/);
+});
+
+test('a current whole-component resolution opens acceptance of a cross-team change; a part merge does not', () => {
+  const review = structuredClone(managedFixture('merge-resolved').review);
+  review.stale = false; review.rows = review.rows.map((row, index) => index === 0 ? { ...row, conflict: true } : row);
+  const boundary = review.rows.filter(row => row.boundaryCrossing).map(row => row.key);
+  assert.equal(reviewGate(review, boundary), '');
+  assert.match(reviewGate(review), /Подтвердите каждое изменение/, 'boundary confirmations still apply');
+  const unresolved = structuredClone(review); unresolved.merge.head = null;
+  assert.match(reviewGate(unresolved), /Разрешите конфликт выше/);
+  const stale = structuredClone(review); stale.merge.head.status = 'stale';
+  assert.match(reviewGate(stale), /Разрешите конфликт выше/);
+  const withoutPlan = structuredClone(unresolved); withoutPlan.merge = { available: false, reason: 'plan-unavailable', head: null };
+  assert.match(reviewGate(withoutPlan), /новый полный снимок/);
+  const parts = structuredClone(review); parts.merge.head.decisions = [{ ...parts.merge.head.decisions[0], choice: 'merge-parts', parts: [] }];
+  assert.match(reviewGate(parts), /Объединение по частям/);
 });

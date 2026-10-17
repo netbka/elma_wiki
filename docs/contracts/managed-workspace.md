@@ -301,11 +301,22 @@ planDigest, acceptedFromRevision}`, and the completed review records
 The store keeps the pre-acceptance state of the latest accepted resolved change
 as the private `acceptedMerge` record (`artifactId`, `resolutionId`, accepted
 `revision`, `before`). It is not part of any API view; a build re-derives the exact
-plan from it. Any later acceptance replaces or clears it. A change without a
-resolution is accepted as before: its captured components are applied, and a
-cross-team overlap still requires reconciliation. A same-team divergent edit
-without a resolution therefore still takes the incoming component; requiring a
-resolution for it is an open MR-02 gap.
+plan from it. Any later acceptance replaces or clears it.
+
+A change with a declared base whose plan is `clear` needs no decision. When an
+authenticated actor accepts it, `accept` records the empty resolution of that
+plan, with the reason «Принято без конфликтов», before applying it. That
+resolution is audited as `merge-resolved` and applied like any other, so the
+accepted revision is buildable. A partial that carries an unchanged base copy of a
+component edited in the accepted state keeps the accepted edit (`current-only`)
+instead of reverting it.
+
+A change with no declared base, a blocked plan or an unresolved
+`resolution-required` plan is accepted as before: its captured components are
+applied, nothing is recorded as `acceptedMerge`, and a cross-team overlap still
+requires reconciliation. A same-team divergent edit without a resolution
+therefore still takes the incoming component; requiring a resolution for it is
+an open MR-02 gap.
 
 Part-level adapters for other kinds, generating a merged process file,
 package/dependency reconciliation and physical materialization (P6) remain
