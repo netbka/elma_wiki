@@ -6,7 +6,7 @@ import { mountExplanation } from '../explanations/render.js';
 import { mountRelease } from '../releases/render.js';
 import { hasAcceptedFullExport, requestCounts, fieldRequestCounts, viewedProgress } from './model.js';
 import { mountAcquisition, mountSolutionPull, serverFromConnection } from './acquisition.js';
-import { actions as actionLabels, pull as pullLabels } from './labels.js';
+import { actions as actionLabels, pull as pullLabels, partMerge } from './labels.js';
 import { mountDependencies } from './dependencies.js';
 import { mountMergeResolution, mergeResolutionView } from './merge.js';
 import { mountComposer } from './composer.js';
@@ -665,7 +665,7 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
       }
       if (full && row.classification === 'conflict' && !review.acceptedAt && !review.stale) {
         const label = el('label', 'Какую версию сохранить'), choice = el('select'); choice.id = 'managed-choice-' + ++sequence; label.htmlFor = choice.id;
-        for (const [value, caption] of [['', 'Выберите решение'], ['keep-working', 'Сохранить наше изменение'], ['take-snapshot', 'Взять версию из полного снимка']]) { const option = el('option', caption); option.value = value; choice.append(option); }
+        for (const [value, caption] of [['', partMerge.chooseVersion], ['keep-working', 'Сохранить наше изменение'], ['take-snapshot', 'Взять версию из полного снимка']]) { const option = el('option', caption); option.value = value; choice.append(option); }
         choice.onchange = () => { resolutions[row.key] = choice.value; update(); }; card.append(label, choice);
       }
       if (full && row.classification === 'conflict' && review.acceptedAt) card.append(el('p', review.acceptedDecision?.resolutions?.[row.key] === 'keep-working' ? 'Сохранена принятая версия' : review.acceptedDecision?.resolutions?.[row.key] === 'take-snapshot' ? 'Принята версия из экспорта' : 'Решение по конфликту не зафиксировано'));
@@ -705,10 +705,15 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
     if (review.ambiguities.length) technical(form, 'Нераспознанные части', review.ambiguities);
     form.append(link('Скачать исходный файл', `${api}/${state.id}/artifacts/${review.artifactId}/original`));
     const decidable = decisionChoices(review).length > 0 && !closable;
-    if (decidable) { form.append(gate, decide); update(); }
+    // UX-09 agent pass (docs/audits/ux-09-agent-pass-2026-10-17.md, blocker 3):
+    // the gate reason and the one decision button sit under the counter line,
+    // so "what next" is read with "what changed" instead of after every card.
+    if (decidable) { const strip = el('div', undefined, 'managed-actions managed-decision-strip'); strip.append(decide); summaryBlock.append(gate, strip); update(); }
     form.onsubmit = event => { event.preventDefault(); if (decidable) openDialog(); };
     content.append(form);
-    if (decidable) { content.append(dialog); if (model.decisionOpen) { dialog.open = true; update(); } }
+    // A fixture that opens the dialog opens it modally, as the button does:
+    // showModal needs a connected element, so it waits for the mount.
+    if (decidable) { content.append(dialog); if (model.decisionOpen) { update(); const show = (attempt = 0) => { if (dialog.open) return; if (dialog.isConnected && typeof dialog.showModal === 'function') dialog.showModal(); else if (attempt < 10 && typeof requestAnimationFrame === 'function') requestAnimationFrame(() => show(attempt + 1)); else dialog.open = true; }; show(); } }
     if (review.discussion) {
       const discussion = el('section', undefined, 'change-discussion'); discussion.append(el('h2', 'Комментарии и замечания'));
       const anchorLabels = { current: 'Объект совпадает', stale: 'Объект изменился; исходная ссылка сохранена', removed: 'Объект удалён из полного экспорта', ambiguous: 'Связь с объектом неоднозначна' };
