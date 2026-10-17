@@ -310,3 +310,51 @@ test('a request from a field anchors to exactly that declared field; forged, dup
   const stale = await json(await request(`${route}/${row.id}`, b));
   assert.equal(stale.anchorStatus, 'stale'); assert.deepEqual(stale.target, row.target);
 });
+
+test('a field correction survives full capture, completion, restart, reopen and later object removal without moving its original anchor', async t => {
+  const { a, b, state, route, input, event, post, request, json, upload, ref, visual, restart } = await setup(t, null, screens());
+  const solution = `/api/solutions/${state.id}`, card = visual.objects.find(object => object.code === 'card');
+  const field = card.fields.find(item => item.code === 'amount');
+  const row = await json(await post(route, a, { ...input(), kind: 'screen', target: {
+    artifactId: state.baselineId, componentKey: JSON.stringify(card.object),
+    fieldAnchor: { code: field.code, pointer: field.pointer, fingerprint: field.fingerprint }
+  } }), 201);
+  const events = `${route}/${row.id}/events`;
+  let correction = await json(await post(events, b, event(0, 'comment', { text: 'Clarify the amount label in the next full capture.' })));
+  correction = await json(await post(events, b, event(correction.version, 'status', { status: 'in-progress' })));
+
+  const prepareFull = async (revision, entries) => json(await post(solution + '/prepare', b, {
+    kind: 'reconciliation', expectedRevision: revision, baselineOwner: 'Synthetic team',
+    sameSourceConfirmed: true, snapshot: ref(await upload(b, visualSource, entries), 'full')
+  }), 201);
+  const acceptFull = async preview => json(await post(`${solution}/artifacts/${preview.artifactId}/accept`, b, {
+    expectedRevision: preview.revision, reviewedDigest: preview.artifactDigest, expectedDiscussionRevision: 0,
+    resolutions: Object.fromEntries(preview.rows.filter(item => item.classification === 'conflict').map(item => [item.key, 'take-snapshot']))
+  }));
+  const preview = await prepareFull(state.revision, screens('Сумма договора'));
+  await json(await post(events, b, event(correction.version, 'status', { status: 'done', fulfilledArtifactId: preview.artifactId })), 409);
+  assert.equal((await json(await request(`${route}/${row.id}`, a))).anchorStatus, 'current', 'a pending capture cannot move the accepted anchor');
+  const accepted = await acceptFull(preview);
+  correction = await json(await request(`${route}/${row.id}`, a));
+  assert.equal(correction.anchorStatus, 'stale'); assert.deepEqual(correction.target, row.target);
+  const completion = event(correction.version, 'status', { status: 'done', fulfilledArtifactId: preview.artifactId,
+    text: 'The accepted export contains the requested label; native behavior is not verified.' });
+  correction = await json(await post(events, b, completion));
+  assert.equal(correction.fulfilledArtifactId, preview.artifactId);
+  assert.equal((await json(await request(solution, a))).revision, accepted.revision, 'request completion never accepts another configuration revision');
+
+  await restart();
+  assert.deepEqual(await json(await post(events, b, completion)), correction, 'lost completion response is retry-safe after restart');
+  correction = await json(await post(events, a, event(correction.version, 'status', { status: 'new', text: 'Needs another review.' })));
+  assert.equal(correction.fulfilledArtifactId, null);
+  assert.equal(correction.events.at(-2).fulfilledArtifactId, preview.artifactId, 'reopen preserves the earlier completion link in history');
+  const removed = await prepareFull(accepted.revision, []);
+  await acceptFull(removed);
+  await restart();
+  const final = await json(await request(`${route}/${row.id}`, b));
+  assert.equal(final.anchorStatus, 'removed'); assert.equal(final.status, 'new');
+  assert.deepEqual(final.target, row.target); assert.equal(final.target.fieldAnchor.name, 'Сумма');
+  assert.deepEqual(final.events, correction.events);
+  assert.deepEqual(final.events.map(item => item.actor.login), [b, b, b, a]);
+  assert.equal(final.publication, null, 'the correction cycle never publishes externally');
+});

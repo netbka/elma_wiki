@@ -10,6 +10,7 @@ import { CAPABILITY_CATALOG, OBSERVATION_JOB, RECEIPT_CONTRACT, RECEIPT_MAX_AGE_
   receiptId } from '../lib/elma365-native-contracts.mjs';
 import { bridgeStore } from '../lib/bridge.mjs';
 import { configuredTargetProfileObserver } from '../lib/native-materialization-bridge.mjs';
+import { BUILD_EVIDENCE_CONTRACT, BUILD_EVIDENCE_PRODUCER, COMPILER_CONTRACT, COMPILER_SERVICES, NOT_ESTABLISHED } from '../lib/native-build-evidence.mjs';
 
 export const hex = (c, n = 64) => c.repeat(n);
 export const WORKER = Object.freeze({ id: 'synthetic-native-worker', nativeRevision: hex('f', 40) });
@@ -97,3 +98,29 @@ export async function observe(options = {}, { patch = report => report, env = {}
     return result;
   } finally { await worker.close(); }
 }
+
+/** A synthetic `elma365-native-build-evidence@1` document exactly as elma365 produceBuildEvidence builds it
+ * for `payload`: the worker profile, its widget-only compiler lock and the coverage declaration the
+ * capability catalog derives, with unit preconditions only from `report` (the worker's own last
+ * observed Target profile report) on the same profile. Fictional values only. */
+export function producedBuildEvidence(payload, { report = null, issuedAt = new Date().toISOString(), targetProfileDigest = report?.targetProfileDigest ?? hex('a'),
+  compilerProfileDigest = hex('b'), platformVersion = report?.platformVersion ?? '2025.4', worker = { id: 'elma365-native-materialization-worker', nativeRevision: payload.nativeRevision } } = {}) {
+  const evidenceRef = 'build-evidence:' + sha(canonical(payload) + issuedAt);
+  const usable = report?.status === 'observed' && report.targetProfileDigest === targetProfileDigest && report.targetId === payload.targetId ? report : null;
+  const coverage = deriveCoverageDeclaration({ catalog: CAPABILITY_CATALOG, captures: payload.captures, changes: payload.changes, targetProfileDigest,
+    nativeRevision: worker.nativeRevision, evidenceRef, targetReport: usable });
+  return { contract: { ...BUILD_EVIDENCE_CONTRACT }, document: 'build-evidence', status: 'produced', producer: { ...BUILD_EVIDENCE_PRODUCER, runId: payload.runId },
+    targetId: payload.targetId, environment: payload.environment, requestDigest: sha(canonical(payload)), issuedAt, worker: { ...worker },
+    profile: { targetProfileDigest, compilerProfileDigest, platformVersion },
+    compiler: { contract: COMPILER_CONTRACT, profileDigest: compilerProfileDigest, platformVersion, evidenceRef, services: [...COMPILER_SERVICES] }, coverage,
+    targetObservation: usable ? { runId: usable.observation.runId, evidenceRef: usable.evidenceRef, observedAt: usable.observedAt, inventoryDigest: usable.inventoryDigest } : null,
+    missing: [...NOT_ESTABLISHED, ...(usable ? [] : ['target-observation'])].sort(compare), unavailable: null, evidenceRef, publicationReady: false, executionEnabled: false };
+}
+
+/** The `unavailable` document of elma365 unavailableBuildEvidence. */
+export const unavailableBuildEvidence = (payload, reason = 'worker-profile-unbound', { issuedAt = new Date().toISOString() } = {}) => ({
+  contract: { ...BUILD_EVIDENCE_CONTRACT }, document: 'build-evidence', status: 'unavailable', producer: { ...BUILD_EVIDENCE_PRODUCER, runId: payload.runId },
+  targetId: payload.targetId, environment: payload.environment, requestDigest: sha(canonical(payload)), issuedAt,
+  worker: { id: 'elma365-native-materialization-worker', nativeRevision: payload.nativeRevision }, profile: null, compiler: null, coverage: null, targetObservation: null,
+  missing: [...NOT_ESTABLISHED, 'target-observation', 'compiler-lock', 'native-coverage-declaration', 'target-profile-digest'].sort(compare),
+  unavailable: { reason }, evidenceRef: null, publicationReady: false, executionEnabled: false });

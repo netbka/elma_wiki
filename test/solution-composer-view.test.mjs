@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { composerView, composerGate, composedCandidateRow, composedDeliveryRelease, composerBuildView, buildEligibilityView, buildReasonLine, buildFailureView, targetProfileView, targetProfileFailureView } from '../web/managed/composer.js';
+import { composerView, composerGate, composedCandidateRow, composedDeliveryRelease, composerBuildView, buildEligibilityView, buildReasonLine, buildFailureView, targetProfileView, targetProfileFailureView,
+  buildEvidenceView } from '../web/managed/composer.js';
 import { composedCandidateFixture, solutionComposerFixture, composerNextActionFixture, eligibilityFixtures, availableBuild, verifiedEligibility, buildResponseFixtures,
   targetProfileFixtures, profileEligibility, profileResponseFixtures } from '../web/managed/composer-fixtures.js';
 import { solutionNextAction, acceptedMergeTarget, reviewGate } from '../web/managed/model.js';
@@ -239,4 +240,28 @@ test('Target profile refresh failures: a moved Solution, unknown outcome or lost
   assert.equal(targetProfileFailureView({ status: 403, body: { outcome: 'refused', reason: 'operator-only' } }).reasons[0], 'действие доступно только оператору моста');
   const lost = targetProfileFailureView(profileResponseFixtures.lost);
   assert.equal(lost.refresh, true); assert.match(lost.message, /не повторяется автоматически/);
+});
+
+test('native build evidence: current only by the server verdict; unavailable, invalid, expired and stale say why', () => {
+  const view = mode => targetProfileView(profileEligibility(mode)).evidence;
+  assert.equal(targetProfileView(profileEligibility('unconfigured')).evidence, null, 'nothing is offered without a configured bridge');
+  assert.equal(buildEvidenceView({}), null, 'an older server shape shows nothing');
+  assert.deepEqual([view('ready').state, view('ready').details], ['none', []]);
+  const current = view('evidence-current');
+  assert.equal(current.state, 'current');
+  assert.match(current.compiler, /только: виджеты$/);
+  assert.match(current.missing, /лицензии платных модулей/); assert.match(current.missing, /компиляцию процессов/); assert.match(current.missing, /установку на Target/);
+  assert.deepEqual(view('evidence-unavailable').details, ['профиль исполнителя не определён']);
+  assert.deepEqual(view('evidence-invalid').details, ['ответ на чужое задание', 'ответ на другие данные']);
+  const held = targetProfileFixtures['evidence-current'].buildEvidence;
+  // A held document is current only when the server says it applies to the current inputs.
+  assert.equal(buildEvidenceView({ buildEvidence: { ...held, use: { status: 'stale', reason: 'stale-build-evidence-inputs' } } }).state, 'stale');
+  assert.equal(buildEvidenceView({ buildEvidence: { ...held, current: false, expired: true } }).state, 'expired');
+  assert.equal(buildEvidenceView({ buildEvidence: { ...held, current: false } }).compiler, '', 'a stale document lists no compiler scope');
+  assert.deepEqual(buildEvidenceView({ buildEvidence: { ...held, current: false, last: null, inputBlockers: ['unbuildable-accepted-merge'] } }).details, ['принятое сравнение нельзя собрать']);
+  assert.match(buildEvidenceView({ buildEvidence: { ...held, current: false, last: { outcome: 'invalid', errors: ['future-check'] } } }).details[0], /future-check/);
+  // Admitted evidence never enables the build by itself: licences, installation facts and the builder remain gates.
+  const gates = buildEligibilityView(profileEligibility('evidence-current'));
+  assert.equal(gates.eligible, false);
+  assert.deepEqual(gates.gates.filter(row => row.status !== 'verified').map(row => row.id), ['coverage', 'dependencies', 'materialization']);
 });

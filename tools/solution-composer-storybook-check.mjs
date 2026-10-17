@@ -120,7 +120,9 @@ try {
   for (const [id, expected] of [['profile-unconfigured', /не настроено/], ['profile-not-operator', /только оператор моста/], ['profile-ready', /ещё не прочитан/],
     ['profile-progress', /уже читается/], ['profile-observed', /прочитан для текущей версии.*DEV2 · платформа synthetic-2026\.10/], ['profile-stale', /прежней версии решения/],
     ['profile-unavailable', /профиль недоступен.*нет доступа к Target/], ['profile-invalid', /не прошёл проверку.*не подтверждает это задание/],
-    ['profile-unknown', /Результат чтения неизвестен.*время ожидания истекло/], ['profile-moved', /ещё не прочитан/], ['profile-lost', /ещё не прочитан/]]) {
+    ['profile-unknown', /Результат чтения неизвестен.*время ожидания истекло/], ['profile-moved', /ещё не прочитан/], ['profile-lost', /ещё не прочитан/],
+    ['profile-evidence', /Сведения о сборке получены для текущей версии.*только: виджеты.*не подтверждают: .*лицензии платных модулей.*компиляцию процессов/],
+    ['profile-evidence-unavailable', /Сведения о сборке не получены.*профиль исполнителя не определён/], ['profile-evidence-invalid', /не прошли проверку.*ответ на чужое задание/]]) {
     await open(id);
     assert.match(await text(profile()), expected, id);
     assert.equal(await composer().getByRole('button', { name: 'Собрать конфигурацию', exact: true }).isDisabled(), true, 'no build from a profile alone: ' + id);
@@ -129,6 +131,8 @@ try {
     if (!offered) continue;
     assert.equal(await profileButton().isDisabled(), id === 'profile-progress', id);
     if (id === 'profile-observed') assert.match(await text(composer().getByRole('list', { name: 'Профиль Target' })), /состав выпуска не привязан к профилю Target/);
+    // Admitted build evidence leaves the licence, installation and builder gates named; the build stays disabled.
+    if (id === 'profile-evidence') assert.match(await text(composer().getByRole('list', { name: 'Зависимости и лицензии' })), /лиценз/);
     if (!['profile-ready', 'profile-invalid', 'profile-moved', 'profile-lost'].includes(id)) continue;
     await profileButton().click();
     if (id === 'profile-ready') { await page.getByText(/Учебная навигация: профиль прочитан/).waitFor(); continue; }
