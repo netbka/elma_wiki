@@ -382,6 +382,20 @@ class DesignationTests(unittest.TestCase):
         self.assertEqual(target.read_bytes(), m.encode_designations(1, [self.B]))
         self.assertTrue(self.record.is_symlink())
 
+    @unittest.skipIf(hasattr(os, 'O_NOFOLLOW'), 'only platforms without O_NOFOLLOW (Windows) match the record before and after opening')
+    def test_record_swapped_before_open_is_refused_without_nofollow(self):
+        self.designate('grant', [self.A])
+        other = pathlib.Path(self.tmp.name) / 'other.json'
+        other.write_bytes(m.encode_designations(1, [self.B]))
+        real_lstat = os.lstat
+        def swapped(path, *args, **kwargs):
+            # Stands in for a link put in place between the check and the open; needs no link privilege.
+            return real_lstat(other if pathlib.Path(path) == self.record else path, *args, **kwargs)
+        with patch.object(m.os, 'lstat', swapped):
+            with self.assertRaises(m.DesignationError):
+                self.designate('grant', [self.C])
+        self.assertEqual(self.current(), (1, [self.A]))
+
     @unittest.skipUnless(hasattr(os, 'getuid'), 'ownership and permission bits exist only on POSIX; the CT is Linux')
     def test_group_writable_directory_is_refused(self):
         self.record.parent.mkdir(mode=0o750)

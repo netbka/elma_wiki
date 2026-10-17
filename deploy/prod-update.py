@@ -314,6 +314,15 @@ class DesignationDirectory:
         """The record's bytes, or None when it does not exist. A link or non-file is refused."""
         if self.missing:
             return None
+        linked = None
+        if not hasattr(os, 'O_NOFOLLOW'):
+            # Without O_NOFOLLOW (Windows) open follows links, so refuse one first and match it after opening.
+            try:
+                linked = os.lstat(self._name(DESIGNATION_FILE))
+            except FileNotFoundError:
+                return None
+            if not stat.S_ISREG(linked.st_mode):
+                raise DesignationError('The designation record is not a plain file')
         try:
             fd = os.open(self._name(DESIGNATION_FILE), os.O_RDONLY | getattr(os, 'O_NOFOLLOW', 0) | getattr(os, 'O_BINARY', 0), **self._at())
         except FileNotFoundError:
@@ -321,8 +330,11 @@ class DesignationDirectory:
         except OSError:
             raise DesignationError('The designation record is not a plain file')
         try:
-            if not stat.S_ISREG(os.fstat(fd).st_mode):
+            opened = os.fstat(fd)
+            if not stat.S_ISREG(opened.st_mode):
                 raise DesignationError('The designation record is not a plain file')
+            if linked is not None and (opened.st_dev, opened.st_ino) != (linked.st_dev, linked.st_ino):
+                raise DesignationError('The designation record changed while it was opened')
             return os.read(fd, MAX_RECORD_BYTES + 1)
         finally:
             os.close(fd)
