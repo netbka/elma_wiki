@@ -11,7 +11,7 @@ import { mountDependencies } from './dependencies.js';
 import { mountMergeResolution, mergeResolutionView } from './merge.js';
 import { mountComposer } from './composer.js';
 import { mountAbout, mountActivity } from './about.js';
-import { mountFlows, mountScreens } from './flows.js';
+import { mountFlows, mountScreens, moduleHeading } from './flows.js';
 import { mountRequests, mountRequestForm } from './requests.js';
 import { acceptedFullBases, baseOptionLabel, baseEvidence, scopeEvidence, scopeCandidates, preparationFields } from './change-base.js';
 const el = (tag, text, className) => { const node = document.createElement(tag); if (text !== undefined) node.textContent = text; if (className) node.className = className; return node; };
@@ -233,7 +233,7 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
                 visualTarget.replaceChildren(mountSnapshotVisual(value,{explanations:actions.explanations}));
               }catch(e){visualTarget.replaceChildren(mountSnapshotVisual({error:e.message},{retry:load}));}
             };
-            if(captured)button('Посмотреть процесс: '+row.code,load,cell).className='secondary';
+            if(captured)button('Посмотреть процесс: '+objectLabel(row).text,load,cell).className='secondary';
           }
           tr.append(cell);
         }
@@ -644,7 +644,7 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
       card.dataset.bucket = reviewBucket(row);
       if (card.dataset.bucket === 'unchanged') return unchanged.append(card);
       const module = objectModule(row);
-      if (!modules.has(module)) { const section = el('section', undefined, 'managed-module'); section.append(el('h3', `${grouping.module} ${module || grouping.withoutModule}`)); modules.set(module, section); form.append(section); }
+      if (!modules.has(module)) { const section = el('section', undefined, 'managed-module'); section.append(moduleHeading({ module }, state.current)); modules.set(module, section); form.append(section); }
       modules.get(module).append(card);
     };
     for (const row of rowsWithMeta) {
