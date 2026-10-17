@@ -6,8 +6,8 @@
       "kind": "implemented",
       "renderer": ["web/managed/comparisons.js", "web/managed/render.js", "web/releases/delivery.js"],
       "sources": ["web/managed/comparison-fixtures.js", "docs/contracts/configuration-comparison-ui.md"],
-      "storyIds": ["configuration-comparisons--compared", "configuration-comparisons--first-capture", "configuration-comparisons--source-ambiguous", "configuration-comparisons--unknown-base", "configuration-comparisons--drifted", "configuration-comparisons--unresolved-outcome", "configuration-comparisons--reconciled", "configuration-comparisons--stale", "configuration-comparisons--observation-failed", "configuration-comparisons--load-error", "configuration-comparisons--response-lost", "configuration-comparisons--verified-after-comparison"],
-      "requiredVisibleStates": ["compared", "first-capture", "source-ambiguous", "unknown-base", "drifted", "unresolved-outcome", "reconciled", "stale", "observation-failed", "load-error", "response-lost", "verified-after-comparison"]
+      "storyIds": ["configuration-comparisons--compared", "configuration-comparisons--first-capture", "configuration-comparisons--source-ambiguous", "configuration-comparisons--unknown-base", "configuration-comparisons--drifted", "configuration-comparisons--unresolved-outcome", "configuration-comparisons--reconciled", "configuration-comparisons--stale", "configuration-comparisons--observation-failed", "configuration-comparisons--load-error", "configuration-comparisons--response-lost", "configuration-comparisons--verified-after-comparison", "configuration-comparisons--panel-redraw"],
+      "requiredVisibleStates": ["compared", "first-capture", "source-ambiguous", "unknown-base", "drifted", "unresolved-outcome", "reconciled", "stale", "observation-failed", "load-error", "response-lost", "verified-after-comparison", "panel-redraw"]
     },
     "solution-composer": {
       "entry": "/solutions?id=:id&view=compose",

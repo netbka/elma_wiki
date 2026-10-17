@@ -1,5 +1,5 @@
 import { comparisons as text } from './labels.js';
-import { objectLabel } from './model.js';
+import { objectLabel, dateLabel } from './model.js';
 
 const el = (tag, value) => { const node = document.createElement(tag); if (value !== undefined) node.textContent = value; return node; };
 const option = (value, label) => { const node = el('option', label); node.value = value; return node; };
@@ -76,8 +76,9 @@ export function installedComparisonView(record, release, connectionId) {
 }
 export function mountInstalledComparison({ release, connections = [], client, isBlocked = () => false } = {}) {
   const root = el('section'); root.setAttribute('aria-label', text.installedTitle);
-  const targets = connections.filter(row => row.role === 'target' && (row.adapter === 'synthetic' ||
+  const availableTargets = rows => rows.filter(row => row.role === 'target' && (row.adapter === 'synthetic' ||
     row.id === 'preset-dev2' && row.preset?.available === true && row.preset.allowedOperations?.includes('readBack')));
+  let targets = availableTargets(connections);
   let selected = targets[0]?.id || '', records = [], busy = false, error = '', needsRefresh = false, sequence = 0;
   const draw = () => {
     root.replaceChildren(el('h3', text.installedTitle), el('p', text.installedMeaning));
@@ -89,7 +90,10 @@ export function mountInstalledComparison({ release, connections = [], client, is
     if (!targets.length) root.append(el('p', text.noTarget));
     const record = latestInstalledRecord(records, selected), view = installedComparisonView(record, release, selected);
     root.append(el('p', view.status), el('p', text.businessUnknown));
-    if (installedObservationAt(record)) root.append(el('p', `${text.observedAt} ${installedObservationAt(record)}`));
+    if (installedObservationAt(record)) {
+      const at = installedObservationAt(record), time = el('time', dateLabel(at)); time.dateTime = at; time.title = at;
+      const caption = el('p', text.observedAt + ' '); caption.append(time); root.append(caption);
+    }
     if (record) {
       const detail = el('details'); detail.append(el('summary', text.evidence));
       for (const value of [installedObservationAt(record), record.targetIdentity?.host, record.proposed?.sha256 || record.installedObservation?.candidate?.sha256, record.comparison?.before?.candidate?.sha256, record.comparison?.evidenceBasis || record.installedObservation?.evidenceBasis]) if (value) detail.append(el('p', value));
@@ -120,6 +124,11 @@ export function mountInstalledComparison({ release, connections = [], client, is
       if (turn === sequence) { records = history; needsRefresh = false; }
     } catch (failure) { error = action ? failure.status >= 400 && failure.status < 500 ? failure.message : text.responseUnknown : text.loadError; needsRefresh = true; }
     finally { busy = false; draw(); if (hadFocus && root.isConnected) { const heading = root.querySelector('h3'); heading.tabIndex = -1; heading.focus({ preventScroll: true }); } }
+  };
+  root.updateConnections = rows => {
+    targets = availableTargets(rows);
+    if (!targets.some(row => row.id === selected)) selected = targets[0]?.id || '';
+    draw();
   };
   draw(); run(); return root;
 }

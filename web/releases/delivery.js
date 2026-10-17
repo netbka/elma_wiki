@@ -9,6 +9,7 @@ const freshTokens = new Map();
 export function mountDelivery({ release, client, onAction, onRefresh, onState, isBlocked = () => false, initialDrafts = new Map() } = {}) {
   const root = el('section', undefined, 'release-delivery'); root.setAttribute('aria-label', 'Доставка и проверка результата');
   let data = null, busy = false, selected = '', destination = '', loadError = '';
+  let comparisonPanel = null;
   root.getDrafts = () => new Map([...initialDrafts, ...[...root.querySelectorAll('[data-draft-key]')].map(node => [node.dataset.draftKey, node.value])]);
   const execute = async input => {
     if (busy || isBlocked()) return;
@@ -89,7 +90,11 @@ export function mountDelivery({ release, client, onAction, onRefresh, onState, i
     if (view.synthetic) root.append(el('p', 'Учебный режим: стенд синтетический, ELMA не подключена. Операции и успешная проверка относятся только к этому примеру.', 'note'));
     const status = el('p', view.next); status.setAttribute('role', 'status'); root.append(status);
     const reload = button(root, 'Обновить состояние доставки', onRefresh); reload.dataset.recovery = 'true'; reload.disabled = busy;
-    if (client?.installedHistory) root.append(mountInstalledComparison({ release, connections: data.connections, client, isBlocked: () => busy || isBlocked() }));
+    if (client?.installedHistory) {
+      if (!comparisonPanel) comparisonPanel = mountInstalledComparison({ release, connections: data.connections, client, isBlocked: () => busy || isBlocked() });
+      else comparisonPanel.updateConnections(data.connections);
+      root.append(comparisonPanel);
+    }
     if (view.enabled) {
       if (view.synthetic) {
         const create = el('form'), name = field(create, 'Название учебного стенда'); name.maxLength = 120; name.required = true;
