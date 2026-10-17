@@ -259,10 +259,24 @@ export const empty = { purpose: 'Опишите, для чего это реше
 export const classificationLabels = {
   unchanged: 'Без изменений', 'intervention-added': 'Добавлен объект', 'component-modified': 'Объект изменён',
   'known-change-retained': 'Наше изменение сохранится', 'known-change-incorporated': 'Наше изменение включено в снимок',
-  'external-change': 'Изменение из полного снимка', 'component-deleted': 'Удаление заявлено явно', conflict: 'Нужен выбор версии', ambiguous: 'Недостаточно данных'
+  'external-change': 'Изменено в новой версии', 'component-deleted': 'Удаление заявлено явно', conflict: 'Нужен выбор версии', ambiguous: 'Недостаточно данных'
 };
 export const elementClassificationLabels = { ...classificationLabels, 'element-added': 'Добавлен', 'element-removed': 'Удалён', 'element-modified': 'Изменён' };
 export const elementKindLabels = { node: 'Шаг', transition: 'Переход', variable: 'Переменная', lane: 'Дорожка' };
+
+// Review answers "what changed" in plain sentences first; ownership tables,
+// reports and comparison evidence stay one click away under "Подробнее".
+export const reviewPlain = {
+  versionIntro: 'Сравнение новой версии с текущей. Если принять, новая версия станет текущей.',
+  changeIntro: 'Изменение от команды',
+  whatChanged: 'Что изменилось',
+  partsDetails: 'Подробнее: все части процесса и ответственность',
+  responsibility: 'Ответственность',
+  moreParts: count => `И ещё ${count}. Полный список — в «Подробнее».`,
+  conflictSuffix: ' — конфликт с изменением другой команды',
+  partVerbs: { 'element-added': ['добавлен', 'добавлена'], 'element-removed': ['удалён', 'удалена'], changed: ['изменён', 'изменена'] },
+  feminine: new Set(['variable', 'lane'])
+};
 
 // MR-02 part-level merge inside «Совмещение с принятыми изменениями». The server
 // plan is authoritative; part merge is offered, never applied by default.
