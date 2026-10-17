@@ -37,6 +37,24 @@ test('candidates project stale, awaiting and approved states truthfully; synthet
   assert.equal(native.native, true);
 });
 
+test('native provenance survives pending installation evidence; unknown provenance is never called synthetic', () => {
+  const { candidates } = solutionComposerFixture('native-pending');
+  const before = structuredClone(candidates.approved);
+  const row = composedCandidateRow(candidates.approved);
+  assert.equal(row.native, true); assert.equal(row.releaseEligible, false); assert.equal(row.deliverable, false);
+  assert.match(row.evidenceLabel, /Нативная сборка/); assert.match(row.evidenceLabel, /к выпуску не допускается/);
+  assert.doesNotMatch(row.evidenceLabel, /Учебная|синтетический сборщик/);
+  assert.equal(composedCandidateRow({ ...candidates.approved, releaseEligible: true }).releaseEligible, false, 'pending evidence still prevents readiness');
+  const workspace = composerNextActionFixture('verify').workspace;
+  const next = solutionNextAction(workspace, { composed: { candidates: [candidates.approved] } });
+  assert.match(next.summary, /Нативная конфигурация/); assert.doesNotMatch(next.summary, /учебная/);
+  const unknown = solutionComposerFixture('unknown-evidence').candidates.approved;
+  assert.equal(composedCandidateRow(unknown).native, false);
+  assert.match(composedCandidateRow(unknown).evidenceLabel, /не подтверждено/);
+  assert.match(solutionNextAction(workspace, { composed: { candidates: [unknown] } }).summary, /не подтверждено/);
+  assert.deepEqual(candidates.approved, before, 'projection does not mutate candidate or delivery evidence');
+});
+
 test('list is ordered, selection is explicit and a missing selection is reported', () => {
   const { model } = solutionComposerFixture('list');
   const view = composerView({ ...model.composed, candidates: [...model.composed.candidates].reverse() });

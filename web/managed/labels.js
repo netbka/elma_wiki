@@ -265,3 +265,9 @@ export function displayLabel({ name, key } = {}) {
   if (trimmed) return { text: trimmed, secondary: key && key !== trimmed ? key : '', technical: false };
   return { text: key || '', secondary: '', technical: isTechnicalKey(key) };
 }
+export const candidateEvidence = {
+  nativePending: 'Нативная сборка: подтверждение установки и проверка на Target не завершены; к выпуску не допускается',
+  unknown: 'Происхождение сборки не подтверждено; к выпуску не допускается',
+  nativeNext: 'Нативная конфигурация собрана и принята; подтверждение установки и проверка на Target ещё требуются. Это не завершённый выпуск.',
+  unknownNext: 'Происхождение принятой сборки не подтверждено. Проверьте её доказательства перед доставкой.'
+};

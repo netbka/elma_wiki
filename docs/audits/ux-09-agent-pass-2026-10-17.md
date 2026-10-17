@@ -155,3 +155,7 @@ under the counter line, fixture-opened dialog shown with `showModal`). Blocker 7
 business module names are not a fixture change: the parser derives a module only
 from the namespace code and the export carries no section display name, so it
 stays open as parser work.
+
+Owner decision 2026-10-17: the Solution UI is desktop only; item 12 (phone
+width) is dropped. The remaining items are planned in
+[ux-10-review-clarity-2026-10-17.md](../plans/ux-10-review-clarity-2026-10-17.md).

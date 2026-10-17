@@ -44,6 +44,10 @@ export function solutionComposerFixture(mode = 'build-blocked') {
   const stale = composedCandidateFixture({ id: '10000000-0000-4000-8000-000000000001', sha: 'e', status: 'stale', createdAt: '2026-10-13T09:00:00Z' });
   const awaiting = composedCandidateFixture();
   const approved = composedCandidateFixture({ approved: true });
+  // Synthetic records of native/unknown provenance states; no native execution is claimed.
+  if (mode === 'native-pending') Object.assign(approved, { evidenceBasis: 'native', releaseEligible: false,
+    pendingNativeEvidence: ['native-import-receipt', 'native-installation-observation'], deliverable: false });
+  if (mode === 'unknown-evidence') Object.assign(approved, { evidenceBasis: null, releaseEligible: false, deliverable: false });
   const candidates = { 'build-blocked': [], 'build-gates': [], 'eligibility-load-error': [], list: [stale, awaiting], 'awaiting-approval': [stale, awaiting], stale: [stale] }[mode] || [stale, approved];
   const explicit = { list: null, 'build-blocked': null, 'build-gates': null, 'eligibility-load-error': null, missing: null, 'awaiting-approval': awaiting, stale };
   const selected = mode in explicit ? explicit[mode] : approved;
