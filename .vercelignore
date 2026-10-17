@@ -1,16 +1,2 @@
-.env
-.env.*
-*.env
-.local/
-qa/
-.public/
-node_modules/
-.git/
-.openai/
-.sites-workflow/
-**/*.e365
-**/*.zip
-**/*.tar
-**/*.tar.gz
-**/*.log
-.worktrees/
+# No repository files may be uploaded to Vercel.
+**

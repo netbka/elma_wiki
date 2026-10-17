@@ -35,10 +35,6 @@
     "predev": "npm run build:editor",
     "start": "node server.mjs",
     "dev": "node --watch server.mjs",
-    "build:public": "node tools/build-public.mjs",
-    "preview:public": "node tools/public-preview.mjs",
-    "test:public": "node --test test/public-site.test.mjs",
-    "test:public:browser": "node tools/public-browser-check.mjs",
     "setup": "node tools/setup.mjs",
     "doctor": "node tools/doctor.mjs",
     "import": "node tools/import.mjs",
@@ -46,7 +42,8 @@
     "verify": "node verify.mjs",
     "test:browser": "node tools/browser-check.mjs",
     "test:workspace:browser": "npm run build:editor && node tools/workspace-browser-check.mjs",
-    "check:ui-strings": "node tools/ui-strings.mjs"
+    "check:ui-strings": "node tools/ui-strings.mjs",
+    "test:internal:browser": "node tools/internal-service-browser-check.mjs"
   },
   "dependencies": {
     "esbuild": "^0.25.12",

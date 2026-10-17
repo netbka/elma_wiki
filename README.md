@@ -6,7 +6,9 @@ Agent work follows [AGENTS.md](AGENTS.md) and [the execution workflow](docs/work
 
 Самостоятельный Node.js-сервис с русским интерфейсом. Ручная загрузка `.e365` создаёт отдельный проект: оригинал, безопасно извлечённые части, структурный индекс и отчёт разбора. Все аутентифицированные участники имеют равный доступ к историческим и новым конфигурациям; отдельного приватного режима пользователя нет. Вход — через бота VK Teams или дополнительный одноразовый ключ из письма; GitHub отключён.
 
-Главная объясняет пользу для сопровождения без обещаний измеренной экономии. Viewer начинается с задачи: **найти поле**, **изменить обработчик**, **подготовить обновление**. Публичная демонстрация полностью синтетическая.
+Главная объясняет пользу для сопровождения без обещаний измеренной экономии. Viewer начинается с задачи: **найти поле**, **изменить обработчик**, **подготовить обновление**. The synthetic teaching example is available after sign-in.
+
+Current priority: DEV is a read-only donor for Wiki; DEV2 is the native validation destination. Review Contracts, Correspondence, Powers of attorney and Bonds from full captures, discuss corrections and explain the next delta. [Audit and remaining gaps](docs/audits/internal-dev2-process-2026-10-17.md).
 
 ## Карта системы и рецензирование функций
 
@@ -26,7 +28,7 @@ npm.cmd run build:storybook
 
 Основной вход после авторизации — `/solutions`. Совместимый сценарий `/releases` позволяет выбрать загруженный DEV пакет и явную предыдущую базу, пройти изменения, сохранить решения, подготовить точный оригинал как кандидат и скачать пакет передачи. Содержимое доступно всем аутентифицированным участникам, действия сохраняют авторство текущей сессии. Принятие рецензии само по себе не разрешает импорт и не доказывает физическую сборку или состояние Target. Доставка требует отдельного контракта и подтверждения. [Рабочий процесс](docs/workflows/analyst-release.md), [границы и доказательства](docs/contracts/analyst-releases.md).
 
-Текущий приоритет — внутренний Wiki; сервис запускается в Docker по инструкциям ниже. Vercel и дальнейшая публичная публикация отложены в [долгосрочный roadmap](docs/ROADMAP.md#later) и не блокируют внутренний milestone. Существующие `npm run build:public` и `vercel.json` сохранены для отдельной статической сборки без backend, IDE и личного кабинета. Подробности и отложенный справочник Vercel: [варианты развёртывания](docs/PUBLIC_DEPLOYMENT.md).
+Wiki is an internal team service only. Public use and publication to Vercel or any other public platform are excluded. Use the existing internal Docker deployment; see [internal hosting](docs/INTERNAL_HOSTING.md).
 
 Нужен Node.js 22+.
 

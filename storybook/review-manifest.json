@@ -320,63 +320,6 @@
         "tools/solution-delivery-browser-check.mjs"
       ]
     },
-    "public-field-lookup": {
-      "entry": "/learn/find-field/",
-      "kind": "implemented",
-      "actions": [
-        "search",
-        "select-source",
-        "read-steps",
-        "inspect-source",
-        "check-answer",
-        "continue-in-designer"
-      ],
-      "renderer": [
-        "web/public-field-guide.mjs",
-        "dist/object-search.js"
-      ],
-      "storyIds": [
-        "public-field-guide--ready",
-        "public-field-guide--unavailable",
-        "public-field-guide--ambiguous"
-      ],
-      "requiredVisibleStates": [
-        "ready",
-        "unavailable",
-        "ambiguous"
-      ],
-      "sources": [
-        "docs/workflows/public-field-lookup.md",
-        "test/public-field-guide.test.mjs",
-        "lib/public-site.mjs"
-      ]
-    },
-    "public-article-sources": {
-      "entry": "/articles/:id/#article-sources",
-      "kind": "implemented",
-      "actions": [
-        "open-source",
-        "read-status"
-      ],
-      "renderer": [
-        "web/public-article-sources.mjs"
-      ],
-      "storyIds": [
-        "public-article-sources--listed",
-        "public-article-sources--empty",
-        "public-article-sources--invalid"
-      ],
-      "requiredVisibleStates": [
-        "listed",
-        "empty",
-        "invalid"
-      ],
-      "sources": [
-        "docs/workflows/public-article-sources.md",
-        "test/public-article-sources.test.mjs",
-        "lib/public-site.mjs"
-      ]
-    },
     "delivery-ui": {
       "kind": "implemented",
       "renderer": [
@@ -457,42 +400,15 @@
         "docs/contracts/target-deployment.md"
       ]
     },
-    "public-site": {
-      "entry": "/",
-      "actions": [
-        "read-guides",
-        "browse-examples",
-        "copy-example"
-      ],
-      "renderer": [
-        "web/index.html",
-        "lib/public-site.mjs"
-      ],
-      "storyIds": [],
-      "requiredVisibleStates": [
-        "landing",
-        "guide",
-        "article-index",
-        "article",
-        "examples",
-        "example",
-        "not-found",
-        "desktop",
-        "mobile"
-      ],
-      "workflow": "testing/workflows/public-site.json",
-      "exclusionReason": "Production public renderer ещё не интегрирован в stories. tools/public-browser-check.mjs проверяет текущий публичный сайт; учебный workflow не заменяет эти проверки."
-    },
     "email-authentication": {
-      "entry": "/login",
+      "entry": "/auth/email/request",
       "actions": [
         "request-key",
         "verify-key",
         "resend-key"
       ],
       "renderer": [
-        "web/login.html",
-        "web/service.js"
+        "lib/auth.mjs"
       ],
       "storyIds": [],
       "requiredVisibleStates": [
@@ -508,7 +424,7 @@
         "github-disabled"
       ],
       "workflow": "testing/workflows/email-login.json",
-      "exclusionReason": "Production OTP renderer ещё не интегрирован в stories. tools/browser-check.mjs проверяет синтетическую доставку и настоящий login UI."
+      "exclusionReason": "Legacy email authentication is API compatibility only. test/email-auth.test.mjs covers synthetic delivery; the current login renderer and browser checks cover VK bot links."
     },
     "upload": {
       "entry": "/flows",
@@ -1274,6 +1190,36 @@
         "storybook/stories/ManagedWorkspace.stories.js",
         "test/design-validation.test.mjs"
       ]
+    },
+    "internal-service": {
+      "entry": "/",
+      "kind": "implemented",
+      "actions": [
+        "sign-in"
+      ],
+      "renderer": [
+        "web/index.html",
+        "web/login-view.js"
+      ],
+      "storyIds": [
+        "login--ready",
+        "login--expired",
+        "login--unconfigured"
+      ],
+      "requiredVisibleStates": [
+        "signed-out",
+        "login",
+        "signed-in",
+        "content-refused"
+      ],
+      "workflow": "testing/workflows/internal-service.json",
+      "sources": [
+        "docs/INTERNAL_HOSTING.md",
+        "test/internal-hosting.test.mjs",
+        "test/server.test.mjs",
+        "tools/internal-service-browser-check.mjs"
+      ],
+      "exclusionReason": "Login uses the shared renderer. The existing static entry page and server-side redirects/refusals are verified through real HTTP/browser checks, not copied into Storybook markup."
     }
   }
 }
