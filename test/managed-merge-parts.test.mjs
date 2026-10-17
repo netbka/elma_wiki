@@ -4,7 +4,8 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { managedWorkspaceStore } from '../lib/managed-workspace-store.mjs';
-import { planManagedComponentMerge, resolveManagedMerge, managedResolutionStatus, PART_MERGE_CHOICE } from '../lib/managed-workspace.mjs';
+import { planManagedComponentMerge, resolveManagedMerge, managedResolutionStatus, PART_MERGE_CHOICE,
+  acceptManagedChange, previewManagedChange } from '../lib/managed-workspace.mjs';
 import { prepareMaterializationRequest } from '../lib/native-materialization.mjs';
 import { projectStore } from '../lib/projects.mjs';
 import { zip } from './fixture.mjs';
@@ -107,6 +108,10 @@ test('independent part edits merge by explicit choice and record rename and impa
   const request = await prepareMaterializationRequest({ state: current, artifact: incoming, resolution });
   assert.equal(request.status, 'blocked');
   assert.ok(request.blockers.some(blocker => blocker.reason === 'unlocatable-component-source' && blocker.key === row.key));
+  // Nor can it become the accepted revision.
+  const preview = previewManagedChange(current, incoming, { team: 'C' });
+  assert.throws(() => acceptManagedChange(current, incoming, { expectedRevision: current.revision, reviewedDigest: preview.artifactDigest, team: 'C', taskRef: 'SYNTHETIC-C',
+    reviewedBoundaryKeys: preview.rows.filter(item => item.boundaryCrossing).map(item => item.key), resolution }), error => error.statusCode === 409 && /part-merged/.test(error.message));
   // The same component may still be resolved as a whole.
   assert.equal(resolve(plan, { [row.key]: 'keep-current' }).result.find(item => item.key === row.key).source, 'current');
 });

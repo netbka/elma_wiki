@@ -4,7 +4,8 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { managedWorkspaceStore } from '../lib/managed-workspace-store.mjs';
-import { planManagedComponentMerge, resolveManagedMerge, assertCurrentManagedResolution, managedResolutionStatus } from '../lib/managed-workspace.mjs';
+import { planManagedComponentMerge, resolveManagedMerge, assertCurrentManagedResolution, managedResolutionStatus,
+  acceptManagedChange, previewManagedChange } from '../lib/managed-workspace.mjs';
 import { projectStore } from '../lib/projects.mjs';
 import { zip } from './fixture.mjs';
 
@@ -233,4 +234,55 @@ test('an advanced baseline makes the declared base stale and blocks resolving th
   assert.match(stale.message, /stale|changed|Source/i);
   await assert.rejects(store.resolveMerge(state.id, owner, c.artifactId, input(resolved, advanced.revision, { [key('div')]: 'take-incoming' }), actor), error => error.statusCode === 409);
   assert.deepEqual((await store.merge(state.id, owner, c.artifactId)).history.map(row => row.revisionDigest), [resolved.head.revisionDigest]);
+});
+
+test('accepting a resolved change makes its resolution the accepted merged revision', async t => {
+  const { store, state, key, scope, prepare, accept, directory, projects } = await setup(t, [['div', 0], ['conly', 0], ['keep', 0]]);
+  const a = await prepare([['div', 1]], 'A', { changeScope: scope(['div']) });
+  const current = await accept(a);
+  const c = await prepare([['div', 2], ['conly', 2]], 'C', { expectedRevision: current.revision, changeScope: scope(['div', 'conly']) });
+  // Without a decision the cross-team overlap still blocks; nothing wins by upload order.
+  await assert.rejects(accept(c), /Cross-team overlap/);
+  const merge = await store.merge(state.id, owner, c.artifactId), rows = byCode(merge.plan.rows);
+  const resolved = await store.resolveMerge(state.id, owner, c.artifactId, input(merge, current.revision, { [key('div')]: 'keep-current' }), actor);
+  const accepted = await accept(c), components = byCode(accepted.current);
+  assert.equal(accepted.revision, current.revision + 1);
+  assert.deepEqual([components.div.digest, components.div.interventionId, components.div.team], [rows.div.current.digest, a.artifactId, 'A']);
+  assert.deepEqual([components.conly.digest, components.conly.interventionId, components.conly.team], [rows.conly.incoming.digest, c.artifactId, 'C']);
+  assert.equal(components.keep.digest, byCode(current.current).keep.digest);
+  assert.deepEqual(accepted.changes.at(-1).resolution, { id: resolved.head.id, revisionDigest: resolved.head.revisionDigest,
+    resultDigest: resolved.head.resultDigest, planDigest: resolved.head.planDigest, acceptedFromRevision: current.revision });
+  // The pre-acceptance inputs a build re-derives the plan from stay private to the store.
+  assert.equal('acceptedMerge' in accepted, false);
+  const stored = JSON.parse(await fs.readFile(path.join(directory, 'managed-workspaces', state.id, 'workspace.json'), 'utf8'));
+  assert.deepEqual([stored.acceptedMerge.artifactId, stored.acceptedMerge.resolutionId, stored.acceptedMerge.revision], [c.artifactId, resolved.head.id, accepted.revision]);
+  assert.equal(stored.acceptedMerge.before.revision, current.revision);
+  assert.deepEqual(stored.acceptedMerge.before.current, current.current);
+  assert.equal(stored.completedReviews.at(-1).acceptedDecision.mergeResolutionId, resolved.head.id);
+  assert.deepEqual((await managedWorkspaceStore(directory, projects).get(state.id, owner)).current, accepted.current, 'restart reads the accepted merged revision');
+  // A later acceptance without a resolution clears them.
+  const d = await prepare([['keep', 3]], 'C', { expectedRevision: accepted.revision, changeScope: scope(['keep']) });
+  await accept(d);
+  const after = JSON.parse(await fs.readFile(path.join(directory, 'managed-workspaces', state.id, 'workspace.json'), 'utf8'));
+  assert.equal(after.acceptedMerge, undefined);
+});
+
+test('the pure reducer applies the chosen side and refuses stale or corrupt resolutions', async t => {
+  const { store, state, key, scope, prepare, accept } = await setup(t, [['div', 0], ['gone', 0]]);
+  const a = await prepare([['div', 1]], 'A', { changeScope: scope(['div']) });
+  const current = await accept(a);
+  const c = await prepare([['div', 2]], 'C', { expectedRevision: current.revision, changeScope: scope(['div', 'gone'], ['gone']) });
+  const artifact = await store.artifact(state.id, owner, c.artifactId), plan = planManagedComponentMerge(current, artifact);
+  const options = resolution => ({ expectedRevision: current.revision, reviewedDigest: previewManagedChange(current, artifact, { team: 'C' }).artifactDigest,
+    team: 'C', taskRef: 'SYNTHETIC-C', reviewedBoundaryKeys: c.rows.filter(row => row.boundaryCrossing).map(row => row.key), resolution });
+  const incoming = resolveManagedMerge(plan, { decisions: { [key('div')]: 'take-incoming' }, reason: 'Take C', actor });
+  const next = acceptManagedChange(current, artifact, options(incoming)), components = byCode(next.current);
+  assert.deepEqual([components.div.digest, components.div.team], [byCode(plan.rows).div.incoming.digest, 'C']);
+  assert.equal(components.gone, undefined, 'a validated tombstone removes the component');
+  assert.equal(next.changes.at(-1).resolution.id, incoming.id);
+  // A resolution of another plan or with edited evidence is refused, never applied.
+  const earlier = resolveManagedMerge(planManagedComponentMerge(state, artifact), { decisions: {}, reason: 'Old plan', actor });
+  assert.throws(() => acceptManagedChange(current, artifact, options(earlier)), error => error.statusCode === 409 && /changed/.test(error.message));
+  const corrupt = { ...incoming, reason: 'Forged' };
+  assert.throws(() => acceptManagedChange(current, artifact, options(corrupt)), error => error.statusCode === 409 && /corrupt/.test(error.message));
 });
