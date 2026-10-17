@@ -4,7 +4,7 @@
 // Solution (docs/contracts/change-requests.md); publication to GitHub reuses
 // the bug-report transport and happens only after explicit consent.
 import { nouns, actions as actionLabels, requestForm as formLabels, requests as requestLabels, grouping, empty, header as headerLabels } from './labels.js';
-import { objectLabel, groupObjects, capturedArtifact, actorDisplay, relativeTime, dateLabel, requestTargetLabel, requestKindOf, requestInput } from './model.js';
+import { objectLabel, groupObjects, moduleLabel, moduleNames, capturedArtifact, actorDisplay, relativeTime, dateLabel, requestTargetLabel, requestKindOf, requestInput } from './model.js';
 import { captureWindow, readFile, editImage } from '../feedback/capture.js';
 
 let sequence = 0;
@@ -18,7 +18,7 @@ const choice = (parent, name, value, label, checked) => {
   const row = el('div', undefined, 'managed-choice'), caption = el('label'), input = el('input');
   input.type = 'radio'; input.name = name; input.value = value; input.checked = checked; caption.append(input, el('span', label)); row.append(caption); parent.append(row); return input;
 };
-const person = actor => { const view = actorDisplay(actor), node = el('span', undefined, 'managed-person'); node.append(el('span', view.initials, 'managed-initials'), ' ', view.name); return node; };
+const person = actor => { const view = actorDisplay(actor), node = el('span', undefined, 'managed-person'); if (view.initials) node.append(el('span', view.initials, 'managed-initials'), ' '); node.append(view.name); return node; };
 const versionLabel = (state, artifactId) => { const artifact = (state.artifacts || []).find(row => row.id === artifactId); return artifact ? `${headerLabels.versionFrom} ${dateLabel(artifact.snapshot?.createdAt || artifact.uploadedAt)}` : artifactId; };
 const statusChip = request => el('span', formLabels.statuses[request.status] || request.status, 'managed-chip managed-chip-' + request.status);
 const requestHref = (home, state, requestId, objectKey) => `${home}?${new URLSearchParams({ id: state.id, view: 'requests', ...(requestId ? { request: requestId } : {}), ...(objectKey ? { object: objectKey } : {}) })}`;
@@ -123,7 +123,7 @@ export function mountRequestForm({ state, config = {}, home = '/solutions', kind
   const select = el('select'); select.id = 'managed-request-' + ++sequence; select.setAttribute('aria-label', formLabels.where);
   const whole = el('option', requestLabels.wholeSolution); whole.value = ''; select.append(whole);
   for (const group of groupObjects(state.current || []).modules) {
-    const optgroup = el('optgroup'); optgroup.label = `${grouping.module} ${group.module || grouping.withoutModule}`;
+    const optgroup = el('optgroup'); optgroup.label = `${grouping.module} ${moduleLabel(group.module, moduleNames(state.current || [])).text}`;
     for (const item of group.kinds.flatMap(kindGroup => kindGroup.rows)) {
       const label = objectLabel(item), option = el('option', label.secondary ? `${label.text} · ${label.secondary}` : label.text); option.value = item.key;
       if (!capturedArtifact(state, item)) option.disabled = true;

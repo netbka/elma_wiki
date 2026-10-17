@@ -286,6 +286,26 @@ test('a clear change is resolved at acceptance only with a recorded actor; other
   assert.equal(stored.mergeResolutions.length, 1);
 });
 
+for (const choice of ['keep-current', 'take-incoming']) test(`same-team divergent changes require a saved resolution: ${choice}`, async t => {
+  const { store, state, key, scope, prepare, accept } = await setup(t, [['div', 0], ['keep', 0]]);
+  const first = await prepare([['div', 1]], 'A', { changeScope: scope(['div']) });
+  const current = await accept(first);
+  const second = await prepare([['div', 2]], 'A', { expectedRevision: current.revision, changeScope: scope(['div']) });
+  assert.equal(second.rows.some(row => row.conflict), false, 'team responsibility is not a three-way merge decision');
+  const merge = await store.merge(state.id, owner, second.artifactId);
+  assert.equal(merge.plan.status, 'resolution-required');
+  const beforeDiscussion = (await store.review(state.id, owner, second.artifactId)).discussion;
+  await assert.rejects(accept(second), error => error.statusCode === 409 && /resolution/i.test(error.message));
+  assert.deepEqual((await store.get(state.id, owner)).current, current.current, 'refusal preserves both contributions');
+  assert.deepEqual((await store.review(state.id, owner, second.artifactId)).discussion, beforeDiscussion, 'refusal does not publish an approval event');
+  const decided = await store.resolveMerge(state.id, owner, second.artifactId,
+    input(merge, current.revision, { [key('div')]: choice }), actor);
+  const accepted = await accept(await store.review(state.id, owner, second.artifactId));
+  assert.equal(accepted.changes.at(-1).resolution.id, decided.head.id);
+  assert.equal(byCode(accepted.current).div.digest, byCode(merge.plan.rows).div[choice === 'keep-current' ? 'current' : 'incoming'].digest);
+  assert.equal(byCode(accepted.current).keep.digest, byCode(current.current).keep.digest);
+});
+
 test('the pure reducer applies the chosen side and refuses stale or corrupt resolutions', async t => {
   const { store, state, key, scope, prepare, accept } = await setup(t, [['div', 0], ['gone', 0]]);
   const a = await prepare([['div', 1]], 'A', { changeScope: scope(['div']) });

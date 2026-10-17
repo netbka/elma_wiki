@@ -311,12 +311,23 @@ accepted revision is buildable. A partial that carries an unchanged base copy of
 component edited in the accepted state keeps the accepted edit (`current-only`)
 instead of reverting it.
 
-A change with no declared base, a blocked plan or an unresolved
-`resolution-required` plan is accepted as before: its captured components are
-applied, nothing is recorded as `acceptedMerge`, and a cross-team overlap still
-requires reconciliation. A same-team divergent edit without a resolution
-therefore still takes the incoming component; requiring a resolution for it is
-an open MR-02 gap.
+A declared-base plan whose status is `resolution-required` cannot be accepted
+without a current saved resolution, even when both changes carry the same team
+label. The reducer returns 409 before changing accepted state; the review dialog
+uses the same plan status rather than responsibility-conflict flags alone. A
+stale resolution does not unlock acceptance, and boundary confirmations remain
+required after a current resolution. Same-team `keep-current` and `take-incoming`
+choices are covered independently with unchanged-object preservation.
+
+The review summary and object filter include unresolved three-way conflicts even
+when responsibility flags show one team. A current saved resolution clears these
+semantic conflict markers; a stale resolution restores them. The warning names
+the divergent versions without attributing them to another team. These display
+projections never mutate the captured rows or their responsibility evidence.
+
+Legacy changes without a declared base and blocked plans retain their existing
+acceptance behavior: no `acceptedMerge` is recorded and cross-team overlap still
+requires reconciliation. This guard does not infer ancestry or materialize files.
 
 Part-level adapters for other kinds, generating a merged process file,
 package/dependency reconciliation and physical materialization (P6) remain

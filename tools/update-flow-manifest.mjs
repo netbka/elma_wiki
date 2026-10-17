@@ -19,8 +19,7 @@ for (const flow of flows) manifest.capabilities[flow.id] = {
   catalog: 'web/flows/catalog.js', storyIds: stories[flow.id],
   requiredVisibleStates: flow.states.map(state => state.id), sources: flow.sources
 };
-manifest.capabilities['public-site'].exclusionReason = 'Production public renderer ещё не интегрирован в stories. tools/public-browser-check.mjs проверяет текущий публичный сайт; учебный workflow не заменяет эти проверки.';
-manifest.capabilities['email-authentication'].exclusionReason = 'Production OTP renderer ещё не интегрирован в stories. tools/browser-check.mjs проверяет синтетическую доставку и настоящий login UI.';
+manifest.capabilities['email-authentication'].exclusionReason = 'Legacy email authentication is API compatibility only. test/email-auth.test.mjs covers synthetic delivery; the current login renderer and browser checks cover VK bot links.';
 manifest.capabilities['project-viewer'] = { entry: '/p/:id/', actions: ['search', 'preview', 'report', 'reparse'], renderer: ['dist/app.js'], storyIds: [], requiredVisibleStates: ['objects', 'source-preview', 'parse-report'], exclusionReason: 'Текущий viewer проверяется tools/browser-check.mjs. Storybook показывает общий путь загрузки, но не копирует интерфейс viewer.' };
 manifest.version = 2;
 manifest.capabilities['analyst-release'] = { entry: '/releases', kind: 'implemented', actions: ['create', 'review', 'details', 'freeze', 'approve', 'preview', 'bundle'], renderer: ['web/releases/render.js', 'web/releases/model.js', 'web/releases/comparison.js'], storyIds: ['release--review', 'release--missing-baseline', 'release--blocked', 'release--candidate', 'release--prepared', 'release--handed-off'], requiredVisibleStates: ['review', 'missing-baseline', 'blocked', 'candidate', 'prepared', 'handed-off'], sources: ['lib/releases.mjs', 'docs/contracts/analyst-releases.md'] };

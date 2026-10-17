@@ -108,6 +108,13 @@ try {
   await provenance.getByText(/category · есть в экспорте · новый относительно базы/).waitFor();
   assert.equal(await page.getByText('Удаление заявлено явно').count(), 0);
   await page.screenshot({ path: 'qa/change-base-review-declared.png', fullPage: true });
+  // B0 is historical: the intervening full update and this partial changed the
+  // same object. Its team label does not resolve that three-way divergence.
+  const merge = page.getByRole('region', { name: 'Совмещение с принятыми изменениями' });
+  for (const select of await merge.locator('select').all()) await select.selectOption('take-incoming');
+  await merge.getByLabel('Причина решения').fill('Явно выбираем новую версию поверх исторической базы');
+  await merge.getByRole('button', { name: 'Сохранить решение', exact: true }).click();
+  await merge.getByText('Действует для текущих версий').waitFor();
   state = await read();
   const pending = state.pending[0];
   assert.deepEqual([pending.baseDeclaration.status, pending.baseDeclaration.artifactId, pending.baseDeclaration.revision, pending.baseDeclaration.ancestryVerified], ['declared', initial, 0, false]);
@@ -115,7 +122,7 @@ try {
   assert.deepEqual([pending.changeScopeDeclaration.deletions, pending.changeScopeDeclaration.automaticMergeEnabled, pending.changeScopeDeclaration.buildEnabled], [[], false, false]);
   evidence.historicalBase = true;
   // Accepting keeps the absent scoped member: absence is not deletion.
-  for (const box of await page.getByLabel('Изменение принятого объекта проверено', { exact: true }).all()) await box.check();
+  for (const box of await page.getByLabel('Подтверждаю изменение', { exact: true }).all()) await box.check();
   // UX-03b: the decision lives in the "Решение по версии" dialog; acceptance is its default once the gate opens.
   await page.getByRole('button', { name: 'Решение по версии', exact: true }).click();
   await page.getByRole('dialog', { name: 'Решение по версии' }).getByRole('button', { name: 'Принять изменение', exact: true }).click();

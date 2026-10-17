@@ -1,9 +1,28 @@
 {
   "capability": "email-authentication",
-  "entry": "/login",
-  "renderer": ["web/login.html", "web/service.js"],
-  "fixture": {"email": "person@example.org", "sender": "injected synthetic sendEmail callback"},
-  "states": ["ready", "email-unconfigured", "sending", "sent-with-resend-cooldown", "verifying", "invalid-or-expired-key", "delivery-failed", "rate-limited", "authenticated", "github-disabled"],
-  "evidence": ["test/email-auth.test.mjs", "tools/browser-check.mjs"],
-  "providerDeliveryVerified": false
+  "entry": "/auth/email/request",
+  "renderer": [
+    "lib/auth.mjs"
+  ],
+  "fixture": {
+    "email": "person@example.org",
+    "sender": "injected synthetic sendEmail callback"
+  },
+  "states": [
+    "ready",
+    "email-unconfigured",
+    "sending",
+    "sent-with-resend-cooldown",
+    "verifying",
+    "invalid-or-expired-key",
+    "delivery-failed",
+    "rate-limited",
+    "authenticated",
+    "github-disabled"
+  ],
+  "evidence": [
+    "test/email-auth.test.mjs"
+  ],
+  "providerDeliveryVerified": false,
+  "ui": "Legacy API only; current sign-in UI is the VK bot-link workflow."
 }

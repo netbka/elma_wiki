@@ -14,7 +14,9 @@ try {
   const page = await browser.newPage();
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
-  await page.goto(`http://127.0.0.1:${server.address().port}/flows`);
+  const base = `http://127.0.0.1:${server.address().port}`;
+  assert.equal((await page.request.post(base + '/auth/local', { headers: { 'X-Elma-Wiki-Request': '1' } })).status(), 200);
+  await page.goto(base + '/flows');
   assert.equal(await page.evaluate(() => document.activeElement.tagName), 'BODY', 'Opening a flow does not steal focus');
   async function activate(selector) {
     await page.locator(selector).focus();

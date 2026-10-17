@@ -18,12 +18,23 @@ sections 7 and 12; every new string goes through `web/managed/labels.js` and
 | UX-10d | 8 | The dependency chip is shown only when the version has changes, links to the "Зависимости решения" section, and reads "Зависимостей требует проверки: N". The stepper reason ("нет сборщика") loses bold | `web/managed/render.js`, `web/managed/styles.css`, `web/managed/labels.js` | half a day |
 | UX-10e | 9, 10 | On "О решении" the primary button is the next action from the stepper (as the build story already does); "Открыть решение" becomes a secondary link named for what it opens, "Открыть просмотр объектов". The module card's "Объяснение" box gets one hint line, "Короткое объяснение модуля простыми словами", above "Объяснить" | `web/managed/render.js`, `web/managed/labels.js`, stories `about-*` | half a day |
 | UX-10f | 11 | Plurals through one helper ("1 экран", "3 экрана", "5 экранов"); the comment submit button becomes "Отправить комментарий"; the author line shows the display name when known and otherwise the login without an initial avatar | `web/managed/model.js`, `web/managed/render.js`, `web/managed/labels.js` | half a day |
-| UX-10g | 7 | Business module names. Investigate first: whether the `.e365` workspace package carries a display name (`workspaces/<code>` in `lib/e365.mjs`). If yes, parse it into `namespaces[code].name` and show it as the module heading with the code muted. If no, keep the code and close the item with that evidence; no name is invented | `lib/e365.mjs`, `lib/project-parser.mjs`, `web/managed/model.js` (`objectModule`), synthetic fixture | investigation half a day, then 1 day if names exist |
+| UX-10g | 7 | Business module names. Investigate first: whether the `.e365` workspace package carries a display name (`workspaces/<code>` in `lib/e365.mjs`). If yes, parse it into `namespaces[code].name` and show it as the module heading with the code muted. If no, keep the code and close the item with that evidence; no name is invented. **Delivered 2026-10-17:** ELMA exports each section as a `pages` record in the `global` namespace (`type: NAMESPACE`, `code` = section code, `name` = display name); the existing parser already keeps that name on the component. `moduleNames`/`moduleLabel` in `web/managed/model.js` name module cards, headings and request targets from it with the code muted; the section page is grouped into its own module as a system object instead of a `global` module. Modules without a section page keep the code | `lib/e365.mjs`, `lib/project-parser.mjs`, `web/managed/model.js` (`objectModule`), synthetic fixture | investigation half a day, then 1 day if names exist |
 
 Not planned: pass item 12 (phone width). Owner decision 2026-10-17: desktop
 only. The 390 px checks in the #41 checklist and the PR rules of section 12 of
 the intuitive-UI plan stop applying to the Solution UI; the checklist row is
 removed in UX-10a's PR.
+
+## Delivery status 2026-10-17
+
+UX-10a to UX-10f are delivered together on one branch, stacked on UX-10g:
+
+- a: while a review is open the headline reads "Рассматривается: версия от …" (or "Рассматривается новая версия" without a snapshot date) with "Текущая: версия от …" on the second line; the badge and stepper projection were already in place. The 390 px checklist step now applies to public pages only.
+- c: the change-card checkbox is "Подтверждаю изменение" and the gate reason quotes it (`gates.confirmChange`, `gates.confirmEachChange`).
+- d: the dependency chip reads "Зависимостей требует проверки: N", appears only when the version changes something and links to `#solution-dependencies`; the stepper reason is no longer bold.
+- e: after acceptance the primary action is "Обновить" (a new version); "Открыть просмотр объектов" is a secondary link on О решении; module cards carry "Короткое объяснение модуля простыми словами" above Объяснить.
+- f: `plural` in `labels.js` gives "1 экран / 3 экрана / 5 экранов" for module counts, search results and pending reviews; an e-mail login is shown as is without invented initials; a known name keeps its initials. "Отправить комментарий" was already the decision-dialog label.
+- b: the "Для чего" draft opens with the declared process and screen names, modules second, limits last; without such names "Написать" opens an empty editor and "Составить черновик по экспорту" is the secondary choice.
 
 ## Order and dependencies
 

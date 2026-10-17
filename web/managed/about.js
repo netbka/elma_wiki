@@ -1,13 +1,13 @@
-import { nouns, actions as actionLabels, about as aboutLabels, empty, grouping } from './labels.js';
-import { moduleCards, objectLabel, actorDisplay, relativeTime, activityFeed, dateLabel, moduleCardView } from './model.js';
+import { nouns, actions as actionLabels, about as aboutLabels, empty, grouping, plural } from './labels.js';
+import { moduleCards, objectLabel, purposeNames, actorDisplay, relativeTime, activityFeed, dateLabel, moduleCardView } from './model.js';
 import { mountExplanation } from '../explanations/render.js';
 
 let sequence = 0;
 const el = (tag, text, className) => { const node = document.createElement(tag); if (text !== undefined) node.textContent = text; if (className) node.className = className; return node; };
 const person = actor => {
-  const display = actorDisplay(actor), node = el('span', undefined, 'managed-person');
-  const chip = el('span', display.initials, 'managed-initials'); chip.setAttribute('aria-hidden', 'true');
-  node.append(chip, ' ', el('span', display.name)); node.title = display.login; return node;
+  const display = typeof actor?.known === 'boolean' ? actor : actorDisplay(actor), node = el('span', undefined, 'managed-person');
+  if (display.initials) { const chip = el('span', display.initials, 'managed-initials'); chip.setAttribute('aria-hidden', 'true'); node.append(chip, ' '); }
+  node.append(el('span', display.name)); node.title = display.login; return node;
 };
 
 // UX-05 "О решении": the purpose paragraph (an explanation of scope
@@ -66,7 +66,10 @@ export function mountAbout({ state, about = {}, editing = false, now }, actions 
       if (response.writable) button(body, aboutLabels.edit, () => { text = saved.text; open = true; render(); }, { disabled: busy || blocked });
     } else if (!open) {
       body.append(el('p', empty.purpose));
-      if (response.writable) button(body, actionLabels.write, () => { text = response.draft.text; open = true; render(); }, { primary: true, disabled: busy || blocked });
+      // Without process or screen names the generated draft is only a module list: writing is primary.
+      const names = purposeNames(state.current || []), named = names.processes.length + names.screens.length > 0;
+      if (response.writable) button(body, actionLabels.write, () => { text = named ? response.draft.text : ''; open = true; render(); }, { primary: true, disabled: busy || blocked });
+      if (response.writable && !named) button(body, aboutLabels.generateDraft, () => { text = response.draft.text; open = true; render(); }, { disabled: busy || blocked });
     }
     if (open) {
       if (!saved) body.append(el('p', aboutLabels.draftNote, 'managed-muted'));
@@ -96,7 +99,7 @@ export function mountAbout({ state, about = {}, editing = false, now }, actions 
     const article = el('article', undefined, 'managed-card'), view = moduleCardView(card);
     const title = el('h3', view.title.text, view.title.technical ? 'managed-technical' : undefined); article.append(title);
     const counts = [['processes', card.processes.length], ['forms', card.forms.length], ['data', card.data.length], ['other', card.other.length]].filter(([, n]) => n)
-      .map(([kind, n]) => `${n} ${aboutLabels.moduleCounts[kind]}`);
+      .map(([kind, n]) => plural(n, aboutLabels.moduleCounts[kind]));
     article.append(el('p', counts.join(' · ') + (card.system ? ` · ${nouns.systemObjects}: ${card.system}` : ''), 'managed-muted'));
     const kindLabels = { processes: aboutLabels.processesList, forms: aboutLabels.screensList, data: aboutLabels.dataList };
     const sentence = el('p');
@@ -110,7 +113,7 @@ export function mountAbout({ state, about = {}, editing = false, now }, actions 
     article.append(sentence);
     if (actions.open) { const a = el('a', actionLabels.open, 'managed-link'); a.href = actions.open(card.module); if (actions.navigate) a.onclick = event => { event.preventDefault(); actions.navigate(a.href); }; article.append(a); }
     // A module without a code has no description scope: no Explain button.
-    if (actions.explanations && view.explainable) article.append(mountExplanation({ target: { scope: 'module', module: card.module }, label: actionLabels.explain }, actions.explanations));
+    if (actions.explanations && view.explainable) article.append(el('p', actionLabels.explainModuleHint, 'managed-muted'), mountExplanation({ target: { scope: 'module', module: card.module }, label: actionLabels.explain }, actions.explanations));
     list.append(article);
   }
   modules.append(list); root.append(modules);

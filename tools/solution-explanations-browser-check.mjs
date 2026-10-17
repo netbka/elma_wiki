@@ -48,7 +48,7 @@ try {
   await page.getByRole('heading',{name:'Учебное согласование',exact:true}).waitFor();
   // UX-06: processes open on Как работает.
   await page.getByRole('link',{name:'Как работает',exact:true}).click();
-  await page.getByRole('button',{name:'Посмотреть процесс: approval',exact:true}).click();
+  await page.getByRole('button',{name:'Посмотреть процесс: Учебное согласование',exact:true}).click();
   await page.locator('.solution-visual svg').waitFor();
   const processPanel=page.locator('.solution-visual > div .solution-explanation').first();
   await page.getByRole('button',{name:'Объяснить этот процесс',exact:true}).click();
@@ -80,7 +80,7 @@ try {
   await step.getByText(human,{exact:true}).first().waitFor();
   assert.equal(await step.locator('img,script').count(),0);
   await fs.mkdir('qa',{recursive:true});await step.screenshot({path:'qa/solution-explanations-saved-step.png'});
-  await page.reload();await page.getByRole('button',{name:'Посмотреть процесс: approval',exact:true}).click();
+  await page.reload();await page.getByRole('button',{name:'Посмотреть процесс: Учебное согласование',exact:true}).click();
   await page.locator('svg [data-node=review]').click();await step.getByRole('button',{name:'Объяснить этот шаг',exact:true}).click();
   await step.getByText(human,{exact:true}).first().waitFor();
   await step.getByRole('button',{name:'Изменить объяснение',exact:true}).click();

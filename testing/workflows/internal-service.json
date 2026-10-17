@@ -1,0 +1,8 @@
+{
+  "capability": "internal-service",
+  "entry": "/",
+  "renderer": ["web/index.html", "web/login-view.js"],
+  "states": ["signed-out", "login", "signed-in", "content-refused"],
+  "evidence": ["test/server.test.mjs", "test/internal-hosting.test.mjs", "tools/internal-service-browser-check.mjs", "tools/vk-auth-browser-check.mjs"],
+  "rules": ["Content and teaching routes require authentication", "Only entry/login shell assets are anonymous", "Entry points to the VK Teams bot-link sign-in flow", "No public build or hosting", "Local synthetic Storybook remains internal"]
+}

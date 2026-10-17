@@ -114,7 +114,7 @@ Oversized generation fails explicitly and asks for a narrower process/step.
 ## Storybook and verification
 
 Customer explanations remain in authenticated runtime storage, never Git, public
-Learn content or actual Storybook stories. `web/explanations/render.js` is reused
+content or actual Storybook stories. `web/explanations/render.js` is reused
 by production and twelve `solution-explanation--*` states: ready, draft, saved,
 stale, loading, error/retry, conflict, historical/read-only, regenerated and an
 interactive integrated Solution/process/step story, plus Solution and process
