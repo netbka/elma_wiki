@@ -94,7 +94,7 @@ capabilities:
     routes: ["docs/contracts/developer-workspace.md"]
     boundaries: ["compiler"]
   deployment:
-    owners: ["lib/delivery.mjs", "lib/composed-candidates.mjs", "lib/composed-build-eligibility.mjs", "lib/composed-build.mjs", "test/composed-delivery.test.mjs", "test/composed-build-eligibility.test.mjs", "test/composed-build.test.mjs", "test/delivery-promotion.test.mjs", "server.mjs", "web/releases/model.js", "web/releases/delivery.js", "web/releases/delivery-model.js", "tools/delivery-browser-check.mjs", "tools/delivery-storybook-check.mjs", "storybook/stories/Delivery.stories.js", "tools/releases-browser-check.mjs"]
+    owners: ["lib/delivery.mjs", "lib/composed-candidates.mjs", "lib/composed-build-eligibility.mjs", "lib/composed-build.mjs", "lib/target-profile-refresh.mjs", "test/composed-delivery.test.mjs", "test/composed-build-eligibility.test.mjs", "test/composed-build.test.mjs", "test/target-profile-refresh.test.mjs", "test/delivery-promotion.test.mjs", "server.mjs", "web/releases/model.js", "web/releases/delivery.js", "web/releases/delivery-model.js", "tools/delivery-browser-check.mjs", "tools/delivery-storybook-check.mjs", "storybook/stories/Delivery.stories.js", "tools/releases-browser-check.mjs"]
     routes: ["docs/contracts/target-deployment.md", "docs/contracts/composed-build-eligibility.md", "docs/runbooks/target-deployment.md"]
     boundaries: ["ui", "domain", "connection", "security", "ops", "tooling"]
   verification:

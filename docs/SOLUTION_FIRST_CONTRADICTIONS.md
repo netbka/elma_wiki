@@ -69,6 +69,8 @@ Against main `6a3467f`, the execution plan's older duplicate table incorrectly d
 
 ## Language and ongoing document reconciliation
 
+D0 integration checkpoint (2026-10-17): PR #175 incorporates main `ca7ee0d`, retaining #176 operator Target-profile refresh and #177 smoke coverage of every Storybook story. Public-only stories remain removed; the combined manifest retains 273 internal/synthetic stories. The smoke check now proves anonymous `/flows` redirects to login before authenticating its local synthetic actor for the existing production flow checks. #178 module names and the active native evidence/designation lanes remain separate, preserved work. This checkpoint supplies repository integration evidence, not an internal rollout or native acceptance.
+
 Normal actions: Add solution, Add change, Compare changes, Resolve conflict, Review changes, Build configuration, Verify configuration, Prepare release, Verify target. One visually dominant next action; source/manifest/parser/candidate internals appear only when useful. No clever invented nouns.
 
 Remaining stale runtime/legacy descriptions in README, managed-workspace historical checkpoints and review prose must be reconciled with their owning implementation, not interpreted as overriding this product contract. Prior limitations are retained as dated evidence through Git links; they cannot narrow the owner's working-release outcome or claim an unimplemented capability is live.

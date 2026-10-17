@@ -155,6 +155,43 @@ export const buildEligibility = {
   blockedSummary: 'Изменения приняты. Сборка конфигурации заблокирована: состав, покрытие, зависимости или профиль Target не подтверждены.',
   unknownReason: 'не описанная причина:', unit: 'единица установки', object: 'объект', module: 'модуль', fact: 'не хватает:'
 };
+// Explicit operator Target profile refresh (#94 MR-05, P8): only the configured bridge
+// operator reads the designated DEV2 profile; nothing reads it automatically.
+export const targetProfileRefresh = {
+  heading: 'Профиль Target', start: 'Прочитать профиль Target', refresh: 'Обновить состояние', reasons: 'Причины',
+  running: 'Читаем профиль Target через мост оператора. Это только чтение, без установки; не закрывайте страницу.',
+  done: 'Профиль Target прочитан. Обновляем условия сборки…',
+  operatorOnly: 'Прочитать профиль может только оператор моста. Состав и проверки решения доступны всем участникам.',
+  readOnly: 'Чтение не устанавливает и не меняет конфигурацию на Target. Результат действует для текущей версии решения не дольше суток.',
+  lost: 'Ответ сервера не получен. Обновите состояние перед повтором; чтение не повторяется автоматически.',
+  states: {
+    'target-profile-observation-unconfigured': 'Чтение профиля Target не настроено: на сервере не заданы мост оператора, его владелец и Target.',
+    'target-not-designated': 'Target моста не назначен для чтения профиля: допускается только DEV2.',
+    never: 'Профиль Target ещё не прочитан для этой версии решения. Без него условие «Профиль Target» не выполнено.',
+    'in-progress': 'Профиль Target уже читается. Обновите состояние позже.',
+    observed: 'Профиль Target прочитан для текущей версии решения.',
+    stale: 'Профиль Target прочитан для прежней версии решения и больше не учитывается. Прочитайте его заново.',
+    unavailable: 'Профиль Target не прочитан: мост сообщил, что профиль недоступен.',
+    invalid: 'Отчёт моста о профиле Target не прошёл проверку и не принят.',
+    unknown: 'Результат чтения неизвестен: ответ моста не получен. Профиль не принят.',
+    moved: 'Пока читался профиль, решение изменилось. Профиль не принят.'
+  },
+  outcomes: {
+    unavailable: 'Профиль Target недоступен.', invalid: 'Отчёт о профиле Target не принят.', unknown: 'Результат чтения неизвестен: ответ моста не получен.',
+    stale: 'Решение изменилось. Обновите состояние и прочитайте профиль заново.', 'in-progress': 'Профиль Target уже читается.',
+    refused: 'Чтение профиля Target отклонено.'
+  },
+  details: {
+    'target-profile-observation-unconfigured': 'чтение профиля не настроено', 'target-not-designated': 'Target не назначен для чтения профиля',
+    'operator-only': 'действие доступно только оператору моста', 'invalid-request': 'некорректный запрос', 'no-accepted-capture': 'нет принятого полного экспорта решения',
+    'stale-solution-revision': 'версия решения изменилась', 'stale-solution-binding': 'решение изменилось во время чтения',
+    'target-profile-refresh-in-progress': 'чтение уже выполняется', 'target-profile-bridge-failed': 'мост сообщил об ошибке задания',
+    'target-profile-observation-not-advertised': 'исполнитель моста не умеет читать профиль Target', 'live-target-access-unavailable': 'нет доступа к Target',
+    timeout: 'время ожидания истекло', 'lost-result': 'результат задания потерян',
+    'native-worker-revision-mismatch': 'исполнитель другой версии', 'target-mismatch': 'отчёт о другом Target', 'unattested-observation': 'отчёт не подтверждает это задание чтения'
+  },
+  unknownDetail: 'причина проверки:', profile: 'Профиль', platform: 'платформа', observedAt: 'прочитан'
+};
 // Composer build and freeze of the accepted merged revision. A build is held by the
 // server until it is frozen; only a frozen candidate can be reviewed or delivered.
 export const composerBuild = {
