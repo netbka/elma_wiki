@@ -421,6 +421,11 @@ test('contextual composed API uses the trusted execution actor and rejects forge
   await json(await post(route, alice.cookie, input, { Origin: 'https://foreign.example.invalid' }), 403);
   for (const extra of [{ owner: SOLUTION_CATALOG }, { actor: bob.user }, { namespace: 'legacy' }, { bytes: 'forged' }, { units: ['div'] }, { solutionId: state.id }])
     await json(await post(route, alice.cookie, { ...input, ...extra }), 400);
+  const installed = { action: 'compareInstalled', revision: candidate.revision, connectionId: connection.id };
+  await json(await post(route, alice.cookie, { ...installed, inventory: [] }), 400);
+  // A multi-unit composition has no proven per-package installed scope yet.
+  assert.match((await json(await post(route, alice.cookie, installed), 409)).error, /single-package scope/);
+  assert.deepEqual(await json(await request(route + '?installed', alice.cookie)), []);
   let attempt = await json(await post(route, alice.cookie, input), 201);
   assert.equal(attempt.executionActorId, alice.user.id);
   assert.equal(attempt.owner, undefined);

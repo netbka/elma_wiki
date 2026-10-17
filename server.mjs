@@ -36,7 +36,10 @@ const project = path.dirname(fileURLToPath(import.meta.url));
 // confirmation is deliberately absent: no HTTP request can supply `productionConfirmation`, and
 // this server constructs the delivery store without PROD grants.
 const contextualDeliveryKeys = { prepare: ['action', 'revision', 'connectionId'], confirm: ['action', 'attemptId', 'idempotencyKey', 'confirmation'], verify: ['action', 'attemptId'], cancel: ['action', 'attemptId'],
-  promote: ['action', 'attemptId', 'connectionId', 'revision', 'idempotencyKey'], retry: ['action', 'attemptId', 'idempotencyKey'], reconcile: ['action', 'attemptId'] };
+  promote: ['action', 'attemptId', 'connectionId', 'revision', 'idempotencyKey'], retry: ['action', 'attemptId', 'idempotencyKey'], reconcile: ['action', 'attemptId'],
+  compareInstalled: ['action', 'revision', 'connectionId'], reconcileInstalled: ['action', 'revision', 'connectionId'] };
+// Installed comparisons (D2) exist only on the Solution and composed facades; a legacy release refuses them.
+const installedInput = input => ({ revision: input.revision, connectionId: input.connectionId });
 const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml' };
 function send(res, status, value) { res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(value)); }
 async function body(req, max) {
@@ -291,7 +294,8 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
         if (releaseId) await handoffs.authorize(id, releaseId); else await solutions.managed.authorize(id, SOLUTION_CATALOG);
         if (action === 'delivery') {
           const contextual = delivery.forSolution(id), executionActor = session.user.id;
-          if (req.method === 'GET') return send(res, 200, url.searchParams.has('packet') ? await contextual.packet(releaseId, url.searchParams.get('packet'), executionActor) : await contextual.list(releaseId, executionActor));
+          if (req.method === 'GET') return send(res, 200, url.searchParams.has('installed') ? await contextual.installedHistory(releaseId, executionActor)
+            : url.searchParams.has('packet') ? await contextual.packet(releaseId, url.searchParams.get('packet'), executionActor) : await contextual.list(releaseId, executionActor));
           if (req.method !== 'POST') return send(res, 405, { error: 'Метод не поддерживается' });
           if (req.headers['content-type']?.split(';')[0] !== 'application/json') return send(res, 415, { error: 'Требуется JSON' });
           const input = JSON.parse((await body(req, 32 * 1024)).toString('utf8'));
@@ -304,6 +308,8 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
           if (input.action === 'promote') return send(res, 201, await contextual.promote(releaseId, input.attemptId, executionActor, input));
           if (input.action === 'retry') return send(res, 201, await contextual.retry(releaseId, input.attemptId, executionActor, input));
           if (input.action === 'reconcile') return send(res, 200, await contextual.reconcile(releaseId, input.attemptId, executionActor));
+          if (input.action === 'compareInstalled') return send(res, 201, await contextual.compareInstalled(releaseId, executionActor, installedInput(input)));
+          if (input.action === 'reconcileInstalled') return send(res, 201, await contextual.reconcileInstalled(releaseId, executionActor, installedInput(input)));
           return send(res, 200, await contextual.cancel(releaseId, input.attemptId, executionActor));
         }
         if (req.method === 'GET' && !action) return send(res, 200, releaseId ? await handoffs.get(id, releaseId) : await handoffs.list(id));
@@ -379,7 +385,8 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
         if (candidateId) await composed.authorize(id, candidateId); else await solutions.managed.authorize(id, SOLUTION_CATALOG);
         if (action === 'delivery') {
           const contextual = delivery.forComposed(id), executionActor = session.user.id;
-          if (req.method === 'GET') return send(res, 200, url.searchParams.has('packet') ? await contextual.packet(candidateId, url.searchParams.get('packet'), executionActor) : await contextual.list(candidateId, executionActor));
+          if (req.method === 'GET') return send(res, 200, url.searchParams.has('installed') ? await contextual.installedHistory(candidateId, executionActor)
+            : url.searchParams.has('packet') ? await contextual.packet(candidateId, url.searchParams.get('packet'), executionActor) : await contextual.list(candidateId, executionActor));
           if (req.method !== 'POST') return send(res, 405, { error: 'Метод не поддерживается' });
           if (req.headers['content-type']?.split(';')[0] !== 'application/json') return send(res, 415, { error: 'Требуется JSON' });
           const input = JSON.parse((await body(req, 32 * 1024)).toString('utf8'));
@@ -392,6 +399,8 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
           if (input.action === 'promote') return send(res, 201, await contextual.promote(candidateId, input.attemptId, executionActor, input));
           if (input.action === 'retry') return send(res, 201, await contextual.retry(candidateId, input.attemptId, executionActor, input));
           if (input.action === 'reconcile') return send(res, 200, await contextual.reconcile(candidateId, input.attemptId, executionActor));
+          if (input.action === 'compareInstalled') return send(res, 201, await contextual.compareInstalled(candidateId, executionActor, installedInput(input)));
+          if (input.action === 'reconcileInstalled') return send(res, 201, await contextual.reconcileInstalled(candidateId, executionActor, installedInput(input)));
           return send(res, 200, await contextual.cancel(candidateId, input.attemptId, executionActor));
         }
         if (req.method === 'GET') return send(res, 200, candidateId ? await composed.get(id, candidateId) : await composed.list(id));
