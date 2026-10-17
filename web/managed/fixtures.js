@@ -9,7 +9,8 @@ export function managedFixture(mode = 'overview') {
   }, scopeDeclaration: { scope: 'full', method: 'explicit-assertion', declaredAt: at } };
   const workspace = { id: 'synthetic-workspace', name: 'Командировки и расходы', status: 'active', revision: 1,
     baselineId: base.id, baselineOwner: 'Команда внедрения', baselineAcceptedAt: at, artifacts: [base],
-    current: [component('contract'), component('approval'), component('comment', 'Внутренняя команда', true)],
+    current: [component('contract'), component('approval'), component('comment', 'Внутренняя команда', true),
+      { code: 'synthetic', key: JSON.stringify(['pages', 'global', 'synthetic']), team: 'Команда внедрения', service: 'pages', namespace: 'global', kind: 'page', name: 'Служебные поездки', interventionId: null, digest: 'a'.repeat(64) }],
     changes: [{ id: 'synthetic-change', resolution: { id: 'synthetic-resolution', revisionDigest: 'd'.repeat(64), resultDigest: 'e'.repeat(64), planDigest: 'f'.repeat(64), acceptedFromRevision: 0 } }],
     reconciliations: [], history: [{ type: 'created', baselineId: base.id }, { type: 'change-accepted', id: 'synthetic-change', revision: 1 }], pending: [] };
   base.components = ['contract', 'approval'].map(code => ({ key: component(code).key, digest: 'a'.repeat(64) }));

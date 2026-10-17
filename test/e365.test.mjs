@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { interpret, interpretFiles, updateEnvironment, safePath, serverKey, limits } from '../lib/e365.mjs';
 import { fixture, zip } from './fixture.mjs';
 import { demoData } from '../lib/demo.mjs';
+import { moduleNames, groupObjects } from '../web/managed/model.js';
 
 test('nested services and extracted layouts produce the same metadata', async () => {
   const a = await interpret(await fixture(), 'development'), b = await interpret(await fixture({ nested: false }), 'development');
@@ -28,6 +29,18 @@ test('leading slashes used in platform exports are normalized', async () => {
   const rewritten = Buffer.from(buffer.toString('latin1').replaceAll('xpackage', '/package').replaceAll('xwidgets', '/widgets'), 'latin1');
   assert.equal(safePath('/widgets/form.json'), 'widgets/form.json');
   assert.equal((await interpret(rewritten, 'local')).entities[0].source, 'widgets/form.json');
+});
+test('a section page in the export names its module; the module identity stays the code', async () => {
+  // Shape follows ELMA exports: each section is a global `pages` record with type NAMESPACE.
+  const { entities } = await interpret(await zip([
+    ['package.json', { code: 'trips_solution' }],
+    ['pages/manifest.json', { entities: [{ code: 'trips', kind: 'page', name: 'Служебные поездки', namespace: 'global', path: 'entities/global/trips.json' }] }],
+    ['pages/entities/global/trips.json', { code: 'trips', name: 'Служебные поездки', namespace: 'global', type: 'NAMESPACE' }],
+    ['widgets/manifest.json', { entities: [{ code: 'form', namespace: 'trips.requests', path: 'form.json' }] }],
+    ['widgets/form.json', { descriptor: { fields: [] } }]
+  ]), 'local');
+  assert.deepEqual([...moduleNames(entities)], [['trips', 'Служебные поездки']]);
+  assert.deepEqual(groupObjects(entities).modules.map(group => [group.module, group.name]), [['trips', 'Служебные поездки']]);
 });
 test('invalid archives and unsafe keys are rejected without raw JSON contents', async () => {
   await assert.rejects(interpret(Buffer.from('not zip'), 'local'), /ZIP/);

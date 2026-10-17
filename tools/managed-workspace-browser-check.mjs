@@ -396,7 +396,7 @@ try {
       // A code-less module card is titled "Без модуля" and offers no Объяснить button; a real module does.
       const orphan = page.locator('.managed-about .managed-card').filter({ has: page.getByRole('heading', { name: 'Без модуля', exact: true }) });
       assert.equal(await orphan.count(), 1, 'one code-less module card: ' + mode); assert.equal(await orphan.getByRole('button', { name: 'Объяснить', exact: true }).count(), 0, 'no Explain for a code-less module');
-      assert.equal(await page.locator('.managed-about .managed-card').filter({ has: page.getByRole('heading', { name: 'synthetic', exact: true }) }).getByRole('button', { name: 'Объяснить', exact: true }).count(), 1);
+      assert.equal(await page.locator('.managed-about .managed-card').filter({ has: page.getByRole('heading', { name: 'Служебные поездки', exact: true }) }).getByRole('button', { name: 'Объяснить', exact: true }).count(), 1);
       if (mode === 'about-empty') { await page.getByText('Опишите, для чего это решение', { exact: true }).waitFor(); await page.getByRole('button', { name: 'Написать', exact: true }).waitFor(); }
       if (mode === 'about-generated') { assert.match(await page.getByLabel('Описание решения', { exact: true }).inputValue(), /Решение объединяет модули/); assert.equal(await page.getByRole('button', { name: 'Сохранить описание', exact: true }).isDisabled(), false); }
       if (mode === 'about-saved') { await page.getByText(/^Командировки сотрудников/).first().waitFor(); await page.getByRole('button', { name: 'Изменить', exact: true }).waitFor(); assert.equal(await page.getByText('Состав решения изменился после сохранения. Проверьте описание.', { exact: true }).count(), 0); }
@@ -408,7 +408,7 @@ try {
       await page.getByLabel('Поиск по названию или коду', { exact: true }).fill('trip');
       assert.equal(await page.locator('.managed-flows .managed-card:not([hidden])').count(), 1);
       await page.getByLabel('Поиск по названию или коду', { exact: true }).fill('');
-      await page.getByRole('button', { name: 'Посмотреть процесс: trip_approval', exact: true }).click();
+      await page.getByRole('button', { name: 'Посмотреть процесс: Утверждение командировки', exact: true }).click();
       await page.getByRole('img', { name: 'Схема процесса из экспорта', exact: true }).waitFor();
       await page.getByText('Кто выполняет: Согласующий', { exact: true }).first().waitFor();
       assert.equal(await page.locator('.visual-unsupported').count(), 0, 'a fully supported process has no unsupported list');
@@ -495,7 +495,7 @@ try {
     if (mode === 'request-published') { await page.getByText('Отправлен в GitHub', { exact: true }).waitFor(); await page.getByRole('link', { name: 'Открыть GitHub issue #85', exact: true }).waitFor(); assert.equal(await page.getByRole('button', { name: 'Отправить в GitHub', exact: true }).count(), 0); }
     if (mode === 'flows-unknown') {
       // An unsupported lane and node: who does it is unknown, and the unsupported items are one collapsed list with a count.
-      await page.getByRole('button', { name: 'Посмотреть процесс: trip_approval', exact: true }).click();
+      await page.getByRole('button', { name: 'Посмотреть процесс: Утверждение командировки', exact: true }).click();
       await page.getByRole('img', { name: 'Схема процесса из экспорта', exact: true }).waitFor();
       await page.getByText('Кто выполняет: дорожка не указана', { exact: true }).first().waitFor();
       const unsupported = page.locator('.visual-unsupported > summary'); await unsupported.waitFor();
@@ -506,7 +506,8 @@ try {
       await page.locator('summary', { hasText: 'Поля · 2' }).click();
       await page.getByRole('cell', { name: 'Сумма', exact: true }).waitFor();
       await page.getByText('Поля не восстановлены из экспорта', { exact: true }).first().waitFor();
-      assert.equal(await page.getByRole('heading', { name: /^Объекты решения · \d+$/ }).innerText(), 'Объекты решения · 8', 'processes are not counted among screens and data');
+      assert.equal(await page.getByRole('heading', { name: /^Объекты решения · \d+$/ }).innerText(), 'Объекты решения · 9', 'processes are not counted among screens and data');
+      assert.equal(await page.getByRole('heading', { name: /^Модуль Служебные поездки synthetic · \d+$/ }).count(), 1, 'a module is named by its section page, code muted');
       assert.equal(await page.locator('.managed-screens').getByRole('heading', { name: /^Процессы · / }).count(), 0, 'processes are not listed among screens');
       await page.getByRole('link', { name: /^Как работает · 1$/ }).waitFor();
       await page.setViewportSize({ width: 390, height: 844 }); assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'screens 390');

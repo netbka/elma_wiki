@@ -107,7 +107,10 @@ test('UX-02: business name first, technical code second; objects group by module
   const rows = managedFixture('solution').workspace.current, grouped = groupObjects(rows);
   assert.deepEqual(grouped.modules.map(group => group.module), ['synthetic', 'travel_expenses']);
   assert.deepEqual(grouped.modules.find(group => group.module === 'travel_expenses').kinds.map(kind => kind.kind), ['processes', 'data'], 'kinds follow display order');
-  assert.equal(grouped.system.length, 3, 'permissions, __default and localization are system objects');
+  assert.equal(grouped.system.length, 4, 'permissions, __default, localization and the section page are system objects');
+  assert.equal(grouped.modules.find(group => group.module === 'synthetic').name, 'Служебные поездки', 'the section page names its module');
+  assert.equal(grouped.modules.find(group => group.module === 'travel_expenses').name, null, 'no name is invented without a section page');
+  assert.equal(grouped.modules.some(group => group.module === 'global'), false, 'a section page is not a "global" module');
   assert.equal(grouped.modules.reduce((n, group) => n + group.count, 0) + grouped.system.length, rows.length, 'every row is shown once');
 });
 
@@ -186,7 +189,8 @@ test('UX-04: the header badge and stepper project every row of the next-action m
 
 test('UX-05: module cards count business rows by kind, the activity list names people and relative times, and the fixture shows two distinct actors', () => {
   const cards = moduleCards(managedFixture('solution').workspace.current);
-  assert.deepEqual(cards.map(card => [card.module, card.processes.length, card.forms.length, card.data.length, card.system]), [['synthetic', 0, 3, 0, 0], ['travel_expenses', 1, 0, 2, 3]]);
+  assert.deepEqual(cards.map(card => [card.module, card.processes.length, card.forms.length, card.data.length, card.system]), [['synthetic', 0, 3, 0, 1], ['travel_expenses', 1, 0, 2, 3]]);
+  assert.deepEqual(cards.map(card => moduleCardView(card).title), [{ text: 'Служебные поездки', technical: false }, { text: 'travel_expenses', technical: false }]);
   const model = managedFixture('about-saved'), feed = activityFeed(model.workspace, 8, model.now);
   assert.deepEqual(feed.map(row => [row.label, row.actor.name, row.actor.initials, row.when]),
     [['Изменение принято', 'Reviewer', 'R', '2 ч назад'], ['Комментарий', 'Reviewer', 'R', '4 ч назад'], ['Решение загружено', 'Uploader', 'U', '5 ч назад']]);

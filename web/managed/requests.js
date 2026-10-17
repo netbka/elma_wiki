@@ -4,7 +4,7 @@
 // Solution (docs/contracts/change-requests.md); publication to GitHub reuses
 // the bug-report transport and happens only after explicit consent.
 import { nouns, actions as actionLabels, requestForm as formLabels, requests as requestLabels, grouping, empty, header as headerLabels } from './labels.js';
-import { objectLabel, groupObjects, capturedArtifact, actorDisplay, relativeTime, dateLabel, requestTargetLabel, requestKindOf, requestInput } from './model.js';
+import { objectLabel, groupObjects, moduleLabel, moduleNames, capturedArtifact, actorDisplay, relativeTime, dateLabel, requestTargetLabel, requestKindOf, requestInput } from './model.js';
 import { captureWindow, readFile, editImage } from '../feedback/capture.js';
 
 let sequence = 0;
@@ -123,7 +123,7 @@ export function mountRequestForm({ state, config = {}, home = '/solutions', kind
   const select = el('select'); select.id = 'managed-request-' + ++sequence; select.setAttribute('aria-label', formLabels.where);
   const whole = el('option', requestLabels.wholeSolution); whole.value = ''; select.append(whole);
   for (const group of groupObjects(state.current || []).modules) {
-    const optgroup = el('optgroup'); optgroup.label = `${grouping.module} ${group.module || grouping.withoutModule}`;
+    const optgroup = el('optgroup'); optgroup.label = `${grouping.module} ${moduleLabel(group.module, moduleNames(state.current || [])).text}`;
     for (const item of group.kinds.flatMap(kindGroup => kindGroup.rows)) {
       const label = objectLabel(item), option = el('option', label.secondary ? `${label.text} · ${label.secondary}` : label.text); option.value = item.key;
       if (!capturedArtifact(state, item)) option.disabled = true;
