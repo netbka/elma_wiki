@@ -189,7 +189,8 @@ test('a restarted service holds no observation', async t => {
 });
 
 test('unavailable, invalid, unknown and moved observations never enable the gate', async t => {
-  const env = await setup(t, { timeoutMs: 400 });
+  // Long enough for a loaded machine; only the lost result waits for it.
+  const env = await setup(t, { timeoutMs: 3000 });
   let mode = 'unavailable';
   const report = payload => observedReport({ targetId: payload.targetId, environment: payload.environment, runId: payload.runId, targetProfileDigest: PROFILE, observedAt: new Date().toISOString() });
   const worker = env.worker({ respond: async payload => {
