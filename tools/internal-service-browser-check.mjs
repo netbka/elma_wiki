@@ -20,6 +20,7 @@ try {
     await page.goto(base);
     assert.equal(await page.locator('main a').count(), 1);
     assert.equal(await page.locator('main a').getAttribute('href'), '/login');
+    assert.match(await page.locator('.hero small').textContent(), /Вход через бота VK Teams/);
     assert.equal(await page.locator('#developers').count(), 0);
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
     await page.screenshot({ path: `qa/internal-home-${width}.png`, fullPage: true });
