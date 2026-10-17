@@ -31,7 +31,7 @@ One status table is maintained here; detailed acceptance cases remain in the rel
 | MR-03 | E1 schema 1.3 pin and opt-in materialization bridge (#113/#122/#127/#135); validated build route (#147) | No native build observed. Service evidence source is absent, so real builds remain blocked |
 | MR-04 | Scope planner, pinned native coverage contract/catalog and composer eligibility integration (#104/#109/#133/#135/#146) | Native declaration source, observed Target preconditions and complete required global coverage |
 | MR-05 | Pinned dependency-receipt contract and resolver wired into eligibility (#108/#133/#146) | Admitted native Target-profile observation and actual compatible/licensed dependency evidence |
-| MR-06 | Shared delivery coordinator and composer (#117/#123); trusted freeze route (#148) | UI does not call freeze; native candidates retain pending import/installation evidence and are refused for non-synthetic delivery |
+| MR-06 | Shared delivery coordinator and composer (#117/#123); trusted freeze route (#148) | The composer calls build, then freeze, for the accepted merged revision only (build-timing decision, slice 3); native candidates retain pending import/installation evidence and are refused for non-synthetic delivery |
 | MR-07 | dev2 designation, presets and normalized read-back (#118/#119/#120) | P8: physical Contracts candidate, permitted native install, read-back, affected business route and recovery; none observed |
 | MR-08 | Promotion/reconciliation/retry/evidence logic (#124) and shared renderer actions (#150) | Restore rehearsal, target-specific native acceptance and concurrent-draft preservation beyond drift refusal. PROD remains refused without the separate trusted owner grant |
 

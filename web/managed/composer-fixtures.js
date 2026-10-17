@@ -28,6 +28,26 @@ export const eligibilityFixtures = {
   evidence: { coverage: 'native', dependencies: 'native-receipt', targetProfile: 'observed' },
   targetProfile: { targetId: 'synthetic-target', environment: 'synthetic-target', digest: 'c'.repeat(64), platformVersion: 'synthetic-2026.10' }, publicationReady: false, executionEnabled: false }
 };
+// A builder the server reports available, every gate verified: the build-ready shape.
+export const availableBuild = { available: true, reference: 'netbka/elma365#60', contracts: ['elma365-native-materialization@1'], missing: [] };
+export const verifiedEligibility = { ...eligibilityFixtures.gates, eligible: true,
+  gates: ['scope', 'coverage', 'dependencies', 'target-profile', 'materialization'].map(id => gate(id, 'verified')) };
+// Synthetic route responses (POST composed-build / composed): a resolved body or the error the page's request() throws.
+const failure = (status, body) => Object.assign(Error(body.error || 'synthetic'), { status, body, requiresRefresh: false });
+export const buildResponseFixtures = {
+  validated: { outcome: 'validated', receipt: { status: 'validated', worker: 'synthetic-worker' },
+    manifest: { schemaVersion: 1, status: 'materialized', evidenceBasis: 'native', manifestDigest: 'd'.repeat(64), artifacts: [{ id: 'package' }, { id: 'process-runtime' }], blockers: [] } },
+  blocked: failure(409, { outcome: 'blocked', gates: [eligibilityFixtures.gates.gates[2]], eligibility: eligibilityFixtures.gates, manifest: null }),
+  failed: failure(422, { outcome: 'failed', reasons: [{ reason: 'native-validation-failed' }], receipt: null, manifest: null }),
+  stale: failure(409, { outcome: 'stale', reasons: [{ reason: 'stale-build-input' }], receipt: null, manifest: null }),
+  notAccepted: failure(409, { error: 'The change is not the latest accepted merged revision of this Solution' }),
+  inProgress: failure(409, { outcome: 'in-progress', error: 'synthetic' }),
+  staleFreeze: failure(409, { outcome: 'refused', reason: 'stale-build', detail: 'expected-revision', candidate: null }),
+  lost: Object.assign(Error('Ответ не получен.'), { requiresRefresh: true })
+};
+// Build-flow story modes: what the synthetic build and freeze routes answer (null: not reached).
+export const buildFlowModes = { 'build-ready': ['validated', null], 'build-no-merge': [null, null], 'build-refused': ['blocked', null], 'build-failed': ['failed', null],
+  'build-stale': ['stale', null], 'build-not-accepted': ['notAccepted', null], 'build-lost': ['lost', null], 'freeze-stale': ['validated', 'staleFreeze'] };
 export function composedCandidateFixture({ id = '11111111-1111-4111-8111-111111111111', sha = 'a', status = 'current', approved = false, createdAt = '2026-10-14T09:00:00Z' } = {}) {
   const revision = approved ? 2 : 1;
   return { schemaVersion: 1, id, solutionId: 'synthetic-workspace', code: 'synthetic_solution', revision, createdAt,
@@ -54,6 +74,9 @@ export function solutionComposerFixture(mode = 'build-blocked') {
   const eligibility = mode === 'build-gates' ? eligibilityFixtures.gates : mode === 'eligibility-load-error' ? { loadError: 'Учебная ошибка: проверка сборки не получена.' } : eligibilityFixtures.current;
   model.composed = { candidates, build, eligibility, selected, selectedId: mode === 'missing' ? '99999999-9999-4999-8999-999999999999' : selected?.id };
   if (mode === 'load-error') model.composed = { loadError: 'Учебная ошибка: состояние сборок не получено.' };
+  // A builder and every gate verified; `build-no-merge` accepted its last change without a three-way merge.
+  if (buildFlowModes[mode]) model.composed = { candidates: [stale], build: availableBuild, eligibility: verifiedEligibility, selected: null, selectedId: null };
+  if (mode === 'build-no-merge') delete model.workspace.changes.at(-1).resolution;
   // Delivery data in the shared renderer's shape; attempts are synthetic.
   const connection = { id: 'synthetic-target', name: 'Учебный TEST', role: 'target', environment: 'test', adapter: 'synthetic',
     probe: { ok: true, identity: { host: 'test.example.invalid', version: 'synthetic-2026.10' } } };

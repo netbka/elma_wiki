@@ -4,7 +4,7 @@ import { decisionChoices, decisionDefault, canCloseWithoutChanges, solutionStatu
 import { mountSnapshotVisual } from '../visual/render.js';
 import { mountExplanation } from '../explanations/render.js';
 import { mountRelease } from '../releases/render.js';
-import { hasAcceptedFullExport, requestCounts, fieldRequestCounts, viewedProgress } from './model.js';
+import { hasAcceptedFullExport, requestCounts, fieldRequestCounts, viewedProgress, acceptedMergeTarget } from './model.js';
 import { mountAcquisition, mountSolutionPull, serverFromConnection } from './acquisition.js';
 import { actions as actionLabels, pull as pullLabels, partMerge } from './labels.js';
 import { mountDependencies } from './dependencies.js';
@@ -147,7 +147,7 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
     }
     if (view === 'compose' && model.shared) {
       content.append(mountComposer({ candidates: model.composed?.candidates || [], build: model.composed?.build, eligibility: model.composed?.eligibility, selected: model.composed?.selected || null,
-        selectedId: model.composed?.selectedId, loadError: model.composed?.loadError, error: model.composed?.error }, { ...actions.composed, link, candidateHref: composeHref, listHref: composeHref() }));
+        selectedId: model.composed?.selectedId, loadError: model.composed?.loadError, error: model.composed?.error, target: acceptedMergeTarget(state) }, { ...actions.composed, link, candidateHref: composeHref, listHref: composeHref() }));
       return root;
     }
     // UX-07: requests are a Solution feature; the entry points open the form in place,

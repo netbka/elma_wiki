@@ -260,11 +260,30 @@ test('accepting a resolved change makes its resolution the accepted merged revis
   assert.deepEqual(stored.acceptedMerge.before.current, current.current);
   assert.equal(stored.completedReviews.at(-1).acceptedDecision.mergeResolutionId, resolved.head.id);
   assert.deepEqual((await managedWorkspaceStore(directory, projects).get(state.id, owner)).current, accepted.current, 'restart reads the accepted merged revision');
-  // A later acceptance without a resolution clears them.
-  const d = await prepare([['keep', 3]], 'C', { expectedRevision: accepted.revision, changeScope: scope(['keep']) });
-  await accept(d);
+  // A later conflict-free change records its empty resolution at acceptance and becomes the
+  // accepted merged revision. Its base copy of `conly` keeps the accepted edit instead of reverting it.
+  const d = await prepare([['keep', 3], ['conly', 0]], 'C', { expectedRevision: accepted.revision, changeScope: scope(['keep', 'conly']) });
+  const latest = await accept(d), merged = byCode(latest.current);
+  assert.equal(merged.conly.digest, components.conly.digest, 'a base copy in the partial keeps the accepted edit');
+  assert.notEqual(merged.keep.digest, components.keep.digest);
   const after = JSON.parse(await fs.readFile(path.join(directory, 'managed-workspaces', state.id, 'workspace.json'), 'utf8'));
-  assert.equal(after.acceptedMerge, undefined);
+  const automatic = after.mergeResolutions.at(-1);
+  assert.deepEqual([after.acceptedMerge.artifactId, after.acceptedMerge.resolutionId, after.acceptedMerge.revision], [d.artifactId, automatic.id, latest.revision]);
+  assert.deepEqual([automatic.planStatus, automatic.decisions, automatic.actor.login], ['clear', [], actor.login]);
+  assert.equal(latest.changes.at(-1).resolution.id, automatic.id);
+});
+
+test('a clear change is resolved at acceptance only with a recorded actor; otherwise the accepted merged revision is cleared', async t => {
+  const { store, state, scope, prepare, accept, directory } = await setup(t, [['div', 0], ['keep', 0]]);
+  const read = async () => JSON.parse(await fs.readFile(path.join(directory, 'managed-workspaces', state.id, 'workspace.json'), 'utf8'));
+  const a = await prepare([['div', 1]], 'A', { changeScope: scope(['div']) });
+  const current = await accept(a);
+  assert.equal((await read()).acceptedMerge.artifactId, a.artifactId);
+  const b = await prepare([['keep', 1]], 'A', { expectedRevision: current.revision, changeScope: scope(['keep']) });
+  await store.accept(state.id, owner, b.artifactId, { expectedRevision: b.revision, reviewedDigest: b.artifactDigest, reviewedBoundaryKeys: b.rows.filter(row => row.boundaryCrossing).map(row => row.key) });
+  const stored = await read();
+  assert.equal(stored.acceptedMerge, undefined);
+  assert.equal(stored.mergeResolutions.length, 1);
 });
 
 test('the pure reducer applies the chosen side and refuses stale or corrupt resolutions', async t => {

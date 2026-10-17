@@ -121,7 +121,9 @@ export const summaries = {
 };
 
 // Gate reasons shown on a disabled decision button
-export const gates = { chooseConflictVersions: 'Сначала выберите версию для конфликтов' };
+export const gates = { chooseConflictVersions: 'Сначала выберите версию для конфликтов',
+  resolveConflict: 'Другая команда уже изменила этот объект. Разрешите конфликт выше: выберите версию для каждого объекта.',
+  partMergeUnbuildable: 'Объединение по частям пока не создаёт файл конфигурации. Чтобы принять изменение, выберите версию объекта целиком.' };
 
 // Decision dialog (UX-03b): one button opens one dialog with three choices.
 export const decision = {
@@ -148,6 +150,35 @@ export const buildEligibility = {
   heading: 'Условия сборки', listName: 'Условия сборки конфигурации', notLoaded: 'Проверка состава, покрытия, зависимостей и профиля Target не получена. Сборка недоступна.',
   blockedSummary: 'Изменения приняты. Сборка конфигурации заблокирована: состав, покрытие, зависимости или профиль Target не подтверждены.',
   unknownReason: 'не описанная причина:', unit: 'единица установки', object: 'объект', module: 'модуль', fact: 'не хватает:'
+};
+// Composer build and freeze of the accepted merged revision. A build is held by the
+// server until it is frozen; only a frozen candidate can be reviewed or delivered.
+export const composerBuild = {
+  start: 'Собрать конфигурацию', retry: 'Собрать заново', freeze: 'Зафиксировать сборку', refresh: 'Обновить состояние',
+  ready: 'Сервер соберёт принятую версию решения. Сборка не устанавливается и не выбирает Target.',
+  running: 'Собираем конфигурацию. Это может занять несколько минут; не закрывайте страницу.',
+  validated: 'Сборка проверена. Зафиксируйте её: неизменяемые байты появятся в списке для решения по ним.',
+  manifest: 'Манифест сборки', artifacts: 'файлов сборки', reasons: 'Причины',
+  freezing: 'Фиксируем сборку…', frozen: 'Сборка зафиксирована. Открываем её…',
+  noMerge: 'Собрать можно только последнюю принятую версию, прошедшую сравнение трёх версий. Подготовьте изменение с указанной базой и примите его; после архивации примите изменение заново.',
+  noMergeSummary: 'Изменения приняты, но последняя принятая версия не прошла сравнение трёх версий. Собрать её нельзя.',
+  lost: 'Ответ сервера не получен. Обновите состояние перед повтором; сборка не повторяется автоматически.',
+  outcomes: {
+    unavailable: 'Нативная сборка стала недоступна. Повторите позже.',
+    blocked: 'Сборка заблокирована: условия сборки не выполнены.',
+    stale: 'Пока шла сборка, принятая версия или рецензия изменились. Обновите состояние и соберите заново.',
+    failed: 'Нативный сборщик не подтвердил сборку.',
+    'tool-fault': 'Нативный сборщик завершился с ошибкой или без результата.',
+    'unbound-receipt': 'Квитанция сборщика не относится к этому запросу сборки.',
+    'output-rejected': 'Результат сборки отклонён проверкой.',
+    'in-progress': 'Сборка этого решения уже выполняется. Дождитесь её и обновите состояние.',
+    'no-validated-build': 'Проверенной сборки для фиксации нет. Соберите конфигурацию заново.',
+    'foreign-build': 'Проверенная сборка относится к другой версии или сборщику. Соберите конфигурацию заново.',
+    'stale-build': 'Принятая версия изменилась после сборки. Обновите состояние и соберите заново.',
+    'build-in-progress': 'Сборка этого решения ещё выполняется. Дождитесь её и обновите состояние.',
+    changed: 'Принятая версия решения изменилась или не готова к сборке. Обновите состояние.',
+    unknown: 'Сервер отказал в сборке.'
+  }
 };
 export const buildGateLabels = { scope: 'Состав выпуска', coverage: 'Нативное покрытие', dependencies: 'Зависимости и лицензии', 'target-profile': 'Профиль Target', materialization: 'Нативная сборка' };
 export const buildGateStatuses = { verified: 'подтверждено', blocked: 'заблокировано', unknown: 'не подтверждено' };
@@ -183,7 +214,10 @@ export const buildBlockReasons = {
   'unverified-activation': 'активация не подтверждена', 'duplicate-provider': 'несколько поставщиков', 'unknown-required-provider': 'поставщик неизвестен',
   'ambiguous-provider': 'несколько возможных поставщиков', 'unknown-required-version': 'версия поставщика неизвестна', 'missing-binding': 'нет настройки подключения',
   'native-import-receipt': 'квитанция импорта', 'native-installation-observation': 'наблюдение установки', 'pinned-native-coverage-contract': 'закреплённый контракт покрытия',
-  'global-domain-executable-handler': 'обработчик глобальных настроек', 'global-domain-verification': 'проверка глобальных настроек'
+  'global-domain-executable-handler': 'обработчик глобальных настроек', 'global-domain-verification': 'проверка глобальных настроек',
+  'stale-build-input': 'входные данные изменились во время сборки', 'stale-build-eligibility': 'условия сборки изменились во время подготовки',
+  'native-validation-failed': 'нативная проверка пакета не пройдена', 'native-materialization-failed': 'нативный сборщик завершился с ошибкой',
+  'native-outcome-unknown': 'результат нативного сборщика неизвестен'
 };
 
 // Changed steps on the process diagram (UX-03b "Открыть схему")

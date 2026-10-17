@@ -104,6 +104,35 @@ try {
       assert.equal(await delivery().getByRole('button', { name: 'Подготовить учебную доставку' }).isDisabled(), true, 'no replay after a lost response');
     }
   }
+  // Build then freeze of the accepted merged revision, with every refusal and the lost response.
+  for (const id of ['build-ready', 'build-no-merge', 'build-refused', 'build-failed', 'build-stale', 'build-not-accepted', 'build-lost', 'freeze-stale']) {
+    await open(id);
+    const build = composer().getByRole('button', { name: 'Собрать конфигурацию', exact: true });
+    if (id === 'build-no-merge') {
+      assert.equal(await build.isDisabled(), true); assert.match(await text(composer()), /прошедшую сравнение трёх версий/); continue;
+    }
+    assert.equal(await build.isEnabled(), true, id);
+    assert.equal(await composer().getByRole('button', { name: 'Зафиксировать сборку' }).count(), 0, 'nothing to freeze before a build: ' + id);
+    await build.click();
+    const card = composer().locator('[aria-label="Новая сборка"]');
+    const retry = composer().getByRole('button', { name: 'Собрать заново', exact: true });
+    if (id === 'build-ready' || id === 'freeze-stale') {
+      await card.getByText('Сборка проверена').waitFor();
+      assert.match(await text(card), /Манифест сборки: dddddddddddd · файлов сборки: 2/);
+      await card.getByRole('button', { name: 'Зафиксировать сборку' }).click();
+      if (id === 'build-ready') { await page.getByText(/Сборка зафиксирована/).first().waitFor(); continue; }
+      await card.getByText('Принятая версия изменилась после сборки').waitFor();
+      assert.equal(await retry.isDisabled(), true, 'a stale freeze needs a fresh read');
+      await card.getByRole('link', { name: 'Обновить состояние' }).waitFor(); continue;
+    }
+    const expected = { 'build-refused': /Сборка заблокирована.*зависимость не закреплена/, 'build-failed': /не подтвердил сборку.*нативная проверка пакета не пройдена/,
+      'build-stale': /изменились.*входные данные изменились во время сборки/, 'build-not-accepted': /изменилась или не готова к сборке/, 'build-lost': /Ответ сервера не получен/ }[id];
+    await card.locator('[role=alert]').waitFor();
+    assert.match(await text(card.locator('[role=alert]')), expected, id);
+    const refresh = ['build-stale', 'build-not-accepted', 'build-lost'].includes(id);
+    assert.equal(await retry.isDisabled(), refresh, 'retry only without moved inputs: ' + id);
+    assert.equal(await card.getByRole('link', { name: 'Обновить состояние' }).count(), refresh ? 1 : 0, id);
+  }
   for (const [id, label] of [['next-compare', 'Сравнить изменения'], ['next-resolve', 'Разрешить конфликт'], ['next-unknown-base', 'Указать базу изменения'], ['next-build-blocked', 'Открыть сборку'], ['next-review-build', 'Рассмотреть сборку'], ['next-verify', 'Проверить конфигурацию']]) {
     await open(id);
     const primary = page.locator('.managed-actions a.button').first();
@@ -116,7 +145,7 @@ try {
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `no horizontal scroll at ${width}: ${id}`);
   }
   assert.deepEqual(errors, []);
-  console.log('Solution composer stories: build blocked with eligibility gates and reasons, candidate review, stale, delivery outcomes, failure/retry and next actions verified.');
+  console.log('Solution composer stories: build blocked with eligibility gates and reasons, build then freeze with refusals and lost response, candidate review, stale, delivery outcomes, failure/retry and next actions verified.');
 } finally {
   await browser?.close();
   server.close();

@@ -188,8 +188,7 @@ existing review action with a required reason. An approved or stale candidate
 mounts the shared delivery renderer (`web/releases/delivery.js`) through
 `composedDeliveryClient`, so prepare/confirm/read-back, `partial-outcome`
 unit receipts, unknown outcome and lost-response recovery behave exactly as
-for the handoff; a stale candidate shows history read-only. The «Собрать
-конфигурацию» button stays disabled. `GET /api/delivery/capabilities` reports
+for the handoff; a stale candidate shows history read-only. `GET /api/delivery/capabilities` reports
 `composedBuild: {available, reason, detail, reference: 'netbka/elma365#60',
 contracts, missing}`. It is available only with `WIKI_NATIVE_MATERIALIZATION_*`
 configured and a healthy bridge; otherwise `reason` is
@@ -203,9 +202,26 @@ shows unknown keys with a neutral fallback and derives its reason text from
 `contracts`. The composer also reads `GET /api/solutions/:id/composed-eligibility`
 and lists «Условия сборки»: scope, native coverage, dependency locks, Target
 profile and materialization, each with every blocking reason
-([composed-build-eligibility.md](composed-build-eligibility.md)). Build is
-enabled only when the builder is available and every gate is verified. The
-screen never presents a build as working. Storybook: `solution-composer--*`; check:
+([composed-build-eligibility.md](composed-build-eligibility.md)).
+
+«Собрать конфигурацию» is enabled only when three things hold: the builder is
+available, every gate is verified, and the Solution's last history entry is a
+`change-accepted` at the current revision whose `changes` entry carries a
+`resolution` (`acceptedMergeTarget`). Archive/reopen and reconciliation move the
+revision and disable it. This is a hint only; the build route re-checks the
+accepted merged revision.
+
+The button posts `{artifactId, expectedRevision}` to the build route. A
+`validated` response shows the manifest digest and «Зафиксировать сборку», which
+posts the same pair plus `manifestDigest` to the freeze route and opens the
+frozen candidate. A `blocked` or failed build, or a missing or foreign held build,
+names its reasons and may be retried. A `stale` build or freeze, a refused
+request with no outcome, `in-progress` or a lost response disables retry and
+asks for a fresh read; neither request is replayed. Without an accepted merged
+revision the button stays disabled and says what to do. The screen never
+presents a build as working. Storybook: `solution-composer--*` (build flow:
+`build-ready`, `build-no-merge`, `build-refused`, `build-failed`,
+`build-stale`, `build-not-accepted`, `build-lost`, `freeze-stale`); check:
 `npm run test:composer:storybook`.
 
 Candidate provenance and release eligibility are separate facts. A record with

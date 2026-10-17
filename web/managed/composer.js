@@ -1,9 +1,10 @@
 import { dateLabel } from './model.js';
 import { mountDelivery } from '../releases/delivery.js';
-import { buildEligibility, buildGateLabels, buildGateStatuses, buildBlockReasons, grouping, candidateEvidence } from './labels.js';
+import { buildEligibility, buildGateLabels, buildGateStatuses, buildBlockReasons, grouping, candidateEvidence, composerBuild } from './labels.js';
 // Solution composer (#94 MR-06): a pure projection of server-frozen composed
 // candidates plus the server's build capability. The server stays authoritative:
-// The UI does not invoke the build/freeze routes yet; evidence labels never grant delivery.
+// it builds the accepted merged revision, holds the validated build and freezes it
+// on confirmation; evidence labels never grant delivery.
 export const composerMissingLabels = {
   'native-materialization-worker': 'нативный исполнитель сборки, реализующий опубликованный контракт',
   'versioned-materialization-request-contract': 'версионированный запрос нативной сборки',
@@ -62,6 +63,22 @@ export function buildEligibilityView(eligibility) {
   const gates = eligibility.gates.map(gate => ({ id: gate.id, label: buildGateLabels[gate.id] || gate.id, status: gate.status,
     statusLabel: buildGateStatuses[gate.status] || buildGateStatuses.unknown, reasons: reasonLines(gate.reasons || []) }));
   return { eligible: eligibility.eligible === true && gates.every(gate => gate.status === 'verified'), loaded: true, gates };
+}
+
+// A refused or lost build/freeze request as one notice. A request whose inputs
+// moved (or whose response was lost) needs a fresh read before another build;
+// a blocked or failed build may be retried as is.
+const RETRYABLE = new Set(['blocked', 'unavailable', 'failed', 'tool-fault', 'unbound-receipt', 'output-rejected', 'no-validated-build', 'foreign-build']);
+export function buildFailureView(error = {}) {
+  if (!error.status) return error.requiresRefresh ? { message: composerBuild.lost, reasons: [], refresh: true }
+    : { message: error.message || composerBuild.outcomes.unknown, reasons: [], refresh: false };
+  const body = error.body && typeof error.body === 'object' ? error.body : {};
+  const key = body.outcome === 'refused' ? body.reason : body.outcome;
+  const list = value => Array.isArray(value) ? value.filter(row => row && typeof row.reason === 'string') : [];
+  const gates = Array.isArray(body.gates) ? body.gates.flatMap(gate => reasonLines(list(gate?.reasons))) : [];
+  const reasons = [...gates, ...reasonLines([...list(body.blockers), ...list(body.reasons)])];
+  const refresh = !!error.requiresRefresh || !RETRYABLE.has(key);
+  return { message: composerBuild.outcomes[key] || (error.status === 409 ? composerBuild.outcomes.changed : composerBuild.outcomes.unknown), reasons, refresh };
 }
 
 export function composedCandidateRow(record) {
@@ -130,16 +147,20 @@ export function mountComposer(model = {}, actions = {}) {
   root.append(el('p', view.summary));
 
   const build = el('div', undefined, 'managed-card'); build.setAttribute('aria-label', 'Новая сборка');
-  const start = el('button', 'Собрать конфигурацию'); start.type = 'button'; start.disabled = true; start.dataset.unavailable = 'true';
+  const target = model.target ?? null, canBuild = view.build.available && !!target && typeof actions.build === 'function' && typeof actions.freeze === 'function';
+  const start = el('button', composerBuild.start); start.type = 'button'; start.disabled = !canBuild;
+  if (!canBuild) start.dataset.unavailable = 'true';
   build.append(el('h3', 'Новая сборка'), start);
-  if (view.build.available) build.append(el('p', 'Сборка запускается сервером из принятых входных данных; результат появится в списке.', 'managed-muted'));
+  if (view.build.available) build.append(el('p', target ? composerBuild.ready : composerBuild.noMerge, target ? 'managed-muted' : 'managed-note'));
   else {
     build.append(el('p', view.build.reason, 'managed-note'));
     if (view.build.missing.length) { const list = el('ul'); list.setAttribute('aria-label', 'Чего не хватает для нативной сборки'); view.build.missing.forEach(text => list.append(el('li', text))); build.append(list); }
     build.append(el('p', 'Нерабочая сборка не изображается рабочей: учебные сборки ниже созданы синтетическим сборщиком и не являются пакетом ELMA.', 'managed-muted'));
   }
-  build.append(mountEligibility(view.build.eligibility));
+  const outcome = el('div', undefined, 'managed-build-outcome');
+  build.append(outcome, mountEligibility(view.build.eligibility));
   root.append(build);
+  if (canBuild) mountBuildFlow({ start, outcome, status, error, target, actions, link });
 
   if (view.missingSelection) root.append(el('p', 'Выбранная сборка не найдена в этом решении.', 'managed-note'));
   const list = el('div', undefined, 'managed-list');
@@ -155,6 +176,46 @@ export function mountComposer(model = {}, actions = {}) {
   if (view.rows.length) root.append(el('h3', `Сборки · ${view.rows.length}`), list);
   if (view.selected && model.selected) root.append(mountCandidate(model.selected, view.selected, actions, { status, error }));
   return root;
+}
+
+// Build, then freeze: the server holds one validated build per Solution and freezes
+// it only when this page confirms its manifest digest. Neither request is replayed
+// after a lost response; a moved input needs a fresh read before another build.
+function mountBuildFlow({ start, outcome, status, error, target, actions, link }) {
+  let busy = false, blocked = false;
+  const sync = () => { start.disabled = busy || blocked; };
+  const fail = e => {
+    const failure = buildFailureView(e);
+    blocked = failure.refresh; status.textContent = '';
+    const notice = el('div', undefined, 'managed-error'); notice.setAttribute('role', 'alert');
+    notice.append(el('p', failure.message));
+    if (failure.reasons.length) { const list = el('ul'); list.setAttribute('aria-label', composerBuild.reasons); failure.reasons.forEach(text => list.append(el('li', text))); notice.append(list); }
+    if (failure.refresh) notice.append(link(composerBuild.refresh, actions.listHref, true));
+    outcome.replaceChildren(notice); start.textContent = composerBuild.retry;
+  };
+  const validated = result => {
+    const manifest = result?.manifest;
+    if (result?.outcome !== 'validated' || manifest?.status !== 'materialized'
+      || !/^[a-f0-9]{64}$/.test(manifest?.manifestDigest) || !Array.isArray(manifest.artifacts)) {
+      fail({ status: 409, body: result, requiresRefresh: true }); return;
+    }
+    const freeze = el('button', composerBuild.freeze); freeze.type = 'button';
+    freeze.onclick = async () => {
+      if (busy || blocked) return;
+      busy = true; freeze.disabled = true; sync(); error.textContent = ''; status.textContent = composerBuild.freezing;
+      try { await actions.freeze({ ...target, manifestDigest: manifest.manifestDigest }); status.textContent = composerBuild.frozen; }
+      catch (e) { fail(e); } finally { busy = false; sync(); }
+    };
+    outcome.replaceChildren(el('p', composerBuild.validated, 'managed-accepted'),
+      el('p', `${composerBuild.manifest}: ${manifest.manifestDigest.slice(0, 12)} · ${composerBuild.artifacts}: ${(manifest.artifacts || []).length}`, 'change-text'), freeze);
+    start.textContent = composerBuild.retry;
+  };
+  start.onclick = async () => {
+    if (busy || blocked) return;
+    busy = true; sync(); error.textContent = ''; outcome.replaceChildren(); status.textContent = composerBuild.running;
+    try { const result = await actions.build(target); status.textContent = ''; validated(result); }
+    catch (e) { fail(e); } finally { busy = false; sync(); }
+  };
 }
 
 // Each gate with its status; a gate that is not verified lists every reason it blocks.

@@ -1,5 +1,5 @@
 import { mountManagedWorkspace } from '../../web/managed/render.js';
-import { solutionComposerFixture, composerNextActionFixture } from '../../web/managed/composer-fixtures.js';
+import { solutionComposerFixture, composerNextActionFixture, buildFlowModes, buildResponseFixtures } from '../../web/managed/composer-fixtures.js';
 
 // Same production renderer as /solutions?view=compose; synthetic candidates and a synthetic stand only.
 function story(mode) {
@@ -15,7 +15,12 @@ function story(mode) {
       return explain();
     }
   };
-  const root = mountManagedWorkspace(model, { composed: { deliveryClient, change: explain },
+  // Build then freeze, answered by the synthetic route responses of this mode.
+  const [built, frozen] = buildFlowModes[mode] || [];
+  const answer = key => { const value = buildResponseFixtures[key]; if (value instanceof Error) throw value; return structuredClone(value); };
+  const build = async () => answer(built);
+  const freeze = async () => { if (frozen) answer(frozen); root.querySelector('[role=status]').textContent = 'Учебная навигация: сборка зафиксирована; откройте состояние «Ожидает решения» в меню Storybook.'; };
+  const root = mountManagedWorkspace(model, { composed: { deliveryClient, change: explain, ...(built ? { build, freeze } : {}) },
     navigate: () => { root.querySelector('[role=status]').textContent = 'Учебная навигация: выберите нужное состояние в меню Storybook.'; } });
   return root;
 }
@@ -26,6 +31,16 @@ export const BuildBlocked = { render: () => story('build-blocked'), parameters: 
 export const BuildGates = { render: () => story('build-gates'), parameters: { docs: { description: { story:
   'Условия сборки: каждое условие со своим состоянием и каждой причиной блокировки. Учебный пример: зависимость по кругу, неизвестный вид объекта, платный модуль без подтверждения лицензии и устаревший профиль Target.' } } } };
 export const EligibilityLoadError = { render: () => story('eligibility-load-error') };
+export const BuildReady = { render: () => story('build-ready'), parameters: { docs: { description: { story:
+  'Сборщик доступен, все условия подтверждены. «Собрать конфигурацию» собирает последнюю принятую версию; проверенная сборка ждёт «Зафиксировать сборку», и только зафиксированные байты попадают в список. Ответы сервера учебные.' } } } };
+export const BuildNoMerge = { render: () => story('build-no-merge'), parameters: { docs: { description: { story:
+  'Последнее изменение принято без сравнения трёх версий: собирать нечего, кнопка заблокирована и объяснено, что сделать.' } } } };
+export const BuildRefused = { render: () => story('build-refused') };
+export const BuildFailed = { render: () => story('build-failed') };
+export const BuildStale = { render: () => story('build-stale') };
+export const BuildNotAccepted = { render: () => story('build-not-accepted') };
+export const BuildLost = { render: () => story('build-lost') };
+export const FreezeStale = { render: () => story('freeze-stale') };
 export const List = { render: () => story('list') };
 export const AwaitingApproval = { render: () => story('awaiting-approval') };
 export const Approved = { render: () => story('approved') };
