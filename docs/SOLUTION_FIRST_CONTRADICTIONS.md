@@ -1,6 +1,6 @@
 # Solution-first contradiction and migration register
 
-Status: active product-convergence register. Updated 2026-10-15.
+Status: active product-convergence register. Updated 2026-10-17.
 Authority: [SOLUTION_FIRST_PRODUCT_PLAN.md](SOLUTION_FIRST_PRODUCT_PLAN.md), with the owner's working-configuration correction #94 / PR #92.
 
 ## Current resolutions
@@ -9,6 +9,7 @@ Authority: [SOLUTION_FIRST_PRODUCT_PLAN.md](SOLUTION_FIRST_PRODUCT_PLAN.md), wit
 | --- | --- | --- |
 | Audit described review as the complete product and native delivery as optional | Owner explicitly requires comparison, merge/conflict resolution and working configuration release | Correct product/execution/audit; #94 and native elma365#60 implement missing composition, #11 retains delivery |
 | Current reducer offers conservative whole-file choices, not general merge | This is a current implementation limit, not a prohibition on building the required merge capability | Extend existing reducer with explicit bases, stable part identity and resolutions; preserve old guards until proven |
+| Build timing: the next-action map builds an accepted merged revision, but acceptance ignored durable resolutions and the merged build/freeze routes (#147/#148) accepted only a pending resolved change, while the UI offered Build only after acceptance | Owner decision 2026-10-17: the plan wins. Build follows acceptance of the resolved change | Slice 1 (this register update): acceptance applies and binds the current whole-component resolution and keeps its pre-acceptance inputs privately. Next: rebind build/freeze to the accepted merged revision, then the composer build/freeze UI and the review gate for resolved cross-team changes. Same-team divergent edits without a resolution still take the incoming component (open MR-02 gap) |
 | Integrated P3 conflict decisions and P5 dependency accounting vs working release | Durable whole-component decisions and fail-closed dependency evidence are intermediate capabilities | PR #111 preserves exact B/A/C inputs without applying or accepting the resolved state; PR #108 has no native receipt contract or production wiring. Materialization and required native/Target acceptance remain open under #94/#11 |
 | Virtual accepted state vs deployable package | Resolved virtual state must materialize before release | Never package from sanitized index; native stage/compiler or proven isolated assembler; MR-03 |
 | Existing all-Solutions inspection bundle vs full server release | A full configuration must account for global configuration and required dependencies too | Executable native package set/actions, coverage inventory, locked profile; MR-04 |

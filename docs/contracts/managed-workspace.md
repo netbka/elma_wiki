@@ -252,8 +252,9 @@ store queue and requires the current workspace revision, the current plan
 digest and the current head ID (`null` for the first). A changed base, accepted
 change, reconciliation, replacement upload or competing save therefore fails
 with 409 instead of overwriting; earlier revisions are never edited, rebased or
-copied to a replacement change. A resolution does not advance the workspace
-revision, accept the change or alter A. A failed atomic write leaves the
+copied to a replacement change. Recording a resolution does not advance the
+workspace revision, accept the change or alter A; acceptance applies it (see
+[Accepting a resolved change](#accepting-a-resolved-change)). A failed atomic write leaves the
 previous committed history; restart reads it unchanged. At most 50 revisions
 are kept per change.
 
@@ -262,8 +263,10 @@ The shared Solutions API exposes `GET` / `POST
 `merge` object for partial changes. The legacy owner-scoped
 `/api/managed-workspaces` routes are unchanged. The existing review renderer
 shows **Совмещение с принятыми изменениями** (`web/managed/merge.js`) only when a
-declared base yields a non-clear plan or history exists; existing acceptance
-gates are unchanged and a stale review still cannot be accepted.
+declared base yields a non-clear plan or history exists. A stale review still
+cannot be accepted, and the renderer's acceptance gate still blocks every
+cross-team overlap, including a resolved one; offering acceptance of a resolved
+change in the review screen is an open UI step.
 
 For a `divergent` row with an unblocked part plan, `merge-parts` (`PART_MERGE_CHOICE`)
 is an additional explicit choice. `partDecisions[componentKey][partId]` must give a
@@ -278,9 +281,35 @@ no physical source for it and blocks (`unlocatable-component-source`). The store
 review renderer offers **Совместить части процесса**, part choices, blockers and
 findings (Storybook `merge-parts`, `merge-parts-blocked`).
 
-Applying a resolved revision to the working state, part-level adapters for other
-kinds, generating a merged process file, package/dependency reconciliation and physical materialization
-(P6) remain open. Evidence: `node --test test/managed-merge-resolution.test.mjs
+### Accepting a resolved change
+
+The product's next-action map builds an accepted merged revision, so acceptance
+applies the resolution. When the pending change has a resolution head, `accept`
+passes it to `acceptManagedChange`. The reducer recomputes the plan for the exact
+current state and change, and refuses (409) a `stale` or `corrupt` head and any
+`merged-parts` row, because a part-merged component has no physical file yet.
+Each result row then sets the working component: `incoming` takes C's component
+(team and intervention as for an ordinary change), `current` keeps A's exact
+component, and `absent` removes it. Each digest must equal the reviewed component.
+Because every conflicting component carries an explicit decision, a cross-team
+overlap no longer blocks acceptance of a resolved change. The boundary review,
+reviewed digest, revision and stale-review guards are unchanged. The accepted
+`changes` entry records `resolution: {id, revisionDigest, resultDigest,
+planDigest, acceptedFromRevision}`, and the completed review records
+`acceptedDecision.mergeResolutionId`.
+
+The store keeps the pre-acceptance state of the latest accepted resolved change
+as the private `acceptedMerge` record (`artifactId`, `resolutionId`, accepted
+`revision`, `before`). It is not part of any API view; a build re-derives the exact
+plan from it. Any later acceptance replaces or clears it. A change without a
+resolution is accepted as before: its captured components are applied, and a
+cross-team overlap still requires reconciliation. A same-team divergent edit
+without a resolution therefore still takes the incoming component; requiring a
+resolution for it is an open MR-02 gap.
+
+Part-level adapters for other kinds, generating a merged process file,
+package/dependency reconciliation and physical materialization (P6) remain
+open. Evidence: `node --test test/managed-merge-resolution.test.mjs
 test/managed-merge-parts.test.mjs test/managed-merge-view.test.mjs`, the Solutions API case in
 `test/solutions-api.test.mjs` and `npm run test:merge-resolution:browser`.
 
@@ -310,7 +339,7 @@ State/list responses expose `baselineAcceptedAt`; only full baseline creation/ac
 ## Remaining integration gates
 
 - The shared UI provides explicit scope/Source confirmations; uncoached first use and independent product review remain separate gates. Storage receives a trusted owner, not a browser identity assertion.
-- Package-level metadata/dependency reconciliation and finer component adapters where stable identity is proven. An entity projection does not represent a deployable complete package. Partial deletion uses only the bounded tombstone declaration above; whole-component delete/edit choices are recorded as durable resolutions, but applying them to the working state and native part deletion remain open.
+- Package-level metadata/dependency reconciliation and finer component adapters where stable identity is proven. An entity projection does not represent a deployable complete package. Partial deletion uses only the bounded tombstone declaration above; whole-component delete/edit choices are recorded as durable resolutions and applied on acceptance; native part deletion remains open.
 - Candidate handoff must use #11's exact artifact/review contract and cannot construct an archive from this projection. For PLAN-01 P7 composed candidates, the trusted `withResolvedInputs` guard holds this store's queue while the Solution is active, the change is pending and not superseded, there are no open findings, and the current resolution head plus workspace revision and review-event digest equal the candidate binding. It never composes bytes. See [target deployment](target-deployment.md).
 - Shared Solution UI, attributed Change discussion, contextual supported code and captured process/form preview are wired. Live candidate/delivery integration, independent human usability and final owner acceptance remain separate gates.
 
