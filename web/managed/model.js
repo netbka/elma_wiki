@@ -104,10 +104,17 @@ export function groupObjects(rows = []) {
 }
 // UX-03: one summary of a review. Buckets follow the existing classifications;
 // nothing here changes gates, digests or decisions.
-export const reviewBucket = row => row.conflict || row.classification === 'conflict' ? 'conflicts'
+export const reviewBucket = row => row.conflict || row.mergeConflict || row.classification === 'conflict' ? 'conflicts'
   : row.classification === 'unchanged' ? 'unchanged' : row.classification === 'intervention-added' ? 'added'
   : row.classification === 'component-deleted' ? 'removed' : row.classification === 'ambiguous' ? 'unknown' : 'modified';
-export function reviewSummary(review, rows = review?.rows || []) {
+// Responsibility flags and three-way merge conflicts are different evidence.
+// Preserve both in the display projection without changing captured review rows.
+export function reviewRows(review) {
+  const conflicts = new Set((review?.merge?.head?.status === 'current' ? [] : review?.merge?.plan?.rows || [])
+    .filter(row => row.status === 'resolution-required').map(row => row.key));
+  return (review?.rows || []).map(row => conflicts.has(row.key) ? { ...row, mergeConflict: true } : row);
+}
+export function reviewSummary(review, rows = reviewRows(review)) {
   const counts = { modified: 0, added: 0, removed: 0, conflicts: 0, unchanged: 0, unknown: 0 };
   for (const row of rows) counts[reviewBucket(row)]++;
   const changed = rows.length - counts.unchanged;
@@ -157,6 +164,7 @@ export function reviewGate(review, boundaryKeys = [], resolutions = {}) {
   // server re-checks it at acceptance. A part merge has no physical file yet.
   const head = review.kind === 'change' && review.merge?.head?.status === 'current' ? review.merge.head : null;
   if (head?.decisions?.some(row => row.parts)) return gateLabels.partMergeUnbuildable;
+  if (review.kind === 'change' && !head && review.merge?.plan?.status === 'resolution-required') return gateLabels.resolveConflict;
   if (review.kind === 'change' && !head && review.rows.some(row => row.conflict))
     return review.merge?.available ? gateLabels.resolveConflict : 'Другая команда уже изменила этот объект. Сначала согласуйте изменения через новый полный снимок.';
   if (review.kind === 'change' && review.rows.some(row => row.boundaryCrossing && !boundaryKeys.includes(row.key))) return gateLabels.confirmEachChange;
