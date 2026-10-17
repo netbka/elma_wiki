@@ -55,6 +55,10 @@ Earlier detailed comparison at Wiki `9f8f17c` used Dyk `57622c7`; fresh audit us
 | Legacy deletion deadline | Retain customer source/history under explicit Wiki retention, not Dyk deadlines |
 | CI or developer checks as acceptance | Evidence must match its layer; human #59/#41 remains deferred, #38 owner gate remains open |
 
+## Execution-status reconciliation (2026-10-17)
+
+Against main `6a3467f`, the execution plan's older duplicate table incorrectly described pinned native contracts, the composer, build/freeze routes and promotion UI as missing. One consolidated table now separates merged implementation (#133/#135/#146-#150) from still-missing native observations and P8 acceptance. The detailed release plan also records UX-07/08 and UX-09 materials as merged (#145/#151-#155). No product rule, live authorization or acceptance gate changed; historical checkpoints remain in Git.
+
 ## Language and ongoing document reconciliation
 
 Normal actions: Add solution, Add change, Compare changes, Resolve conflict, Review changes, Build configuration, Verify configuration, Prepare release, Verify target. One visually dominant next action; source/manifest/parser/candidate internals appear only when useful. No clever invented nouns.
