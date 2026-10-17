@@ -26,6 +26,7 @@ def container():
 
 # Fictional values only.
 SETTINGS = {'WIKI_TARGET_DEV2_URL': 'https://dev2.example.test',
+            'WIKI_TARGET_DEV2_DEPLOY_CANDIDATES': 'd' * 64 + ',' + 'e' * 64,
             'WIKI_NATIVE_MATERIALIZATION_BRIDGE_ID': '0b0e5c1a-1111-4222-8333-444455556666',
             'WIKI_NATIVE_MATERIALIZATION_BRIDGE_OWNER': 'vk:' + 'ab' * 32,
             'WIKI_NATIVE_MATERIALIZATION_REVISION': 'c' * 40,
@@ -162,6 +163,9 @@ class RuntimeSettingsTests(unittest.TestCase):
         bad = [{'VK_BOT_AUTH_TOKEN': 'x'}, {'PUBLIC_BASE_URL': 'https://other.example.org'},
                {'WIKI_TARGET_DEV2_URL': 'http://dev2.example.test'}, {'WIKI_TARGET_DEV2_URL': 'https://dev2.example.test/path'},
                {'WIKI_TARGET_DEV2_URL': 'https://user:pass@dev2.example.test'}, {'WIKI_TARGET_DEV2_URL': 'https://dev2.example.test\nX=1'},
+               {'WIKI_TARGET_DEV2_DEPLOY_CANDIDATES': 'D' * 64}, {'WIKI_TARGET_DEV2_DEPLOY_CANDIDATES': 'd' * 64 + ', ' + 'e' * 64},
+               {'WIKI_TARGET_DEV2_DEPLOY_CANDIDATES': 'd' * 64 + ','}, {'WIKI_TARGET_DEV2_DEPLOY_CANDIDATES': 'd' * 64 + '\n'},
+               {'WIKI_TARGET_DEV2_DEPLOY_CANDIDATES': ''},
                {'WIKI_NATIVE_MATERIALIZATION_BRIDGE_ID': 'not-a-uuid'}, {'WIKI_NATIVE_MATERIALIZATION_REVISION': 'A' * 40},
                {'WIKI_NATIVE_MATERIALIZATION_BRIDGE_OWNER': 'local'}, {'WIKI_NATIVE_TARGET_PROFILE_TARGET': 'main-dev'},
                {'WIKI_NATIVE_TARGET_PROFILE_TARGET': 'dev2\n'}, {'WIKI_NATIVE_TARGET_PROFILE_TARGET': ''}]

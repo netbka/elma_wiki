@@ -42,6 +42,7 @@ of these non-secret settings, put it in the private, ignored file
 | Key | Accepted value |
 | --- | --- |
 | `WIKI_TARGET_DEV2_URL` | lowercase HTTPS origin, no path or credentials, e.g. `https://dev2.example.invalid` |
+| `WIKI_TARGET_DEV2_DEPLOY_CANDIDATES` | the owner-designated frozen candidate SHA-256 values: 64 lowercase hex each, comma-separated without spaces |
 | `WIKI_NATIVE_MATERIALIZATION_BRIDGE_ID` | the bridge's UUID (v4, lowercase) |
 | `WIKI_NATIVE_MATERIALIZATION_BRIDGE_OWNER` | the owning Wiki user ID: `vk:` or `email:` plus 64 lowercase hex |
 | `WIKI_NATIVE_MATERIALIZATION_REVISION` | the pinned 40-hex elma365 worker revision |

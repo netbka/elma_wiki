@@ -8,6 +8,7 @@ NAME = 'elma-wiki'
 # lib/target-presets.mjs and lib/native-materialization-bridge.mjs, narrowed to production use.
 SETTINGS = {
     'WIKI_TARGET_DEV2_URL': re.compile(r'https://[a-z0-9]([a-z0-9.-]*[a-z0-9])?(:[0-9]{1,5})?'),
+    'WIKI_TARGET_DEV2_DEPLOY_CANDIDATES': re.compile(r'[0-9a-f]{64}(,[0-9a-f]{64})*'),
     'WIKI_NATIVE_MATERIALIZATION_BRIDGE_ID': re.compile(r'[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}'),
     'WIKI_NATIVE_MATERIALIZATION_BRIDGE_OWNER': re.compile(r'(vk|email):[0-9a-f]{64}'),
     'WIKI_NATIVE_MATERIALIZATION_REVISION': re.compile(r'[0-9a-f]{40}'),
