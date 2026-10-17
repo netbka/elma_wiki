@@ -19,6 +19,23 @@ unknown or changed host keys are rejected. No credentials enter Git, command
 arguments or the release archive; only the key's path is passed, never its content.
 No new production host is inferred.
 
+## Operator browser sign-in
+
+An operator may save a VK Teams sign-in link in the ignored local `.env` as
+`WIKI_OPERATOR_LOGIN_URL`. Treat the entire URL as a credential. With the
+operator's authorization, use it to open a browser session on the configured
+Wiki service; verify that it redirects to the authenticated Solutions page.
+The link and session expire. When sign-in fails or expires, obtain a fresh link
+from the existing VK Teams bot and replace the private value.
+
+This optional local reference is not server configuration, a bridge token or
+authorization to install an ELMA candidate. `prod:update` does not consume or
+deploy it. Never commit the value, put it in documentation, test fixtures or
+logs, or include it in a release archive. Documentation uses the variable name
+only; the real value stays in the operator-managed private `.env`.
+
+## Production SSH authentication
+
 `PROD_PASS` (password login, with the same password piped to `sudo`) is a
 **deprecated fallback allowed only until 2026-11-30** (engineering-platform EP-031,
 owner decision engineering-platform#82). It is used only when no key or agent is
