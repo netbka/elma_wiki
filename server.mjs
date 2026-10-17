@@ -43,13 +43,13 @@ async function body(req, max) {
   for await (const chunk of req) { size += chunk.length; if (size > max) throw Error('Размер запроса превышает лимит'); chunks.push(chunk); }
   return Buffer.concat(chunks);
 }
-function serve(req, res, directory, pathname) {
+function serve(req, res, directory, pathname, feedback = true) {
   const file = path.resolve(directory, '.' + (pathname === '/' ? '/index.html' : pathname));
   if (!file.startsWith(directory + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) return send(res, 404, { error: 'Страница не найдена' });
   res.writeHead(200, { 'Content-Type': types[path.extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-store' });
   if (req.method === 'HEAD') return res.end();
   if (path.extname(file) === '.html') {
-    const widget = '<link rel="stylesheet" href="/feedback/styles.css"><script type="module" src="/feedback/page.js"></script>';
+    const widget = feedback ? '<link rel="stylesheet" href="/feedback/styles.css"><script type="module" src="/feedback/page.js"></script>' : '';
     return res.end(fs.readFileSync(file, 'utf8').replace('</body>', widget + '</body>'));
   }
   fs.createReadStream(file).on('error', () => res.destroy()).pipe(res);
@@ -108,6 +108,7 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'no-referrer');
     res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
     res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
     try {
       const localHost = `${req.socket.localAddress}:${req.socket.localPort}`, allowed = new Set([base.host]);
@@ -659,6 +660,7 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
       }
       const portalMatch = /^\/p\/([^/]+)(\/.*)?$/.exec(pathname);
       if (portalMatch) {
+        if (!session) return send(res, 404, { error: 'Sign in to the internal service' });
         const [, id, requested = '/'] = portalMatch;
         if (!portalMatch[2]) { res.writeHead(302, { Location: `/p/${encodeURIComponent(id)}/` }); return res.end(); }
         const showcase = id === 'showcase', local = id === 'local' && session?.user.provider === 'local';
@@ -675,8 +677,10 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
       }
       if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, { error: 'Метод не поддерживается' });
       if (pathname === '/' && session) { res.writeHead(302, { Location: '/solutions' }); return res.end(); }
-      if (['/dashboard','/releases','/workspaces','/solutions','/requests','/bug-reports'].includes(pathname) && !session) { res.writeHead(302, { Location: '/login' }); return res.end(); }
-      if (['/', '/login', '/dashboard', '/guide', '/flows','/releases','/workspaces','/solutions','/requests','/bug-reports'].includes(pathname)) return serve(req, res, path.join(project, 'web'), pathname === '/' ? '/index.html' : pathname + '.html');
+      const entryPage = ['/', '/login'].includes(pathname);
+      if (!session && !entryPage && (!path.extname(pathname) || path.extname(pathname).toLowerCase() === '.html')) { res.writeHead(302, { Location: '/login' }); return res.end(); }
+      if (['/', '/login', '/dashboard', '/guide', '/flows','/releases','/workspaces','/solutions','/requests','/bug-reports'].includes(pathname)) return serve(req, res, path.join(project, 'web'), pathname === '/' ? '/index.html' : pathname + '.html', !!session);
+      if (!session && !['/service.js', '/service.css', '/project.css', '/login-view.js'].includes(pathname)) return send(res, 404, { error: 'Sign in to the internal service' });
       return serve(req, res, path.join(project, 'web'), pathname);
     } catch (error) {
       if (!res.headersSent) send(res, error.statusCode || error.status || 400, { error: error instanceof SyntaxError ? 'Некорректный JSON' : error instanceof URIError ? 'Некорректный URL' : error.code ? 'Операция хранилища недоступна' : /fetch|ENOTFOUND|ECONN/.test(error.message) ? 'Внешний сервис недоступен' : error.message });

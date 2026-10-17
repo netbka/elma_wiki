@@ -18,13 +18,33 @@ async function instance(t,options={}) {
 }
 async function login(request) { const r=await request('/auth/local',{method:'POST',headers}); assert.equal(r.status,200); return r.headers.getSetCookie()[0].split(';')[0]; }
 async function upload(request,cookie,bytes) { bytes ||= await fixture(); return request('/api/projects?filename=example.e365',{method:'POST',headers:{...headers,cookie,'Content-Type':'application/octet-stream'},body:bytes}); }
-test('public synthetic showcase; upload only, no empty portal or repository API',async t=>{
+test('internal synthetic showcase; upload only, no empty portal or repository API',async t=>{
   const {request}=await instance(t);
   assert.equal((await request('/')).status,200);
-  const demo=await (await request('/p/showcase/data.json')).json(); assert.equal(demo.synthetic,true); assert.equal(demo.entities.length,6);
+  assert.equal((await request('/p/showcase/data.json')).status,404);
   assert.equal((await request('/api/projects')).status,401);
   for (const route of ['/api/portals','/api/github/inspect']) assert.equal((await request(route,{method:'POST',headers,body:'{}'})).status,404);
   const cookie=await login(request); assert.equal((await request('/api/projects',{method:'POST',headers:{...headers,cookie,'Content-Type':'application/json'},body:'{}'})).status,415);
+  const demo=await (await request('/p/showcase/data.json',{headers:{cookie}})).json(); assert.equal(demo.synthetic,true); assert.equal(demo.entities.length,6);
+});
+test('all teaching pages, HTML aliases and content assets require a session',async t=>{
+  const {request}=await instance(t);
+  for (const route of ['/guide','/guide.html','/flows','/flows.html','/solutions.html','/dashboard.html','/workspace.html']) {
+    for (const method of ['GET','HEAD']) {
+      const response=await request(route,{method,redirect:'manual'});
+      assert.equal(response.status,302,`${method} ${route}`); assert.equal(response.headers.get('location'),'/login');
+    }
+  }
+  for (const route of ['/p/showcase','/p/showcase/','/p/showcase/data.json','/p/showcase/articles.js','/p/showcase/developer-articles.js','/flows/catalog.js','/managed/render.js'])
+    assert.equal((await request(route)).status,404,route);
+  for (const route of ['/','/login','/project.css','/service.js','/login-view.js']) {
+    const response=await request(route); assert.equal(response.status,200,route);
+    assert.equal(response.headers.get('x-robots-tag'),'noindex, nofollow, noarchive');
+    if (route==='/' || route==='/login') assert.doesNotMatch(await response.text(),/feedback\/page.js/);
+  }
+  const cookie=await login(request);
+  for (const route of ['/guide','/guide.html','/flows','/flows.html','/p/showcase/','/p/showcase/articles.js','/flows/catalog.js'])
+    assert.equal((await request(route,{headers:{cookie}})).status,200,route);
 });
 test('duplicate uploads have separate UUIDs; original, report, reparse, restart and delete',async t=>{
   const {request,directory}=await instance(t),cookie=await login(request),bytes=await fixture();

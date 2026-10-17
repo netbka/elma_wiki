@@ -1,11 +1,30 @@
 # Solution-first execution plan
 
 Authority: [SOLUTION_FIRST_PRODUCT_PLAN.md](SOLUTION_FIRST_PRODUCT_PLAN.md), including the owner's 2026-10-08 working-configuration correction (#94 / PR #92).
-Coordination: #52 / #91. This plan records required product work; individual workers claim bounded outcomes, not the whole roadmap. Implementation status below was reconciled against main `6a3467f` on 2026-10-17 using merged PR records, current code and contracts. It records merged code with synthetic evidence. It does not record deployment, live execution or native acceptance; see [STATE.md](STATE.md).
+Coordination: #52 / #91. Workers claim bounded outcomes, not the whole roadmap. Replanned on 2026-10-17 against Wiki main `3b503c6` (including #176), open #170/#175/#177, active worktrees including BUILD-EVIDENCE and native elma365 #106/#112/#113. This separates merged implementation from open work; it does not establish deployment or native acceptance. See [STATE.md](STATE.md).
 
 ## Goal
 
 Preserve the useful Solution-first review product and complete its missing path from parallel configuration changes to a working, installable, verified release. Review-only acceptance is an intermediate milestone, not the full product endpoint. Production promotion is a required product capability with separate operational authorization.
+
+## Immediate priority: internal DEV -> DEV2 review loop
+
+Owner direction 2026-10-17 narrows the audience to our team and prioritizes Contracts, Correspondence, Powers of attorney and Bonds. Public use/publication is removed from scope. The evidence and gaps are in [the process audit](audits/internal-dev2-process-2026-10-17.md).
+
+Detailed task packets, dependencies, module acceptance and current-worker disposition: [internal-dev2-review-loop.md](plans/internal-dev2-review-loop.md).
+
+| Priority | Outcome | Scheduling |
+| --- | --- | --- |
+| D0 | Internal-only service; no public publishing | Finish #175 review/integration; owner handles existing provider shutdown |
+| D1 | Full capture and actual coverage/identity inventory for all four modules | First new product task; Contracts is the first fidelity slice |
+| D2 | Separate DEV capture delta from exact verified DEV2-base delta | Alongside UI; unknown/drifted Target does not block source-only inspection |
+| D3/D4/D5 | Faithful forms/windows/processes, durable contextual corrections, changed-only explanation and impact | One coordinated UI stream, using existing renderers; first Contracts, deterministic explanations before optional AI |
+| D6 | Trusted native evidence, exact eligible candidate, DEV2 install/read-back/business checks/recovery | Continue existing native stream in parallel; feed installed-state evidence into D2 |
+| D7 | Repeat the full-capture/update cycle across the other three modules | Shared implementation with per-module native fidelity and acceptance evidence |
+
+Ordinary eligible full exports reuse unchanged-original handoff. Do not force a fictional parallel merge or rebuild of an unchanged native export for this interim workflow. Actual composition/edits retain all native build gates. These are assigned-next outcomes only when claimed, not implemented capabilities.
+
+Keep aligned current agents through their bounded verification/handoff. Avoid new broad generalization, PROD, IDE or bot-automation assignments until D7; public product work is excluded. The disposition table is a recommendation, not an executed pause. P8/native prerequisites continue and do not block inventory, source preview or comments. No live import/recovery should be interrupted between dispatch and reconciliation.
 
 ## Retained P0-P5 foundation
 
@@ -28,16 +47,16 @@ One status table is maintained here; detailed acceptance cases remain in the rel
 | --- | --- | --- |
 | MR-01 | Declared bases, bounded scope and evidence-bound deletion (#95/#103/#110); fixed Source pull supplies a source-sequence base (#130) | Ancestry stays unverified; pull order is not proof of independent changes |
 | MR-02 | Whole-component merge and durable resolutions (#107/#111); explicit process-part merge plan (#149) | Part-merged reference records still need physical file generation; other kinds need proven part adapters |
-| MR-03 | E1 schema 1.3 pin and opt-in materialization bridge (#113/#122/#127/#135); validated build route (#147) | No native build observed. Service evidence source is absent, so real builds remain blocked |
-| MR-04 | Scope planner, pinned native coverage contract/catalog and composer eligibility integration (#104/#109/#133/#135/#146) | Native declaration source, observed Target preconditions and complete required global coverage |
-| MR-05 | Pinned dependency-receipt contract and resolver wired into eligibility (#108/#133/#146) | Admitted native Target-profile observation and actual compatible/licensed dependency evidence |
-| MR-06 | Shared delivery coordinator and composer (#117/#123); trusted freeze route (#148) | The composer calls build, then freeze, for the accepted merged revision only (build-timing decision, slice 3); native candidates retain pending import/installation evidence and are refused for non-synthetic delivery |
+| MR-03 | E1 schema 1.3 pin and opt-in materialization bridge (#113/#122/#127/#135); validated build route (#147) | Native acceptance open. elma365 #112 now produces trusted build evidence; Wiki consumer and actual bridge/profile/coverage/compiler binding still need completion |
+| MR-04 | Scope planner, pinned native coverage contract/catalog and composer eligibility integration (#104/#109/#133/#135/#146) | Merged #176 observes the Target profile; the active build-evidence consumer, actual native declarations and complete required scope coverage remain |
+| MR-05 | Pinned dependency-receipt contract and resolver wired into eligibility (#108/#133/#146) | Merged #176 supplies admitted profile refresh; actual compatible/licensed dependency evidence and native acceptance remain |
+| MR-06 | Shared coordinator/composer (#117/#123); trusted freeze (#148); accepted-revision build/freeze UI (#165/#166/#168/#169); designated test-install basis (#171) | Native candidates with the permitted pending post-build evidence can reach the exact designated DEV2 test install; this is never release evidence or a promotion source. Native import/installation/business evidence remains open |
 | MR-07 | dev2 designation, presets and normalized read-back (#118/#119/#120) | P8: physical Contracts candidate, permitted native install, read-back, affected business route and recovery; none observed |
 | MR-08 | Promotion/reconciliation/retry/evidence logic (#124) and shared renderer actions (#150) | Restore rehearsal, target-specific native acceptance and concurrent-draft preservation beyond drift refusal. PROD remains refused without the separate trusted owner grant |
 
 Detailed contracts, negative cases, evidence and team boundaries: [working-configuration-release.md](plans/working-configuration-release.md).
 
-Critical path: MR-01 -> MR-02 -> MR-03 -> MR-06 -> MR-07 -> MR-08. MR-04/MR-05 must be resolved before a candidate is eligible for MR-06/MR-07. Start with one bounded Contracts vertical slice; expand every requested output scope through its own proven adapters. Block unsupported releases without redefining the intended product as a viewer.
+For composed releases: MR-01 -> MR-02 -> MR-03 -> MR-06 -> MR-07, with MR-04/MR-05 gates. This is the D6 native stream, not a prerequisite chain for D1-D5. MR-08 and unrelated wider scopes follow the four-module milestone; necessary native adapters/dependencies are current work. Block unsupported releases without redefining the product as a viewer.
 
 ## Next execution steps: P8 Contracts vertical slice
 
@@ -45,12 +64,12 @@ These are ordered outcomes, not claims of assigned or running workers. Coordinat
 
 | Order | Work and owner boundary | Exit evidence |
 | --- | --- | --- |
-| 1 | Native tooling (elma365#60): provide the admitted read-only `targetProfile` worker and coverage/dependency observations; Wiki: supply those observations and declarations to the existing eligibility gate | Real profile, coverage and dependency locks pass their pinned contracts; missing/stale evidence still blocks |
+| 1 | Wiki #176 profile refresh is merged. Continue the active BUILD-EVIDENCE consumer of elma365 #112 through the existing eligibility gate. Native `targetProfile` (#106), evidence producer (#112) and pre-import qualification fix (#113) are merged; verify the running revision and remaining compiler/dependency/coverage support | Fresh admitted profile, coverage, compiler and dependency evidence bound to exact inputs. A profile alone never makes a build eligible; missing/stale/unsupported evidence still blocks |
 | 2 | Composition (#94/native): resolve recorded Contracts section ownership through supported solution management, capture fresh full baseline/changes, and generate physical files for any selected part merge | Valid native composition and immutable original inputs; no forced ownership or stripped dependencies |
 | 3 | Operator/native boundary: observe the updated dev2 bridge with `--materialize`, configure the named Wiki materialization settings, and repeat metadata read-back | Actual worker health/capabilities and metadata-bearing read-back; merged configuration tooling alone is insufficient |
 | 4 | Wiki integration (#94/#11): complete the eligible build-to-freeze UI path using the existing routes; separate designated test-install eligibility from release completion without weakening evidence guards | Exact physical bytes and receipt bound to inputs; synthetic candidate, stale build and unknown evidence cannot become a verified release. Wiki side done with synthetic evidence: build/freeze UI (#165, #166, #168, #169) and the `designated-test-install` delivery basis, which is never release evidence or a promotion source ([target-deployment](contracts/target-deployment.md#composed-candidates-through-the-same-coordinator-plan-01-p7-mr-06)) |
 | 5 | P8 native acceptance (#37/#94/#11): designate the exact candidate digest, pass existing confirmation/reservation gates, install on dev2, read back and exercise the complete affected business route, then rehearse reset/recovery | Both intended changes survive, conflicts are resolved, source/runtime and outputs match; no-op, drift, partial and unknown outcomes fail safely |
-| 6 | Scope expansion / promotion (#94/#11): prove each additional required scope and destination through its own adapters, dependencies and acceptance | Target-specific evidence packet and recovery evidence; no inference of full-server support from one Contracts slice |
+| 6 | Feed the observed installed version into D2 and complete the other modules (D7); broader scopes/promotion follow | Per-module fidelity/delta/native evidence. Wider destinations/scopes later need their own adapters and recovery; no full-server claim from one Contracts slice |
 
 Steps 1-3 can progress independently where inputs permit. A process-runtime change additionally needs a proven native compiler; profile-2 edits remain unsupported by the current catalog. The recorded ownership decision and environment steps are detailed in the release plan's owner/environment gates. Live execution must follow the [target-deployment runbook](runbooks/target-deployment.md).
 

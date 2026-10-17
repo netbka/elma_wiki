@@ -86,7 +86,11 @@ try {
   directory = await fs.mkdtemp(path.join(os.tmpdir(), 'elma-flow-browser-'));
   wiki = createServer({ directory, allowLocal: true, sendEmail: undefined });
   await new Promise(resolve => wiki.listen(0, '127.0.0.1', resolve));
-  await page.goto(`http://127.0.0.1:${wiki.address().port}/flows`);
+  const wikiBase = `http://127.0.0.1:${wiki.address().port}`;
+  await page.goto(wikiBase + '/flows');
+  assert.equal(new URL(page.url()).pathname, '/login', 'Internal flow content requires a session');
+  assert.equal((await page.request.post(wikiBase + '/auth/local', { headers: { 'X-Elma-Wiki-Request': '1' } })).status(), 200);
+  await page.goto(wikiBase + '/flows');
   await page.getByRole('heading', { name: 'Как работает система', exact: true }).waitFor();
   await page.locator('[data-flow="investigation"]').click();
   await page.locator('[data-action="observe"]').click();

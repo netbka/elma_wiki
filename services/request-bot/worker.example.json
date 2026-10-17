@@ -16,8 +16,8 @@
       "repository": "netbka/elma_wiki",
       "baseRef": "main",
       "taskKind": "wiki_code",
-      "contextFiles": ["AGENTS.md", ".agent/capabilities.yaml", "docs/PUBLIC_DEPLOYMENT.md"],
-      "editableFiles": ["web/public.js", "test/public-site.test.mjs"],
+      "contextFiles": ["AGENTS.md", ".agent/capabilities.yaml", "docs/INTERNAL_HOSTING.md"],
+      "editableFiles": ["web/managed/labels.js", "test/ui-labels.test.mjs"],
       "publishEnabled": false,
       "allowPublicCode": false
     }
