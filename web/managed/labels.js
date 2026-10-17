@@ -122,7 +122,7 @@ export const summaries = {
 
 // Gate reasons shown on a disabled decision button
 export const gates = { chooseConflictVersions: 'Сначала выберите версию для конфликтов',
-  resolveConflict: 'Другая команда уже изменила этот объект. Разрешите конфликт выше: выберите версию для каждого объекта.',
+  resolveConflict: 'Принятая версия и это изменение содержат разные правки объекта. Разрешите конфликт выше: выберите версию для каждого объекта.',
   partMergeUnbuildable: 'Объединение по частям пока не создаёт файл конфигурации. Чтобы принять изменение, выберите версию объекта целиком.' };
 
 // Decision dialog (UX-03b): one button opens one dialog with three choices.

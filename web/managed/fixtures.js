@@ -213,7 +213,10 @@ export function managedFixture(mode = 'overview') {
     if (mode.startsWith('merge-same-team')) {
       review.stale = false; review.revision = workspace.revision;
       review.team = 'Внутренняя команда';
-      review.rows = review.rows.map(row => ({ ...row, conflict: false, previousTeam: review.team }));
+      review.rows = review.rows.map(row => ({ ...row, key: component('limit').key, code: 'limit',
+        name: 'Лимит командировки', conflict: false, previousTeam: review.team }));
+      workspace.pending = [{ artifactId: review.artifactId, kind: 'change', revision: workspace.revision, stale: false,
+        attention: { conflicts: mode === 'merge-same-team-resolved' ? 0 : 1, unknown: 0 }, options: review.options }];
     }
     const rows = [
       row('limit', 'divergent', blocked ? 'blocked' : 'resolution-required', null, { current: ref('c'.repeat(64), { team: 'Внутренняя команда', interventionId: 'synthetic-change' }), incoming: ref('d'.repeat(64), { artifactId: review.artifactId }), blockers: blocked ? ['rename-uncertain'] : [] }),

@@ -122,11 +122,17 @@ try {
     if (mode === 'merge-resolved') await story.getByText('Действует для текущих версий').waitFor();
     if (mode.startsWith('merge-same-team')) {
       const resolved = mode === 'merge-same-team-resolved';
+      await page.getByRole('status').filter({ hasText: resolved ? /Конфликтов 0/ : /Конфликтов 1/ }).waitFor();
+      await page.getByRole('button', { name: resolved ? 'Изменено · 1' : 'Конфликтов · 1', exact: true }).click();
+      await page.getByRole('heading', { name: /Лимит командировки/ }).waitFor();
       for (const checkbox of await page.getByRole('checkbox', { name: 'Изменение принятого объекта проверено', exact: true }).all()) await checkbox.check();
       await page.getByRole('button', { name: 'Решение по версии', exact: true }).click();
       const dialog = page.getByRole('dialog', { name: 'Решение по версии' });
       assert.equal(await dialog.getByRole('radio', { name: 'Принять', exact: true }).isDisabled(), !resolved, mode);
-      if (!resolved) assert.match(await dialog.textContent(), /Разрешите конфликт выше/);
+      if (!resolved) {
+        assert.match(await dialog.textContent(), /Разрешите конфликт выше/);
+        assert.doesNotMatch(await dialog.textContent(), /Другая команда/);
+      }
       await dialog.getByRole('button', { name: 'Отмена', exact: true }).click();
     }
     if (mode === 'merge-stale') await story.getByText(/Устарело/).waitFor();

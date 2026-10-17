@@ -1,4 +1,4 @@
-import { objectKind, componentName, dateLabel, labels, elementLabels, elementKinds, responsibilityLabel, responsibilityReport, reviewGate, workspaceSummary, workspaceUrl as buildUrl, solutionNextAction, objectLabel, objectFromKey, groupObjects, reviewSummary, reviewBucket, objectModule } from './model.js';
+import { objectKind, componentName, dateLabel, labels, elementLabels, elementKinds, responsibilityLabel, responsibilityReport, reviewGate, workspaceSummary, workspaceUrl as buildUrl, solutionNextAction, objectLabel, objectFromKey, groupObjects, reviewSummary, reviewBucket, reviewRows, objectModule } from './model.js';
 import { nouns, grouping, ribbon, facts, reviewSummary as summaryLabels, decision as decisionLabels, diagram as diagramLabels, tabs as tabLabels, header as headerLabels, stepStates } from './labels.js';
 import { decisionChoices, decisionDefault, canCloseWithoutChanges, solutionStatus, lifecycleSteps } from './model.js';
 import { mountSnapshotVisual } from '../visual/render.js';
@@ -448,7 +448,7 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
     // UX-03: the answer first. One summary line with counts, the facts as chips,
     // and the provenance evidence behind one "Подробнее". Gates and decisions
     // below are unchanged; this is a projection of the same review rows.
-    const rowsWithMeta = review.rows.map(row => ({ ...objectOf(row.key, review.artifactId), ...row }));
+    const rowsWithMeta = reviewRows(review).map(row => ({ ...objectOf(row.key, review.artifactId), ...row }));
     const summary = reviewSummary(review, rowsWithMeta);
     const summaryBlock = el('section', undefined, 'managed-summary');
     // A version with no difference offers two actions and no decision dialog:
@@ -635,7 +635,7 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
       modules.get(module).append(card);
     };
     for (const row of rowsWithMeta) {
-      const card = el('section', undefined, 'managed-card'); card.append(objectTitle('h3', row), el('p', row.conflict ? 'Конфликт с изменением другой команды' : labels[row.classification] || row.classification));
+      const card = el('section', undefined, 'managed-card'); card.append(objectTitle('h3', row), el('p', row.mergeConflict ? labels.conflict : row.conflict ? 'Конфликт с изменением другой команды' : labels[row.classification] || row.classification));
       viewedControl(card, row);
       if (row.elements) {
         card.append(el('h4', 'Ответственность частей процесса'),

@@ -319,6 +319,12 @@ stale resolution does not unlock acceptance, and boundary confirmations remain
 required after a current resolution. Same-team `keep-current` and `take-incoming`
 choices are covered independently with unchanged-object preservation.
 
+The review summary and object filter include unresolved three-way conflicts even
+when responsibility flags show one team. A current saved resolution clears these
+semantic conflict markers; a stale resolution restores them. The warning names
+the divergent versions without attributing them to another team. These display
+projections never mutate the captured rows or their responsibility evidence.
+
 Legacy changes without a declared base and blocked plans retain their existing
 acceptance behavior: no `acceptedMerge` is recorded and cross-team overlap still
 requires reconciliation. This guard does not infer ancestry or materialize files.

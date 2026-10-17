@@ -88,10 +88,17 @@ export function groupObjects(rows = []) {
 }
 // UX-03: one summary of a review. Buckets follow the existing classifications;
 // nothing here changes gates, digests or decisions.
-export const reviewBucket = row => row.conflict || row.classification === 'conflict' ? 'conflicts'
+export const reviewBucket = row => row.conflict || row.mergeConflict || row.classification === 'conflict' ? 'conflicts'
   : row.classification === 'unchanged' ? 'unchanged' : row.classification === 'intervention-added' ? 'added'
   : row.classification === 'component-deleted' ? 'removed' : row.classification === 'ambiguous' ? 'unknown' : 'modified';
-export function reviewSummary(review, rows = review?.rows || []) {
+// Responsibility flags and three-way merge conflicts are different evidence.
+// Preserve both in the display projection without changing captured review rows.
+export function reviewRows(review) {
+  const conflicts = new Set((review?.merge?.head?.status === 'current' ? [] : review?.merge?.plan?.rows || [])
+    .filter(row => row.status === 'resolution-required').map(row => row.key));
+  return (review?.rows || []).map(row => conflicts.has(row.key) ? { ...row, mergeConflict: true } : row);
+}
+export function reviewSummary(review, rows = reviewRows(review)) {
   const counts = { modified: 0, added: 0, removed: 0, conflicts: 0, unchanged: 0, unknown: 0 };
   for (const row of rows) counts[reviewBucket(row)]++;
   const changed = rows.length - counts.unchanged;
