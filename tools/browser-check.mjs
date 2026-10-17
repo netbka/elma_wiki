@@ -18,7 +18,11 @@ try {
   const page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[],requests=[];
   page.on('pageerror',e=>errors.push(e.message));page.on('request',r=>requests.push(r.url()));
   await fs.mkdir('qa',{recursive:true});
-  await page.goto(base);await page.getByRole('link',{name:'Загрузить E365',exact:true}).waitFor();await page.screenshot({path:'qa/service-desktop.png',fullPage:true});
+  // The signed-out service home names Solutions and offers only sign-in; developer material stays on the public site.
+  await page.goto(base);await page.getByRole('heading',{name:'Решения ELMA365 вашей команды — в одном месте',level:1}).waitFor();
+  assert.equal(await page.locator('main a.button').getAttribute('href'),'/login');
+  assert.doesNotMatch(await page.locator('main').textContent(),/isAuthor|elma365pm|\.client\.ts|приватную вики/);
+  await page.screenshot({path:'qa/service-desktop.png',fullPage:true});
   await page.goto(base+'/p/showcase/');await page.getByRole('heading',{name:'Что нужно сделать?'}).waitFor();
   await page.goto(base+'/p/showcase/#/objects');assert.equal(await page.locator('.entity-row').count(),6);
   for (const article of articles) {await page.goto(base+'/p/showcase/#/article/'+article.id);await page.getByRole('heading',{name:article.title,exact:true}).waitFor();}

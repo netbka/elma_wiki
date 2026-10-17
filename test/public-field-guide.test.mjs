@@ -81,7 +81,7 @@ test('walkthrough has a useful result, optional JSON, evidence limits and a Desi
 });
 
 const fs = await import('node:fs/promises');
-const landing = await fs.readFile(new URL('../web/index.html', import.meta.url), 'utf8');
+const landing = await fs.readFile(new URL('../web/public-landing.html', import.meta.url), 'utf8');
 const articles = ['package-map', 'relationship-recipe', 'script-roundtrip', 'file-update', 'field-form-recipe']
   .map(id => ({ id, title: id, lead: '', sections: [] }));
 
