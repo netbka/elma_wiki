@@ -20,7 +20,8 @@ import { workspaceStore } from './lib/workspaces.mjs';
 import { managedWorkspaceStore } from './lib/managed-workspace-store.mjs';
 import { releaseStore } from './lib/releases.mjs';
 import { deliveryStore, syntheticAdapter } from './lib/delivery.mjs';
-import { solutionBuildEligibility } from './lib/composed-build-eligibility.mjs';
+import { solutionBuildEligibility, solutionBuildEvidence } from './lib/composed-build-eligibility.mjs';
+import { composedBuildInputs, currentBuildEvidence } from './lib/native-build-evidence.mjs';
 import { composedBuildCapability, runComposedBuild, freezeComposedBuild } from './lib/composed-build.mjs';
 import { bridgeStore } from './lib/bridge.mjs';
 import { configuredMaterializationAdapter } from './lib/native-materialization-bridge.mjs';
@@ -67,9 +68,9 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
   configSource = configSourceClient({ url: process.env.CONFIG_SOURCE_API_URL, token: process.env.CONFIG_SOURCE_API_TOKEN }),
   requests = requestCoordinator(), bugPublisher = bugGitHub(), materializationEnv = process.env,
   // Trusted source of native build evidence (coverage, dependency resolution, admitted Target profile
-  // observation, compiler lock) for the build route. By default only the operator's admitted Target
-  // profile observation of the current Solution state; coverage, dependency locks and compiler stay
-  // absent until the native producer (netbka/elma365#60) supplies them, so builds stay blocked.
+  // observation, compiler lock) for the build route. By default the evidence the operator refresh
+  // admitted for the current Solution state: the Target profile observation and the native build
+  // evidence (elma365-native-build-evidence@1) for exactly the server-derived build inputs.
   buildEvidence = null } = {}) {
   const actors = actorStore(directory);
   const base = new URL(baseUrl), auth = createAuth({ baseUrl, allowLocal, sendEmail, sendVk, now, onLogin: actors.resolve }), portals = portalStore(directory, { sharedAccess: true }), projects = projectStore(directory, { sharedAccess: true }), oldDemo = demoData(), sample = oldDemo.servers.showcase, demo = {entities:sample.entities,solution:sample.solutions[0],coverage:'structural',parserVersion:'2.0.0',inventory:[],provenance:{},synthetic:true};
@@ -93,9 +94,49 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
   // Target profile observation runs only on an explicit operator refresh of one Solution, on the same
   // configured bridge and its designated Target; admitted observations live in process memory only.
   const targetProfiles = targetProfileRefresh({ env: materializationEnv, bridges });
-  const trustedBuildEvidence = buildEvidence ?? (async ({ solutionId }) => {
+  // Build inputs of a Solution, derived only from the managed store and original bytes: the accepted
+  // merged revision when there is one (its resolved capture and E1 change rows), else the accepted
+  // full capture without changes. `blockers` names inputs that cannot be built.
+  const mergedInputs = async (id, loaded) => {
+    const ids = [...new Set([loaded.state.baselineId, loaded.artifact.id, ...loaded.state.artifacts.map(row => row.id)])];
+    const originals = new Map(await Promise.all(ids.map(async artifactId => [artifactId, await solutions.managed.original(id, SOLUTION_CATALOG, artifactId)])));
+    return composedBuildInputs({ state: loaded.state, artifact: loaded.artifact, resolution: loaded.resolution, originals });
+  };
+  const buildInputs = async id => {
+    const current = await solutions.managed.buildCapture(id, SOLUTION_CATALOG);
+    if (!current.capture || !current.binding.acceptedMerge) return { ...current, changes: [], blockers: [] };
+    let loaded;
+    try { loaded = await solutions.managed.withAcceptedMerge(id, SOLUTION_CATALOG, { artifactId: current.binding.acceptedMerge.artifactId }, row => row); }
+    catch (error) {
+      if (error.statusCode !== 409) throw error;
+      return { ...current, changes: [], blockers: [{ reason: 'unbuildable-accepted-merge' }] };
+    }
+    if (loaded.revision !== current.revision || loaded.resolution.id !== current.binding.acceptedMerge.resolutionId)
+      return { ...current, changes: [], blockers: [{ reason: 'stale-solution-binding' }] };
+    const inputs = await mergedInputs(id, loaded);
+    return inputs.capture ? { ...current, ...inputs } : { ...current, changes: [], blockers: inputs.blockers };
+  };
+  // The evidence admitted for these inputs: the observation and, when still bound and fresh, the
+  // native coverage declaration and compiler lock of the admitted build evidence.
+  const admittedEvidence = (id, inputs, observation, now) => {
+    const built = inputs.blockers.length ? { status: 'missing', reason: 'unbuildable-inputs' } : currentBuildEvidence({ evidence: targetProfiles.evidence(id, inputs.binding),
+      observation, captures: [inputs.capture], changes: inputs.changes, nativeRevision: targetProfiles.nativeRevision, now: Date.parse(now) });
+    return built.status === 'current' ? { declarations: [built.declaration], compiler: built.compiler, buildEvidence: { status: 'current', reason: null } }
+      : { declarations: [], compiler: null, buildEvidence: { status: built.status, reason: built.reason } };
+  };
+  // The composer's refresh state with how the held build evidence applies to the current inputs.
+  const refreshState = (id, inputs, actor, use) => {
+    const state = targetProfiles.status(id, inputs.binding, actor);
+    return { ...state, buildEvidence: { ...state.buildEvidence, use, inputBlockers: [...new Set(inputs.blockers.map(row => row.reason))].sort() } };
+  };
+  const trustedBuildEvidence = buildEvidence ?? (async ({ solutionId, state, artifact, resolution, originals }) => {
     const { binding } = await solutions.managed.buildCapture(solutionId, SOLUTION_CATALOG);
-    return { observation: targetProfiles.current(solutionId, binding) };
+    const derived = await composedBuildInputs({ state, artifact, resolution, originals });
+    const inputs = { binding, capture: derived.capture, changes: derived.changes, blockers: derived.blockers };
+    const observation = targetProfiles.current(solutionId, binding), at = new Date().toISOString();
+    if (!inputs.capture) return { observation };
+    const { declarations, compiler } = admittedEvidence(solutionId, inputs, observation, at);
+    return solutionBuildEvidence({ capture: inputs.capture, changes: inputs.changes, declarations, compiler, observation, now: at });
   });
   const building = new Set(); // Solutions with a native build in progress: one at a time per Solution.
   // The latest build per Solution when it validated, in process memory only: its manifest and evidence carry
@@ -282,11 +323,13 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
         const [, id] = eligibilityRoute;
         await solutions.managed.authorize(id, SOLUTION_CATALOG);
         if (req.method !== 'GET') return send(res, 405, { error: 'Только чтение' });
-        const { revision, capture, binding } = await solutions.managed.buildCapture(id, SOLUTION_CATALOG);
+        const inputs = await buildInputs(id), { revision, capture, binding } = inputs;
         if (!capture) return send(res, 409, { error: 'Нет принятого полного экспорта решения' });
-        return send(res, 200, { solutionId: id, revision, ...solutionBuildEligibility({ capture, observation: targetProfiles.current(id, binding),
-          materialization: await composedBuildCapability(nativeMaterialization), now: new Date().toISOString() }),
-          targetProfileRefresh: targetProfiles.status(id, binding, session.user) });
+        const observation = targetProfiles.current(id, binding), at = new Date().toISOString();
+        const { declarations, buildEvidence: buildEvidenceState } = admittedEvidence(id, inputs, observation, at);
+        return send(res, 200, { solutionId: id, revision, ...solutionBuildEligibility({ capture, changes: inputs.changes, declarations, observation,
+          materialization: await composedBuildCapability(nativeMaterialization), now: at }),
+          targetProfileRefresh: refreshState(id, inputs, session.user, buildEvidenceState) });
       }
       // Explicit operator Target profile refresh (#94 MR-05, P8): the configured bridge owner asks the
       // configured designated Target for its profile, bound to this Solution's current state. The body
@@ -300,7 +343,7 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
         if (req.headers['content-type']?.split(';')[0] !== 'application/json') return send(res, 415, { error: 'Требуется JSON' });
         const input = JSON.parse((await body(req, 1024)).toString('utf8'));
         const { statusCode, body: result } = await targetProfiles.refresh({ solutionId: id, input, actor: session.user,
-          load: () => solutions.managed.buildCapture(id, SOLUTION_CATALOG) });
+          load: () => buildInputs(id) });
         return send(res, statusCode, result);
       }
       // Native build of a resolved change (#94 MR-03, PLAN-01 C2): opt-in through WIKI_NATIVE_MATERIALIZATION_*

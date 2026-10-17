@@ -17,7 +17,7 @@ import { selectReadBackPolicy } from '../lib/delivery.mjs';
 import { targetPresets, guardPresetDeploy } from '../lib/target-presets.mjs';
 import { createServer } from '../server.mjs';
 import { archive, keyOf, assemble, receiptFor, COMPILER, WIDGET } from './manifest-policy-fixtures.mjs';
-import { hex, nativeDeclaration, observe, observedReport } from './native-contract-fixtures.mjs';
+import { hex, nativeDeclaration, observe, observedReport, producedBuildEvidence, unavailableBuildEvidence } from './native-contract-fixtures.mjs';
 import { httpWorker, call, WORKER_REVISION } from './bridge-worker-fixture.mjs';
 
 // Opt-in native build route (#94 MR-03, PLAN-01 C2). Everything is synthetic and local: a
@@ -116,7 +116,7 @@ async function setup(t, { configure = true, evidence = true, env = {}, owner = O
   const freeze = async (input = {}) => call(base, `/api/solutions/${built.id}/composed`, { method: 'POST', headers,
     json: { artifactId: built.artifactId, expectedRevision: await revision(), manifestDigest: server.composedBuilds.get(built.id)?.result.manifest.manifestDigest ?? hex('0'), ...input } });
   const candidates = async () => (await call(base, `/api/solutions/${built.id}/composed`, { headers })).body;
-  return { ...built, server, base, headers, answers, worker, capability, settle, build, freeze, candidates, revision, directory };
+  return { ...built, server, base, headers, answers, worker, capability, settle, build, freeze, candidates, revision, directory, token, workers };
 }
 
 test('unconfigured: building stays unavailable with the reason, and the route never calls a worker', async t => {
@@ -236,36 +236,127 @@ test('missing evidence blocks before the worker with every eligibility gate name
   const blocked = await env.build();
   assert.equal(blocked.status, 409);
   assert.equal(blocked.body.outcome, 'blocked');
-  assert.deepEqual(blocked.body.gates.map(row => row.id), ['scope', 'coverage', 'dependencies', 'target-profile']);
+  // The default service evidence plans the accepted merged revision (scope verified) but holds no native evidence.
+  assert.deepEqual(blocked.body.gates.map(row => row.id), ['coverage', 'dependencies', 'target-profile']);
   assert.equal(worker.seen.filter(job => job.kind === 'materialize').length, 0);
   assert.equal((await env.build({ extra: true })).status, 400);
   assert.equal((await call(env.base, `/api/solutions/${env.id}/composed-build`, { headers: env.headers })).status, 405);
   assert.equal((await call(env.base, `/api/solutions/${env.id}/composed-build`, { method: 'POST', json: { artifactId: env.artifactId, expectedRevision: 0 } })).status, 404);
 });
 
-test('the service build evidence carries the operator admitted Target profile observation, and nothing else', async t => {
-  // The local session is the configured bridge owner; the bridge observes its designated dev2.
-  const env = await setup(t, { evidence: false, owner: 'local', env: { WIKI_NATIVE_TARGET_PROFILE_TARGET: 'dev2' } });
+// The production evidence source: the operator refresh observes dev2 and, on the same worker, asks the
+// read-only `buildEvidence` job for the server-derived captures and changes of the accepted merged revision.
+async function operatorSetup(t, { evidence = (payload, report) => ({ evidence: producedBuildEvidence(payload, { report }) }), jobKinds = ['health', 'materialize', 'targetProfile', 'buildEvidence'] } = {}) {
+  // Generous job timeouts: these scenarios run several jobs and must not read a loaded machine as a lost result.
+  const env = await setup(t, { evidence: false, owner: 'local', env: { WIKI_NATIVE_TARGET_PROFILE_TARGET: 'dev2', WIKI_NATIVE_MATERIALIZATION_TIMEOUT_MS: '60000',
+    WIKI_NATIVE_TARGET_PROFILE_TIMEOUT_MS: '60000', WIKI_NATIVE_BUILD_EVIDENCE_TIMEOUT_MS: '60000' } });
   const profile = payload => observedReport({ targetId: payload.targetId, environment: payload.environment, runId: payload.runId,
     targetProfileDigest: PROFILE, observedAt: new Date().toISOString(), worker: { id: 'synthetic-native-worker', nativeRevision: WORKER_REVISION } });
-  const worker = env.worker({ ...advertise(), jobKinds: ['health', 'materialize', 'targetProfile'] }, profile);
+  const answers = { evidence };
+  const started = httpWorker({ base: env.base, token: env.token, capabilities: { ...advertise(), jobKinds }, profile,
+    evidence: (payload, report) => answers.evidence(payload, report),
+    handle: async ({ envelope, originals }) => { const bytes = await assemble(envelope.request, originals); return { receipt: receiptFor(envelope.request, bytes), bytes }; } });
+  env.workers.push(started);
   await env.settle(null);
+  const refresh = async () => call(env.base, `/api/solutions/${env.id}/target-profile`, { method: 'POST', headers: env.headers, json: { expectedRevision: await env.revision() } });
+  const eligibility = async () => (await call(env.base, `/api/solutions/${env.id}/composed-eligibility`, { headers: env.headers })).body;
+  const kinds = kind => started.seen.filter(job => job.kind === kind);
+  return { ...env, worker: started, answers, refresh, eligibility, kinds };
+}
+
+test('production evidence: one operator refresh admits the Target profile and native build evidence; the build validates and freezes', async t => {
+  const env = await operatorSetup(t);
   const before = await env.build();
   assert.equal(before.body.outcome, 'blocked');
-  assert.equal(before.body.eligibility.evidence.targetProfile, 'unknown');
-  assert.equal(worker.seen.filter(job => job.kind === 'targetProfile').length, 0, 'a build never observes');
-  const refreshed = await call(env.base, `/api/solutions/${env.id}/target-profile`, { method: 'POST', headers: env.headers, json: { expectedRevision: await env.revision() } });
+  assert.deepEqual([env.kinds('targetProfile').length, env.kinds('buildEvidence').length], [0, 0], 'a build never observes or requests evidence');
+  for (let i = 0; i < 3; i++) await env.eligibility();
+  assert.equal(env.kinds('buildEvidence').length, 0, 'a read never requests evidence');
+
+  const refreshed = await env.refresh();
   assert.equal(refreshed.status, 201, JSON.stringify(refreshed.body));
-  const after = await env.build();
-  assert.equal(after.status, 409);
-  assert.equal(after.body.outcome, 'blocked');
-  assert.equal(after.body.eligibility.evidence.targetProfile, 'observed');
-  assert.equal(after.body.eligibility.targetProfile.digest, PROFILE);
-  // Native coverage and dependency locks are not acquired: they stay named blockers, and no worker builds.
-  assert.deepEqual(after.body.gates.find(row => row.id === 'coverage').reasons.map(row => row.reason), ['missing-native-coverage']);
-  assert.deepEqual(after.body.gates.find(row => row.id === 'dependencies').reasons.map(row => row.reason), ['missing-dependency-resolution']);
-  assert.equal(worker.seen.filter(job => job.kind === 'materialize').length, 0);
-  assert.equal(worker.seen.filter(job => job.kind === 'targetProfile').length, 1);
+  assert.equal(refreshed.body.buildEvidence.outcome, 'produced', JSON.stringify(refreshed.body.buildEvidence));
+  assert.deepEqual(refreshed.body.buildEvidence.compilerServices, ['widgets']);
+  assert.ok(refreshed.body.buildEvidence.missing.includes('entitlement-observation') && refreshed.body.buildEvidence.missing.includes('native-installation-observation'));
+  // The payload is server-derived: the resolved revision of the accepted merge and its one widget change.
+  const [job] = env.kinds('buildEvidence');
+  const loaded = await env.managed.withAcceptedMerge(env.id, SOLUTION_CATALOG, { artifactId: env.artifactId }, row => row);
+  assert.deepEqual(Object.keys(job.payload).sort(), ['captures', 'changes', 'contract', 'environment', 'nativeRevision', 'runId', 'targetId']);
+  assert.deepEqual([job.payload.targetId, job.payload.environment, job.payload.nativeRevision], ['dev2', 'dev2', WORKER_REVISION]);
+  assert.deepEqual(job.payload.captures.map(row => [row.solution, row.checksum, row.components.length]), [[SOLUTION, loaded.resolution.resultDigest, 2]]);
+  const widget = loaded.resolution.result.find(row => row.key === keyOf(WIDGET));
+  assert.deepEqual(job.payload.changes, [{ solution: SOLUTION, key: keyOf(WIDGET), op: 'replace', digest: widget.digest, service: 'widgets', kind: 'widget' }]);
+  assert.notEqual(job.payload.runId, env.kinds('targetProfile')[0].payload.runId, 'each job has its own fresh run id');
+
+  // Displayed eligibility and the build judge the same evidence: only post-build installation facts remain.
+  const shown = await env.eligibility();
+  assert.equal(shown.targetProfileRefresh.buildEvidence.current, true);
+  assert.deepEqual(shown.targetProfileRefresh.buildEvidence.use, { status: 'current', reason: null });
+  assert.deepEqual(buildBlockingGates(shown).map(row => row.id), [], JSON.stringify(shown.gates));
+  assert.equal(shown.evidence.coverage, 'native');
+  const built = await env.build();
+  assert.equal(built.status, 201, JSON.stringify(built.body));
+  assert.equal(built.body.outcome, 'validated');
+  assert.equal(built.body.manifest.releaseEligible, false, 'native installation facts stay missing after a build');
+  const held = env.server.composedBuilds.get(env.id);
+  assert.match(held.compiler.evidenceRef, /^build-evidence:[0-9a-f]{64}$/);
+  const frozen = await env.freeze();
+  assert.equal(frozen.status, 201, JSON.stringify(frozen.body));
+  assert.equal(frozen.body.outcome, 'frozen');
+  assert.deepEqual([env.kinds('targetProfile').length, env.kinds('buildEvidence').length, env.kinds('materialize').length], [1, 1, 1]);
+});
+
+test('production evidence: changed inputs make held build evidence stale before any build', async t => {
+  const env = await operatorSetup(t);
+  assert.equal((await env.refresh()).body.buildEvidence.outcome, 'produced');
+  // A later accepted change moves the Solution binding; the held evidence answers other inputs.
+  await env.later(2, { accept: true });
+  const shown = await env.eligibility();
+  assert.equal(shown.targetProfileRefresh.buildEvidence.current, false);
+  assert.equal(shown.evidence.coverage, 'unknown');
+  const blocked = await env.build();
+  assert.equal(blocked.status, 409);
+  assert.equal(env.kinds('materialize').length, 0);
+});
+
+test('production evidence: unadvertised, unavailable, malformed, replayed, retargeted and lost answers never become evidence', async t => {
+  const env = await operatorSetup(t);
+  const cases = [
+    ['unavailable', payload => ({ evidence: unavailableBuildEvidence(payload) }), row => assert.deepEqual([row.outcome, row.reason], ['unavailable', 'worker-profile-unbound'])],
+    ['foreign run', (payload, report) => ({ evidence: producedBuildEvidence({ ...payload, runId: 'replayed-run' }, { report }) }), row => assert.ok(row.errors.includes('foreign-run'), row.errors)],
+    ['other request', (payload, report) => ({ evidence: producedBuildEvidence({ ...payload, changes: [] }, { report }) }), row => assert.ok(row.errors.includes('request-mismatch'), row.errors)],
+    ['retargeted', (payload, report) => ({ evidence: { ...producedBuildEvidence(payload, { report }), targetId: 'prod', environment: 'prod' } }), row => assert.ok(row.errors.includes('target-mismatch'), row.errors)],
+    ['other worker', (payload, report) => ({ evidence: producedBuildEvidence({ ...payload, nativeRevision: hex('d', 40) }, { report }) }), row => assert.ok(row.errors.includes('worker-revision-mismatch'), row.errors)],
+    ['stale', (payload, report) => ({ evidence: producedBuildEvidence(payload, { report, issuedAt: new Date(Date.now() - 20 * 60 * 1000).toISOString() }) }), row => assert.ok(row.errors.includes('stale-evidence'), row.errors)],
+    ['other profile', (payload, report) => ({ evidence: producedBuildEvidence(payload, { targetProfileDigest: hex('e') }) }), row => assert.ok(row.errors.includes('stale-target-profile'), row.errors)],
+    ['processor compiler', (payload, report) => { const doc = producedBuildEvidence(payload, { report }); doc.compiler.services = ['processor', 'widgets']; return { evidence: doc }; },
+      row => assert.ok(row.errors.includes('unsupported-compiler-scope'), row.errors)],
+    ['over-claim', (payload, report) => ({ evidence: { ...producedBuildEvidence(payload, { report }), publicationReady: true } }), row => assert.ok(row.errors.includes('over-claim'), row.errors)],
+    ['hidden fact', (payload, report) => { const doc = producedBuildEvidence(payload, { report }); doc.missing = doc.missing.filter(fact => fact !== 'entitlement-observation'); return { evidence: doc }; },
+      row => assert.ok(row.errors.includes('hidden-missing-fact'), row.errors)],
+    // The bridge store fails a result other than exactly {evidence}; the job reports a bridge failure.
+    ['extra result key', (payload, report) => ({ evidence: producedBuildEvidence(payload, { report }), verified: true }),
+      row => assert.deepEqual([row.outcome, row.reason], ['unavailable', 'build-evidence-bridge-failed'])]
+  ];
+  for (const [name, answer, expect] of cases) {
+    env.answers.evidence = answer;
+    const refreshed = await env.refresh();
+    assert.equal(refreshed.status, 201, `${name}: ${JSON.stringify(refreshed.body)}`);
+    if (!['unavailable', 'extra result key'].includes(name)) assert.equal(refreshed.body.buildEvidence.outcome, 'invalid', name);
+    expect(refreshed.body.buildEvidence);
+    const shown = await env.eligibility();
+    assert.equal(shown.targetProfileRefresh.buildEvidence.current, false, name);
+    assert.equal(shown.evidence.coverage, 'unknown', name);
+    const blocked = await env.build();
+    assert.equal(blocked.status, 409, name);
+  }
+  assert.equal(env.kinds('materialize').length, 0, 'nothing was built');
+
+  // A worker that does not advertise the job is never sent one; the profile is still admitted.
+  const quiet = await operatorSetup(t, { jobKinds: ['health', 'materialize', 'targetProfile'] });
+  const refreshed = await quiet.refresh();
+  assert.equal(refreshed.status, 201);
+  assert.deepEqual([refreshed.body.buildEvidence.outcome, refreshed.body.buildEvidence.reason], ['unavailable', 'build-evidence-not-advertised']);
+  assert.equal(quiet.kinds('buildEvidence').length, 0);
 });
 
 test('post-build installation facts are the only coverage reasons a build may proceed with', () => {
