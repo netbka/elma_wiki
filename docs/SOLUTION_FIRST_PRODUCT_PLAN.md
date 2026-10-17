@@ -72,6 +72,22 @@ Authentication establishes identity, not authorization tiers, in the current MVP
 7. Truth before convenience: unknown remains unknown. Review, conflict resolution, compilation, native installation, business acceptance and production readiness are separate assertions.
 8. Working configuration is the required release outcome. Never release a known-broken or unverified required scope, and never downgrade the product to review-only merely because an adapter is unfinished.
 
+## Business meaning before technical detail
+
+Owner correction, 2026-10-17; audit #192, secondary visual-design research #193. This is a required content rule across the product, including deterministic generation, AI-assisted analysis, saved explanations, internal guides, reports, labels and errors. It extends the ordinary-language rule; technical correctness alone does not satisfy it.
+
+The first reading must explain purpose, when the object is used, who does what, meaningful groups of information, stages/handoffs, expected outcome and the next useful action. Apply these questions proportionately to the object; do not render an identical seven-heading template on every small element.
+
+A card/form explains the business work it organizes. Group information by its meaning and, when supported, by who supplies it and when: initiator input, participant additions/decisions and automatically supplied information. A field catalogue belongs in a secondary reference. A module explains the work it supports; a process explains its trigger, responsibilities, decisions and outcome. A change explains what changes for people, who or which stage is affected and what to check, before its structural diff.
+
+Use familiar business names in primary navigation, headings and text. Raw UUIDs, hashes, namespaces, internal status enums and archive paths belong in expandable technical details or sources, with copy actions where useful. Preserve meaningful business identifiers such as document numbers. Where names collide, prefer business context; expose an identifier only when needed for disambiguation. Errors lead with the problem, consequence and recovery action; diagnostic codes remain available separately. Necessary version/installation uncertainty stays visible in plain language.
+
+Business framing does not permit invented meaning. Use applicable business descriptions, verified configuration relationships and observed behavior; preserve exact source/version links behind readable labels. Names, field order and process lanes alone do not prove purpose, duties, assignments or execution. A missing fact gets a short specific gap and an appropriate clarification path, not a guessed story or a wall of generic caveats. A reviewer must be able to distinguish established facts, hypotheses and unknowns.
+
+Review previously generated/saved content as well as new templates. Preserve human edits, attribution and history; propose replacement drafts explicitly. Fix semantic structure before visual decoration. Completion requires a reader to explain the object's purpose, supported responsibilities, stage/outcome and next action without decoding internals; identifier lint or green CI alone cannot establish comprehension.
+
+Audit #192 first establishes the inspected deployed revision versus main, then covers all user-facing journeys and all four modules, with before/after findings and implementation follow-through in D3-D5. A reported older build is a hypothesis until checked. Existing deferred human-session and final acceptance records are not silently closed or restarted by this documentation change. Visual research #193 follows the content findings and feeds the existing renderer/design system.
+
 ## Parallel versions and merge
 
 Canonical example: full baseline B; one developer exports Contracts changes A; another exports Contracts changes C. Establish each change's actual base and ancestry before combining it. Two exports of shared DEV may already include one another's changes; uploading them does not establish independent personal branches or authorship.
