@@ -22,6 +22,8 @@ function contextualDeliveryClient(handoff, request) {
     removeConnection: id => request(`/api/connections/${encodeURIComponent(id)}`, {}, false, 'DELETE'),
     createBridge: input => request('/api/bridges', input),
     removeBridge: id => request(`/api/bridges/${encodeURIComponent(id)}`, {}, false, 'DELETE'),
+    installedHistory: id => request(handoff(id) + '/delivery?installed=true'),
+    installedAction: (id, input) => request(handoff(id) + '/delivery', input),
     async act(id, input) {
       try { await request(handoff(id) + '/delivery', input); }
       catch (error) {

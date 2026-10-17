@@ -1,5 +1,6 @@
 import { deliveryStateLabels } from './model.js';
 import { deliveryPanelView } from './delivery-model.js';
+import { mountInstalledComparison } from '../managed/comparisons.js';
 
 const el = (tag, value, className) => { const node = document.createElement(tag); if (value !== undefined) node.textContent = value; if (className) node.className = className; return node; };
 let sequence = 0;
@@ -88,6 +89,7 @@ export function mountDelivery({ release, client, onAction, onRefresh, onState, i
     if (view.synthetic) root.append(el('p', 'Учебный режим: стенд синтетический, ELMA не подключена. Операции и успешная проверка относятся только к этому примеру.', 'note'));
     const status = el('p', view.next); status.setAttribute('role', 'status'); root.append(status);
     const reload = button(root, 'Обновить состояние доставки', onRefresh); reload.dataset.recovery = 'true'; reload.disabled = busy;
+    if (client?.installedHistory) root.append(mountInstalledComparison({ release, connections: data.connections, client, isBlocked: () => busy || isBlocked() }));
     if (view.enabled) {
       if (view.synthetic) {
         const create = el('form'), name = field(create, 'Название учебного стенда'); name.maxLength = 120; name.required = true;

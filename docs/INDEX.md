@@ -35,6 +35,7 @@ Routing, not an always-read checklist.
 | Snapshot/storage | contracts/project-snapshots.md |
 | Shared authenticated Solution catalog and persistent actors | [contracts/shared-solutions.md](contracts/shared-solutions.md) |
 | Current Solution UI and deterministic next action | [workflows/solutions.md](workflows/solutions.md) |
+| Source capture and installed-base comparison UI | [contracts/configuration-comparison-ui.md](contracts/configuration-comparison-ui.md) |
 | Intuitive Solution UI: one fixed pull-from-server path, understanding pages, plain-language change requests, competitor research and vocabulary (proposed) | [plans/intuitive-solution-ui-2026-10-15.md](plans/intuitive-solution-ui-2026-10-15.md) |
 | Two-person uncoached acceptance and isolated synthetic test session | [workflows/uncoached-usability.md](workflows/uncoached-usability.md) |
 | Independent visual audit checklist for the Solution UI (#41) | [workflows/visual-audit-checklist.md](workflows/visual-audit-checklist.md) |

@@ -13,6 +13,7 @@ import { mountComposer } from './composer.js';
 import { mountAbout, mountActivity } from './about.js';
 import { mountFlows, mountScreens, moduleHeading } from './flows.js';
 import { mountRequests, mountRequestForm } from './requests.js';
+import { mountSourceComparisons } from './comparisons.js';
 import { acceptedFullBases, baseOptionLabel, baseEvidence, scopeEvidence, scopeCandidates, preparationFields } from './change-base.js';
 const el = (tag, text, className) => { const node = document.createElement(tag); if (text !== undefined) node.textContent = text; if (className) node.className = className; return node; };
 let sequence = 0;
@@ -189,6 +190,7 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
       // UX-06: Как работает is the process tab; it has no attention block of its own.
       if (view === 'flows') { content.append(mountFlows({ state, visuals: model.visuals || {}, selected: model.object || null }, { visual: actions.visual, explanations: actions.explanations, navigate: actions.navigate, ...entryActions })); return root; }
       content.append(el('h2', view === 'solution' ? `Объекты решения · ${state.current.filter(row => objectKind(row) !== 'processes').length}` : view === 'changes' ? 'Изменения' : 'Что требует внимания'), el('p', next.summary));
+      if (view === 'changes' && model.shared) content.append(mountSourceComparisons({ history: state.sourceComparisons, api: `${api}/${encodeURIComponent(state.id)}` }));
       // О решении already explains the purpose and each module; the Solution-wide box sits with the objects.
       if(actions.explanations && view === 'solution'){
         const evidence=el('div');
