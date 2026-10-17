@@ -33,6 +33,25 @@ export function visualFixture(state='source') {
   if(state==='loading')return {loading:true};
   if(state==='error')return {error:'Не удалось загрузить обзор. Исходный снимок сохранён.'};
   const raw=structuredClone(visualSource);
+  // Existing source story exercises the same layout/declaration renderer as
+  // captured forms. Entirely synthetic; no native observation is implied.
+  if(state==='source'){
+    raw.forms[0].content={
+      '[content]':[
+        {descriptor:'groupbox',values:{title:'Реквизиты',collapsible:true,expanded:true},content:{'':[
+          {descriptor:'row',content:{'':[
+            {descriptor:'column',content:{'':[raw.forms[0].content['[content]'][0]]}},
+            {descriptor:'column',content:{'':[{descriptor:'dynamic-form',values:{fields:[{code:'reference',name:'Номер',type:'string',__readOnly:true}]}}]}}
+          ]}}
+        ]}},
+        {descriptor:'tabset',content:{'':[
+          {descriptor:'tab',values:{title:'Основное'},content:{'':[{descriptor:'dynamic-form-row',values:{displayName:'Участник',control:{path:['context','participant']},required:{path:['requiredParticipant']},__readOnly:true}}]}},
+          {descriptor:'tab',values:{title:'Дополнительно',__hidden:{path:['showExtra']}},content:{'':[{descriptor:'synthetic-unknown-control'}]}}
+        ]}}
+      ],
+      '[footer]':[raw.forms[0].content['[content]'][1],{descriptor:'buttons-panel',values:{buttons:{path:['taskActions']}}}]
+    };
+  }
   if(state==='unknown'){raw.process.items.review.type='synthetic-unknown-node';raw.process.items.review.settings.formCode='missing';raw.process.lanes.review.width=0;}
   if(state==='duplicate'){
     raw.process.items.duplicate={...raw.process.items.review,name:'Повторное согласование',x:330};

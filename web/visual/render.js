@@ -1,8 +1,88 @@
 import { relatedForm, checkScenarioStep, laneOf } from './model.js';
 import { mountExplanation } from '../explanations/render.js';
-import { diagram as diagramLabels, flows as flowLabels, actions as actionLabels } from '../managed/labels.js';
+import { diagram as diagramLabels, flows as flowLabels, actions as actionLabels, visualForm } from '../managed/labels.js';
 const el=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n;};
 const svg=(tag,attrs={})=>{const n=document.createElementNS('http://www.w3.org/2000/svg',tag);for(const [k,v] of Object.entries(attrs))n.setAttribute(k,String(v));return n;};
+const sourceDetails=pointer=>{const n=el('details');n.className='visual-source';n.append(el('summary','Источник'),el('p',pointer));return n;};
+let formSequence=0;
+// One declarative tree renderer for process forms and captured widget templates.
+// Region names, constants and unknown bindings are evidence, not runtime behavior.
+export function mountFormVisual(tree,{simulation=false,values={}}={}) {
+  const root=el('section');root.className='solution-form';
+  const evidence=el('details');evidence.className='visual-form-evidence';evidence.append(el('summary',visualForm.sourceDeclarations));
+  root.append(el('style',`.solution-form{min-width:0;overflow-wrap:anywhere}.solution-form *{box-sizing:border-box}.solution-form .visual-source{font-size:12px;color:#536660}.solution-form .visual-source p{overflow-wrap:anywhere}.solution-form .visual-form-region{min-width:0;margin:8px 0}.solution-form .visual-region-label{font-size:12px;color:#536660}.solution-form .visual-form-row>.visual-form-region>.visual-region-content{display:flex;gap:12px;align-items:flex-start}.solution-form .visual-form-row>.visual-form-region>.visual-region-content>.visual-form-node{flex:1;min-width:0}.solution-form .visual-form-group{border:1px solid #d4dedb;padding:12px;min-width:0}.solution-form .visual-form-node{min-width:0}.solution-form .visual-form-node label{display:block;margin:8px 0}.solution-form input{max-width:100%;width:100%}.solution-form input[type=checkbox]{width:auto}.solution-form .visual-unknown{border:1px dashed #9e751f;padding:8px}.solution-form [role=tablist]{display:flex;flex-wrap:wrap;gap:4px}.solution-form [role=tab][aria-selected=true]{border-bottom:3px solid #087451}.solution-form button{max-width:100%;overflow-wrap:anywhere}.solution-form [hidden]{display:none!important}.solution-form :focus-visible{outline:3px solid #147c61}@media(max-width:760px){.solution-form .visual-form-row>.visual-form-region>.visual-region-content{flex-direction:column}.solution-form .visual-form-row>.visual-form-region>.visual-region-content>.visual-form-node{width:100%}}`));
+  const hints=(decl,parent)=>{
+    for(const [key,label] of [['required',visualForm.required],['readOnly',visualForm.readOnly],['hidden',visualForm.hidden]]){
+      const d=decl?.[key];if(!d||d.state==='absent')continue;
+      const note=el('small',`${label}: ${d.state==='constant'?(d.value?flowLabels.yes:flowLabels.no)+' '+visualForm.declared:visualForm.runtimeUnknown}`);note.className='visual-declaration';parent.append(note,' ',sourceDetails(d.pointer));
+    }
+  };
+  const visit=(node,parent,inheritedReadOnly=false)=>{
+    const box=el('section');box.className='visual-form-node';box.dataset.descriptor=node.descriptor;
+    const nodeEvidence=sourceDetails(node.pointer);nodeEvidence.querySelector('summary').textContent=node.label||node.descriptor||'Источник';evidence.append(nodeEvidence);
+    const readOnly=inheritedReadOnly||node.declarations?.readOnly?.state==='unknown'||node.declarations?.readOnly?.value===true;
+    hints(node.declarations,nodeEvidence);
+    if(node.bindings?.length){
+      const bindings=el('details');bindings.className='visual-source-bindings';bindings.append(el('summary',visualForm.sourceBindings+' · '+node.bindings.length));
+      for(const binding of node.bindings)bindings.append(el('p',`${binding.name}: ${binding.kind==='path'?binding.path.join(' → '):visualForm.declarationSource}. ${visualForm.evaluationUnknown}`),sourceDetails(binding.pointer));
+      nodeEvidence.append(bindings);
+    }
+    if(node.labelState==='unknown')box.append(el('p',visualForm.labelUnknown));
+    if(node.style==='unknown')nodeEvidence.append(el('small',visualForm.styleUnknown));
+    if(node.binding==='unknown')nodeEvidence.append(el('p',visualForm.bindingUnknown));
+    if(!node.supported){box.classList.add('visual-unknown');box.append(el('p','Не поддерживается: '+(node.descriptor||'неизвестный элемент')));}
+    let body=box;
+    if(node.descriptor==='groupbox'){
+      if(node.collapsible?.state==='constant'&&node.collapsible.value){
+        body=el('details');body.className='visual-form-group';body.open=node.expanded?.state==='constant'?node.expanded.value:true;body.append(el('summary',node.label||visualForm.group));box.append(body);
+      } else {box.classList.add('visual-form-group');box.append(el('h5',node.label||visualForm.group));}
+      if(node.collapsible?.state==='unknown'||node.expanded?.state==='unknown')nodeEvidence.append(el('small',visualForm.groupStateUnknown));
+    } else if(node.label&&node.descriptor!=='button')box.append(el('h5',node.label));
+    if(['row','row-layout'].includes(node.descriptor))body.classList.add('visual-form-row');
+    if(node.descriptor==='button'){const button=el('button',node.label||'Действие');button.type='button';button.disabled=true;box.append(button,el('small','Поведение не проверено'));}
+    if(node.descriptor==='buttons-panel')box.append(el('p',visualForm.actionsUnknown));
+    for(const field of node.fields||[node.field].filter(Boolean)){
+      const label=el('label',field.name||field.code||'Поле без названия'),input=el('input');
+      const supported=['string','text','boolean','date','number','integer','float'].includes(field.type);
+      input.disabled=!simulation||!supported||readOnly||field.declarations?.readOnly?.value===true||field.declarations?.readOnly?.state==='unknown';
+      input.type=field.type==='boolean'?'checkbox':field.type==='date'?'date':['number','integer','float'].includes(field.type)?'number':field.type==='file'?'file':'text';
+      if(input.type==='checkbox')input.checked=values[field.pointer]===true;else if(input.type!=='file')input.value=values[field.pointer]??'';
+      input.oninput=()=>{values[field.pointer]=input.type==='checkbox'?input.checked:input.value;};
+      if(field.type==='table')input.placeholder='Строки и структура таблицы неизвестны';
+      if(field.type==='reference')input.placeholder='Ссылка и доступ в ELMA не проверены';
+      label.append(input,el('small',field.required?' · Обязательное по экспорту':' · Представление поля'));
+      if(!['string','text','boolean','date','number','integer','float','file','table','reference'].includes(field.type))label.append(el('small',' · Тип / привязка не поддерживаются'));
+      body.append(label);const fieldEvidence=sourceDetails(field.pointer);fieldEvidence.querySelector('summary').textContent=field.name||field.code||'Источник';nodeEvidence.append(fieldEvidence);hints(field.declarations,fieldEvidence);
+    }
+    const children=node.children||[];
+    const regions=node.regions||[{name:'',from:0,to:children.length,supported:true}];
+    for(const region of regions){
+      const area=el('section');area.className='visual-form-region';area.dataset.region=region.name;
+      const regionKey=region.name.startsWith('[')&&region.name.endsWith(']')?region.name.slice(1,-1):null;
+      const regionLabel=regionKey&&Object.hasOwn(visualForm.regions,regionKey)?visualForm.regions[regionKey]:null;
+      if(regionLabel){const label=el('h5',regionLabel);label.className='visual-region-label';area.append(label);}
+      if(region.pointer)nodeEvidence.append(sourceDetails(region.pointer));
+      if(!region.supported){area.classList.add('visual-unknown');area.append(el('p',visualForm.regionUnknown));}
+      const regionChildren=children.slice(region.from,region.to);
+      const regionBody=el('div');regionBody.className='visual-region-content';area.append(regionBody);
+      if(node.descriptor==='tabset'&&regionChildren.length&&regionChildren.every(child=>child.descriptor==='tab')){
+        const tabs=el('div');tabs.setAttribute('role','tablist');tabs.setAttribute('aria-label',node.label||visualForm.tabs);regionBody.append(tabs);
+        const buttons=[],panels=[];
+        const activate=index=>{buttons.forEach((b,i)=>{b.setAttribute('aria-selected',String(i===index));b.tabIndex=i===index?0:-1;panels[i].hidden=i!==index;});};
+        regionChildren.forEach((child,index)=>{
+          const id='visual-form-tab-'+ ++formSequence,button=el('button',child.label||visualForm.tab+' '+(index+1)),panel=el('section');
+          button.type='button';button.id=id;button.setAttribute('role','tab');button.setAttribute('aria-controls',id+'-panel');panel.id=id+'-panel';panel.setAttribute('role','tabpanel');panel.setAttribute('aria-labelledby',id);panel.tabIndex=0;
+          buttons.push(button);panels.push(panel);button.onclick=()=>activate(index);
+          button.onkeydown=event=>{let next;if(event.key==='ArrowRight')next=(index+1)%buttons.length;if(event.key==='ArrowLeft')next=(index+buttons.length-1)%buttons.length;if(event.key==='Home')next=0;if(event.key==='End')next=buttons.length-1;if(next!==undefined){event.preventDefault();activate(next);buttons[next].focus();}};
+          tabs.append(button);visit(child,panel,readOnly);regionBody.append(panel);
+        });activate(0);
+      }else regionChildren.forEach(child=>visit(child,regionBody,readOnly));
+      body.append(area);
+    }
+    parent.append(box);
+  };
+  visit(tree,root);root.append(evidence);return root;
+}
 export function mountSnapshotVisual(model={},actions={}) {
   const root=el('section');root.className='solution-visual';
   const style=el('style',`.solution-visual .visual-layout{display:grid;grid-template-columns:minmax(0,2fr) minmax(240px,1fr);gap:20px}.solution-visual svg{width:100%;max-height:560px;border:1px solid #d4dedb;background:#fafcfb}.solution-visual button{margin:4px;padding:8px}.solution-visual .visual-source{overflow-wrap:anywhere;font-size:12px;color:#536660}.solution-visual .visual-form{padding:16px;border:1px solid #d4dedb}.solution-visual .visual-unknown{padding:8px;border:1px dashed #9e751f}.solution-visual label{display:block;margin:8px 0}.solution-visual [role=button]:focus{outline:3px solid #147c61}.solution-visual input{max-width:100%}@media(max-width:760px){.solution-visual .visual-layout{grid-template-columns:1fr}}`);
@@ -16,26 +96,8 @@ export function mountSnapshotVisual(model={},actions={}) {
   if(model.synthetic)root.append(el('p','Учебный пример. Данные и сценарии синтетические.'));
   const badges=el('div');badges.className='visual-evidence';
   for(const label of ['Геометрия и поля: из экспорта','Представление: восстановлено Wiki','Наблюдение в ELMA: нет данных','Условия, права и интеграции: неизвестны'])badges.append(el('span',label));root.append(badges);
-  const source=p=>{const n=el('details');n.className='visual-source';n.append(el('summary','Источник'),el('p',p));return n;};
-  const displayForm=(tree,parent,simulation=false,values={})=>{
-    const box=el('section');box.append(source(tree.pointer));
-    if(!tree.supported){box.className='visual-unknown';box.append(el('p','Не поддерживается: '+(tree.descriptor||'неизвестный элемент')));}
-    else if(tree.descriptor==='button'){const b=el('button',tree.label||'Действие');b.type='button';b.disabled=true;box.append(b,el('small','Поведение не проверено'));}
-    else for(const f of tree.fields||[tree.field].filter(Boolean)){
-      const label=el('label',f.name||f.code||'Поле без названия'), input=el('input');
-      const supported=['string','text','boolean','date','number','integer','float'].includes(f.type);
-      input.disabled=!simulation||!supported;
-      input.type=f.type==='boolean'?'checkbox':f.type==='date'?'date':['number','integer','float'].includes(f.type)?'number':f.type==='file'?'file':'text';
-      if(input.type==='checkbox')input.checked=values[f.pointer]===true;else if(input.type!=='file')input.value=values[f.pointer]??'';
-      input.oninput=()=>{values[f.pointer]=input.type==='checkbox'?input.checked:input.value;};
-      if(f.type==='table')input.placeholder='Строки и структура таблицы неизвестны';
-      if(f.type==='reference')input.placeholder='Ссылка и доступ в ELMA не проверены';
-      label.append(input,el('small',f.required?' · Обязательное по экспорту':' · Представление поля'));
-      if(!['string','text','boolean','date','number','integer','float','file','table','reference'].includes(f.type))label.append(el('small',' · Тип / привязка не поддерживаются'));
-      box.append(label,source(f.pointer));
-    }
-    tree.children.forEach(child=>displayForm(child,box,simulation,values));parent.append(box);
-  };
+  const source=sourceDetails;
+  const displayForm=(tree,parent,simulation=false,values={})=>parent.append(mountFormVisual(tree,{simulation,values}));
   const catalog=el('div'), content=el('div');root.append(catalog,content);
   const explanationPanels=new Map();
   // UX-03b: steps named by a review as changed are drawn with a warm fill and
