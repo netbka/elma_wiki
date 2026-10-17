@@ -30,7 +30,6 @@ test('refuses other keys and malformed values, naming only the key', () => {
     ['WIKI_TARGET_DEV2_URL', 'https://user:pass@dev2.example.test'], ['WIKI_TARGET_DEV2_URL', '"https://dev2.example.test\\nX=1"'],
     ['WIKI_TARGET_DEV2_DEPLOY_CANDIDATES', 'D'.repeat(64)], ['WIKI_TARGET_DEV2_DEPLOY_CANDIDATES', 'contracts'],
     ['WIKI_TARGET_DEV2_DEPLOY_CANDIDATES', `${'d'.repeat(64)}, ${'e'.repeat(64)}`], ['WIKI_TARGET_DEV2_DEPLOY_CANDIDATES', `${'d'.repeat(64)},`],
-    ['WIKI_TARGET_DEV2_DEPLOY_CANDIDATES', ''],
     ['WIKI_NATIVE_MATERIALIZATION_BRIDGE_ID', 'not-a-uuid'], ['WIKI_NATIVE_MATERIALIZATION_REVISION', 'A'.repeat(40)],
     ['WIKI_NATIVE_MATERIALIZATION_BRIDGE_OWNER', 'local'], ['WIKI_NATIVE_TARGET_PROFILE_TARGET', 'main-dev'],
     ['WIKI_NATIVE_TARGET_PROFILE_TARGET', '']
@@ -42,6 +41,15 @@ test('refuses other keys and malformed values, naming only the key', () => {
       return true;
     });
   }
+});
+
+test('an empty candidate list withdraws every designation; other keys still refuse empty values', () => {
+  assert.deepEqual(parseRuntimeSettings('WIKI_TARGET_DEV2_DEPLOY_CANDIDATES='), { WIKI_TARGET_DEV2_DEPLOY_CANDIDATES: '' });
+  assert.deepEqual(parseRuntimeSettings('WIKI_TARGET_DEV2_DEPLOY_CANDIDATES=""'), { WIKI_TARGET_DEV2_DEPLOY_CANDIDATES: '' });
+  for (const value of [' ', ',', `,${'d'.repeat(64)}`, `${'d'.repeat(64)},,${'e'.repeat(64)}`, 'd'.repeat(63), 'd'.repeat(65)])
+    assert.throws(() => parseRuntimeSettings(`WIKI_TARGET_DEV2_DEPLOY_CANDIDATES="${value}"`), /invalid format: WIKI_TARGET_DEV2_DEPLOY_CANDIDATES$/);
+  for (const key of Object.keys(RUNTIME_SETTINGS).filter(key => key !== 'WIKI_TARGET_DEV2_DEPLOY_CANDIDATES'))
+    assert.throws(() => parseRuntimeSettings(`${key}=`), new RegExp(`invalid format: ${key}$`));
 });
 
 test('a missing settings file means no change', () => {

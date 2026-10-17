@@ -7,7 +7,8 @@ import { parseEnv } from 'node:util';
 // lib/native-materialization-bridge.mjs, narrowed to production use.
 export const RUNTIME_SETTINGS = Object.freeze({
   WIKI_TARGET_DEV2_URL: /^https:\/\/[a-z0-9]([a-z0-9.-]*[a-z0-9])?(:[0-9]{1,5})?$/,
-  WIKI_TARGET_DEV2_DEPLOY_CANDIDATES: /^[0-9a-f]{64}(,[0-9a-f]{64})*$/,
+  // Empty withdraws every designation: lib/target-presets.mjs reads it as no candidate, as when unset.
+  WIKI_TARGET_DEV2_DEPLOY_CANDIDATES: /^([0-9a-f]{64}(,[0-9a-f]{64})*)?$/,
   WIKI_NATIVE_MATERIALIZATION_BRIDGE_ID: /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
   WIKI_NATIVE_MATERIALIZATION_BRIDGE_OWNER: /^(vk|email):[0-9a-f]{64}$/,
   WIKI_NATIVE_MATERIALIZATION_REVISION: /^[0-9a-f]{40}$/,

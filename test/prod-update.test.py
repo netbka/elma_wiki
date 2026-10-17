@@ -165,7 +165,9 @@ class RuntimeSettingsTests(unittest.TestCase):
                {'WIKI_TARGET_DEV2_URL': 'https://user:pass@dev2.example.test'}, {'WIKI_TARGET_DEV2_URL': 'https://dev2.example.test\nX=1'},
                {'WIKI_TARGET_DEV2_DEPLOY_CANDIDATES': 'D' * 64}, {'WIKI_TARGET_DEV2_DEPLOY_CANDIDATES': 'd' * 64 + ', ' + 'e' * 64},
                {'WIKI_TARGET_DEV2_DEPLOY_CANDIDATES': 'd' * 64 + ','}, {'WIKI_TARGET_DEV2_DEPLOY_CANDIDATES': 'd' * 64 + '\n'},
-               {'WIKI_TARGET_DEV2_DEPLOY_CANDIDATES': ''},
+               {'WIKI_TARGET_DEV2_DEPLOY_CANDIDATES': ' '}, {'WIKI_TARGET_DEV2_DEPLOY_CANDIDATES': ','},
+               {'WIKI_TARGET_DEV2_DEPLOY_CANDIDATES': ',' + 'd' * 64}, {'WIKI_TARGET_DEV2_DEPLOY_CANDIDATES': 'd' * 63},
+               {'WIKI_TARGET_DEV2_DEPLOY_CANDIDATES': 'd' * 64 + ',,' + 'e' * 64},
                {'WIKI_NATIVE_MATERIALIZATION_BRIDGE_ID': 'not-a-uuid'}, {'WIKI_NATIVE_MATERIALIZATION_REVISION': 'A' * 40},
                {'WIKI_NATIVE_MATERIALIZATION_BRIDGE_OWNER': 'local'}, {'WIKI_NATIVE_TARGET_PROFILE_TARGET': 'main-dev'},
                {'WIKI_NATIVE_TARGET_PROFILE_TARGET': 'dev2\n'}, {'WIKI_NATIVE_TARGET_PROFILE_TARGET': ''}]
@@ -173,8 +175,19 @@ class RuntimeSettingsTests(unittest.TestCase):
             with self.assertRaises(m.SettingsError) as raised:
                 m.apply_settings(self.previous, settings)
             value = next(iter(settings.values()))
-            if value:
+            if len(value) > 3:
                 self.assertNotIn(value, str(raised.exception))
+
+    def test_empty_candidate_list_withdraws_designation_and_other_keys_refuse_empty(self):
+        designated = self.previous + ['WIKI_TARGET_DEV2_DEPLOY_CANDIDATES=' + SETTINGS['WIKI_TARGET_DEV2_DEPLOY_CANDIDATES']]
+        env, changed = m.apply_settings(designated, {'WIKI_TARGET_DEV2_DEPLOY_CANDIDATES': ''})
+        self.assertEqual(env, self.previous + ['WIKI_TARGET_DEV2_DEPLOY_CANDIDATES='])
+        self.assertEqual(changed, ['WIKI_TARGET_DEV2_DEPLOY_CANDIDATES'])
+        self.assertEqual(m.apply_settings(env, {'WIKI_TARGET_DEV2_DEPLOY_CANDIDATES': ''}), (env, []))
+        for key in sorted(set(SETTINGS) - {'WIKI_TARGET_DEV2_DEPLOY_CANDIDATES'}):
+            with self.assertRaises(m.SettingsError) as raised:
+                m.apply_settings(self.previous, {key: ''})
+            self.assertEqual(str(raised.exception), 'Runtime setting has an invalid format: ' + key)
 
     def test_refuses_incomplete_native_materialization_configuration(self):
         partial = {k: SETTINGS[k] for k in ['WIKI_NATIVE_MATERIALIZATION_BRIDGE_ID', 'WIKI_NATIVE_TARGET_PROFILE_TARGET']}
