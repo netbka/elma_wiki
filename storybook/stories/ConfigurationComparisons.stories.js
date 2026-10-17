@@ -16,3 +16,4 @@ export const Stale = { render: () => comparisonStory('stale') };
 export const ObservationFailed = { render: () => comparisonStory('observation-failed') };
 export const LoadError = { render: () => comparisonStory('load-error') };
 export const ResponseLost = { render: () => comparisonStory('response-lost') };
+export const VerifiedAfterComparison = { render: () => comparisonStory('verified-after-comparison') };

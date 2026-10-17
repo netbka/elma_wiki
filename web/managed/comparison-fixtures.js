@@ -14,6 +14,11 @@ export function comparisonFixture(mode = 'compared') {
       before: { candidate: { sha256: 'a'.repeat(64) } }, delta: { missing: ['widgets/added.json'], different: ['widgets/contract.json'], unexpected: ['widgets/removed.json'] } } };
   if (mode === 'stale') { record.comparison.status = 'compared'; record.proposed.sha256 = 'd'.repeat(64); }
   let records = mode === 'unknown-base' ? [] : [record];
+  if (mode === 'verified-after-comparison') records = [
+    { id: 'synthetic-delivery', connection, createdAt: '2026-10-17T10:00:00Z', installedObservation: {
+      candidate: record.proposed, at: '2026-10-17T12:00:00Z', sequence: 1, evidenceBasis: 'synthetic' } },
+    { ...record, createdAt: '2026-10-17T11:00:00Z', comparison: { status: 'unresolved-outcome' } }
+  ];
   return { sourceHistory, release, connections: [connection], record, client: {
     installedHistory: async () => { if (mode === 'load-error') throw Error('Synthetic'); return structuredClone(records); },
     installedAction: async (_id, input) => {

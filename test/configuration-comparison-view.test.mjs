@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { sourceComparisonView, installedComparisonView } from '../web/managed/comparisons.js';
+import { sourceComparisonView, installedComparisonView, latestInstalledRecord, installedObservationAt } from '../web/managed/comparisons.js';
 import { comparisonFixture } from '../web/managed/comparison-fixtures.js';
 import { solutionDeliveryClient, composedDeliveryClient } from '../web/managed/delivery-client.js';
 
@@ -39,4 +39,21 @@ test('contextual comparison clients retain exact namespaces and do not dispatch 
     assert.equal(calls[1][1].action, 'compareInstalled');
     assert.equal(calls.length, 2);
   }
+});
+
+test('later delivery verification supersedes an unresolved comparison even when the attempt was created first', () => {
+  const { record, release, connections } = comparisonFixture(), connection = connections[0];
+  const delivery = { id: 'delivery', connection, createdAt: '2026-10-17T09:00:00Z',
+    installedObservation: { at: '2026-10-17T11:00:00Z', sequence: 1, candidate: record.proposed } };
+  const unresolved = { ...record, createdAt: '2026-10-17T10:00:00Z', comparison: { status: 'unresolved-outcome' } };
+  assert.equal(latestInstalledRecord([delivery, unresolved], connection.id), delivery);
+  assert.equal(installedObservationAt(delivery), '2026-10-17T11:00:00Z');
+  assert.equal(installedComparisonView(delivery, release, connection.id).current, true);
+  assert.equal(installedComparisonView(delivery, release, connection.id).delta, null);
+  const compared = { ...record, createdAt: '2026-10-17T11:00:00Z', comparison: { ...record.comparison,
+    observed: { at: '2026-10-17T11:00:00Z' }, before: { sequence: 1 } } };
+  assert.equal(latestInstalledRecord([delivery, unresolved, compared], connection.id), compared, 'a comparison observing that same sequence wins a clock-tick tie');
+  delivery.evidence = { verificationError: { at: '2026-10-17T12:00:00Z' } };
+  assert.equal(latestInstalledRecord([delivery, compared], connection.id), delivery);
+  assert.notEqual(installedComparisonView(delivery, release, connection.id).status, installedComparisonView({ ...delivery, evidence: undefined }, release, connection.id).status);
 });
