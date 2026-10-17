@@ -109,6 +109,8 @@ export const BaseUnknown = { render: () => story('base-unknown') };
 export const MergeRequired = { render: () => story('merge-required'), parameters: { docs: { description: { story:
   'Принятая версия и это изменение правят один объект. Выбор версии обязателен, решение сохраняется с причиной и ничего не принимает.' } } } };
 export const MergeResolved = { render: () => story('merge-resolved') };
+export const MergeSameTeam = { render: () => story('merge-same-team') };
+export const MergeSameTeamResolved = { render: () => story('merge-same-team-resolved') };
 export const MergeStale = { render: () => story('merge-stale') };
 export const MergeBlocked = { render: () => story('merge-blocked') };
 export const MergeParts = { render: () => story('merge-parts'), parameters: { docs: { description: { story:

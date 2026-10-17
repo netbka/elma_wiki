@@ -141,6 +141,7 @@ export function reviewGate(review, boundaryKeys = [], resolutions = {}) {
   // server re-checks it at acceptance. A part merge has no physical file yet.
   const head = review.kind === 'change' && review.merge?.head?.status === 'current' ? review.merge.head : null;
   if (head?.decisions?.some(row => row.parts)) return gateLabels.partMergeUnbuildable;
+  if (review.kind === 'change' && !head && review.merge?.plan?.status === 'resolution-required') return gateLabels.resolveConflict;
   if (review.kind === 'change' && !head && review.rows.some(row => row.conflict))
     return review.merge?.available ? gateLabels.resolveConflict : 'Другая команда уже изменила этот объект. Сначала согласуйте изменения через новый полный снимок.';
   if (review.kind === 'change' && review.rows.some(row => row.boundaryCrossing && !boundaryKeys.includes(row.key))) return 'Подтвердите каждое изменение объекта исходной базы.';

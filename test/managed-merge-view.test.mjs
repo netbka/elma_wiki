@@ -1,7 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { managedFixture } from '../web/managed/fixtures.js';
+import { reviewGate } from '../web/managed/model.js';
 import { mergeResolutionView, mergeGate, partInput, mergeSubmission } from '../web/managed/merge.js';
+
+test('same-team divergence blocks acceptance until a current resolution, independently of boundary checks', () => {
+  const review = managedFixture('merge-same-team').review;
+  const boundary = review.rows.filter(row => row.boundaryCrossing).map(row => row.key);
+  assert.equal(review.stale, false); assert.equal(review.rows.some(row => row.conflict), false);
+  assert.match(reviewGate(review, boundary), /Разрешите конфликт выше/);
+  const resolved = managedFixture('merge-same-team-resolved').review;
+  assert.equal(reviewGate(resolved, boundary), '');
+  const stale = structuredClone(resolved); stale.merge.head.status = 'stale';
+  assert.match(reviewGate(stale, boundary), /Разрешите конфликт выше/);
+});
 
 test('merge view requires an explicit supported choice and reason; no version is preselected', () => {
   const view = mergeResolutionView(managedFixture('merge-required').review.merge);

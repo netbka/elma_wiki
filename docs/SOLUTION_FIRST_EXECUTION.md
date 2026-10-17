@@ -27,7 +27,7 @@ One status table is maintained here; detailed acceptance cases remain in the rel
 | Slice | Implemented on main | Remaining exit / evidence |
 | --- | --- | --- |
 | MR-01 | Declared bases, bounded scope and evidence-bound deletion (#95/#103/#110); fixed Source pull supplies a source-sequence base (#130) | Ancestry stays unverified; pull order is not proof of independent changes |
-| MR-02 | Whole-component merge and durable resolutions (#107/#111); explicit process-part merge plan (#149) | Part-merged reference records still need physical file generation; other kinds need proven part adapters |
+| MR-02 | Whole-component merge and durable resolutions (#107/#111); explicit process-part merge plan (#149); same-team declared-base divergence requires a saved resolution | Part-merged reference records still need physical file generation; other kinds need proven part adapters |
 | MR-03 | E1 schema 1.3 pin and opt-in materialization bridge (#113/#122/#127/#135); validated build route (#147) | No native build observed. Service evidence source is absent, so real builds remain blocked |
 | MR-04 | Scope planner, pinned native coverage contract/catalog and composer eligibility integration (#104/#109/#133/#135/#146) | Native declaration source, observed Target preconditions and complete required global coverage |
 | MR-05 | Pinned dependency-receipt contract and resolver wired into eligibility (#108/#133/#146) | Admitted native Target-profile observation and actual compatible/licensed dependency evidence |
