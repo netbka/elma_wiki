@@ -18,7 +18,9 @@ export const nouns = {
 };
 
 // Solution tabs, in order
-export const tabs = { about: 'О решении', flows: 'Как работает', screensAndData: 'Экраны и данные', changes: 'Изменения', requests: 'Запросы', build: 'Сборка' };
+export const tabs = { about: 'О решении', flows: 'Как работает', screensAndData: 'Экраны и данные', changes: 'Изменения', requests: 'Запросы', build: 'Сборка',
+  engineering: 'Для инженеров', engineeringSections: 'Инструменты для инженеров',
+  engineeringNote: 'Сборка конфигурации и передача на сервер ELMA. Эти инструменты ещё в разработке и нужны инженерам; для просмотра и разбора изменений они не требуются.' };
 
 // Lifecycle stepper (product plan one-next-action map)
 export const steps = { load: 'Загрузка', compare: 'Сравнение', review: 'Рассмотрение', build: 'Сборка', verify: 'Проверка', release: 'Выпуск' };
@@ -41,6 +43,7 @@ export const actions = {
 };
 
 // Status chips (Solution card and header)
+export const solutionList = { pending: count => count === 1 ? 'Новая версия ждёт решения' : `Ждут решения: ${count}` };
 export const statuses = { working: 'В работе', awaitingReview: 'Ожидает рассмотрения', conflict: 'Конфликт', accepted: 'Принято', archived: 'В архиве' };
 
 // Change kinds: one word, parallel
@@ -110,7 +113,8 @@ export const pull = {
   opaque: 'Содержимое решения зашифровано или непрозрачно. Выберите другое решение.',
   failed: 'Загрузка не завершена. Повторите попытку.', serverNotConfigured: 'Сервер недоступен. Повторите позже или обратитесь к администратору.',
   catalogFailed: 'Список решений не получен.', saved: 'Экспорт сохранён. Открываем решение…', resume: 'Экспорт готов. Нажмите «Продолжить», чтобы открыть решение.',
-  continueLabel: 'Продолжить', manualFile: 'Загрузить файл .e365 вручную', legacyChange: 'Загрузить частичный экспорт файлом',
+  continueLabel: 'Продолжить', manualFile: 'Загрузить файл .e365 вручную',
+  manualTitle: 'Или загрузите файл', manualHint: 'Если сервер недоступен, выгрузите решение из ELMA в файл .e365 и загрузите его здесь.', legacyChange: 'Загрузить частичный экспорт файлом',
   serverNames: { dev: 'DEV', dev2: 'dev2' }
 };
 

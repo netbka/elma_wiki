@@ -6,7 +6,7 @@ import { mountExplanation } from '../explanations/render.js';
 import { mountRelease } from '../releases/render.js';
 import { hasAcceptedFullExport, requestCounts, fieldRequestCounts, viewedProgress, acceptedMergeTarget } from './model.js';
 import { mountAcquisition, mountSolutionPull, serverFromConnection } from './acquisition.js';
-import { actions as actionLabels, pull as pullLabels, partMerge, reviewPlain } from './labels.js';
+import { actions as actionLabels, pull as pullLabels, partMerge, reviewPlain, solutionList } from './labels.js';
 import { mountDependencies } from './dependencies.js';
 import { mountMergeResolution, mergeResolutionView } from './merge.js';
 import { mountComposer } from './composer.js';
@@ -94,7 +94,7 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
       const summary = workspaceSummary(row), card = el('article', undefined, 'managed-card');
       card.append(el('h2', row.name), el('p', summary.source, 'managed-muted'),
         el('p', `Текущая версия: ${dateLabel(row.baselineAcceptedAt)}`),
-        el('p', `Изменённых объектов: ${summary.changed} · Ожидают разбора: ${summary.pending}`),
+        ...(summary.pending ? [el('p', solutionList.pending(summary.pending), 'managed-badge managed-badge-awaitingReview')] : []),
         link(row.status === 'archived' ? 'Открыть архив' : 'Открыть решение', workspaceUrl(row.id))); list.append(card);
     }
     content.append(list); return root;
@@ -117,7 +117,8 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
       item.append(el('span', step.label), ' ', el('small', step.reason || step.note || stepStates[step.state], 'managed-muted'));
       stepper.append(item);
     }
-    if (stepper.childElementCount) context.append(stepper);
+    // The lifecycle belongs where it is acted on: the overview and the change/review pages.
+    if (stepper.childElementCount && ['overview', 'changes', 'change', 'full', 'review', 'archived'].includes(view)) context.append(stepper);
     const tabs = el('nav', undefined, 'solution-tabs'); tabs.setAttribute('aria-label', headerLabels.sections);
     // Tab names and order follow the plan's vocabulary (§6.2). "Как работает" and
     // "Запросы" arrive with UX-06 and UX-07; until then the object inventory, processes
@@ -129,15 +130,21 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
     }
     // The composer lives inside the Solution once a change was accepted; it is not a top-level destination.
     const composeHref = candidate => workspaceUrl(state.id, 'compose') + (candidate ? '&candidate=' + encodeURIComponent(candidate) : '');
-    if (model.shared && (state.changes?.length || state.reconciliations?.length || view === 'compose')) {
-      const tab = link(tabLabels.build, composeHref());
-      if (view === 'compose') tab.setAttribute('aria-current', 'page'); tabs.append(tab);
-    }
-    if (model.shared && (hasAcceptedFullExport(state) || view === 'handoff')) {
-      const tab = link(headerLabels.handoff, workspaceUrl(state.id, 'handoff'));
-      if (view === 'handoff') tab.setAttribute('aria-current', 'page'); tabs.append(tab);
+    // Build and handoff are engineering tools still in development: one "Для инженеров" tab, its own sub-menu.
+    const engineering = [
+      ...(model.shared && (state.changes?.length || state.reconciliations?.length || view === 'compose') ? [[tabLabels.build, composeHref(), 'compose']] : []),
+      ...(model.shared && (hasAcceptedFullExport(state) || view === 'handoff') ? [[headerLabels.handoff, workspaceUrl(state.id, 'handoff'), 'handoff']] : [])];
+    const inEngineering = ['compose', 'handoff'].includes(view);
+    if (engineering.length) {
+      const tab = link(tabLabels.engineering, engineering.find(([, , mode]) => mode === view)?.[1] || engineering[0][1]);
+      tab.classList.add('solution-tab-engineering'); if (inEngineering) tab.setAttribute('aria-current', 'page'); tabs.append(tab);
     }
     content.append(tabs);
+    if (inEngineering) {
+      const sub = el('nav', undefined, 'solution-subtabs'); sub.setAttribute('aria-label', tabLabels.engineeringSections);
+      for (const [label, href, mode] of engineering) { const a = link(label, href); if (view === mode) a.setAttribute('aria-current', 'page'); sub.append(a); }
+      content.append(sub, el('p', tabLabels.engineeringNote, 'managed-muted'));
+    }
     content.append(context);
     if (view === 'handoff' && model.shared) {
       if (model.error) { content.append(link('Повторить загрузку передачи', workspaceUrl(state.id, 'handoff'), true)); return root; }
@@ -177,7 +184,8 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
       // UX-06: Как работает is the process tab; it has no attention block of its own.
       if (view === 'flows') { content.append(mountFlows({ state, visuals: model.visuals || {}, selected: model.object || null }, { visual: actions.visual, explanations: actions.explanations, navigate: actions.navigate, ...entryActions })); return root; }
       content.append(el('h2', view === 'solution' ? `Объекты решения · ${state.current.filter(row => objectKind(row) !== 'processes').length}` : view === 'changes' ? 'Изменения' : 'Что требует внимания'), el('p', next.summary));
-      if(actions.explanations && ['overview','solution'].includes(view)){
+      // О решении already explains the purpose and each module; the Solution-wide box sits with the objects.
+      if(actions.explanations && view === 'solution'){
         const evidence=el('div');
         content.append(mountExplanation({target:{scope:'solution'},label:'Объяснить решение'}, {...actions.explanations,
           openSource:async reference=>{
@@ -193,7 +201,6 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
           }
         }),evidence);
       }
-      if (view === 'overview') content.append(el('p', `Изменённых объектов: ${summary.changed} · Ожидают рассмотрения: ${summary.pending}`));
       if (view === 'overview') content.append(mountActivity(state, { now: model.now }));
       for (const pending of view === 'solution' ? [] : state.pending) {
         const card = el('article', undefined, 'managed-card');
@@ -279,7 +286,12 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
       content.append(mountSolutionPull({ ...actions.acquisition }, { source: view === 'full' ? source : null, synthetic, acquisition: model.acquisition, unavailable: model.pullUnavailable, catalog: model.pullCatalog, error: model.pullError },
         row => run(() => view === 'create' ? actions.create({ name: row.name || row.code, snapshot: snapshotOf(row.project) })
           : actions.prepare({ kind: 'reconciliation', snapshot: snapshotOf(row.project), expectedRevision: state.revision }), state ? workspaceUrl(state.id, view, model.artifact) : undefined)));
-      if (view === 'create') content.append(link(pullLabels.manualFile, workspaceUrl(null, 'create') + '&mode=file'));
+      // When the export service is down this is the only way in, so it is an equal option, not a footnote.
+      if (view === 'create') {
+        const manual = el('section', undefined, 'managed-card managed-manual'), open = link(pullLabels.manualFile, workspaceUrl(null, 'create') + '&mode=file', !!model.pullUnavailable);
+        if (!model.pullUnavailable) open.className = 'button secondary';
+        manual.append(el('h2', pullLabels.manualTitle), el('p', pullLabels.manualHint), open); content.append(manual);
+      }
       return root;
     }
     const partial = view === 'change', form = el('form', undefined, 'managed-form');
