@@ -1,4 +1,4 @@
-import { nouns, grouping, flows as flowLabels, tabs as tabLabels, facts, kindGroups, actions as actionLabels } from './labels.js';
+import { nouns, grouping, plural, flows as flowLabels, tabs as tabLabels, facts, kindGroups, actions as actionLabels } from './labels.js';
 import { objectLabel, objectKind, groupObjects, moduleLabel, moduleNames, responsibilityLabel, capturedArtifact, matchesQuery, requestKindOf, fieldAnchorable, fieldRequestKey } from './model.js';
 import { requestChip } from './requests.js';
 import { processSummary } from '../visual/model.js';
@@ -47,7 +47,7 @@ export function mountFlows({ state, visuals = {}, selected = null }, actions = {
     let shown = 0;
     for (const { row, card } of cards) { const match = matchesQuery(row, query); card.hidden = !match; if (match) shown++; }
     for (const section of root.querySelectorAll('.managed-module')) section.hidden = ![...section.querySelectorAll('.managed-card')].some(card => !card.hidden);
-    status.textContent = query ? shown ? `${shown} ${grouping.objects}` : flowLabels.nothingFound : '';
+    status.textContent = query ? shown ? plural(shown, grouping.objects) : flowLabels.nothingFound : '';
   });
   let openToken = 0;
   const open = async (row, card) => {
@@ -109,7 +109,7 @@ export function mountScreens({ state, visuals = {} }, actions = {}) {
     let shown = 0;
     for (const { row, card } of cards) { const match = matchesQuery(row, query); card.hidden = !match; if (match) shown++; }
     for (const section of root.querySelectorAll('.managed-module, .managed-kind')) section.hidden = ![...section.querySelectorAll('.managed-card')].some(card => !card.hidden);
-    status.textContent = query ? shown ? `${shown} ${grouping.objects}` : flowLabels.nothingFound : '';
+    status.textContent = query ? shown ? plural(shown, grouping.objects) : flowLabels.nothingFound : '';
   });
   const fieldTable = (row, fields, artifactId) => {
     const table = el('table'), head = el('tr');

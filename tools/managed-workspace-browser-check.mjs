@@ -48,8 +48,12 @@ try {
   const workspaceUrl = page.url(), id = new URL(workspaceUrl).searchParams.get('id'); assert.ok(id);
   // UX-05: О решении opens with the purpose; the generated draft is edited and saved in place with its author.
   await page.getByRole('heading', { name: 'Для чего', exact: true }).waitFor();
+  // UX-10b: without process or screen names, "Написать" starts empty and the export draft is the secondary choice.
   await page.getByRole('button', { name: 'Написать', exact: true }).click();
   const purposeText = page.getByLabel('Описание решения', { exact: true }); await purposeText.waitFor();
+  assert.equal(await purposeText.inputValue(), '', 'a name-less export does not prefill a module list');
+  await page.getByRole('button', { name: 'Отмена', exact: true }).click();
+  await page.getByRole('button', { name: 'Составить черновик по экспорту', exact: true }).click(); await purposeText.waitFor();
   assert.match(await purposeText.inputValue(), /Работа в ELMA не наблюдалась/);
   await purposeText.fill('Учебное решение для согласования договоров.');
   await page.getByRole('button', { name: 'Сохранить описание', exact: true }).click();
@@ -156,7 +160,7 @@ try {
   assert.equal(await page.getByLabel('Комментарий к изменению', { exact: true }).count(), 0);
   await page.goto(correctedReviewUrl);
   await acceptBlocked();
-  await page.getByLabel('Изменение принятого объекта проверено', { exact: true }).focus(); await page.keyboard.press('Space');
+  await page.getByLabel('Подтверждаю изменение', { exact: true }).focus(); await page.keyboard.press('Space');
   await page.getByRole('button', { name: 'Решение по версии', exact: true }).focus(); await page.keyboard.press('Enter');
   await dialog().waitFor(); assert.equal(await dialog().getByRole('radio', { name: 'Принять', exact: true }).isChecked(), true, 'acceptance is the default once the gate opens');
   await dialog().getByRole('button', { name: 'Принять изменение', exact: true }).focus(); await page.keyboard.press('Enter');
@@ -170,7 +174,7 @@ try {
   await page.getByRole('heading', { name: 'Текущее состояние · 3 объектов', exact: true }).waitFor();
   // UX-06: search by name or code keeps the grouping and announces the count.
   await page.getByLabel('Поиск по названию или коду', { exact: true }).fill('contract');
-  await page.getByText('1 объектов', { exact: true }).waitFor();
+  await page.getByText('1 объект', { exact: true }).waitFor();
   assert.equal(await page.locator('.managed-screens .managed-card:not([hidden])').count(), 1, 'search narrows the screens');
   await page.getByLabel('Поиск по названию или коду', { exact: true }).fill('нет такого');
   await page.getByText('Ничего не найдено', { exact: true }).waitFor();
@@ -240,7 +244,7 @@ try {
   };
   const additions = structuredClone(processRaw); additions.process.items.x = { id: 'x', name: 'Дополнительное согласование' };
   additions.context.push({ code: 'one', type: 'STRING' }, { code: 'two', type: 'BOOLEAN' });
-  await prepareProcess(additions, 'change'); assert.equal(await page.getByLabel('Изменение принятого объекта проверено', { exact: true }).count(), 0);
+  await prepareProcess(additions, 'change'); assert.equal(await page.getByLabel('Подтверждаю изменение', { exact: true }).count(), 0);
   // The answer comes first in plain words; the ownership table and report wait behind "Подробнее".
   const changeList = await page.getByRole('list', { name: 'Что изменилось' }).first().innerText();
   assert.match(changeList, /Шаг «Дополнительное согласование» добавлен/); assert.match(changeList, /Переменная «one» добавлена/);
@@ -323,7 +327,7 @@ try {
   await page.goto(base + '/solutions?' + new URLSearchParams({ id: processState.id, view: 'flows' }));
   const boundary = structuredClone(additions); boundary.process.items.y.condition = 'reviewed edit';
   await prepareProcess(boundary, 'change'); await acceptBlocked();
-  await page.getByLabel('Изменение принятого объекта проверено', { exact: true }).check();
+  await page.getByLabel('Подтверждаю изменение', { exact: true }).check();
   await decide(null, 'Принять изменение');
   await page.getByRole('heading', { name: 'Что требует внимания', exact: true }).waitFor(); processState = await (await context.request.get(base + processRoute)).json();
   const overlap = structuredClone(boundary); overlap.process.items.x.name = 'Korus изменил шаг';
@@ -385,14 +389,16 @@ try {
         await page.locator('.managed-step[aria-current=step]').getByText('Проверка', { exact: true }).waitFor();
         await page.getByRole('link', { name: 'Проверить конфигурацию', exact: true }).waitFor();
       }
-      if (mode === 'pending') { await page.locator('.managed-step[aria-current=step]').getByText('Рассмотрение', { exact: true }).waitFor(); await page.getByText('Ожидает рассмотрения', { exact: true }).first().waitFor(); }
+      if (mode === 'pending') { await page.locator('.managed-step[aria-current=step]').getByText('Рассмотрение', { exact: true }).waitFor(); await page.getByText('Ожидает рассмотрения', { exact: true }).first().waitFor();
+        assert.match(await page.locator('.managed-headline').innerText(), /Рассматривается: версия от /, 'the headline names the reviewed version');
+        assert.match(await page.locator('.managed-current-version').innerText(), /^Текущая: версия от /, 'the accepted version stays on the second line'); }
       if (mode === 'archived') await page.getByText('В архиве', { exact: true }).first().waitFor();
     }
     if (mode.startsWith('about-')) {
       // UX-05: empty, generated, saved, stale and failed purpose states; two distinct people in the activity list.
       await page.getByRole('heading', { name: 'Для чего', exact: true }).waitFor(); await page.getByRole('heading', { name: 'Модули', exact: true }).waitFor();
       const activity = page.getByRole('list', { name: 'Последние события', exact: true });
-      await activity.getByText('Uploader', { exact: true }).waitFor(); assert.equal(await activity.getByText('Reviewer', { exact: true }).count(), 2);
+      await activity.getByText('uploader@example.org', { exact: true }).waitFor(); assert.equal(await activity.getByText('reviewer@example.org', { exact: true }).count(), 2); assert.equal(await activity.locator('.managed-initials').count(), 0, 'no initials invented from an e-mail login');
       // A code-less module card is titled "Без модуля" and offers no Объяснить button; a real module does.
       const orphan = page.locator('.managed-about .managed-card').filter({ has: page.getByRole('heading', { name: 'Без модуля', exact: true }) });
       assert.equal(await orphan.count(), 1, 'one code-less module card: ' + mode); assert.equal(await orphan.getByRole('button', { name: 'Объяснить', exact: true }).count(), 0, 'no Explain for a code-less module');

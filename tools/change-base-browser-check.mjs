@@ -115,7 +115,7 @@ try {
   assert.deepEqual([pending.changeScopeDeclaration.deletions, pending.changeScopeDeclaration.automaticMergeEnabled, pending.changeScopeDeclaration.buildEnabled], [[], false, false]);
   evidence.historicalBase = true;
   // Accepting keeps the absent scoped member: absence is not deletion.
-  for (const box of await page.getByLabel('Изменение принятого объекта проверено', { exact: true }).all()) await box.check();
+  for (const box of await page.getByLabel('Подтверждаю изменение', { exact: true }).all()) await box.check();
   // UX-03b: the decision lives in the "Решение по версии" dialog; acceptance is its default once the gate opens.
   await page.getByRole('button', { name: 'Решение по версии', exact: true }).click();
   await page.getByRole('dialog', { name: 'Решение по версии' }).getByRole('button', { name: 'Принять изменение', exact: true }).click();
