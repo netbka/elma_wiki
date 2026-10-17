@@ -236,11 +236,18 @@ try {
     const review = await jsonPost(processRoute + '/prepare', { kind, snapshot: await processSnapshot(raw, kind === 'change' ? 'partial' : 'full'), expectedRevision: processState.revision,
       sameSourceConfirmed: true, ...(kind === 'change' ? { team, taskRef: 'TASK-31' } : { baselineOwner: team }) });
     await page.goto(base + '/solutions?' + new URLSearchParams({ id: processState.id, view: 'review', artifact: review.artifactId }));
-    await page.getByRole('heading', { name: 'Ответственность частей процесса', exact: true }).waitFor(); return review;
+    await page.getByRole('heading', { name: 'Что изменилось', exact: true }).first().waitFor(); return review;
   };
   const additions = structuredClone(processRaw); additions.process.items.x = { id: 'x', name: 'Дополнительное согласование' };
   additions.context.push({ code: 'one', type: 'STRING' }, { code: 'two', type: 'BOOLEAN' });
   await prepareProcess(additions, 'change'); assert.equal(await page.getByLabel('Изменение принятого объекта проверено', { exact: true }).count(), 0);
+  // The answer comes first in plain words; the ownership table and report wait behind "Подробнее".
+  const changeList = await page.getByRole('list', { name: 'Что изменилось' }).first().innerText();
+  assert.match(changeList, /Шаг «Дополнительное согласование» добавлен/); assert.match(changeList, /Переменная «one» добавлена/);
+  assert.equal(await page.getByRole('heading', { name: 'Ответственность частей процесса', exact: true }).isVisible(), false, 'parts table is collapsed');
+  await page.getByText('Подробнее: все части процесса и ответственность', { exact: true }).first().click();
+  await page.getByRole('heading', { name: 'Ответственность частей процесса', exact: true }).first().waitFor();
+  await page.locator('details.managed-more > summary').first().click();
   const downloadPromise = page.waitForEvent('download'); await page.getByRole('button', { name: 'Скачать отчёт об ответственности', exact: true }).click();
   const download = await downloadPromise, report = await fs.readFile(await download.path(), 'utf8'); assert.match(report, /Korus/); assert.match(report, /Internal/);
   assert.match(report, /авторы публикаций ELMA.*не установлены/);
@@ -321,7 +328,7 @@ try {
   await page.getByRole('heading', { name: 'Что требует внимания', exact: true }).waitFor(); processState = await (await context.request.get(base + processRoute)).json();
   const overlap = structuredClone(boundary); overlap.process.items.x.name = 'Korus изменил шаг';
   await prepareProcess(overlap, 'change', 'Korus');
-  await acceptBlocked(); await page.getByText(/конфликт команд/).waitFor();
+  await acceptBlocked(); await page.getByRole('list', { name: 'Что изменилось' }).getByText(/«Korus изменил шаг» изменён — конфликт с изменением другой команды/).waitFor();
   await page.screenshot({ path: 'qa/managed-elements-overlap.png', fullPage: true });
   await prepareProcess(overlap, 'reconciliation', 'Korus'); await acceptBlocked();
   await page.getByLabel('Какую версию сохранить', { exact: true }).selectOption('keep-working');
@@ -509,7 +516,10 @@ try {
     if (mode === 'create') { assert.equal(await page.getByRole('button', { name: 'Загрузить', exact: true }).count(), 1, 'one button on the fixed entry'); assert.equal(await page.getByLabel('Это полный экспорт решения', { exact: true }).count(), 0); }
     if (mode === 'update') { await page.getByRole('button', { name: 'Обновить', exact: true }).waitFor(); assert.equal(await page.getByLabel('Сервер', { exact: true }).isDisabled(), true); }
     if (mode === 'pull-unavailable') assert.equal(await page.getByRole('button', { name: 'Загрузить', exact: true }).isDisabled(), true);
-    if (mode.startsWith('elements-')) { await page.setViewportSize({ width: 390, height: 844 }); await page.getByRole('heading', { name: 'Ответственность частей процесса', exact: true }).waitFor(); }
+    if (mode.startsWith('elements-')) {
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.locator('details.managed-parts > summary').first().click(); await page.getByRole('heading', { name: 'Ответственность частей процесса', exact: true }).first().waitFor();
+    }
     if (mode.startsWith('review-')) {
       await page.setViewportSize({ width: 390, height: 844 });
       if (mode === 'review-accepted') assert.equal(await page.getByRole('button', { name: 'Решение по версии', exact: true }).count(), 0);
