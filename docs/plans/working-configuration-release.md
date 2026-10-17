@@ -1,7 +1,7 @@
 # Рабочая конфигурация: сравнение, слияние, сборка и выпуск
 
 Дата: 8 октября 2026. Продуктовая цель подтверждена прямым уточнением владельца; архитектура ниже является планом реализации, не утверждением о готовом merge/composer.
-Статус на main `64af8d1` (16 октября 2026): PLAN-01 P1-P7, MR-08 (логика), принятие native-контрактов coverage/receipt, manifest policy v2 и UX-00..UX-06 слиты; UX-07 слит только как backend; P8 открыт. См. [статус реализации](#implementation-status-2026-10-16). Это синтетические доказательства, а не развертывание или native-приемка.
+Status on main `6a3467f` (2026-10-17): PLAN-01 P1-P7, native contract pins, manifest policy v2, composer integration, MR-08 logic/UI and UX-00..UX-09 implementation/materials are merged. P8 native acceptance and actual design-validation sessions remain open. See [implementation status](#implementation-status-2026-10-17). Merged code is not deployment or native acceptance.
 Authority: [действующий продуктовый контракт](../SOLUTION_FIRST_PRODUCT_PLAN.md). Владельцы: Wiki #94, delivery #11, native identity #47, координация #91; native-сборка [elma365#60](https://github.com/netbka/elma365/issues/60).
 
 ## 1. Обязательный результат
@@ -158,9 +158,9 @@ Composed candidate and guarded delivery integration (PLAN-01 P7, MR-06) extends 
 
 Promotion and recovery (MR-08) extend the same coordinator; see [target-deployment.md](../contracts/target-deployment.md#promotion-recovery-and-evidence-packets-mr-08). A verified non-production attempt promotes the exact candidate only to a destination on the same platform version whose fresh state equals the verified baseline; drift, a stale candidate or invalidated source evidence blocks before dispatch. Every observed read-back records a reconciliation (`applied`, `not-applied`, `diverged`); a retry exists only after reconciliation, is idempotent per key, needs a new typed confirmation, and a partial install is forward-recovered only with a declared idempotent re-import. Each attempt yields a digest-bound per-destination evidence packet. PROD needs a trusted owner grant and a separate typed confirmation; the service wires no grant, so PROD stays refused. Evidence is synthetic only. Still open: preservation of concurrent drafts on the destination beyond the drift block, restore rehearsal, live target-specific acceptance (MR-07/P8 and `live-selection-and-release`). PLAN-01 A1 adds these actions to the shared delivery renderer; PROD is shown only as refused.
 
-## Implementation status (2026-10-16)
+## Implementation status (2026-10-17)
 
-Reconciled against main `64af8d1` by reading merged PRs, code, tests and contracts. Every merged item has synthetic evidence only. Nothing here is a hosted rollout, a live ELMA operation, native acceptance or business acceptance, and merged is not deployed.
+Reconciled against main `6a3467f` on 2026-10-17 by reading merged PRs, code, tests and contracts. The ordered next outcomes are in [the execution plan](../SOLUTION_FIRST_EXECUTION.md#next-execution-steps-p8-contracts-vertical-slice). Every merged item has synthetic evidence only. Nothing here is a hosted rollout, a live ELMA operation, native acceptance or business acceptance, and merged is not deployed.
 
 ### MR slices
 
@@ -192,7 +192,7 @@ Reconciled against main `64af8d1` by reading merged PRs, code, tests and contrac
 | AR-00..AR-02, AR-03 unchanged-original handoff | Offline analyst releases, implemented before this plan ([analyst-releases.md](../contracts/analyst-releases.md)); shared contextual handoff delivery through the #11 coordinator | contract record; #102, #105 (shared handoff) |
 | AR-04 | The shared delivery path is the single coordinator above; no live Target delivery is observed | #102, #105, #117 |
 | AR-05 | Supported widget-script edits are review-only: an edited candidate is `deployable: false`, `materialization: unavailable`, and gets no handoff or delivery | #125 |
-| AR-06 | Promotion/recovery logic as MR-08; PROD refused; no restore rehearsal | #124 |
+| AR-06 | Promotion/recovery logic and shared renderer as MR-08; PROD refused; no restore rehearsal | #124, #150 |
 
 ### Intuitive Solution UI (UX)
 
@@ -207,25 +207,25 @@ Plan: [intuitive-solution-ui-2026-10-15.md](intuitive-solution-ui-2026-10-15.md)
 | UX-04 | Lifecycle stepper and status badge; tabs reordered | #136 | — |
 | UX-05 | "О решении": purpose, modules, recent attributed events | #137 | — |
 | UX-06 | "Как работает" and "Экраны и данные" tabs; "where it is used" for fields stays open (not in the export projection) | #140, #142 | — |
-| UX-07 | Backend only: durable contextual change requests, anchors, attributed status, opt-in publication through the bug-report transport. No form, list tab, chips or field anchors | #141 | A2 |
-| UX-08 | Per-actor "Просмотрено" marks bound to the row digest within the change lineage, cleared on a changed correction, header progress; implemented on campaign/elma-wiki-execution-6/A3 (stacked on A2 #151), awaiting verification | — | A3 |
-| UX-09 | Materials prepared on campaign/elma-wiki-execution-6/A4 (stacked on A3 #152), awaiting verification: `design-validation` Storybook journey and stories, five-second tests on six synthetic stories, label deck covering every section 7 label, card sort into the five tabs, the 2-of-3 replacement rule (`web/flows/design-validation.js`, `test/design-validation.test.mjs`, EXPERIENCE_REVIEW addendum). The sessions with three colleagues are not run and no answers are recorded; design validation only, not #59/#41 work. Readiness criteria for a later #41/#59 owner decision are proposed in open PR #143 (docs only, `intuitive-solution-ui-2026-10-15.md`) | — | A4 |
+| UX-07 | Backend and UI merged: contextual request form, list tab, history, object chips and verified field anchors; explicit-consent publication. Synthetic evidence only | #141, #145, #151 | Live publication not observed |
+| UX-08 | Merged: per-actor reviewed marks bound to the row digest within the change lineage and header progress; changed corrections invalidate marks. Marks do not gate acceptance | #152, #154 | Human acceptance separate |
+| UX-09 | Design-validation materials merged: synthetic Storybook journey, five-second tests, label deck and card sort. No colleague sessions or answers recorded. Readiness criteria for later #41/#59 resumption are merged; human work remains deferred | #143, #153, #155 | Actual design-validation sessions; separate owner resumption of #41/#59 |
 
-### Remaining work: this campaign's tasks
+### Campaign task disposition (2026-10-17)
 
-Each task owns its row; none is claimed as done here.
+Merged implementation is not native or human acceptance. No worker assignment or running session is implied.
 
-| Task | Outcome | Depends on |
+| Task | Merged evidence | Remaining work |
 | --- | --- | --- |
-| C1 | Feed the release-scope planner, P4 coverage adapter, P5 dependency resolver and the bridge Target-profile observation into the composer's build eligibility gate; show each blocking reason | — |
-| C2 | Derive `composedBuild.available` from `WIKI_NATIVE_MATERIALIZATION_*` plus bridge health; a POST build route sends the E1 request through the bridge and verifies the validation receipt; unconfigured stays unavailable with a reason | C1 |
-| B1 | Server route that freezes a composed candidate only from a current validated C2 build; a request body never supplies the bound values | C2 |
-| B2 | Part/field-level three-way merge for kinds with stable part IDs (process elements first), rename and duplicate-ID detection, dependency/behaviour findings; unknown ancestry still blocks | — (implemented on campaign/elma-wiki-execution-6/B2, awaiting verification) |
-| A1 | MR-08 states and reconcile/retry actions in the shared delivery renderer for the designated non-production Target; PROD shown refused | B1 |
-| A2 | UX-07 user interface on #141 | — |
-| A3 | UX-08 per-actor reviewed marks | A2 |
-| A4 | UX-09 Storybook and label/card-sort/five-second materials; no #59/#41 work | A3 |
-| P8 | Native and business acceptance of the Contracts candidate on dev2 through the operator bridge | C2, B1 |
+| C1 | #146: scope/coverage/dependencies feed composer eligibility | Native declaration and Target-profile sources |
+| C2 | #147: opt-in validated build route | Observed native materialization |
+| B1 | #148: trusted freeze route | UI call and guarded native test-install integration |
+| B2 | #149: process-part merge plan/resolution | Physical merged-file generation and other supported part adapters |
+| A1 | #150: promotion/reconcile/retry renderer | Native acceptance and recovery rehearsal |
+| A2 | #145/#151: UX-07 UI and field anchors | Live publication not observed |
+| A3 | #152: UX-08 reviewed marks | Human acceptance separate |
+| A4 | #153/#155: UX-09 materials and acceptance-readiness docs | Actual design-validation sessions; #59/#41 remain deferred |
+| P8 | No native acceptance evidence | Follow [ordered next outcomes](../SOLUTION_FIRST_EXECUTION.md#next-execution-steps-p8-contracts-vertical-slice) and the gates below |
 
 ### Owner and environment gates
 
