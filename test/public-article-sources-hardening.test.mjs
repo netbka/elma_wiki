@@ -68,7 +68,7 @@ test('mixed metadata preserves useful links, article status and caller input', (
 });
 
 test('private source values stay hidden through the actual public article generator', async () => {
-  const landing = await readFile(new URL('../web/index.html', import.meta.url), 'utf8');
+  const landing = await readFile(new URL('../web/public-landing.html', import.meta.url), 'utf8');
   const entries = [{ ...articles[0], sources: ['README.md', '.local/' + sentinel, { secret: sentinel }] }, ...articles.slice(1)];
   const files = renderPublicFiles({ landing, articles: entries, example: { entities: [] } });
   const html = files.get(`articles/${entries[0].id}/index.html`);

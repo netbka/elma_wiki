@@ -18,7 +18,9 @@ export const nouns = {
 };
 
 // Solution tabs, in order
-export const tabs = { about: 'О решении', flows: 'Как работает', screensAndData: 'Экраны и данные', changes: 'Изменения', requests: 'Запросы', build: 'Сборка' };
+export const tabs = { about: 'О решении', flows: 'Как работает', screensAndData: 'Экраны и данные', changes: 'Изменения', requests: 'Запросы', build: 'Сборка',
+  engineering: 'Для инженеров', engineeringSections: 'Инструменты для инженеров',
+  engineeringNote: 'Сборка конфигурации и передача на сервер ELMA. Эти инструменты ещё в разработке и нужны инженерам; для просмотра и разбора изменений они не требуются.' };
 
 // Lifecycle stepper (product plan one-next-action map)
 export const steps = { load: 'Загрузка', compare: 'Сравнение', review: 'Рассмотрение', build: 'Сборка', verify: 'Проверка', release: 'Выпуск' };
@@ -41,6 +43,7 @@ export const actions = {
 };
 
 // Status chips (Solution card and header)
+export const solutionList = { pending: count => count === 1 ? 'Новая версия ждёт решения' : `Ждут решения: ${count}` };
 export const statuses = { working: 'В работе', awaitingReview: 'Ожидает рассмотрения', conflict: 'Конфликт', accepted: 'Принято', archived: 'В архиве' };
 
 // Change kinds: one word, parallel
@@ -110,7 +113,8 @@ export const pull = {
   opaque: 'Содержимое решения зашифровано или непрозрачно. Выберите другое решение.',
   failed: 'Загрузка не завершена. Повторите попытку.', serverNotConfigured: 'Сервер недоступен. Повторите позже или обратитесь к администратору.',
   catalogFailed: 'Список решений не получен.', saved: 'Экспорт сохранён. Открываем решение…', resume: 'Экспорт готов. Нажмите «Продолжить», чтобы открыть решение.',
-  continueLabel: 'Продолжить', manualFile: 'Загрузить файл .e365 вручную', legacyChange: 'Загрузить частичный экспорт файлом',
+  continueLabel: 'Продолжить', manualFile: 'Загрузить файл .e365 вручную',
+  manualTitle: 'Или загрузите файл', manualHint: 'Если сервер недоступен, выгрузите решение из ELMA в файл .e365 и загрузите его здесь.', legacyChange: 'Загрузить частичный экспорт файлом',
   serverNames: { dev: 'DEV', dev2: 'dev2' }
 };
 
@@ -296,10 +300,24 @@ export const empty = { purpose: 'Опишите, для чего это реше
 export const classificationLabels = {
   unchanged: 'Без изменений', 'intervention-added': 'Добавлен объект', 'component-modified': 'Объект изменён',
   'known-change-retained': 'Наше изменение сохранится', 'known-change-incorporated': 'Наше изменение включено в снимок',
-  'external-change': 'Изменение из полного снимка', 'component-deleted': 'Удаление заявлено явно', conflict: 'Нужен выбор версии', ambiguous: 'Недостаточно данных'
+  'external-change': 'Изменено в новой версии', 'component-deleted': 'Удаление заявлено явно', conflict: 'Нужен выбор версии', ambiguous: 'Недостаточно данных'
 };
 export const elementClassificationLabels = { ...classificationLabels, 'element-added': 'Добавлен', 'element-removed': 'Удалён', 'element-modified': 'Изменён' };
 export const elementKindLabels = { node: 'Шаг', transition: 'Переход', variable: 'Переменная', lane: 'Дорожка' };
+
+// Review answers "what changed" in plain sentences first; ownership tables,
+// reports and comparison evidence stay one click away under "Подробнее".
+export const reviewPlain = {
+  versionIntro: 'Сравнение новой версии с текущей. Если принять, новая версия станет текущей.',
+  changeIntro: 'Изменение от команды',
+  whatChanged: 'Что изменилось',
+  partsDetails: 'Подробнее: все части процесса и ответственность',
+  responsibility: 'Ответственность',
+  moreParts: count => `И ещё ${count}. Полный список — в «Подробнее».`,
+  conflictSuffix: ' — конфликт с изменением другой команды',
+  partVerbs: { 'element-added': ['добавлен', 'добавлена'], 'element-removed': ['удалён', 'удалена'], changed: ['изменён', 'изменена'] },
+  feminine: new Set(['variable', 'lane'])
+};
 
 // MR-02 part-level merge inside «Совмещение с принятыми изменениями». The server
 // plan is authoritative; part merge is offered, never applied by default.

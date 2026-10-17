@@ -6,7 +6,7 @@ import { mountExplanation } from '../explanations/render.js';
 import { mountRelease } from '../releases/render.js';
 import { hasAcceptedFullExport, requestCounts, fieldRequestCounts, viewedProgress, acceptedMergeTarget } from './model.js';
 import { mountAcquisition, mountSolutionPull, serverFromConnection } from './acquisition.js';
-import { actions as actionLabels, pull as pullLabels, partMerge } from './labels.js';
+import { actions as actionLabels, pull as pullLabels, partMerge, reviewPlain, solutionList } from './labels.js';
 import { mountDependencies } from './dependencies.js';
 import { mountMergeResolution, mergeResolutionView } from './merge.js';
 import { mountComposer } from './composer.js';
@@ -94,7 +94,7 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
       const summary = workspaceSummary(row), card = el('article', undefined, 'managed-card');
       card.append(el('h2', row.name), el('p', summary.source, 'managed-muted'),
         el('p', `Текущая версия: ${dateLabel(row.baselineAcceptedAt)}`),
-        el('p', `Изменённых объектов: ${summary.changed} · Ожидают разбора: ${summary.pending}`),
+        ...(summary.pending ? [el('p', solutionList.pending(summary.pending), 'managed-badge managed-badge-awaitingReview')] : []),
         link(row.status === 'archived' ? 'Открыть архив' : 'Открыть решение', workspaceUrl(row.id))); list.append(card);
     }
     content.append(list); return root;
@@ -117,7 +117,8 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
       item.append(el('span', step.label), ' ', el('small', step.reason || step.note || stepStates[step.state], 'managed-muted'));
       stepper.append(item);
     }
-    if (stepper.childElementCount) context.append(stepper);
+    // The lifecycle belongs where it is acted on: the overview and the change/review pages.
+    if (stepper.childElementCount && ['overview', 'changes', 'change', 'full', 'review', 'archived'].includes(view)) context.append(stepper);
     const tabs = el('nav', undefined, 'solution-tabs'); tabs.setAttribute('aria-label', headerLabels.sections);
     // Tab names and order follow the plan's vocabulary (§6.2). "Как работает" and
     // "Запросы" arrive with UX-06 and UX-07; until then the object inventory, processes
@@ -129,15 +130,21 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
     }
     // The composer lives inside the Solution once a change was accepted; it is not a top-level destination.
     const composeHref = candidate => workspaceUrl(state.id, 'compose') + (candidate ? '&candidate=' + encodeURIComponent(candidate) : '');
-    if (model.shared && (state.changes?.length || state.reconciliations?.length || view === 'compose')) {
-      const tab = link(tabLabels.build, composeHref());
-      if (view === 'compose') tab.setAttribute('aria-current', 'page'); tabs.append(tab);
-    }
-    if (model.shared && (hasAcceptedFullExport(state) || view === 'handoff')) {
-      const tab = link(headerLabels.handoff, workspaceUrl(state.id, 'handoff'));
-      if (view === 'handoff') tab.setAttribute('aria-current', 'page'); tabs.append(tab);
+    // Build and handoff are engineering tools still in development: one "Для инженеров" tab, its own sub-menu.
+    const engineering = [
+      ...(model.shared && (state.changes?.length || state.reconciliations?.length || view === 'compose') ? [[tabLabels.build, composeHref(), 'compose']] : []),
+      ...(model.shared && (hasAcceptedFullExport(state) || view === 'handoff') ? [[headerLabels.handoff, workspaceUrl(state.id, 'handoff'), 'handoff']] : [])];
+    const inEngineering = ['compose', 'handoff'].includes(view);
+    if (engineering.length) {
+      const tab = link(tabLabels.engineering, engineering.find(([, , mode]) => mode === view)?.[1] || engineering[0][1]);
+      tab.classList.add('solution-tab-engineering'); if (inEngineering) tab.setAttribute('aria-current', 'page'); tabs.append(tab);
     }
     content.append(tabs);
+    if (inEngineering) {
+      const sub = el('nav', undefined, 'solution-subtabs'); sub.setAttribute('aria-label', tabLabels.engineeringSections);
+      for (const [label, href, mode] of engineering) { const a = link(label, href); if (view === mode) a.setAttribute('aria-current', 'page'); sub.append(a); }
+      content.append(sub, el('p', tabLabels.engineeringNote, 'managed-muted'));
+    }
     content.append(context);
     if (view === 'handoff' && model.shared) {
       if (model.error) { content.append(link('Повторить загрузку передачи', workspaceUrl(state.id, 'handoff'), true)); return root; }
@@ -177,7 +184,8 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
       // UX-06: Как работает is the process tab; it has no attention block of its own.
       if (view === 'flows') { content.append(mountFlows({ state, visuals: model.visuals || {}, selected: model.object || null }, { visual: actions.visual, explanations: actions.explanations, navigate: actions.navigate, ...entryActions })); return root; }
       content.append(el('h2', view === 'solution' ? `Объекты решения · ${state.current.filter(row => objectKind(row) !== 'processes').length}` : view === 'changes' ? 'Изменения' : 'Что требует внимания'), el('p', next.summary));
-      if(actions.explanations && ['overview','solution'].includes(view)){
+      // О решении already explains the purpose and each module; the Solution-wide box sits with the objects.
+      if(actions.explanations && view === 'solution'){
         const evidence=el('div');
         content.append(mountExplanation({target:{scope:'solution'},label:'Объяснить решение'}, {...actions.explanations,
           openSource:async reference=>{
@@ -193,7 +201,6 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
           }
         }),evidence);
       }
-      if (view === 'overview') content.append(el('p', `Изменённых объектов: ${summary.changed} · Ожидают рассмотрения: ${summary.pending}`));
       if (view === 'overview') content.append(mountActivity(state, { now: model.now }));
       for (const pending of view === 'solution' ? [] : state.pending) {
         const card = el('article', undefined, 'managed-card');
@@ -279,7 +286,12 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
       content.append(mountSolutionPull({ ...actions.acquisition }, { source: view === 'full' ? source : null, synthetic, acquisition: model.acquisition, unavailable: model.pullUnavailable, catalog: model.pullCatalog, error: model.pullError },
         row => run(() => view === 'create' ? actions.create({ name: row.name || row.code, snapshot: snapshotOf(row.project) })
           : actions.prepare({ kind: 'reconciliation', snapshot: snapshotOf(row.project), expectedRevision: state.revision }), state ? workspaceUrl(state.id, view, model.artifact) : undefined)));
-      if (view === 'create') content.append(link(pullLabels.manualFile, workspaceUrl(null, 'create') + '&mode=file'));
+      // When the export service is down this is the only way in, so it is an equal option, not a footnote.
+      if (view === 'create') {
+        const manual = el('section', undefined, 'managed-card managed-manual'), open = link(pullLabels.manualFile, workspaceUrl(null, 'create') + '&mode=file', !!model.pullUnavailable);
+        if (!model.pullUnavailable) open.className = 'button secondary';
+        manual.append(el('h2', pullLabels.manualTitle), el('p', pullLabels.manualHint), open); content.append(manual);
+      }
       return root;
     }
     const partial = view === 'change', form = el('form', undefined, 'managed-form');
@@ -444,7 +456,7 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
     }
     const full = review.kind === 'reconciliation', form = el('form'), boundaryKeys = new Set(), resolutions = {};
     content.append(el('h2', full ? 'Рассмотреть обновление версии' : 'Рассмотреть изменение'),
-      el('p', full ? `После принятия это станет текущей версией. Заявленная ответственность: ${review.options.baselineOwner}.` : `Ответственная команда: ${review.options.team} · ${review.options.taskRef}.`));
+      el('p', full ? reviewPlain.versionIntro : `${reviewPlain.changeIntro} ${review.options.team} · ${review.options.taskRef}.`));
     // UX-03: the answer first. One summary line with counts, the facts as chips,
     // and the provenance evidence behind one "Подробнее". Gates and decisions
     // below are unchanged; this is a projection of the same review rows.
@@ -497,19 +509,20 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
     summaryBlock.append(viewedLine);
     const chips = el('ul', undefined, 'managed-chips'); chips.setAttribute('aria-label', 'Факты');
     const chip = (text, tone) => chips.append(el('li', text, tone));
-    if (review.baseDeclaration) {
+    // A full version is always compared with the current one: an undeclared base is not a warning there.
+    if (review.baseDeclaration && !(full && review.baseDeclaration.status !== 'declared')) {
       const declared = review.baseDeclaration.status === 'declared', baseArtifact = declared ? state.artifacts?.find(row => row.id === review.baseDeclaration.artifactId) : null;
       chip(!declared ? facts.baseUnknown : baseArtifact?.snapshot?.createdAt ? `${facts.baseVersion} ${dateLabel(baseArtifact.snapshot.createdAt)}` : `${summaryLabels.baseRevision} ${review.baseDeclaration.revision}`, declared ? undefined : 'managed-chip-warn');
     }
     const server = serverFromConnection(review.snapshot?.source?.connectionId);
     if (server) chip(`${facts.server}: ${pullLabels.serverNames[server] || server}`);
     if (review.uploadedBy) chip(`${facts.loadedBy}: ${review.uploadedBy.login}`);
-    chip(`${summaryLabels.responsibility}: ${full ? review.options.baselineOwner : review.options.team}`);
     if (summary.unknownParts) chip(`${summaryLabels.unknownParts}: ${summary.unknownParts}`, 'managed-chip-warn');
     if (summary.dependencyProblems) chip(`${summaryLabels.dependencyProblems}: ${summary.dependencyProblems}`, 'managed-chip-warn');
     summaryBlock.append(chips); content.append(summaryBlock);
     const more = el('details', undefined, 'managed-more'); more.append(el('summary', actionLabels.details));
     if (review.uploadedBy) more.append(el('p', `Загрузил: ${review.uploadedBy.login}`));
+    more.append(el('p', `${reviewPlain.responsibility}: ${full ? review.options.baselineOwner : review.options.team}`));
     content.append(more);
     if (review.baseDeclaration || review.changeScopeDeclaration) {
       const provenance = el('section', undefined, 'managed-card managed-provenance'), declared = baseEvidence(review.baseDeclaration);
@@ -532,7 +545,7 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
     button('Скачать отчёт об ответственности', () => {
       const url = URL.createObjectURL(new Blob([responsibilityReport(state, review)], { type: 'text/plain;charset=utf-8' }));
       const a = el('a'); a.href = url; a.download = 'responsibility-review.txt'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
-    }).className = 'secondary';
+    }, more).className = 'secondary';
     if (review.acceptedAt) content.append(el('p', `Принято: ${dateLabel(review.acceptedAt)} · ${review.acceptedDecision?.actor?.login || 'Автор решения не зафиксирован'}`, 'managed-accepted'));
     if (review.closedAt) content.append(el('p', `${decisionLabels.closedNoChanges}: ${dateLabel(review.closedAt)} · ${review.closedDecision?.actor?.login || 'Автор решения не зафиксирован'}`, 'managed-accepted managed-closed'));
     if (review.stale) content.append(el('p', !full && review.merge && mergeResolutionView(review.merge).editable
@@ -638,16 +651,30 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
       const card = el('section', undefined, 'managed-card'); card.append(objectTitle('h3', row), el('p', row.conflict ? 'Конфликт с изменением другой команды' : labels[row.classification] || row.classification));
       viewedControl(card, row);
       if (row.elements) {
-        card.append(el('h4', 'Ответственность частей процесса'),
-          el('p', 'Заявленная командой ответственность. Авторы публикаций ELMA и договорная ответственность не установлены.', 'managed-muted'));
+        const changedParts = row.elements.rows.filter(part => part.classification !== 'unchanged');
+        if (changedParts.length) {
+          const list = el('ul', undefined, 'managed-change-list'); list.setAttribute('aria-label', reviewPlain.whatChanged);
+          for (const part of changedParts.slice(0, 20)) {
+            const [masculine, feminine] = reviewPlain.partVerbs[part.classification] || reviewPlain.partVerbs.changed;
+            list.append(el('li', `${elementKinds[part.kind] || part.kind} «${part.name || part.code}» ${reviewPlain.feminine.has(part.kind) ? feminine : masculine}${part.conflict ? reviewPlain.conflictSuffix : ''}`));
+          }
+          card.append(el('h4', reviewPlain.whatChanged), list);
+          if (changedParts.length > 20) card.append(el('p', reviewPlain.moreParts(changedParts.length - 20), 'managed-muted'));
+        }
         if (!row.elements.complete || row.elements.residualChanged) card.append(el('p', 'Часть данных не установлена или изменены прочие данные. Сохраняется проверка всего объекта.', 'managed-note'));
+      }
+      // Context first ("Было и стало"); the full parts table is one click away.
+      const partsHost = row.elements ? el('details', undefined, 'managed-more managed-parts') : null;
+      if (partsHost) {
+        partsHost.append(el('summary', reviewPlain.partsDetails), el('h4', 'Ответственность частей процесса'),
+          el('p', 'Заявленная командой ответственность. Авторы публикаций ELMA и договорная ответственность не установлены.', 'managed-muted'));
         const table = el('table'), head = el('tr'); ['Часть', 'Было', 'Изменение'].forEach(label => head.append(el('th', label))); table.append(head);
         for (const part of row.elements.rows.slice(0, 100)) {
           const tr = el('tr'); tr.append(el('td', `${elementKinds[part.kind] || part.kind}: ${part.name} (${part.code})${part.kind === 'transition' ? ' · ' + (part.from || '?') + ' → ' + (part.to || '?') : ''}`), el('td', part.team || 'Не установлена'),
             el('td', `${elementLabels[part.classification] || part.classification}${part.boundaryCrossing ? ' · граница исходной версии' : ''}${part.conflict ? ' · конфликт команд' : ''}`)); table.append(tr);
         }
-        const scroll = el('div', undefined, 'managed-table'); scroll.tabIndex = 0; scroll.setAttribute('role', 'region'); scroll.setAttribute('aria-label', 'Ответственность частей процесса'); scroll.append(table); card.append(scroll);
-        if (row.elements.rows.length > 100) card.append(el('p', 'Показаны первые 100 частей. Полный список — в отчёте об ответственности.'));
+        const scroll = el('div', undefined, 'managed-table'); scroll.tabIndex = 0; scroll.setAttribute('role', 'region'); scroll.setAttribute('aria-label', 'Ответственность частей процесса'); scroll.append(table); partsHost.append(scroll);
+        if (row.elements.rows.length > 100) partsHost.append(el('p', 'Показаны первые 100 частей. Полный список — в отчёте об ответственности.'));
         if (full && row.classification === 'conflict') card.append(el('p', 'Части помогают понять конфликт. Выбор версии применяется ко всему исходному файлу процесса; автоматического объединения нет.'));
       } else if (row.previousTeam || row.team) card.append(el('p', 'Текущая ответственность: ' + (row.previousTeam || row.team)));
       if (row.elements && diagram) {
@@ -692,6 +719,7 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
           finally { show.disabled = false; }
         }, card); show.className = 'secondary'; card.append(target);
       }
+      if (partsHost) card.append(partsHost);
       technical(card, 'Идентичность и доказательства сравнения', row); place(card, row);
     }
     // A single module needs no module heading; its cards sit directly in the form.
