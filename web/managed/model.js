@@ -63,12 +63,28 @@ const kindOfService = { processor: 'processes', widgets: 'forms', appViews: 'for
   permissions: 'permissions', permissionsSettings: 'permissions', localizer: 'localization' };
 export function objectKind(row = {}) { return kindOfService[row.service] || 'other'; }
 export function objectKindLabel(row = {}) { return kindGroups[objectKind(row)]; }
-// Module = the first segment of the namespace (ELMA workspace code).
-export function objectModule(row = {}) { return typeof row.namespace === 'string' && row.namespace ? row.namespace.split('.')[0] : ''; }
-// Permissions, localization and name-less defaults are system objects: shown collapsed unless changed.
+// ELMA exports each section (workspace) as a `pages` record in the global
+// namespace whose code is the section code; its name is the module's display name.
+const isSectionPage = row => row.service === 'pages' && row.namespace === 'global' && typeof row.code === 'string' && !!row.code;
+// Module = the first segment of the namespace (ELMA workspace code); a section page belongs to its own section.
+export function objectModule(row = {}) {
+  if (isSectionPage(row)) return row.code;
+  return typeof row.namespace === 'string' && row.namespace ? row.namespace.split('.')[0] : '';
+}
+// Display names are labels only; module identity stays the code.
+export function moduleNames(rows = []) {
+  const names = new Map();
+  for (const row of rows) if (isSectionPage(row) && typeof row.name === 'string' && row.name.trim() && row.name.trim() !== row.code) names.set(row.code, row.name.trim());
+  return names;
+}
+export function moduleLabel(module, names) {
+  const name = module ? names?.get(module) : '';
+  return name ? { text: name, code: module } : { text: module || groupingLabels.withoutModule, code: '' };
+}
+// Permissions, localization, name-less defaults and section pages are system objects: shown collapsed unless changed.
 export function isSystemObject(row = {}) {
   const kind = objectKind(row);
-  return kind === 'permissions' || kind === 'localization' || row.code === '__default' || (!row.name && isTechnicalKey(objectCode(row)));
+  return kind === 'permissions' || kind === 'localization' || row.code === '__default' || isSectionPage(row) || (!row.name && isTechnicalKey(objectCode(row)));
 }
 // Groups rows by module, then by kind group in display order; system objects
 // go to their own list. The order of rows inside a group is preserved.
@@ -82,8 +98,8 @@ export function groupObjects(rows = []) {
     if (!kinds.has(kind)) kinds.set(kind, []);
     kinds.get(kind).push(row);
   }
-  const order = Object.keys(kindGroups);
-  return { modules: [...modules].sort(([a], [b]) => a.localeCompare(b, 'ru')).map(([module, kinds]) => ({ module, count: [...kinds.values()].reduce((n, list) => n + list.length, 0),
+  const order = Object.keys(kindGroups), names = moduleNames(rows);
+  return { modules: [...modules].sort(([a], [b]) => a.localeCompare(b, 'ru')).map(([module, kinds]) => ({ module, name: names.get(module) ?? null, count: [...kinds.values()].reduce((n, list) => n + list.length, 0),
     kinds: [...kinds].sort(([a], [b]) => order.indexOf(a) - order.indexOf(b)).map(([kind, list]) => ({ kind, label: kindGroups[kind], rows: list })) })), system };
 }
 // UX-03: one summary of a review. Buckets follow the existing classifications;
@@ -309,10 +325,10 @@ export function relativeTime(value, now = Date.now()) {
 // One card per module: business rows by kind; system objects are counted, not listed.
 export function moduleCards(rows = []) {
   const grouped = groupObjects(rows);
-  return grouped.modules.map(({ module, count, kinds }) => {
+  return grouped.modules.map(({ module, name, count, kinds }) => {
     const of = kind => kinds.find(row => row.kind === kind)?.rows || [];
     const systemRows = grouped.system.filter(row => objectModule(row) === module);
-    return { module, name: null, count, processes: of('processes'), forms: of('forms'), data: of('data'), other: of('other'), systemRows, system: systemRows.length };
+    return { module, name, count, processes: of('processes'), forms: of('forms'), data: of('data'), other: of('other'), systemRows, system: systemRows.length };
   });
 }
 // Activity list from the attributed audit records the server already keeps; newest first.
@@ -354,7 +370,7 @@ export function requestTargetLabel(state, request) {
   if (!key) return { text: requestLabels.wholeSolution, technical: false, step: '' };
   const row = (state?.current || []).find(item => item.key === key) || objectFromKey(key), label = objectLabel(row), module = objectModule(row);
   const field = request.target.fieldAnchor;
-  return { text: (module ? `${module} · ` : '') + label.text, technical: label.technical, step: request.target.sourceAnchor?.nodeId || '',
+  return { text: (module ? `${moduleLabel(module, moduleNames(state?.current || [])).text} · ` : '') + label.text, technical: label.technical, step: request.target.sourceAnchor?.nodeId || '',
     field: field ? field.name && field.name !== field.code ? `${field.name} · ${field.code}` : field.code : '' };
 }
 export function requestCounts(requests = []) {
