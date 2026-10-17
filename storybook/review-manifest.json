@@ -376,15 +376,14 @@
       ]
     },
     "email-authentication": {
-      "entry": "/login",
+      "entry": "/auth/email/request",
       "actions": [
         "request-key",
         "verify-key",
         "resend-key"
       ],
       "renderer": [
-        "web/login.html",
-        "web/service.js"
+        "lib/auth.mjs"
       ],
       "storyIds": [],
       "requiredVisibleStates": [
@@ -400,7 +399,7 @@
         "github-disabled"
       ],
       "workflow": "testing/workflows/email-login.json",
-      "exclusionReason": "Production OTP renderer ещё не интегрирован в stories. tools/browser-check.mjs проверяет синтетическую доставку и настоящий login UI."
+      "exclusionReason": "Legacy email authentication is API compatibility only. test/email-auth.test.mjs covers synthetic delivery; the current login renderer and browser checks cover VK bot links."
     },
     "upload": {
       "entry": "/flows",
