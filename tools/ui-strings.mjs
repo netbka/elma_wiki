@@ -18,7 +18,7 @@ export const labelsPath = resolve(root, 'web/managed/labels.js');
 export const rendererFiles = [
   'web/managed/render.js', 'web/managed/about.js', 'web/managed/flows.js', 'web/managed/requests.js', 'web/managed/model.js', 'web/managed/page.js', 'web/managed/acquisition.js',
   'web/managed/change-base.js', 'web/managed/merge.js', 'web/managed/composer.js', 'web/managed/dependencies.js',
-  'web/managed/delivery-client.js', 'web/visual/render.js', 'web/visual/model.js',
+  'web/managed/delivery-client.js', 'web/managed/comparisons.js', 'web/visual/render.js', 'web/visual/model.js',
   'web/feedback/render.js', 'web/feedback/page.js', 'web/feedback/capture.js', 'web/explanations/render.js'
 ];
 const cyrillic = /[Ѐ-ӿ]/;

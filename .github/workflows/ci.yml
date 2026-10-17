@@ -49,6 +49,8 @@ jobs:
       - if: runner.os == 'Linux'
         run: npm run test:managed:browser
       - if: runner.os == 'Linux'
+        run: npm run test:comparisons:browser
+      - if: runner.os == 'Linux'
         run: npm run test:change-base:browser
       - if: runner.os == 'Linux'
         run: npm run test:merge-resolution:browser
@@ -85,6 +87,7 @@ jobs:
             qa/internal-*.png
             qa/managed-*.png
             qa/managed-browser-evidence.json
+            qa/d2-comparisons-*.png
             qa/change-base-*.png
             qa/change-base-browser-evidence.json
             qa/config-acquisition-*.png

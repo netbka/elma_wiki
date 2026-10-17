@@ -20,6 +20,7 @@
     "test:composer:storybook": "node tools/solution-composer-storybook-check.mjs",
     "test:composer:browser": "node tools/composer-build-browser-check.mjs",
     "test:managed:browser": "node tools/managed-workspace-browser-check.mjs",
+    "test:comparisons:browser": "node tools/configuration-comparisons-browser-check.mjs",
     "test:change-base:browser": "node tools/change-base-browser-check.mjs",
     "test:merge-resolution:browser": "node tools/merge-resolution-browser-check.mjs",
     "test:delivery:browser": "node tools/delivery-browser-check.mjs",

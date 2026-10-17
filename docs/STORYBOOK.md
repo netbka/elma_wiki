@@ -4,6 +4,8 @@
 
 ## Запуск
 
+D2: `configuration-comparisons--*` показывает один production renderer для истории полных снимков и сравнения с установленной DEV2, включая неизвестную базу, расхождение, устаревший кандидат и восстановление после потери ответа. Проверка: `npm run test:comparisons:browser`. Контракт: [configuration-comparison-ui.md](contracts/configuration-comparison-ui.md). Все данные синтетические; история чтения не подтверждает бизнес-приёмку.
+
 Из корня elma_wiki:
 
 ```powershell
