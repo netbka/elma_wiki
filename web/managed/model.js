@@ -1,4 +1,4 @@
-import { requests as requestLabels, grouping as groupingLabels, classificationLabels, elementClassificationLabels, elementKindLabels, actions as actionLabels, summaries, kindGroups, displayLabel, isTechnicalKey, ribbon, steps as stepLabels, stepReasons, statuses, activity as activityLabels, buildEligibility, candidateEvidence, gates as gateLabels, composerBuild } from './labels.js';
+import { requests as requestLabels, grouping as groupingLabels, pendingChanges, classificationLabels, elementClassificationLabels, elementKindLabels, actions as actionLabels, summaries, kindGroups, displayLabel, isTechnicalKey, ribbon, steps as stepLabels, stepReasons, statuses, activity as activityLabels, buildEligibility, candidateEvidence, gates as gateLabels, composerBuild } from './labels.js';
 // Review classification wording lives in labels.js (UX-00); these names stay for
 // existing importers.
 export const labels = classificationLabels;
@@ -63,12 +63,28 @@ const kindOfService = { processor: 'processes', widgets: 'forms', appViews: 'for
   permissions: 'permissions', permissionsSettings: 'permissions', localizer: 'localization' };
 export function objectKind(row = {}) { return kindOfService[row.service] || 'other'; }
 export function objectKindLabel(row = {}) { return kindGroups[objectKind(row)]; }
-// Module = the first segment of the namespace (ELMA workspace code).
-export function objectModule(row = {}) { return typeof row.namespace === 'string' && row.namespace ? row.namespace.split('.')[0] : ''; }
-// Permissions, localization and name-less defaults are system objects: shown collapsed unless changed.
+// ELMA exports each section (workspace) as a `pages` record in the global
+// namespace whose code is the section code; its name is the module's display name.
+const isSectionPage = row => row.service === 'pages' && row.namespace === 'global' && typeof row.code === 'string' && !!row.code;
+// Module = the first segment of the namespace (ELMA workspace code); a section page belongs to its own section.
+export function objectModule(row = {}) {
+  if (isSectionPage(row)) return row.code;
+  return typeof row.namespace === 'string' && row.namespace ? row.namespace.split('.')[0] : '';
+}
+// Display names are labels only; module identity stays the code.
+export function moduleNames(rows = []) {
+  const names = new Map();
+  for (const row of rows) if (isSectionPage(row) && typeof row.name === 'string' && row.name.trim() && row.name.trim() !== row.code) names.set(row.code, row.name.trim());
+  return names;
+}
+export function moduleLabel(module, names) {
+  const name = module ? names?.get(module) : '';
+  return name ? { text: name, code: module } : { text: module || groupingLabels.withoutModule, code: '' };
+}
+// Permissions, localization, name-less defaults and section pages are system objects: shown collapsed unless changed.
 export function isSystemObject(row = {}) {
   const kind = objectKind(row);
-  return kind === 'permissions' || kind === 'localization' || row.code === '__default' || (!row.name && isTechnicalKey(objectCode(row)));
+  return kind === 'permissions' || kind === 'localization' || row.code === '__default' || isSectionPage(row) || (!row.name && isTechnicalKey(objectCode(row)));
 }
 // Groups rows by module, then by kind group in display order; system objects
 // go to their own list. The order of rows inside a group is preserved.
@@ -82,16 +98,23 @@ export function groupObjects(rows = []) {
     if (!kinds.has(kind)) kinds.set(kind, []);
     kinds.get(kind).push(row);
   }
-  const order = Object.keys(kindGroups);
-  return { modules: [...modules].sort(([a], [b]) => a.localeCompare(b, 'ru')).map(([module, kinds]) => ({ module, count: [...kinds.values()].reduce((n, list) => n + list.length, 0),
+  const order = Object.keys(kindGroups), names = moduleNames(rows);
+  return { modules: [...modules].sort(([a], [b]) => a.localeCompare(b, 'ru')).map(([module, kinds]) => ({ module, name: names.get(module) ?? null, count: [...kinds.values()].reduce((n, list) => n + list.length, 0),
     kinds: [...kinds].sort(([a], [b]) => order.indexOf(a) - order.indexOf(b)).map(([kind, list]) => ({ kind, label: kindGroups[kind], rows: list })) })), system };
 }
 // UX-03: one summary of a review. Buckets follow the existing classifications;
 // nothing here changes gates, digests or decisions.
-export const reviewBucket = row => row.conflict || row.classification === 'conflict' ? 'conflicts'
+export const reviewBucket = row => row.conflict || row.mergeConflict || row.classification === 'conflict' ? 'conflicts'
   : row.classification === 'unchanged' ? 'unchanged' : row.classification === 'intervention-added' ? 'added'
   : row.classification === 'component-deleted' ? 'removed' : row.classification === 'ambiguous' ? 'unknown' : 'modified';
-export function reviewSummary(review, rows = review?.rows || []) {
+// Responsibility flags and three-way merge conflicts are different evidence.
+// Preserve both in the display projection without changing captured review rows.
+export function reviewRows(review) {
+  const conflicts = new Set((review?.merge?.head?.status === 'current' ? [] : review?.merge?.plan?.rows || [])
+    .filter(row => row.status === 'resolution-required').map(row => row.key));
+  return (review?.rows || []).map(row => conflicts.has(row.key) ? { ...row, mergeConflict: true } : row);
+}
+export function reviewSummary(review, rows = reviewRows(review)) {
   const counts = { modified: 0, added: 0, removed: 0, conflicts: 0, unchanged: 0, unknown: 0 };
   for (const row of rows) counts[reviewBucket(row)]++;
   const changed = rows.length - counts.unchanged;
@@ -141,9 +164,10 @@ export function reviewGate(review, boundaryKeys = [], resolutions = {}) {
   // server re-checks it at acceptance. A part merge has no physical file yet.
   const head = review.kind === 'change' && review.merge?.head?.status === 'current' ? review.merge.head : null;
   if (head?.decisions?.some(row => row.parts)) return gateLabels.partMergeUnbuildable;
+  if (review.kind === 'change' && !head && review.merge?.plan?.status === 'resolution-required') return gateLabels.resolveConflict;
   if (review.kind === 'change' && !head && review.rows.some(row => row.conflict))
     return review.merge?.available ? gateLabels.resolveConflict : 'Другая команда уже изменила этот объект. Сначала согласуйте изменения через новый полный снимок.';
-  if (review.kind === 'change' && review.rows.some(row => row.boundaryCrossing && !boundaryKeys.includes(row.key))) return 'Подтвердите каждое изменение объекта исходной базы.';
+  if (review.kind === 'change' && review.rows.some(row => row.boundaryCrossing && !boundaryKeys.includes(row.key))) return gateLabels.confirmEachChange;
   if (review.kind === 'reconciliation' && review.rows.some(row => row.classification === 'conflict' && !['keep-working', 'take-snapshot'].includes(resolutions[row.key]))) return 'Выберите версию для каждого конфликта.';
   return '';
 }
@@ -188,7 +212,7 @@ export function solutionNextAction(state, { error, stale, view, composed } = {})
   if (fresh) return {
     state: problem ? problem.attention.conflicts ? 'conflict' : 'unknown' : fixes ? 'needs-fixes' : 'unreviewed',
     summary: problem ? problem.attention.conflicts ? 'В изменении есть конфликт. Выберите версию для каждого объекта.' : 'Часть изменения не распознана. Проверьте исходные данные.'
-      : fixes ? 'Для изменения запрошены исправления.' : `${pending.length} изменений ожидают рассмотрения.`,
+      : fixes ? 'Для изменения запрошены исправления.' : pendingChanges(pending.length),
     label: problem?.attention.conflicts ? 'Разрешить конфликт' : fixes && !problem ? 'Добавить исправление' : 'Рассмотреть изменение',
     view: fixes && !problem ? fresh.kind === 'change' ? 'change' : 'full' : 'review', artifact: fresh.artifactId
   };
@@ -196,7 +220,7 @@ export function solutionNextAction(state, { error, stale, view, composed } = {})
   if (state.openFindings?.length) return { state: 'needs-fixes', summary: 'Есть замечания к принятому изменению.', label: 'Рассмотреть замечания', view: 'review', artifact: state.openFindings[0].artifactId };
   // Delivery states are projected only when the existing delivery capability is supplied.
   if (state.delivery?.supported && state.delivery.state === 'deployed-unverified') return { state: 'test-awaiting-verification', summary: 'Версия отправлена в TEST. Результат ещё не проверен.', label: 'Проверить TEST', view: 'delivery' };
-  if (state.delivery?.supported && state.delivery.state === 'verified') return { state: 'verified', summary: 'TEST проверен. Работа завершена.', label: 'Открыть решение', view: 'solution' };
+  if (state.delivery?.supported && state.delivery.state === 'verified') return { state: 'verified', summary: 'TEST проверен. Работа завершена.', label: actionLabels.refresh, view: 'full' };
   const accepted = state.changes?.length || state.reconciliations?.length;
   if (accepted && composed && !composed.loadError) {
     const current = (composed.candidates || []).filter(row => row.inputsStatus === 'current').sort((a, b) => a.createdAt.localeCompare(b.createdAt)).at(-1);
@@ -217,7 +241,7 @@ export function solutionNextAction(state, { error, stale, view, composed } = {})
       : { state: 'build-blocked', summary: 'Изменения приняты. Сборка конфигурации заблокирована: нативная материализация ELMA недоступна.', label: 'Открыть сборку', view: 'compose' };
   }
   // The fixed path has one way to create a new version: pull again (`full`).
-  return accepted ? { state: 'accepted', summary: summaries.accepted, label: view === 'solution' ? actionLabels.refresh : 'Открыть решение', view: view === 'solution' ? 'full' : 'solution' }
+  return accepted ? { state: 'accepted', summary: summaries.accepted, label: actionLabels.refresh, view: 'full' }
     : { state: 'ready', summary: summaries.ready, label: actionLabels.refresh, view: 'full' };
 }
 
@@ -289,12 +313,15 @@ export function lifecycleSteps(state, next = solutionNextAction(state), composed
 // trusted actor record (login is an e-mail or a messenger login; the id is never
 // shown). Pure: no lookups, no claims about the person beyond their login.
 export function actorDisplay(actor) {
+  // A person's name is known from the actor's name or a login that is not an
+  // e-mail; an e-mail login is shown as is, without initials invented from it.
   const login = typeof actor === 'string' ? actor : actor?.login || '';
-  const local = login.includes('@') ? login.slice(0, login.indexOf('@')) : login;
-  const words = local.split(/[\s._-]+/).filter(Boolean).map(word => word[0].toLocaleUpperCase('ru-RU') + word.slice(1));
-  const name = words.join(' ') || (actor?.id ? '…' : '');
-  const initials = words.slice(0, 2).map(word => word[0]).join('').toLocaleUpperCase('ru-RU') || '?';
-  return { name, initials, login };
+  const given = typeof actor?.name === 'string' ? actor.name.trim() : '';
+  const words = given ? given.split(/\s+/) : login && !login.includes('@') ? login.split(/[\s._-]+/).filter(Boolean).map(word => word[0].toLocaleUpperCase('ru-RU') + word.slice(1)) : [];
+  const known = words.length > 0;
+  const name = known ? words.join(' ') : login || (actor?.id ? '…' : '');
+  const initials = known ? words.slice(0, 2).map(word => word[0]).join('').toLocaleUpperCase('ru-RU') : '';
+  return { name, initials, login, known };
 }
 export function relativeTime(value, now = Date.now()) {
   const at = value ? new Date(value).getTime() : NaN;
@@ -309,11 +336,17 @@ export function relativeTime(value, now = Date.now()) {
 // One card per module: business rows by kind; system objects are counted, not listed.
 export function moduleCards(rows = []) {
   const grouped = groupObjects(rows);
-  return grouped.modules.map(({ module, count, kinds }) => {
+  return grouped.modules.map(({ module, name, count, kinds }) => {
     const of = kind => kinds.find(row => row.kind === kind)?.rows || [];
     const systemRows = grouped.system.filter(row => objectModule(row) === module);
-    return { module, name: null, count, processes: of('processes'), forms: of('forms'), data: of('data'), other: of('other'), systemRows, system: systemRows.length };
+    return { module, name, count, processes: of('processes'), forms: of('forms'), data: of('data'), other: of('other'), systemRows, system: systemRows.length };
   });
+}
+// UX-10b: the business names a purpose draft can open with: processes and screens
+// whose export declares a name, not a bare code.
+export function purposeNames(rows = []) {
+  const cards = moduleCards(rows), named = list => list.filter(row => typeof row.name === 'string' && row.name.trim() && row.name.trim() !== row.code).map(row => row.name.trim());
+  return { processes: named(cards.flatMap(card => card.processes)), screens: named(cards.flatMap(card => card.forms)) };
 }
 // Activity list from the attributed audit records the server already keeps; newest first.
 export function activityFeed(state, limit = 8, now = Date.now()) {
@@ -354,7 +387,7 @@ export function requestTargetLabel(state, request) {
   if (!key) return { text: requestLabels.wholeSolution, technical: false, step: '' };
   const row = (state?.current || []).find(item => item.key === key) || objectFromKey(key), label = objectLabel(row), module = objectModule(row);
   const field = request.target.fieldAnchor;
-  return { text: (module ? `${module} · ` : '') + label.text, technical: label.technical, step: request.target.sourceAnchor?.nodeId || '',
+  return { text: (module ? `${moduleLabel(module, moduleNames(state?.current || [])).text} · ` : '') + label.text, technical: label.technical, step: request.target.sourceAnchor?.nodeId || '',
     field: field ? field.name && field.name !== field.code ? `${field.name} · ${field.code}` : field.code : '' };
 }
 export function requestCounts(requests = []) {

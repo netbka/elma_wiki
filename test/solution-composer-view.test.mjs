@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { composerView, composerGate, composedCandidateRow, composedDeliveryRelease, composerBuildView, buildEligibilityView, buildReasonLine, buildFailureView } from '../web/managed/composer.js';
-import { composedCandidateFixture, solutionComposerFixture, composerNextActionFixture, eligibilityFixtures, availableBuild, verifiedEligibility, buildResponseFixtures } from '../web/managed/composer-fixtures.js';
+import { composerView, composerGate, composedCandidateRow, composedDeliveryRelease, composerBuildView, buildEligibilityView, buildReasonLine, buildFailureView, targetProfileView, targetProfileFailureView } from '../web/managed/composer.js';
+import { composedCandidateFixture, solutionComposerFixture, composerNextActionFixture, eligibilityFixtures, availableBuild, verifiedEligibility, buildResponseFixtures,
+  targetProfileFixtures, profileEligibility, profileResponseFixtures } from '../web/managed/composer-fixtures.js';
 import { solutionNextAction, acceptedMergeTarget, reviewGate } from '../web/managed/model.js';
 import { managedFixture } from '../web/managed/fixtures.js';
 import { deliveryPanelView } from '../web/releases/delivery-model.js';
@@ -198,4 +199,44 @@ test('a current whole-component resolution opens acceptance of a cross-team chan
   assert.match(reviewGate(withoutPlan), /новый полный снимок/);
   const parts = structuredClone(review); parts.merge.head.decisions = [{ ...parts.merge.head.decisions[0], choice: 'merge-parts', parts: [] }];
   assert.match(reviewGate(parts), /Объединение по частям/);
+});
+
+test('Target profile refresh: offered only to the configured operator, every result and stale input stated, never inferred', () => {
+  const view = mode => targetProfileView(profileEligibility(mode));
+  assert.deepEqual(targetProfileView(null), { shown: false });
+  assert.deepEqual(targetProfileView(eligibilityFixtures.current), { shown: false }, 'an older server shape offers nothing');
+  assert.deepEqual(targetProfileView({ loadError: 'x', targetProfileRefresh: targetProfileFixtures.ready }), { shown: false });
+  const unconfigured = view('unconfigured');
+  assert.deepEqual([unconfigured.state, unconfigured.canRefresh, unconfigured.operator], ['target-profile-observation-unconfigured', false, false]);
+  assert.match(unconfigured.message, /не настроено/);
+  assert.equal(targetProfileView({ revision: 1, targetProfileRefresh: { ...targetProfileFixtures.unconfigured, reason: 'target-not-designated', target: 'dev' } }).state, 'target-not-designated');
+  const other = view('not-operator');
+  assert.deepEqual([other.state, other.canRefresh, other.operator], ['never', false, false]);
+  const ready = view('ready');
+  assert.deepEqual([ready.state, ready.canRefresh, ready.target, ready.expectedRevision], ['never', true, 'DEV2', 3]);
+  assert.equal(targetProfileView({ targetProfileRefresh: targetProfileFixtures.ready }).canRefresh, false, 'no revision, no request');
+  assert.deepEqual([view('progress').state, view('progress').canRefresh], ['in-progress', false]);
+  const observed = view('observed');
+  assert.equal(observed.state, 'observed'); assert.match(observed.profile, /DEV2 · платформа synthetic-2026\.10 · cccccccccccc/);
+  assert.equal(view('stale').state, 'stale'); assert.equal(view('stale').profile, '', 'a stale profile is not shown as current');
+  assert.deepEqual([view('unavailable').state, view('unavailable').details], ['unavailable', ['нет доступа к Target']]);
+  assert.deepEqual([view('invalid').state, view('invalid').details], ['invalid', ['отчёт не подтверждает это задание чтения']]);
+  assert.deepEqual([view('unknown').state, view('unknown').details], ['unknown', ['время ожидания истекло']]);
+  assert.deepEqual(targetProfileView({ revision: 1, targetProfileRefresh: { ...targetProfileFixtures.ready, last: { outcome: 'invalid', errors: ['future-check'] } } }).details,
+    ['причина проверки: future-check']);
+  // The observed profile alone never makes the build eligible: coverage stays unacquired.
+  const eligibility = profileEligibility('observed');
+  assert.equal(buildEligibilityView(eligibility).eligible, false);
+  assert.equal(composerView({ build: availableBuild, eligibility }).build.available, false);
+});
+
+test('Target profile refresh failures: a moved Solution, unknown outcome or lost response need a fresh read', () => {
+  const invalid = targetProfileFailureView(profileResponseFixtures.invalid);
+  assert.deepEqual([invalid.message, invalid.reasons, invalid.refresh], ['Отчёт о профиле Target не принят.', ['исполнитель другой версии'], false]);
+  const stale = targetProfileFailureView(profileResponseFixtures.stale);
+  assert.equal(stale.refresh, true); assert.deepEqual(stale.reasons, ['версия решения изменилась']);
+  assert.equal(targetProfileFailureView({ status: 502, body: { outcome: 'unknown', reason: 'lost-result' }, requiresRefresh: true }).refresh, true);
+  assert.equal(targetProfileFailureView({ status: 403, body: { outcome: 'refused', reason: 'operator-only' } }).reasons[0], 'действие доступно только оператору моста');
+  const lost = targetProfileFailureView(profileResponseFixtures.lost);
+  assert.equal(lost.refresh, true); assert.match(lost.message, /не повторяется автоматически/);
 });

@@ -9,7 +9,8 @@ export function managedFixture(mode = 'overview') {
   }, scopeDeclaration: { scope: 'full', method: 'explicit-assertion', declaredAt: at } };
   const workspace = { id: 'synthetic-workspace', name: 'Командировки и расходы', status: 'active', revision: 1,
     baselineId: base.id, baselineOwner: 'Команда внедрения', baselineAcceptedAt: at, artifacts: [base],
-    current: [component('contract'), component('approval'), component('comment', 'Внутренняя команда', true)],
+    current: [component('contract'), component('approval'), component('comment', 'Внутренняя команда', true),
+      { code: 'synthetic', key: JSON.stringify(['pages', 'global', 'synthetic']), team: 'Команда внедрения', service: 'pages', namespace: 'global', kind: 'page', name: 'Служебные поездки', interventionId: null, digest: 'a'.repeat(64) }],
     changes: [{ id: 'synthetic-change', resolution: { id: 'synthetic-resolution', revisionDigest: 'd'.repeat(64), resultDigest: 'e'.repeat(64), planDigest: 'f'.repeat(64), acceptedFromRevision: 0 } }],
     reconciliations: [], history: [{ type: 'created', baselineId: base.id }, { type: 'change-accepted', id: 'synthetic-change', revision: 1 }], pending: [] };
   base.components = ['contract', 'approval'].map(code => ({ key: component(code).key, digest: 'a'.repeat(64) }));
@@ -85,7 +86,7 @@ export function managedFixture(mode = 'overview') {
   // UX-03b: a version closed without changes, and the decision dialog open on a review.
   if (mode === 'summary-closed') { review.closedAt = at; review.closedDecision = { actor, reason: 'no-difference' }; }
   if (mode === 'archived') { workspace.status = 'archived'; workspace.history.push({ type: 'archived' }); }
-  if (mode === 'pending') workspace.pending = [{ artifactId: review.artifactId, kind: review.kind, revision: 1, stale: false, options: review.options }];
+  if (mode === 'pending') workspace.pending = [{ artifactId: review.artifactId, kind: review.kind, revision: 1, stale: false, options: review.options, snapshot: { ...base.snapshot, createdAt: '2026-10-07T13:00:00Z' } }];
   const model = { synthetic: true, shared: true, home: '/solutions', api: '/api/solutions', view: 'overview', workspace };
   if (['review', 'conflict', 'overlap', 'ambiguous', 'decision'].includes(mode) || mode.startsWith('review-') || mode.startsWith('elements-') || mode.startsWith('summary-') || mode.startsWith('viewed-')) Object.assign(model, { view: 'review', review });
   if (mode === 'decision') model.decisionOpen = true;
@@ -210,6 +211,14 @@ export function managedFixture(mode = 'overview') {
     const row = (code, classification, status, proposal, extra = {}) => ({ key: component(code).key, service: 'widgets', namespace: 'synthetic.records', code, kind: 'WIDGET',
       classification, status, proposal, blockers: [], base: ref('a'.repeat(64), { artifactId: base.id }), current: ref('a'.repeat(64), { team: 'Команда внедрения', interventionId: null }), incoming: null, ...extra });
     const blocked = mode === 'merge-blocked';
+    if (mode.startsWith('merge-same-team')) {
+      review.stale = false; review.revision = workspace.revision;
+      review.team = 'Внутренняя команда';
+      review.rows = review.rows.map(row => ({ ...row, key: component('limit').key, code: 'limit',
+        name: 'Лимит командировки', conflict: false, previousTeam: review.team }));
+      workspace.pending = [{ artifactId: review.artifactId, kind: 'change', revision: workspace.revision, stale: false,
+        attention: { conflicts: mode === 'merge-same-team-resolved' ? 0 : 1, unknown: 0 }, options: review.options }];
+    }
     const rows = [
       row('limit', 'divergent', blocked ? 'blocked' : 'resolution-required', null, { current: ref('c'.repeat(64), { team: 'Внутренняя команда', interventionId: 'synthetic-change' }), incoming: ref('d'.repeat(64), { artifactId: review.artifactId }), blockers: blocked ? ['rename-uncertain'] : [] }),
       row('category', 'incoming-only', 'clear', 'take-incoming', { incoming: ref('e'.repeat(64), { artifactId: review.artifactId }) }),
@@ -242,7 +251,7 @@ export function managedFixture(mode = 'overview') {
     const resolution = { schemaVersion: 1, method: 'whole-component-resolution', id: 'synthetic-resolution', sequence: 1, parentId: null, planDigest: mode === 'merge-stale' ? '0'.repeat(64) : plan.planDigest,
       inputs: { ...plan.inputs, current: { ...plan.inputs.current, revision: 2 } }, decisions: [{ key: rows[0].key, classification: 'divergent', choice: 'take-incoming' }],
       reason: 'Лимит согласован с финансовым отделом в DEMO-14.', actor, at, ancestryVerified: false, automaticMergeEnabled: false, acceptanceEnabled: false, buildEnabled: false, materialized: false };
-    const head = ['merge-resolved', 'merge-stale'].includes(mode) ? { ...resolution, status: mode === 'merge-stale' ? 'stale' : 'current' } : null;
+    const head = ['merge-resolved', 'merge-stale', 'merge-same-team-resolved'].includes(mode) ? { ...resolution, status: mode === 'merge-stale' ? 'stale' : 'current' } : null;
     review.merge = { artifactId: review.artifactId, available: true, reason: null, message: null, plan, partMergeChoice: 'merge-parts',
       choices: { divergent: ['keep-current', 'take-incoming'], 'addition-divergent': ['keep-current', 'take-incoming'], 'delete-edit': ['keep-current', 'remove'], 'edit-delete': ['keep-current', 'take-incoming'] },
       head, history: head ? [head] : [] };

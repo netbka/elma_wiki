@@ -11,9 +11,12 @@ const errors = []; page.on('pageerror', error => errors.push(error.message));
 let wiki, directory;
 try {
   const index = await (await fetch(base + '/index.json')).json();
+  const flowGroups = ['system', 'elma', 'review', 'investigation'];
   for (const entry of Object.values(index.entries).filter(entry => entry.type === 'story')) {
     await page.goto(`${base}/iframe.html?id=${entry.id}&viewMode=story`);
     if (entry.id.startsWith('release--')) { await page.locator('.release-shell h1').waitFor(); continue; }
+    // Other groups have their own behavior checks; here every story must at least render without a page error.
+    if (!flowGroups.includes(entry.id.split('--')[0])) { await page.waitForFunction(() => document.querySelector('#storybook-root')?.innerText.trim().length > 0, undefined, { timeout: 15000 }).catch(() => assert.fail('story renders visible content: ' + entry.id)); continue; }
     await page.locator('.flow-stage h2').waitFor();
     await page.locator('.review-status').filter({ hasText: /версия/ }).waitFor();
   }
@@ -83,7 +86,11 @@ try {
   directory = await fs.mkdtemp(path.join(os.tmpdir(), 'elma-flow-browser-'));
   wiki = createServer({ directory, allowLocal: true, sendEmail: undefined });
   await new Promise(resolve => wiki.listen(0, '127.0.0.1', resolve));
-  await page.goto(`http://127.0.0.1:${wiki.address().port}/flows`);
+  const wikiBase = `http://127.0.0.1:${wiki.address().port}`;
+  await page.goto(wikiBase + '/flows');
+  assert.equal(new URL(page.url()).pathname, '/login', 'Internal flow content requires a session');
+  assert.equal((await page.request.post(wikiBase + '/auth/local', { headers: { 'X-Elma-Wiki-Request': '1' } })).status(), 200);
+  await page.goto(wikiBase + '/flows');
   await page.getByRole('heading', { name: 'Как работает система', exact: true }).waitFor();
   await page.locator('[data-flow="investigation"]').click();
   await page.locator('[data-action="observe"]').click();

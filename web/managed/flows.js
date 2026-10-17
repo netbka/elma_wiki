@@ -1,5 +1,5 @@
-import { nouns, grouping, flows as flowLabels, tabs as tabLabels, facts, kindGroups, actions as actionLabels } from './labels.js';
-import { objectLabel, objectKind, groupObjects, responsibilityLabel, capturedArtifact, matchesQuery, requestKindOf, fieldAnchorable, fieldRequestKey } from './model.js';
+import { nouns, grouping, plural, flows as flowLabels, tabs as tabLabels, facts, kindGroups, actions as actionLabels } from './labels.js';
+import { objectLabel, objectKind, groupObjects, moduleLabel, moduleNames, responsibilityLabel, capturedArtifact, matchesQuery, requestKindOf, fieldAnchorable, fieldRequestKey } from './model.js';
 import { requestChip } from './requests.js';
 import { processSummary } from '../visual/model.js';
 import { mountSnapshotVisual } from '../visual/render.js';
@@ -47,7 +47,7 @@ export function mountFlows({ state, visuals = {}, selected = null }, actions = {
     let shown = 0;
     for (const { row, card } of cards) { const match = matchesQuery(row, query); card.hidden = !match; if (match) shown++; }
     for (const section of root.querySelectorAll('.managed-module')) section.hidden = ![...section.querySelectorAll('.managed-card')].some(card => !card.hidden);
-    status.textContent = query ? shown ? `${shown} ${grouping.objects}` : flowLabels.nothingFound : '';
+    status.textContent = query ? shown ? plural(shown, grouping.objects) : flowLabels.nothingFound : '';
   });
   let openToken = 0;
   const open = async (row, card) => {
@@ -67,7 +67,7 @@ export function mountFlows({ state, visuals = {}, selected = null }, actions = {
   const grouped = groupObjects(processes);
   for (const group of grouped.modules) {
     const section = el('section', undefined, 'managed-module');
-    section.append(el('h3', `${grouping.module} ${group.module || grouping.withoutModule} · ${group.count}`));
+    section.append(moduleHeading(group, state.current, group.count));
     for (const row of group.kinds.flatMap(kind => kind.rows)) {
       const card = el('article', undefined, 'managed-card'); card.append(title('h4', row));
       card.append(el('p', responsibilityLabel(row), 'managed-muted'));
@@ -78,7 +78,7 @@ export function mountFlows({ state, visuals = {}, selected = null }, actions = {
         card.append(el('p', summary.tasks.length ? `${flowLabels.tasks}: ${summary.tasks.join(', ')}${summary.more ? ` ${grouping.andMore} ${summary.more}` : ''}. ${summary.steps} ${flowLabels.steps}.` : `${flowLabels.noTasks}. ${summary.steps} ${flowLabels.steps}.`));
       } else if (value?.error) card.append(el('p', `${flowLabels.diagramUnavailable}: ${value.error}`, 'managed-muted'));
       else if (value?.processLimit) card.append(el('p', `${flowLabels.diagramNotBuilt} · ${flowLabels.tooManyProcesses}`, 'managed-muted'));
-      const button = el('button', `${flowLabels.view}: ${row.code || objectLabel(row).text}`, 'secondary'); button.type = 'button'; button.onclick = () => open(row, card);
+      const button = el('button', `${flowLabels.view}: ${objectLabel(row).text}`, 'secondary'); button.type = 'button'; button.onclick = () => open(row, card);
       if (!captured) button.disabled = true;
       card.append(button); if (captured) requestEntry(card, row, actions); section.append(card); cards.push({ row, card });
     }
@@ -87,6 +87,14 @@ export function mountFlows({ state, visuals = {}, selected = null }, actions = {
   root.append(target);
   if (selected) { const found = cards.find(({ row }) => row.key === selected); if (found) open(found.row, found.card); }
   return root;
+}
+
+// A module heading names the ELMA section when the export declares it; the code stays visible, muted.
+export function moduleHeading(group, rows, count) {
+  const label = moduleLabel(group.module, moduleNames(rows || [])), heading = el('h3', `${grouping.module} ${label.text}`);
+  if (label.code) heading.append(' ', el('span', label.code, 'managed-code managed-muted'));
+  if (count !== undefined) heading.append(` · ${count}`);
+  return heading;
 }
 
 // UX-06 "Экраны и данные": forms and data objects of the accepted state by
@@ -101,7 +109,7 @@ export function mountScreens({ state, visuals = {} }, actions = {}) {
     let shown = 0;
     for (const { row, card } of cards) { const match = matchesQuery(row, query); card.hidden = !match; if (match) shown++; }
     for (const section of root.querySelectorAll('.managed-module, .managed-kind')) section.hidden = ![...section.querySelectorAll('.managed-card')].some(card => !card.hidden);
-    status.textContent = query ? shown ? `${shown} ${grouping.objects}` : flowLabels.nothingFound : '';
+    status.textContent = query ? shown ? plural(shown, grouping.objects) : flowLabels.nothingFound : '';
   });
   const fieldTable = (row, fields, artifactId) => {
     const table = el('table'), head = el('tr');
@@ -136,7 +144,7 @@ export function mountScreens({ state, visuals = {} }, actions = {}) {
   const grouped = groupObjects(rows.filter(row => objectKind(row) !== 'processes'));
   for (const group of grouped.modules) {
     const section = el('section', undefined, 'managed-module');
-    section.append(el('h3', `${grouping.module} ${group.module || grouping.withoutModule} · ${group.count}`));
+    section.append(moduleHeading(group, state.current, group.count));
     for (const kind of group.kinds) { const block = el('div', undefined, 'managed-kind'); block.append(el('h4', `${kind.label} · ${kind.rows.length}`)); for (const row of kind.rows) block.append(card(row)); section.append(block); }
     root.append(section);
   }

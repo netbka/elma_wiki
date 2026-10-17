@@ -19,7 +19,7 @@ A partial package never establishes a managed workspace. Absence from a partial 
 | Existing work or older assumption | Required interpretation |
 | --- | --- |
 | Standalone upload/viewer; "one manual upload = one project" in older file-project/snapshot contracts | Preserve independent inspection and its private data/API behavior. This describes the legacy inspection mode, not creation of managed workspaces. No automatic migration, deletion or conversion of existing uploads into full baselines. |
-| #30: Learn, Code & lint, solution review | Keep public education and synthetic examples. Supported private code and solution-synchronized scenarios/issues/comments are workspace capabilities, not competing file-first lifecycles. Wiki Storybook parity alone is not solution synchronization. |
+| #30: Learn, Code & lint, solution review | Keep authenticated team guides and synthetic examples. Supported private code and solution-synchronized scenarios/issues/comments are workspace capabilities, not competing file-first lifecycles. Wiki Storybook parity alone is not solution synchronization. |
 | #31: ownership/interventions | Track only the smallest stable changed elements supported by evidence; preserve untouched baseline responsibility and explicitly review crossings. |
 | #11: releases/Source/Target | Reuse the existing snapshot, candidate, approval and read-back contracts. No second deployment engine and no package generation from an index or virtual overlay. |
 | #19: bot/agent work | Advance the same workspace/change/candidate contracts; keep bot execution state separate from product state and retain approval boundaries. |
@@ -29,7 +29,7 @@ This direction does not change access rights, grant live ELMA/PROD authority, or
 
 ## Current delivery priority
 
-Owner decision, 2026-10-07: Vercel/public hosting is deferred to the [long-term roadmap](ROADMAP.md#later), not part of the current milestone. Focus current delivery and acceptance on the internal baseline-first Wiki. Preserve existing static-build support and educational content, but do not start further Vercel work or treat public hosting as a dependency or acceptance gate for the internal product. Resuming it requires a new explicit owner assignment; this decision does not select or authorize any deployment host.
+Owner correction 2026-10-17: public use and publication on Vercel or any other public platform are excluded. The internal DEV -> DEV2 review loop and four-module priority follow [the current product authority](SOLUTION_FIRST_PRODUCT_PLAN.md). See [internal hosting](INTERNAL_HOSTING.md).
 
 ## Execution and acceptance order
 

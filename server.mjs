@@ -24,6 +24,7 @@ import { solutionBuildEligibility } from './lib/composed-build-eligibility.mjs';
 import { composedBuildCapability, runComposedBuild, freezeComposedBuild } from './lib/composed-build.mjs';
 import { bridgeStore } from './lib/bridge.mjs';
 import { configuredMaterializationAdapter } from './lib/native-materialization-bridge.mjs';
+import { targetProfileRefresh } from './lib/target-profile-refresh.mjs';
 import { targetPresets } from './lib/target-presets.mjs';
 import { designationReader, withCurrentDesignations } from './lib/target-designations.mjs';
 import { demoData } from './lib/demo.mjs';
@@ -43,13 +44,13 @@ async function body(req, max) {
   for await (const chunk of req) { size += chunk.length; if (size > max) throw Error('Размер запроса превышает лимит'); chunks.push(chunk); }
   return Buffer.concat(chunks);
 }
-function serve(req, res, directory, pathname) {
+function serve(req, res, directory, pathname, feedback = true) {
   const file = path.resolve(directory, '.' + (pathname === '/' ? '/index.html' : pathname));
   if (!file.startsWith(directory + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) return send(res, 404, { error: 'Страница не найдена' });
   res.writeHead(200, { 'Content-Type': types[path.extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-store' });
   if (req.method === 'HEAD') return res.end();
   if (path.extname(file) === '.html') {
-    const widget = '<link rel="stylesheet" href="/feedback/styles.css"><script type="module" src="/feedback/page.js"></script>';
+    const widget = feedback ? '<link rel="stylesheet" href="/feedback/styles.css"><script type="module" src="/feedback/page.js"></script>' : '';
     return res.end(fs.readFileSync(file, 'utf8').replace('</body>', widget + '</body>'));
   }
   fs.createReadStream(file).on('error', () => res.destroy()).pipe(res);
@@ -67,7 +68,9 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
   configSource = configSourceClient({ url: process.env.CONFIG_SOURCE_API_URL, token: process.env.CONFIG_SOURCE_API_TOKEN }),
   requests = requestCoordinator(), bugPublisher = bugGitHub(), materializationEnv = process.env,
   // Trusted source of native build evidence (coverage, dependency resolution, admitted Target profile
-  // observation, compiler lock) for the build route. The service has none, so builds stay blocked.
+  // observation, compiler lock) for the build route. By default only the operator's admitted Target
+  // profile observation of the current Solution state; coverage, dependency locks and compiler stay
+  // absent until the native producer (netbka/elma365#60) supplies them, so builds stay blocked.
   buildEvidence = null } = {}) {
   const actors = actorStore(directory);
   const base = new URL(baseUrl), auth = createAuth({ baseUrl, allowLocal, sendEmail, sendVk, now, onLogin: actors.resolve }), portals = portalStore(directory, { sharedAccess: true }), projects = projectStore(directory, { sharedAccess: true }), oldDemo = demoData(), sample = oldDemo.servers.showcase, demo = {entities:sample.entities,solution:sample.solutions[0],coverage:'structural',parserVersion:'2.0.0',inventory:[],provenance:{},synthetic:true};
@@ -90,6 +93,13 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
   const nativeMaterialization = configuredMaterializationAdapter({ env: materializationEnv, bridges });
   // File-mode DEV2 designations are re-read from the operator record under this data root at every check.
   const readDesignations = designationReader(directory), resolvePreset = preset => withCurrentDesignations(preset, readDesignations);
+  // Target profile observation runs only on an explicit operator refresh of one Solution, on the same
+  // configured bridge and its designated Target; admitted observations live in process memory only.
+  const targetProfiles = targetProfileRefresh({ env: materializationEnv, bridges });
+  const trustedBuildEvidence = buildEvidence ?? (async ({ solutionId }) => {
+    const { binding } = await solutions.managed.buildCapture(solutionId, SOLUTION_CATALOG);
+    return { observation: targetProfiles.current(solutionId, binding) };
+  });
   const building = new Set(); // Solutions with a native build in progress: one at a time per Solution.
   // The latest build per Solution when it validated, in process memory only: its manifest and evidence carry
   // in-process provenance marks, so a restart drops it. POST /api/solutions/:id/composed freezes and consumes it (PLAN-01 B1).
@@ -101,6 +111,7 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'no-referrer');
     res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
     res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
     try {
       const localHost = `${req.socket.localAddress}:${req.socket.localPort}`, allowed = new Set([base.host]);
@@ -267,17 +278,34 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
         return send(res, releaseId ? 200 : 201, releaseId ? await handoffs.change(id, releaseId, input, session.user) : await handoffs.create(id, input, session.user));
       }
       // Composer build eligibility (#94 MR-04/MR-05): scope, native coverage, dependency locks,
-      // Target profile and materialization, each with its blocking reasons. Read-only: it
-      // requests no Target observation and enables no build.
+      // Target profile and materialization, each with its blocking reasons. Read-only: it uses only
+      // an operator observation already admitted for this exact Solution state, requests none and enables no build.
       const eligibilityRoute = /^\/api\/solutions\/([^/]+)\/composed-eligibility$/.exec(pathname);
       if (eligibilityRoute) {
         if (!session) return send(res, 404, { error: 'Решение не найдено' });
         const [, id] = eligibilityRoute;
         await solutions.managed.authorize(id, SOLUTION_CATALOG);
         if (req.method !== 'GET') return send(res, 405, { error: 'Только чтение' });
-        const { revision, capture } = await solutions.managed.buildCapture(id, SOLUTION_CATALOG);
+        const { revision, capture, binding } = await solutions.managed.buildCapture(id, SOLUTION_CATALOG);
         if (!capture) return send(res, 409, { error: 'Нет принятого полного экспорта решения' });
-        return send(res, 200, { solutionId: id, revision, ...solutionBuildEligibility({ capture, materialization: await composedBuildCapability(nativeMaterialization), now: new Date().toISOString() }) });
+        return send(res, 200, { solutionId: id, revision, ...solutionBuildEligibility({ capture, observation: targetProfiles.current(id, binding),
+          materialization: await composedBuildCapability(nativeMaterialization), now: new Date().toISOString() }),
+          targetProfileRefresh: targetProfiles.status(id, binding, session.user) });
+      }
+      // Explicit operator Target profile refresh (#94 MR-05, P8): the configured bridge owner asks the
+      // configured designated Target for its profile, bound to this Solution's current state. The body
+      // names only the revision it was read at; bridge, owner, Target and requirements are server-derived.
+      const profileRoute = /^\/api\/solutions\/([^/]+)\/target-profile$/.exec(pathname);
+      if (profileRoute) {
+        if (!session) return send(res, 404, { error: 'Решение не найдено' });
+        const [, id] = profileRoute;
+        await solutions.managed.authorize(id, SOLUTION_CATALOG);
+        if (req.method !== 'POST') return send(res, 405, { error: 'Метод не поддерживается' });
+        if (req.headers['content-type']?.split(';')[0] !== 'application/json') return send(res, 415, { error: 'Требуется JSON' });
+        const input = JSON.parse((await body(req, 1024)).toString('utf8'));
+        const { statusCode, body: result } = await targetProfiles.refresh({ solutionId: id, input, actor: session.user,
+          load: () => solutions.managed.buildCapture(id, SOLUTION_CATALOG) });
+        return send(res, statusCode, result);
       }
       // Native build of a resolved change (#94 MR-03, PLAN-01 C2): opt-in through WIKI_NATIVE_MATERIALIZATION_*
       // and a healthy bridge. The body names only the change and revision; inputs, evidence and output are
@@ -294,7 +322,7 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
         building.add(id);
         try {
           const { statusCode, body: result, build } = await runComposedBuild({ solutionId: id, input, managed: solutions.managed, catalog: SOLUTION_CATALOG,
-            adapter: nativeMaterialization, evidence: buildEvidence });
+            adapter: nativeMaterialization, evidence: trustedBuildEvidence });
           if (build) composedBuilds.set(id, build); else composedBuilds.delete(id);
           return send(res, statusCode, result);
         } finally { building.delete(id); }
@@ -635,6 +663,7 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
       }
       const portalMatch = /^\/p\/([^/]+)(\/.*)?$/.exec(pathname);
       if (portalMatch) {
+        if (!session) return send(res, 404, { error: 'Sign in to the internal service' });
         const [, id, requested = '/'] = portalMatch;
         if (!portalMatch[2]) { res.writeHead(302, { Location: `/p/${encodeURIComponent(id)}/` }); return res.end(); }
         const showcase = id === 'showcase', local = id === 'local' && session?.user.provider === 'local';
@@ -651,8 +680,10 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
       }
       if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, { error: 'Метод не поддерживается' });
       if (pathname === '/' && session) { res.writeHead(302, { Location: '/solutions' }); return res.end(); }
-      if (['/dashboard','/releases','/workspaces','/solutions','/requests','/bug-reports'].includes(pathname) && !session) { res.writeHead(302, { Location: '/login' }); return res.end(); }
-      if (['/', '/login', '/dashboard', '/guide', '/flows','/releases','/workspaces','/solutions','/requests','/bug-reports'].includes(pathname)) return serve(req, res, path.join(project, 'web'), pathname === '/' ? '/index.html' : pathname + '.html');
+      const entryPage = ['/', '/login'].includes(pathname);
+      if (!session && !entryPage && (!path.extname(pathname) || path.extname(pathname).toLowerCase() === '.html')) { res.writeHead(302, { Location: '/login' }); return res.end(); }
+      if (['/', '/login', '/dashboard', '/guide', '/flows','/releases','/workspaces','/solutions','/requests','/bug-reports'].includes(pathname)) return serve(req, res, path.join(project, 'web'), pathname === '/' ? '/index.html' : pathname + '.html', !!session);
+      if (!session && !['/service.js', '/service.css', '/project.css', '/login-view.js'].includes(pathname)) return send(res, 404, { error: 'Sign in to the internal service' });
       return serve(req, res, path.join(project, 'web'), pathname);
     } catch (error) {
       if (!res.headersSent) send(res, error.statusCode || error.status || 400, { error: error instanceof SyntaxError ? 'Некорректный JSON' : error instanceof URIError ? 'Некорректный URL' : error.code ? 'Операция хранилища недоступна' : /fetch|ENOTFOUND|ECONN/.test(error.message) ? 'Внешний сервис недоступен' : error.message });
@@ -661,6 +692,7 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
   });
   server.loginBot = loginBot;
   server.nativeMaterialization = nativeMaterialization;
+  server.targetProfiles = targetProfiles;
   server.composedBuilds = composedBuilds;
   if (loginBot) {
     server.once('listening', () => { void loginBot.run(); });

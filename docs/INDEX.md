@@ -18,7 +18,9 @@ Routing, not an always-read checklist.
 | Prior baseline-first implementation direction (#33; reconcile through current product authority) | [PRODUCT_DIRECTION.md](PRODUCT_DIRECTION.md) |
 | Capability routing | ../.agent/capabilities.yaml |
 | Current implemented truth | STATE.md |
-| Public Vercel site / internal Docker | PUBLIC_DEPLOYMENT.md |
+| Internal hosting only; public publication prohibited | [INTERNAL_HOSTING.md](INTERNAL_HOSTING.md) |
+| DEV -> DEV2 process audit and four-module gaps | [audits/internal-dev2-process-2026-10-17.md](audits/internal-dev2-process-2026-10-17.md) |
+| Four-module DEV -> DEV2 work packages, acceptance and active-agent disposition | [plans/internal-dev2-review-loop.md](plans/internal-dev2-review-loop.md) |
 | Developer portal audit, UX research, and build recommendations (proposal; not runtime status) | [ELMA_PORTAL_AUDIT_AND_BUILD_BRIEF.md](ELMA_PORTAL_AUDIT_AND_BUILD_BRIEF.md) |
 | Open coordination | ROADMAP.md |
 | Source -> Workspace -> Target architecture | SOURCE_TARGET_GATEWAY_AND_ENGINEERING_SYSTEM.md |
@@ -47,7 +49,7 @@ Routing, not an always-read checklist.
 | Developer code workspace | contracts/developer-workspace.md |
 | Deployment/verification | contracts/target-deployment.md |
 | Source import workflow | workflows/source-import.md |
-| Public article sources (TRUST-01) | [workflows/public-article-sources.md](workflows/public-article-sources.md) |
+| Internal field/function lookup | [workflows/object-search.md](workflows/object-search.md) |
 | Target procedure | runbooks/target-deployment.md |
 | Storybook authority | STORYBOOK.md |
 | Business investigation and review | EXPERIENCE_REVIEW.md |
