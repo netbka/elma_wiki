@@ -52,6 +52,10 @@ export const ProfileInvalid = { render: () => story('profile-invalid') };
 export const ProfileUnknown = { render: () => story('profile-unknown') };
 export const ProfileMoved = { render: () => story('profile-moved') };
 export const ProfileLost = { render: () => story('profile-lost') };
+export const ProfileEvidence = { render: () => story('profile-evidence'), parameters: { docs: { description: { story:
+  'Вместе с профилем мост выдал сведения о сборке (elma365-native-build-evidence@1): покрытие и компилятор привязаны к текущей версии решения. Лицензия платного модуля, импорт и установка не подтверждены, сборщика нет, поэтому сборка остаётся заблокированной с причинами.' } } } };
+export const ProfileEvidenceUnavailable = { render: () => story('profile-evidence-unavailable') };
+export const ProfileEvidenceInvalid = { render: () => story('profile-evidence-invalid') };
 export const BuildReady = { render: () => story('build-ready'), parameters: { docs: { description: { story:
   'Сборщик доступен, все условия подтверждены. «Собрать конфигурацию» собирает последнюю принятую версию; проверенная сборка ждёт «Зафиксировать сборку», и только зафиксированные байты попадают в список. Ответы сервера учебные.' } } } };
 export const BuildNoMerge = { render: () => story('build-no-merge'), parameters: { docs: { description: { story:

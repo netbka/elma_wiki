@@ -159,7 +159,7 @@ export const buildEligibility = {
 // operator reads the designated DEV2 profile; nothing reads it automatically.
 export const targetProfileRefresh = {
   heading: 'Профиль Target', start: 'Прочитать профиль Target', refresh: 'Обновить состояние', reasons: 'Причины',
-  running: 'Читаем профиль Target через мост оператора. Это только чтение, без установки; не закрывайте страницу.',
+  running: 'Читаем профиль Target и сведения о сборке через мост оператора. Это только чтение, без установки; не закрывайте страницу.',
   done: 'Профиль Target прочитан. Обновляем условия сборки…',
   operatorOnly: 'Прочитать профиль может только оператор моста. Состав и проверки решения доступны всем участникам.',
   readOnly: 'Чтение не устанавливает и не меняет конфигурацию на Target. Результат действует для текущей версии решения не дольше суток.',
@@ -188,9 +188,37 @@ export const targetProfileRefresh = {
     'target-profile-refresh-in-progress': 'чтение уже выполняется', 'target-profile-bridge-failed': 'мост сообщил об ошибке задания',
     'target-profile-observation-not-advertised': 'исполнитель моста не умеет читать профиль Target', 'live-target-access-unavailable': 'нет доступа к Target',
     timeout: 'время ожидания истекло', 'lost-result': 'результат задания потерян',
-    'native-worker-revision-mismatch': 'исполнитель другой версии', 'target-mismatch': 'отчёт о другом Target', 'unattested-observation': 'отчёт не подтверждает это задание чтения'
+    'native-worker-revision-mismatch': 'исполнитель другой версии', 'target-mismatch': 'отчёт о другом Target', 'unattested-observation': 'отчёт не подтверждает это задание чтения',
+    'build-evidence-not-advertised': 'исполнитель моста не выдаёт сведения о сборке', 'build-evidence-bridge-failed': 'мост сообщил об ошибке задания сведений о сборке',
+    'build-evidence-request-unsupported': 'состав решения не помещается в запрос сведений о сборке', 'worker-profile-unbound': 'профиль исполнителя не определён',
+    'capability-catalog-unavailable': 'каталог нативных возможностей не проверен', 'unbuildable-inputs': 'принятую версию решения нельзя собрать',
+    'unbuildable-accepted-merge': 'принятое сравнение нельзя собрать', 'missing-original': 'нет исходного файла выгрузки', 'stale-resolution': 'решение по сравнению устарело',
+    'foreign-run': 'ответ на чужое задание', 'request-mismatch': 'ответ на другие данные', 'stale-evidence': 'сведения устарели', 'future-evidence': 'сведения из будущего',
+    'worker-revision-mismatch': 'исполнитель другой версии', 'stale-target-profile': 'сведения для другого профиля Target', 'over-claim': 'сведения заявляют больше, чем проверено',
+    'hidden-missing-fact': 'сведения скрывают непроверенные факты', 'unsupported-compiler-scope': 'компилятор заявлен для неподдерживаемых служб',
+    'invalid-coverage-declaration': 'заявление о покрытии не совпадает с каталогом', 'target-observation-mismatch': 'сведения опираются на другое чтение Target',
+    'unobserved-target-precondition': 'условия Target без чтения Target', 'document-shape': 'неизвестный формат сведений', 'result-shape': 'неизвестный формат ответа'
   },
-  unknownDetail: 'причина проверки:', profile: 'Профиль', platform: 'платформа', observedAt: 'прочитан'
+  unknownDetail: 'причина проверки:', profile: 'Профиль', platform: 'платформа', observedAt: 'прочитан',
+  // Native build evidence (elma365-native-build-evidence@1) requested with the profile.
+  evidence: {
+    heading: 'Сведения о сборке', reasons: 'Причины по сведениям о сборке',
+    states: {
+      none: 'Сведения о сборке ещё не получены: нативное покрытие и компилятор. Мост выдаёт их вместе с профилем Target.',
+      current: 'Сведения о сборке получены для текущей версии решения: нативное покрытие и компилятор.',
+      expired: 'Сведения о сборке старше 15 минут и больше не учитываются. Прочитайте профиль Target заново.',
+      stale: 'Сведения о сборке получены для прежней версии решения и не учитываются.',
+      unavailable: 'Сведения о сборке не получены: мост сообщил, что они недоступны.',
+      invalid: 'Сведения о сборке не прошли проверку и не приняты.',
+      unknown: 'Результат запроса сведений о сборке неизвестен: ответ моста не получен.',
+      'not-requested': 'Сведения о сборке не запрошены: принятую версию решения нельзя собрать.'
+    },
+    compiler: 'Компилятор проверяет только:', missing: 'Сведения о сборке не подтверждают:',
+    services: { widgets: 'виджеты' },
+    facts: { 'entitlement-observation': 'лицензии платных модулей', 'activation-observation': 'активацию модулей', 'compatibility-observation': 'совместимость модулей',
+      'required-bindings': 'обязательные привязки', 'native-import-receipt': 'импорт собранного пакета', 'native-installation-observation': 'установку на Target',
+      'process-runtime-compiler': 'компиляцию процессов', 'target-observation': 'чтение Target этим исполнителем' }
+  }
 };
 // Composer build and freeze of the accepted merged revision. A build is held by the
 // server until it is frozen; only a frozen candidate can be reviewed or delivered.
