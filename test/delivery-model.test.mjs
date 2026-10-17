@@ -106,11 +106,14 @@ test('MR-08 promotion targets another usable non-production Target on the same p
   // Stale, historical, unverified, PROD-sourced or edited evidence never offers promotion.
   for (const [candidate, data] of [[release, { attempts: [{ ...verified, releaseRevision: 3 }] }], [release, { attempts: [{ ...verified, verificationCurrent: false }] }],
     [release, { attempts: [{ ...verified, state: 'deployed-unverified' }] }], [release, { attempts: [{ ...verified, connection: { ...source, environment: 'prod' } }] }],
-    [{ ...release, candidate: { ...release.candidate, provenance: 'supported-edit' } }, { attempts: [verified] }], [release, { attempts: [verified, attempt('prepared')] }]]) {
+    [{ ...release, candidate: { ...release.candidate, provenance: 'supported-edit' } }, { attempts: [verified] }], [release, { attempts: [verified, attempt('prepared')] }],
+    [release, { attempts: [{ ...verified, composed: { deliveryBasis: 'designated-test-install', pendingNativeEvidence: ['native-import-receipt'] } }] }]]) {
     const refused = deliveryPanelView(candidate, { capabilities, connections: [source, second, prod], ...data });
     assert.equal(refused.canPromote, false); assert.equal(refused.promotionTarget(second), false);
   }
   assert.equal(deliveryPanelView(release, { connections: [source, second], attempts: [verified] }).canPromote, false, 'delivery disabled');
+  const testInstall = deliveryPanelView(release, { capabilities, connections: [source], attempts: [{ ...verified, composed: { deliveryBasis: 'designated-test-install' } }] });
+  assert.equal(testInstall.testInstall, true); assert.match(testInstall.next, /Это не выпуск/);
 });
 
 test('MR-08 retry follows only an observed reconciliation of a current attempt', () => {

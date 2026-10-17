@@ -8,6 +8,7 @@ import { solutionStore, SOLUTION_CATALOG } from '../lib/solutions.mjs';
 import { projectStore } from '../lib/projects.mjs';
 import { releaseStore } from '../lib/releases.mjs';
 import { deliveryStore, syntheticAdapter, inventoryOf } from '../lib/delivery.mjs';
+import { targetPresets } from '../lib/target-presets.mjs';
 import { readArchive } from '../lib/e365.mjs';
 import { adaptNativeCoverage, SYNTHETIC_COVERAGE_CONTRACT } from '../lib/native-coverage-adapter.mjs';
 import { resolveDependencyEvidence, SYNTHETIC_RECEIPT_CONTRACT } from '../lib/dependency-resolver.mjs';
@@ -540,4 +541,67 @@ test('MR-08 composed: an applied unit receipt with an unchanged inventory reconc
   assert.equal(attempt.evidence.reconciliation.fromState, 'partial-outcome');
   await assert.rejects(composed.retry(candidate.id, attempt.id, executor, { idempotencyKey: 'r' }), error => error.statusCode === 409 && /идемпотентный/.test(error.message));
   assert.equal(calls.length, 0);
+});
+
+test('a native candidate awaiting installation evidence installs only as the owner-designated DEV2 test install, never as release evidence', async t => {
+  const { directory, solutions, legacy, candidate } = await setup(t);
+  // The frozen record a native build produces: validated, but missing the facts only its import yields.
+  const [file] = (await fs.readdir(directory, { recursive: true })).filter(name => name.endsWith(path.join(candidate.id, 'candidate.json')));
+  const stored = JSON.parse(await fs.readFile(path.join(directory, file), 'utf8'));
+  const write = async extra => fs.writeFile(path.join(directory, file), JSON.stringify({ ...stored, evidenceBasis: 'native', releaseEligible: false,
+    pendingNativeEvidence: ['native-import-receipt', 'native-installation-observation'], ...extra }));
+  await write();
+  const DEV2 = 'dev2.example.invalid', calls = [];
+  const presetsFor = designated => targetPresets({ WIKI_TARGET_DEV_URL: 'https://dev.example.invalid', WIKI_TARGET_DEV2_URL: `https://${DEV2}`,
+    WIKI_TARGET_DEV2_DEPLOY_CANDIDATES: designated });
+  const store = presets => deliveryStore(directory, legacy, { composedCandidates: solutions.composed, presets,
+    adapters: { 'operator-like': opts => syntheticAdapter({ ...opts, calls }) },
+    presetAdapter: () => dev2Adapter() });
+  // DEV2's bridge returns the installed package/manifest bytes its import-normalized read-back compares.
+  let installed = null;
+  const dev2Adapter = () => {
+    const adapter = syntheticAdapter({ identity: { host: DEV2, version: PROFILE.platformVersion }, calls });
+    return { ...adapter,
+      async deployCandidate(candidate, options) { const result = await adapter.deployCandidate(candidate, options); installed = await readArchive(candidate.bytes); return result; },
+      async readBack(code, { metadata } = {}) {
+        const after = await adapter.readBack(code);
+        return { ...after, metadataFiles: (metadata?.paths ?? []).map(name => ({ path: name, sha256: crypto.createHash('sha256').update(installed.get(name)).digest('hex'), contentBase64: installed.get(name).toString('base64') })) };
+      } };
+  };
+  const designatedStore = store(presetsFor(candidate.candidate.sha256)), composed = designatedStore.forComposed(candidate.solutionId);
+  const prepare = (target, connectionId = 'preset-dev2') => target.forComposed(candidate.solutionId).prepare(candidate.id, executor, { revision: candidate.revision, connectionId });
+
+  // Not designated, or another Target than DEV2: refused before any Target call.
+  await assert.rejects(prepare(store(presetsFor('0'.repeat(64)))), error => error.statusCode === 403 && /назначенного владельцем/.test(error.message));
+  const other = await designatedStore.connections.create(executor, target(PROFILE.platformVersion, 'native.example.invalid', 'operator-like'));
+  await assert.rejects(prepare(designatedStore, other.id), error => error.statusCode === 409 && /DEV2 test install/.test(error.message));
+  // Missing evidence other than the post-build installation facts is never installable.
+  await write({ pendingNativeEvidence: ['native-import-receipt', 'unknown-native-coverage'] });
+  await assert.rejects(prepare(designatedStore), error => error.statusCode === 409);
+  await write();
+
+  let attempt = await prepare(designatedStore);
+  assert.equal(attempt.composed.deliveryBasis, 'designated-test-install');
+  assert.deepEqual(attempt.composed.pendingNativeEvidence, ['native-import-receipt', 'native-installation-observation']);
+  attempt = await composed.confirm(candidate.id, attempt.id, executor, confirmation(attempt));
+  attempt = await composed.verify(candidate.id, attempt.id, executor);
+  assert.equal(attempt.state, 'verified');
+  const packet = await composed.packet(candidate.id, attempt.id, executor);
+  assert.equal(packet.evidenceBasis, 'adapter-reported');
+  assert.deepEqual(packet.notEstablished, ['native-installation-evidence', 'release-eligibility', 'native-business-acceptance']);
+  // A test install is not a promotion source; the candidate itself stays non-release-eligible.
+  await assert.rejects(composed.promote(candidate.id, attempt.id, executor, { revision: candidate.revision, connectionId: other.id, idempotencyKey: 'promote' }),
+    error => error.statusCode === 409 && /Тестовая установка/.test(error.message));
+  assert.equal((await solutions.composed.get(candidate.solutionId, candidate.id)).releaseEligible, false);
+
+  // A designation withdrawn after preparation refuses dispatch.
+  const second = await prepare(designatedStore).catch(error => error);
+  assert.equal(second.statusCode, undefined, 'a verified attempt does not reserve the Target');
+  // Evidence the candidate gains or loses after preparation re-derives the basis before dispatch.
+  await write({ pendingNativeEvidence: ['native-import-receipt', 'unknown-native-coverage'] });
+  await assert.rejects(composed.confirm(candidate.id, second.id, executor, { ...confirmation(second), idempotencyKey: 'changed' }),
+    error => error.statusCode === 409 && /Основание доставки/.test(error.message));
+  await write();
+  await assert.rejects(store(presetsFor('')).forComposed(candidate.solutionId).confirm(candidate.id, second.id, executor, { ...confirmation(second), idempotencyKey: 'withdrawn' }),
+    error => error.statusCode === 403);
 });

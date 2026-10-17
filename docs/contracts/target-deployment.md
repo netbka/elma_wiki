@@ -135,10 +135,23 @@ three roots, including unresolved records after restart.
   a review comment or finding, an archived Solution or a revoked approval fails
   the final guarded write of prepare, confirm and verify with 409. Historical attempts then report `candidateStatus: stale` and
   `verificationCurrent: false`.
-- **Eligibility guards at prepare.** A candidate without `evidenceBasis:
-  native` and `releaseEligible: true` reaches only a `synthetic` training
-  adapter; today every candidate is synthetic because P6 output stays
-  non-native until P8. The observed Target `version` must equal the bound
+- **Eligibility guards at prepare.** Each attempt records a `deliveryBasis`.
+  A `synthetic` training adapter receives any candidate as `training`. A
+  candidate with `evidenceBasis: native` and `releaseEligible: true` is
+  `release`. A native candidate whose `pendingNativeEvidence` is non-empty and
+  lists only the post-build facts (`native-import-receipt`,
+  `native-installation-observation`) is `designated-test-install`, and only on
+  the configured, deploy-capable `preset-dev2` with its `candidate.sha256` in
+  `WIKI_TARGET_DEV2_DEPLOY_CANDIDATES`. Installing is the only way to produce
+  those facts, so without this basis no native candidate could ever become
+  eligible. Anything else is 409 before any Target call (an undesignated digest
+  is refused by the preset guard with 403). Confirm re-derives the basis from
+  the current candidate record and preset and refuses with 409 when it is gone
+  or changed. A test install is never release evidence: its packet lists
+  `native-installation-evidence` and `release-eligibility` in `notEstablished`,
+  promotion from it is refused with 409, and it does not change the
+  candidate's `releaseEligible` or `pendingNativeEvidence` (recording the
+  native facts is elma365#60/P8 work). The observed Target `version` must equal the bound
   profile platform. A candidate with more than one unit requires an adapter
   with `unitReceipts: true`; the operator bridge does not report receipts, so
   it is refused. The existing PROD refusal, protected hosts, typed confirmation,
@@ -236,6 +249,9 @@ and Target verification are incomplete and release is blocked. Only an explicit
 `synthetic` basis receives the training-build label. Missing or unrecognized
 provenance is shown as unconfirmed. The next-action summary uses the same
 distinction. These labels never grant delivery or replace server-side gates.
+The delivery panel marks a `designated-test-install` attempt as a test install
+that is not a release, and never offers promotion from it (story
+`solution-composer--test-install`).
 The `native-pending` and `unknown-evidence` composer stories are synthetic records
 of these states, not native acceptance evidence.
 
@@ -253,7 +269,11 @@ data the review-only projection is unchanged.
 
 No live, native or business result is claimed:
 `node --test test/composed-delivery.test.mjs` uses synthetic archives, the
-synthetic P6 assembler and the synthetic Target adapter only. The native
+synthetic P6 assembler and the synthetic Target adapter only. The designated
+DEV2 test install is covered with a rewritten synthetic native-pending record
+and a synthetic DEV2 adapter returning metadata bytes (undesignated, other
+Target and non-post-build pending refused; basis change and withdrawn
+designation refused at confirm; packet and promotion refusal). The native
 release eligibility of a composed candidate remains blocked on the open P8 gate
 (netbka/elma365#60).
 
