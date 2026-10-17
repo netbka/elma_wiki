@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { projectProcess, relatedForm } from '../web/visual/model.js';
-import { visualSource } from '../web/visual/fixtures.js';
+import { projectProcess, projectForm, relatedForm, scenarioFields } from '../web/visual/model.js';
+import { visualSource, visualFixture } from '../web/visual/fixtures.js';
 import { snapshotVisual, sourceAnchorIndex, SOURCE_ANCHOR_VERSION } from '../lib/solution-visual.mjs';
 import { zip } from './fixture.mjs';
 import fs from 'node:fs/promises';
@@ -165,4 +165,86 @@ test('UX-06 follow-ups: a null field keeps its slot in the pointer; past 50 proc
   const artifact = { scope: 'full', ambiguities: [], components: [{ key, digest: 'd' }] };
   const pending = { artifact, sourceAnchors: await sourceAnchorIndex(bigBytes, 'b') };
   assert.equal(anchorStatus({ anchor: { key, digest: 'd' }, sourceAnchor: { nodeId: 'review', fingerprint: 'f' } }, pending), 'ambiguous');
+});
+
+test('D3 preserves named regions, tab/group structure and declared paths without evaluating bindings',()=>{
+  const source={descriptor:'item-form-complex-popup',content:{'[content]':[
+    {descriptor:'groupbox',values:{title:'Synthetic group',collapsible:true,expanded:false,__hidden:{path:['context','hide']}},content:{'':[
+      {descriptor:'tabset',content:{'':[
+        {descriptor:'tab',values:{title:'First'},content:{'':[{descriptor:'dynamic-form-row',values:{displayName:'Owner',control:{path:['context','owner']},required:{path:['requiredOwner']},__readOnly:true}}]}},
+        {descriptor:'tab',values:{title:'Second'},content:{'':[]}}
+      ]}}
+    ]}}
+  ],'[footer]':[{descriptor:'button',values:{label:'Run',action:{path:['actions','submit']},onClick:{script:'NEVER_EXPOSE_THIS_BODY'}}}],bad:{script:'NEVER_EXPOSE_REGION'}}};
+  const issues=[],tree=projectForm(source,'widget#/descriptor/template',issues);
+  assert.deepEqual(tree.regions.map(r=>[r.name,r.from,r.to,r.supported]),[['[content]',0,1,true],['[footer]',1,2,true],['bad',2,2,false]]);
+  const group=tree.children[0],tabset=group.children[0],row=tabset.children[0].children[0];
+  assert.equal(group.supported,true);assert.equal(group.expanded.value,false);
+  assert.equal(group.declarations.hidden.state,'unknown');assert.deepEqual(group.declarations.hidden.path,['context','hide']);
+  assert.deepEqual(row.bindings.find(b=>b.name==='control').path,['context','owner']);
+  assert.equal(row.declarations.required.state,'unknown');assert.equal(row.field.required,false);
+  assert.equal(row.declarations.readOnly.value,true);assert.equal(row.field.type,'unknown');
+  assert.equal(tree.children[1].bindings.find(b=>b.name==='action').pointer,'widget#/descriptor/template/content/[footer]/0/values/action');
+  assert.equal(tree.children[1].bindings.find(b=>b.name==='onClick').kind,'expression');
+  assert.equal(JSON.stringify(tree).includes('NEVER_EXPOSE'),false);
+  assert.equal(issues.some(i=>i.pointer==='widget#/descriptor/template/content/bad'),true);
+});
+
+test('D3 widget templates reuse the form tree, bind immutable sources and keep missing/opaque layouts explicit',async()=>{
+  const bytes=await zip([
+    ['package.json',{code:'synthetic_layout',type:'SOLUTION'}],
+    ['widgets/manifest.json',{entities:['card','opaque','absent'].map(code=>({code,namespace:'synthetic',kind:'WIDGET',path:code+'.json'}))}],
+    ['widgets/card.json',{descriptor:{template:{descriptor:'row',content:{'a/b~c':[{descriptor:'column',content:{'':[{descriptor:'dynamic-form',values:{fields:[{code:'number',name:'Number',type:'string',__readOnly:true}]}}]}}]}},clientScript:'PRIVATE_WIDGET_SCRIPT'}}],
+    ['widgets/opaque.json',{descriptor:{template:'PRIVATE_TEMPLATE_CODE'}}],['widgets/absent.json',{descriptor:{}}]
+  ]);
+  const visual=await snapshotVisual(bytes,'synthetic-layout');
+  assert.equal(visual.rendererVersion,'4');assert.equal(visual.nativeObservation,'absent');
+  const card=visual.objects.find(o=>o.code==='card');assert.equal(card.layout.descriptor,'row');
+  assert.equal(card.layout.children[0].pointer,'widgets/card.json#/descriptor/template/content/a~1b~0c/0');
+  assert.equal(card.layout.children[0].children[0].fields[0].declarations.readOnly.value,true);
+  assert.equal(visual.objects.find(o=>o.code==='opaque').layout.supported,false);
+  assert.equal(visual.objects.find(o=>o.code==='absent').layout,null);
+  assert.equal(JSON.stringify(visual).includes('PRIVATE_'),false);
+});
+
+test('D3 bounded forms reject oversized fields and preserve unknown required/read-only/visibility declarations',()=>{
+  const raw=structuredClone(visualSource);raw.forms[0].content['[content]'][0].values.__hidden={path:['context','hidden']};
+  raw.forms[0].content['[content]'][0].values.fields[0].required={path:['mustFill']};
+  const p=projectProcess(raw,'fixture');assert.equal(scenarioFields(p,'review').unknown,true);
+  assert.equal(p.forms[0].tree.children[0].fields[0].declarations.required.state,'unknown');
+  assert.throws(()=>projectForm({descriptor:'dynamic-form',values:{fields:Array.from({length:101},()=>({code:'x'}))}},'widget#'),/ограничения/);
+  assert.throws(()=>projectForm({descriptor:'row',content:{'':Array.from({length:2000},()=>({descriptor:'column'}))}},'widget#'),/ограничения/);
+});
+
+test('D3 layout story is opt-in and preserves the shared source fixture used by managed flows',()=>{
+  const shared=visualFixture('source').processes[0],layout=visualFixture('source',{layout:true}).processes[0];
+  assert.deepEqual(shared.issues,[],'ordinary managed source story keeps its graph support state');
+  assert.equal(shared.forms[0].tree.children[0].descriptor,'dynamic-form');
+  assert.equal(layout.forms[0].tree.children[0].descriptor,'groupbox');
+  assert.equal(layout.forms[0].tree.regions.some(r=>r.name==='[footer]'),true);
+  assert.deepEqual(layout.issues,[],'ordinary bindings are not unrecoverable process structure');
+  assert.equal(scenarioFields(layout,'review').unknown,true,'the layout story still exposes unknown native behavior');
+});
+
+test('ordinary native rows and action panels retain uncertainty without becoming unsupported process structure',()=>{
+  for(const control of [
+    {descriptor:'dynamic-form-row',values:{displayName:'Amount',control:{path:['Context','amount']}}},
+    {descriptor:'buttons-panel',values:{buttons:{path:['Context','actions']}}}
+  ]){
+    const raw=structuredClone(visualSource);
+    raw.forms[0].content={'': [control]};
+    const process=projectProcess(raw,'synthetic.json'),node=process.forms[0].tree.children[0];
+    assert.deepEqual(process.issues,[]);
+    assert.equal(node.supported,true);assert.equal(node.binding,'unknown');
+    assert.ok(node.bindings.some(binding=>binding.evaluation==='unknown'));
+    assert.equal(scenarioFields(process,'review').unknown,true);
+  }
+  for(const control of [
+    {descriptor:'dynamic-form',values:{fields:{path:['Context','fields']}}},
+    {descriptor:'row',content:{'':{descriptor:'column'}}},
+    {descriptor:'row',content:'unknown'}
+  ]){
+    const raw=structuredClone(visualSource);raw.forms[0].content={'':[control]};
+    assert.ok(projectProcess(raw,'synthetic.json').issues.length,'unreconstructed structure remains explicit');
+  }
 });

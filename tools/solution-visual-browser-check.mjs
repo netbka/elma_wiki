@@ -128,7 +128,75 @@ try {
   });
   assert.equal(await page.getByText('Область процесса не поддерживается: Согласующий',{exact:true}).count(),1,
     'a lane with invalid geometry stays visible as unsupported source evidence');
-  await fs.writeFile('qa/solution-visual-browser-evidence.json',JSON.stringify({synthetic:true,api:true,sourceGeometry:true,explicitForm:true,branches:'view-only and bounded Wiki simulation',happy:true,returnWithComment:true,missingComment:true,attributedStepFinding:true,keyboard:true,mobile:true,zoom:true,importedActionsExecuted:false,nativeObservation:false}));
+  // D3: the existing synthetic source story uses the production form renderer.
+  await page.setViewportSize({width:1440,height:1000});
+  await page.evaluate(async()=>{
+    document.documentElement.style.zoom='1';
+    const {mountSnapshotVisual}=await import('/visual/render.js'),{visualFixture}=await import('/visual/fixtures.js');
+    document.querySelector('#managed-root').replaceChildren(mountSnapshotVisual(visualFixture('source',{layout:true})));
+  });
+  await page.locator('svg [data-node=review]').click();
+  const form=page.locator('.visual-form');
+  assert.equal(await page.locator('.visual-unsupported').count(),0,'ordinary native bindings do not create an unsupported-process list');
+  assert.ok(await form.locator('[data-region="[content]"]').count()>0);
+  assert.equal(await form.locator('[data-region="[footer]"]').count(),1);
+  await form.getByRole('tab',{name:'Основное',exact:true}).waitFor();
+  assert.equal(await form.getByRole('tab',{name:'Основное',exact:true}).getAttribute('aria-selected'),'true');
+  await form.getByRole('tab',{name:'Основное',exact:true}).focus();await page.keyboard.press('ArrowRight');
+  assert.equal(await form.getByRole('tab',{name:'Дополнительно',exact:true}).getAttribute('aria-selected'),'true');
+  assert.equal(await form.getByText('Не поддерживается: synthetic-unknown-control',{exact:true}).isVisible(),true);
+  await page.keyboard.press('Home');
+  assert.equal(await form.getByRole('tab',{name:'Основное',exact:true}).getAttribute('aria-selected'),'true');
+  await page.keyboard.press('End');await page.keyboard.press('ArrowLeft');
+  assert.equal(await form.getByLabel(/^Участник/).isDisabled(),true,'native control binding is not simulated as a primitive');
+  assert.equal(await form.locator('[role=tabpanel] h5').filter({hasText:/^Основное$/}).count(),0,'the tab title is not repeated inside its panel');
+  const participant=await form.locator('label').filter({hasText:/^Участник/}).innerText();
+  assert.match(participant,/Обязательность: зависит от ELMA; неизвестно/,'an expression-bound requirement is visible inline as unknown');
+  assert.match(participant,/Только чтение: да по экспорту/);
+  assert.match(participant,/Тип поля зависит от ELMA; неизвестен/);
+  assert.doesNotMatch(participant,/не поддерживаются|Представление поля/,'an ordinary row is neither unsupported nor shown as plainly optional');
+  assert.match(await form.locator('label').filter({hasText:/^Номер/}).innerText(),/Только чтение: да по экспорту/);
+  assert.equal(await form.getByRole('button',{name:'Согласовать',exact:true}).isDisabled(),true);
+  await page.getByRole('button',{name:'Проверить путь по экспорту',exact:true}).click();
+  assert.equal(await form.getByLabel(/^Документ/).isEnabled(),true);
+  assert.equal(await form.getByLabel(/^Номер/).isDisabled(),true,'declared read-only remains read-only during the bounded path check');
+  const columns=form.locator('[data-descriptor=row]>.visual-form-region>.visual-region-content>[data-descriptor=column]');
+  assert.equal(await columns.count(),2);
+  const left=await columns.nth(0).boundingBox(),right=await columns.nth(1).boundingBox();
+  assert.ok(right.x>left.x&&Math.abs(left.y-right.y)<2,'source row/columns stay horizontal at desktop width');
+  const group=form.locator('details.visual-form-group');await group.locator(':scope>summary').click();
+  assert.equal(await form.getByLabel(/^Документ/).isVisible(),false);await group.locator(':scope>summary').click();
+  await form.getByText('Исходные декларации',{exact:true}).click();
+  await form.locator('.visual-form-evidence > details').filter({has:page.locator('.visual-source-bindings')}).first().locator(':scope>summary').click();
+  await form.locator('.visual-source-bindings').first().locator(':scope>summary').click();
+  assert.ok((await form.textContent()).includes('context → participant'),'source path remains inspectable without evaluation');
+  await page.screenshot({path:'qa/solution-form-source-desktop.png',fullPage:true});
+  await page.setViewportSize({width:390,height:844});
+  const narrowLeft=await columns.nth(0).boundingBox(),narrowRight=await columns.nth(1).boundingBox();
+  assert.ok(narrowRight.y>narrowLeft.y,'source columns reflow at narrow widths');
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+  await page.screenshot({path:'qa/solution-form-source-mobile.png',fullPage:true});
+  await page.evaluate(()=>{document.documentElement.style.zoom='2';});
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+  // The same exported tree renderer can render a widget template independently.
+  await page.evaluate(async()=>{
+    const {mountFormVisual}=await import('/visual/render.js'),{projectForm}=await import('/visual/model.js');
+    const raw={descriptor:'groupbox',values:{title:'<img src=x onerror=alert(1)>',__styles:'position:fixed;inset:0',__hidden:true},content:{'[sidebar]':[
+      {descriptor:'dynamic-form',values:{fields:[{code:'test',name:'Synthetic readonly',type:'string',__readOnly:true}]}},
+      {descriptor:'button',values:{label:'Synthetic inert',onClick:{script:'globalThis.__D3_EXECUTED=true'}}},
+      {descriptor:'synthetic-opaque-control',values:{html:'<script>globalThis.__D3_EXECUTED=true</script>'}}
+    ]}};
+    document.querySelector('#managed-root').replaceChildren(mountFormVisual(projectForm(raw,'widgets/synthetic.json#/descriptor/template'),{simulation:true}));
+  });
+  assert.equal(await page.locator('.solution-form img,.solution-form script').count(),0);
+  assert.equal(await page.getByLabel(/^Synthetic readonly/).isDisabled(),true);
+  assert.equal(await page.getByRole('button',{name:'Synthetic inert',exact:true}).isDisabled(),true);
+  assert.equal(await page.evaluate(()=>globalThis.__D3_EXECUTED),undefined);
+  assert.equal(await page.locator('.solution-form [style]').count(),0,'uploaded styling is never installed');
+  assert.ok((await page.locator('.solution-form').textContent()).includes('Скрытие: да по экспорту'),'source hidden state remains inspectable in review');
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+  assert.deepEqual(errors,[]);
+  await fs.writeFile('qa/solution-visual-browser-evidence.json',JSON.stringify({synthetic:true,api:true,sourceGeometry:true,explicitForm:true,branches:'view-only and bounded Wiki simulation',happy:true,returnWithComment:true,missingComment:true,attributedStepFinding:true,keyboard:true,mobile:true,zoom:true,sourceRegions:true,sourceColumns:true,groupCollapse:true,keyboardTabs:true,declaredReadOnly:true,sourceBindings:true,standaloneWidgetRenderer:true,importedActionsExecuted:false,nativeObservation:false}));
   console.log('Solution visual: shared artifact API, geometry, explicit form, happy/return/missing-comment Wiki checks, attributed step discussion, inert controls, XSS, keyboard, mobile and zoom passed.');
 } finally {
   await browser?.close();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));
