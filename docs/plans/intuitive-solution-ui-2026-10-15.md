@@ -380,6 +380,7 @@ reason to keep the manual upload primary.
 | Human five-second and label tests (R3, UX-09) | resolved 2026-10-15 | Owner delegated; classified as design validation under the limits in section 2. Not #59/#41 evidence |
 | Merge of each UX PR | `merge-to-main` | Owner merges |
 | Restarting the independent visual audit (#41) and uncoached usability (#59) | `paused-work-resumption` | Not scheduled. Agents prepare the readiness below; the owner decides the restart |
+| Phone-width (390 px) support of the Solution UI | resolved 2026-10-17 | Owner: desktop only. Mobile findings of the UX-09 agent pass are dropped; fixes planned in [ux-10-review-clarity-2026-10-17.md](ux-10-review-clarity-2026-10-17.md) |
 
 ### 10.1 Readiness for #41/#59 resumption
 
