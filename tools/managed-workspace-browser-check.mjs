@@ -513,6 +513,12 @@ try {
     }
     if (mode === 'summary-closed') { await page.getByText(/^Закрыто без изменений:/).waitFor(); assert.equal(await page.getByRole('button', { name: 'Решение по версии', exact: true }).count(), 0); }
     if (!mode.startsWith('review-') && !mode.startsWith('elements-') && !['create','create-legacy','update','change','review','conflict','overlap','ambiguous','archived','loading','summary-mixed','summary-no-changes','summary-closed','decision'].includes(mode) && !mode.startsWith('pull-') && !mode.startsWith('viewed-')) assert.equal(await page.locator('.managed-content a.button').count(), 1, 'one primary action: ' + mode);
+    // The lifecycle is shown only where it is acted on; content tabs show the Solution, not the pipeline.
+    if (['solution', 'flows', 'screens', 'requests'].includes(mode)) assert.equal(await page.locator('.managed-stepper').count(), 0, 'no lifecycle on a content tab: ' + mode);
+    if (['create', 'pull-unavailable'].includes(mode)) {
+      const manual = page.locator('.managed-manual').getByRole('link', { name: 'Загрузить файл .e365 вручную', exact: true });
+      assert.equal(await manual.getAttribute('class'), mode === 'pull-unavailable' ? 'button' : 'button secondary', 'manual upload is an equal option: ' + mode);
+    }
     if (mode === 'create') { assert.equal(await page.getByRole('button', { name: 'Загрузить', exact: true }).count(), 1, 'one button on the fixed entry'); assert.equal(await page.getByLabel('Это полный экспорт решения', { exact: true }).count(), 0); }
     if (mode === 'update') { await page.getByRole('button', { name: 'Обновить', exact: true }).waitFor(); assert.equal(await page.getByLabel('Сервер', { exact: true }).isDisabled(), true); }
     if (mode === 'pull-unavailable') assert.equal(await page.getByRole('button', { name: 'Загрузить', exact: true }).isDisabled(), true);
