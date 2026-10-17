@@ -159,6 +159,7 @@ export function mountDelivery({ release, client, onAction, onRefresh, onState, i
       const attempt = el('section', undefined, 'card'); attempt.setAttribute('aria-label', 'Последняя попытка доставки');
       attempt.append(el('h3', `Последняя попытка: ${deliveryStateLabels[latest.state] || latest.state}`), el('p', `${latest.connection.adapter === 'synthetic' ? 'Учебный стенд (не ELMA)' : 'Target'}: ${latest.connection.name} · ${latest.targetIdentity.host} · версия ${latest.targetIdentity.version || 'не определена'}`), el('p', `Решение ${latest.solutionCode} · ревизия ${latest.releaseRevision}`), el('p', `Кандидат SHA-256: ${latest.sha256}`, 'release-hash'));
       if (!view.current) attempt.append(el('p', 'Устаревшая попытка: текущий кандидат или условия релиза изменились.', 'note'));
+      if (view.testInstall) attempt.append(el('p', 'Тестовая установка на назначенный владельцем DEV2: кандидат ждёт нативных подтверждений установки. Эта попытка не является доказательством выпуска и не продвигается на другой Target.', 'note'));
       if (latest.state === 'prepared' && view.current && !view.canConfirm) attempt.append(el('p', 'Подключение Target недоступно или не проверено. Проверьте подключение и обновите состояние перед подтверждением.', 'note'));
       if (view.canConfirm) {
         const form = el('form'); form.append(el('p', `Для отдельного подтверждения введите: ${view.confirmation}`, 'release-hash'));

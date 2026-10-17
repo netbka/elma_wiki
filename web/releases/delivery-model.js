@@ -32,11 +32,13 @@ export function deliveryPanelView(release, { capabilities, connections = [], att
   // MR-08 promotion: the latest attempt, verified for the current candidate on a non-production Target,
   // goes to another usable Target on the same platform version. PROD is never a destination here:
   // the server needs an owner grant it never constructs and a typed PROD confirmation no route accepts.
-  const promotable = enabled && current && !active && latest?.state === 'verified' && latest.verificationCurrent !== false && latest.connection?.environment !== 'prod' && !edited;
+  // An owner-designated DEV2 test install of a native candidate is never release evidence or a promotion source.
+  const testInstall = latest?.composed?.deliveryBasis === 'designated-test-install';
+  const promotable = enabled && current && !active && latest?.state === 'verified' && latest.verificationCurrent !== false && latest.connection?.environment !== 'prod' && !edited && !testInstall;
   const promotionTarget = connection => promotable && usable(connection) && connection.id !== latest.connection.id &&
     connection.probe.identity.host !== latest.targetIdentity?.host && !!connection.probe.identity.version && connection.probe.identity.version === latest.targetIdentity?.version;
   const targets = connections.filter(c => c.role === 'target');
-  return { latest, current, synthetic, bridge, enabled, selectable, usable, bridges, connections: targets,
+  return { latest, current, synthetic, bridge, enabled, selectable, usable, bridges, connections: targets, testInstall,
     reconciliation, promotable, promotionTarget,
     promotionDestinations: promotable ? targets.filter(c => c.id !== latest.connection.id) : [],
     prodRefused: targets.some(c => c.environment === 'prod'),
@@ -59,6 +61,7 @@ export function deliveryPanelView(release, { capabilities, connections = [], att
       latest?.state === 'unknown-outcome' ? 'Результат неизвестен. Сначала прочитайте и проверьте состояние стенда; не повторяйте операцию.' :
       latest?.state === 'deployed-unverified' ? 'Прочитайте и сравните результат. Завершение операции ещё не означает совпадение.' :
       latest?.state === 'verified' && latest.verificationCurrent === false ? 'Прежняя проверка не подтверждает текущий кандидат. Сохраните историю и подготовьте новую проверяемую доставку.' :
+      latest?.state === 'verified' && testInstall ? 'Тестовая установка на DEV2 совпала с кандидатом по read-back. Это не выпуск: нативные подтверждения установки ещё не приняты, кандидат не продвигается.' :
       latest?.state === 'verified' ? (viaBridge ? 'Read-back с Target совпал с кандидатом по политике проверки. Это сравнение файлов пакета, не проверка поведения в ELMA.' : 'Учебная проверка прошла. Это не доказательство доставки в ELMA.') :
       diverged(latest) ? 'Read-back показал частичную установку: Target не совпадает ни с прежним состоянием, ни с кандидатом. Новая операция запрещена до восстановления по утверждённому плану и повторного read-back.' :
       latest?.state === 'verification-failed' ? (latest.evidence?.verificationError ? 'Не удалось подтвердить read-back. Проверьте доступность и личность Target и повторите чтение; новая операция требует новой подготовки и подтверждения.' : 'Результат не совпал. Изучите расхождения; повторная операция требует новой подготовки и подтверждения.') :

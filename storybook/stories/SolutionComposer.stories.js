@@ -48,6 +48,8 @@ export const AwaitingApproval = { render: () => story('awaiting-approval') };
 export const Approved = { render: () => story('approved') };
 export const NativePending = { render: () => story('native-pending'), parameters: { docs: { description: { story:
   'Синтетическая модель нативного кандидата без подтверждения установки: происхождение не подменяется учебным, выпуск не разрешён.' } } } };
+export const TestInstall = { render: () => story('test-install'), parameters: { docs: { description: { story:
+  'Нативный кандидат без подтверждений установки проверен тестовой установкой на назначенный владельцем DEV2: read-back совпал, но это не выпуск и не источник продвижения. Данные учебные.' } } } };
 export const UnknownEvidence = { render: () => story('unknown-evidence') };
 export const Stale = { render: () => story('stale') };
 export const Missing = { render: () => story('missing') };

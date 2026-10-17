@@ -67,7 +67,7 @@ export function solutionComposerFixture(mode = 'build-blocked') {
   const awaiting = composedCandidateFixture();
   const approved = composedCandidateFixture({ approved: true });
   // Synthetic records of native/unknown provenance states; no native execution is claimed.
-  if (mode === 'native-pending') Object.assign(approved, { evidenceBasis: 'native', releaseEligible: false,
+  if (mode === 'native-pending' || mode === 'test-install') Object.assign(approved, { evidenceBasis: 'native', releaseEligible: false,
     pendingNativeEvidence: ['native-import-receipt', 'native-installation-observation'], deliverable: false });
   if (mode === 'unknown-evidence') Object.assign(approved, { evidenceBasis: null, releaseEligible: false, deliverable: false });
   const candidates = { 'build-blocked': [], 'build-gates': [], 'eligibility-load-error': [], list: [stale, awaiting], 'awaiting-approval': [stale, awaiting], stale: [stale] }[mode] || [stale, approved];
@@ -93,6 +93,20 @@ export function solutionComposerFixture(mode = 'build-blocked') {
         : approved.units.map(unit => ({ unitId: unit.id, status: attemptState === 'failed' ? 'failed' : attemptState === 'unknown-outcome' ? 'unreported' : 'applied', operationId: null })) },
     history: [{ at: '2026-10-14T11:00:00Z', state: attemptState, note: 'Синтетическое состояние' }] } : null;
   const data = { capabilities: { mode: 'synthetic', liveDelivery: false, composedBuild: build }, connections: [connection], attempts: attempt ? [attempt] : [], bridges: [] };
+  // A verified owner-designated DEV2 test install of the native candidate: never release evidence.
+  if (mode === 'test-install') {
+    const dev2 = { id: 'preset-dev2', name: 'DEV2', role: 'target', environment: 'dev', adapter: 'bridge',
+      preset: { id: 'preset-dev2', name: 'DEV2', environmentRole: 'technical', bridgeTarget: 'dev2', host: 'dev2.example.invalid', available: true,
+        allowedOperations: ['inspect', 'deploy'], designatedCandidates: [approved.candidate.sha256] },
+      probe: { ok: true, hostMatches: true, identity: { host: 'dev2.example.invalid', version: 'synthetic-2026.10' } } };
+    Object.assign(data, { capabilities: { bridge: true, composedBuild: build }, connections: [dev2], bridges: [{ id: 'synthetic-bridge', name: 'Учебный мост', online: true, lastSeen: '2026-10-14T11:00:00Z', identity: { host: 'dev2.example.invalid', version: 'synthetic-2026.10' } }], attempts: [{
+      id: 'synthetic-test-install', state: 'verified', solutionCode: approved.code, releaseRevision: approved.revision, candidateId: approved.candidate.id, sha256: approved.candidate.sha256,
+      connection: dev2, targetIdentity: dev2.probe.identity, candidateStatus: 'current', verificationCurrent: true,
+      composed: { pendingNativeEvidence: [...approved.pendingNativeEvidence], deliveryBasis: 'designated-test-install' },
+      evidence: { comparison: { policy: 'import-normalized-v1', match: true, compared: 3, missing: [], different: [], unexpected: [] }, verificationError: null,
+        units: approved.units.map(unit => ({ unitId: unit.id, status: 'applied', operationId: null })) },
+      history: [{ at: '2026-10-14T11:00:00Z', state: 'verified', note: 'Синтетическое состояние' }] }] });
+  }
   return { model, data, connection, candidates: { stale, awaiting, approved } };
 }
 
