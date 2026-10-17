@@ -122,6 +122,12 @@ async function setup(t, { base = [['div', 0], ['outside', 0]], changed = [['div'
     const current = await managed.get(state.id, SOLUTION_CATALOG);
     const next = await managed.prepare(state.id, SOLUTION_CATALOG, { kind: 'change', snapshot: await upload([['outside', 9]], 'partial'), expectedRevision: current.revision,
       team: 'C', taskRef: 'SYNTHETIC-LATER', sameSourceConfirmed: true, base: { artifactId: state.baselineId, revision: 0, confirmed: true }, changeScope: { name: 'Later scope', members: [key('outside')], confirmed: true, deletions: [] } }, uploader);
+    const merge = await managed.merge(state.id, SOLUTION_CATALOG, next.artifactId);
+    if (merge.plan.status === 'resolution-required') await managed.resolveMerge(state.id, SOLUTION_CATALOG, next.artifactId, {
+      expectedRevision: current.revision, planDigest: merge.plan.planDigest, expectedResolutionId: merge.head?.id ?? null,
+      decisions: Object.fromEntries(merge.plan.rows.filter(row => row.status === 'resolution-required').map(row => [row.key, 'take-incoming'])),
+      reason: 'Explicitly accept the later synthetic edit for stale-candidate verification'
+    }, resolver);
     return managed.accept(state.id, SOLUTION_CATALOG, next.artifactId, { expectedRevision: current.revision, reviewedDigest: next.artifactDigest,
       reviewedBoundaryKeys: next.rows.filter(row => row.boundaryCrossing).map(row => row.key) }, resolver);
   };

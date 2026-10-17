@@ -80,6 +80,31 @@ try {
     await page.screenshot({ path: `qa/merge-resolution-live-${width}.png`, fullPage: true });
   }
 
+  // Same-team labels do not authorize replacing a divergent accepted component.
+  const sameTeam = await json(route + '/prepare', { kind: 'change', snapshot: await snapshot([['limit', 3]], 'partial'),
+    expectedRevision: 1, team: 'A', taskRef: 'MERGE-A-SECOND', sameSourceConfirmed: true, base: declared });
+  assert.equal(sameTeam.rows.some(row => row.conflict), false);
+  const refusal = await context.request.post(base + route + '/artifacts/' + sameTeam.artifactId + '/accept', {
+    headers: { 'X-Elma-Wiki-Request': '1' }, data: { expectedRevision: 1, reviewedDigest: sameTeam.artifactDigest,
+      reviewedBoundaryKeys: sameTeam.rows.filter(row => row.boundaryCrossing).map(row => row.key), expectedDiscussionRevision: 0 } });
+  assert.equal(refusal.status(), 409); assert.match((await refusal.json()).error, /saved merge resolution/);
+  await page.goto(`${base}/solutions?id=${state.id}&view=review&artifact=${sameTeam.artifactId}`);
+  for (const checkbox of await page.getByRole('checkbox', { name: 'Подтверждаю изменение', exact: true }).all()) await checkbox.check();
+  await page.getByRole('button', { name: 'Решение по версии', exact: true }).click();
+  const decision = page.getByRole('dialog', { name: 'Решение по версии' });
+  assert.equal(await decision.getByRole('radio', { name: 'Принять', exact: true }).isDisabled(), true);
+  assert.match(await decision.textContent(), /Разрешите конфликт выше/);
+  await decision.getByRole('button', { name: 'Отмена', exact: true }).click();
+  await section.getByLabel(/limit:/).selectOption('take-incoming');
+  await section.getByLabel('Причина решения').fill('Проверено совмещение двух изменений одной команды');
+  await section.getByRole('button', { name: 'Сохранить решение', exact: true }).click();
+  await section.getByText('Действует для текущих версий').waitFor();
+  for (const checkbox of await page.getByRole('checkbox', { name: 'Подтверждаю изменение', exact: true }).all()) await checkbox.check();
+  await page.getByRole('button', { name: 'Решение по версии', exact: true }).click();
+  assert.equal(await decision.getByRole('radio', { name: 'Принять', exact: true }).isEnabled(), true);
+  await decision.getByRole('button', { name: 'Отмена', exact: true }).click();
+  evidence.sameTeamRequiresResolution = true;
+
   const storyRoot = path.resolve('storybook/storybook-static'), types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml' };
   stories = http.createServer(async (req, res) => {
     try {
@@ -89,12 +114,27 @@ try {
     } catch { res.writeHead(404); res.end(); }
   });
   await new Promise(resolve => stories.listen(0, '127.0.0.1', resolve));
-  for (const mode of ['merge-required', 'merge-resolved', 'merge-stale', 'merge-blocked', 'merge-parts', 'merge-parts-blocked']) {
+  for (const mode of ['merge-required', 'merge-resolved', 'merge-stale', 'merge-blocked', 'merge-parts', 'merge-parts-blocked', 'merge-same-team', 'merge-same-team-resolved']) {
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.goto(`http://127.0.0.1:${stories.address().port}/iframe.html?id=managed-workspace--${mode}&viewMode=story`);
     const story = page.getByRole('region', { name: 'Совмещение с принятыми изменениями' }); await story.waitFor();
     if (mode === 'merge-required') assert.equal(await story.getByLabel('Причина решения').count(), 1);
     if (mode === 'merge-resolved') await story.getByText('Действует для текущих версий').waitFor();
+    if (mode.startsWith('merge-same-team')) {
+      const resolved = mode === 'merge-same-team-resolved';
+      await page.getByRole('status').filter({ hasText: resolved ? /Конфликтов 0/ : /Конфликтов 1/ }).waitFor();
+      await page.getByRole('button', { name: resolved ? 'Изменено · 1' : 'Конфликтов · 1', exact: true }).click();
+      await page.getByRole('heading', { name: /Лимит командировки/ }).waitFor();
+      for (const checkbox of await page.getByRole('checkbox', { name: 'Подтверждаю изменение', exact: true }).all()) await checkbox.check();
+      await page.getByRole('button', { name: 'Решение по версии', exact: true }).click();
+      const dialog = page.getByRole('dialog', { name: 'Решение по версии' });
+      assert.equal(await dialog.getByRole('radio', { name: 'Принять', exact: true }).isDisabled(), !resolved, mode);
+      if (!resolved) {
+        assert.match(await dialog.textContent(), /Разрешите конфликт выше/);
+        assert.doesNotMatch(await dialog.textContent(), /Другая команда/);
+      }
+      await dialog.getByRole('button', { name: 'Отмена', exact: true }).click();
+    }
     if (mode === 'merge-stale') await story.getByText(/Устарело/).waitFor();
     if (mode === 'merge-blocked') { await story.getByText(/заблокировано/).waitFor(); assert.equal(await story.locator('select').count(), 0); }
     if (mode === 'merge-parts') {
@@ -123,7 +163,7 @@ try {
     evidence.storybook.push(mode);
   }
   assert.deepEqual(errors, []);
-  console.log('Merge resolution: explicit choice, attributed save, restart, competing write with retained draft, unchanged acceptance gate and 6 Storybook states passed.');
+  console.log('Merge resolution: explicit choice, attributed save, restart, competing write, same-team API/UI refusal before resolution and 8 Storybook states passed.');
 } finally {
   await fs.mkdir('qa', { recursive: true }); await fs.writeFile('qa/merge-resolution-browser-evidence.json', JSON.stringify(evidence, null, 2));
   await browser?.close(); await new Promise(resolve => server.close(() => resolve()));

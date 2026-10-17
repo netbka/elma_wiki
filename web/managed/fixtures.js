@@ -211,6 +211,14 @@ export function managedFixture(mode = 'overview') {
     const row = (code, classification, status, proposal, extra = {}) => ({ key: component(code).key, service: 'widgets', namespace: 'synthetic.records', code, kind: 'WIDGET',
       classification, status, proposal, blockers: [], base: ref('a'.repeat(64), { artifactId: base.id }), current: ref('a'.repeat(64), { team: 'Команда внедрения', interventionId: null }), incoming: null, ...extra });
     const blocked = mode === 'merge-blocked';
+    if (mode.startsWith('merge-same-team')) {
+      review.stale = false; review.revision = workspace.revision;
+      review.team = 'Внутренняя команда';
+      review.rows = review.rows.map(row => ({ ...row, key: component('limit').key, code: 'limit',
+        name: 'Лимит командировки', conflict: false, previousTeam: review.team }));
+      workspace.pending = [{ artifactId: review.artifactId, kind: 'change', revision: workspace.revision, stale: false,
+        attention: { conflicts: mode === 'merge-same-team-resolved' ? 0 : 1, unknown: 0 }, options: review.options }];
+    }
     const rows = [
       row('limit', 'divergent', blocked ? 'blocked' : 'resolution-required', null, { current: ref('c'.repeat(64), { team: 'Внутренняя команда', interventionId: 'synthetic-change' }), incoming: ref('d'.repeat(64), { artifactId: review.artifactId }), blockers: blocked ? ['rename-uncertain'] : [] }),
       row('category', 'incoming-only', 'clear', 'take-incoming', { incoming: ref('e'.repeat(64), { artifactId: review.artifactId }) }),
@@ -243,7 +251,7 @@ export function managedFixture(mode = 'overview') {
     const resolution = { schemaVersion: 1, method: 'whole-component-resolution', id: 'synthetic-resolution', sequence: 1, parentId: null, planDigest: mode === 'merge-stale' ? '0'.repeat(64) : plan.planDigest,
       inputs: { ...plan.inputs, current: { ...plan.inputs.current, revision: 2 } }, decisions: [{ key: rows[0].key, classification: 'divergent', choice: 'take-incoming' }],
       reason: 'Лимит согласован с финансовым отделом в DEMO-14.', actor, at, ancestryVerified: false, automaticMergeEnabled: false, acceptanceEnabled: false, buildEnabled: false, materialized: false };
-    const head = ['merge-resolved', 'merge-stale'].includes(mode) ? { ...resolution, status: mode === 'merge-stale' ? 'stale' : 'current' } : null;
+    const head = ['merge-resolved', 'merge-stale', 'merge-same-team-resolved'].includes(mode) ? { ...resolution, status: mode === 'merge-stale' ? 'stale' : 'current' } : null;
     review.merge = { artifactId: review.artifactId, available: true, reason: null, message: null, plan, partMergeChoice: 'merge-parts',
       choices: { divergent: ['keep-current', 'take-incoming'], 'addition-divergent': ['keep-current', 'take-incoming'], 'delete-edit': ['keep-current', 'remove'], 'edit-delete': ['keep-current', 'take-incoming'] },
       head, history: head ? [head] : [] };

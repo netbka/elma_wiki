@@ -861,6 +861,8 @@
         "managed-workspace--base-declared",
         "managed-workspace--base-unknown",
         "managed-workspace--merge-required",
+        "managed-workspace--merge-same-team",
+        "managed-workspace--merge-same-team-resolved",
         "managed-workspace--merge-resolved",
         "managed-workspace--merge-stale",
         "managed-workspace--merge-blocked",
