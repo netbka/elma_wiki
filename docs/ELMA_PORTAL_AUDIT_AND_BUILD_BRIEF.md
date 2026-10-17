@@ -32,7 +32,7 @@ Inspected repository material included:
 
 - web/index.html; lib/public-site.mjs; tools/build-public.mjs.
 - dist/developer-articles.js and selected article definitions.
-- docs/INTERNAL_HOSTING.md; docs/DEVELOPER_VALUE_WORKFLOW.md; docs/STATE.md; docs/STORYBOOK.md.
+- docs/PUBLIC_DEPLOYMENT.md (historical, now retired); docs/DEVELOPER_VALUE_WORKFLOW.md; docs/STATE.md; docs/STORYBOOK.md.
 - package.json; tools/public-browser-check.mjs.
 - Pull requests #8 and #9.
 - Parent repository elma-development/README.md.
