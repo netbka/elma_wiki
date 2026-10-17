@@ -1,28 +1,36 @@
 # ELMA Wiki open work
 
-Coordination only. Work starts from the owner request or assigned issue.
+Coordination only; a roadmap entry is not an assignment. Owner priority 2026-10-17: an internal DEV -> DEV2 loop for Contracts, Correspondence, Powers of attorney and Bonds. [Execution order](SOLUTION_FIRST_EXECUTION.md) governs scheduling; [work packages, acceptance and agent disposition](plans/internal-dev2-review-loop.md) make it concrete. Implemented state belongs in [STATE](STATE.md).
 
-## OPEN
-- Owner priority 2026-10-17: internal DEV -> DEV2 review for Contracts, Correspondence, Powers of attorney and Bonds; source/native fidelity, contextual corrections, installed-base delta and impact explanation. See [execution order](SOLUTION_FIRST_EXECUTION.md). Public use and hosting are excluded.
-- Source/Target E2E phase 2 snapshot storage and explicit snapshot selection for release inputs are implemented. Next: authorize named Source references through an approved adapter/bridge, then wire import and project-viewer selection UI. No live Source load is proven.
-- Analyst release offline milestone is implemented for review: explicit upload/baseline pinning, owner-only resumable decisions and unchanged-original candidate/handoff. See contracts/analyst-releases.md. Supported widget-script edits (AR-05, PR #125) are implemented as review-only: an edited candidate is not deployable until native build exists. Production gates remain open.
-- AR-04 delivery: lifecycle, guards, read-back verification and the `/releases` delivery UI are implemented against a synthetic Target (contracts/target-deployment.md). The operator bridge adapter (`elma-dev bridge`; tokens and `elma365pm` stay on the operator machine) is implemented and exercised read-only against dev2. On 2026-10-14 the owner designated dev2 as the non-production Target for PLAN-01 P8 acceptance of the Contracts candidate only (recorded by PR #118 in [SOLUTION_FIRST_PRODUCT_PLAN.md](SOLUTION_FIRST_PRODUCT_PLAN.md#owner-reserved-matters-and-blockers)). Predefined DEV/DEV2 Targets (PR #119) and `import-normalized-v1` read-back for a designated DEV2 candidate (PR #120) are implemented with synthetic evidence only. No live deploy has run.
-- PLAN-01 P8 (#94 MR-07, #11 live delivery): P1-P7 are merged (PRs #95, #103, #104, #107-#111, #113, #117), as are the composer screen (#123), MR-08 promotion/recovery logic (#124), the E1 pin (#122) and the bridge `materialize` transport (#127); see STATE. In elma365, the read-back `metadataFiles` fix (#100), E1 revision 1.2 (#99) and an offline E1 executor (#101) are merged. Nothing has run live. Remaining P8 blockers:
-  - operator: restart the dev2 bridge worker from merged elma365 main with `--materialize` (elma365 PR #102, `materialize` job and dev2 check runners), set `WIKI_NATIVE_MATERIALIZATION_*` on the Wiki service and repeat read-back with the updated worker ([required fields](contracts/target-deployment.md#read-back-metadata-bytes)); the composer build route (PLAN-01 C2) then reports the build available while that bridge is healthy;
-  - the Contracts section-ownership conflict (elma365 E3) needs an owner/composition decision;
-  - real dev2 exports of the Contracts baseline and changes;
-  - P4/P5 native coverage and dependency receipt contracts are pinned (PR #133), but no elma365 worker implements the read-only `targetProfile` observation, so real coverage and dependency evidence still fail closed;
-  - manifest regeneration policy v2 (Wiki selects it for profile-2 identities; live evidence and catalog support pending);
-  - a process-runtime compiler;
-  - then a designated candidate SHA-256 in `WIKI_TARGET_DEV2_DEPLOY_CANDIDATES` on the running service, and the live evidence gate G2: install, read-back, affected business checks and reset/recovery on dev2.
-- Source -> Workspace -> Target E2E implementation - plans/source-target-e2e.md.
-- Extend workflow Storybook to existing internal/auth/viewer renderers and authenticated remote collaboration when assigned.
-- Analyst release workspace - [proposed PR sequence](plans/analyst-release-workspace.md) and [audit brief](audits/analyst-release-audit-brief.md). Extends the existing E2E. Offline review/handoff, synthetic delivery UI, composed-candidate delivery (PRs #117, #123), review-only supported edits (PR #125) and API-only promotion/recovery logic (PR #124) are implemented; real TEST delivery, native build of edited candidates and production enablement remain open. No-edit review/handoff precedes TEST delivery and optional edits.
-- Create ELMA-specific Product Constitution + executable Principles as a separate product-authority task.
-- Supported Developer Workspace/compiler edits are integrated into the release review and candidate lifecycle as review-only (PR #125). Open: native build of edited widget descriptor/runtime, so an edited candidate can become deployable.
-- VK Teams request-to-Dev2 agent delivery - plans/vk-teams-agent-delivery.md; proposed six-PR implementation plan, not a connected bot or deployment authorization. User conversation: workflows/vk-teams-agent-delivery.md.
+## NOW - make the four-module loop useful
 
-## LATER
-- VS Code client over shared Developer Core.
-- richer trace/replay and custom component framework research.
-- PROD deployment policy after TEST E2E is proven; use AR-06 in the analyst plan for explicit permission, drift, recovery and operational gates. The coordinator's promotion, drift and recovery logic and the owner-grant hook exist (PR #124), but no grant is wired, so PROD remains disabled until separately authorized.
+1. **Internal boundary (D0).** Complete PR #175 integration and internal rollout through existing gates. Remove public content/build/publishing. Provider shutdown is the owner's separate action; repository configuration alone does not close an existing deployment.
+2. **Actual module/capture inventory (D1).** Identify the four modules from full configuration and account for each main form/window/process and dependencies. Record parsed, opaque and unsupported content. Contracts is the first native-backed slice; inventory all four now.
+3. **Versions and DEV2 base (D2).** Distinguish source changes since the last capture from proposed changes against verified installed DEV2 configuration. Extend snapshots/delivery records; handle unknown base, drift, manual import, partial/failed updates and stale evidence.
+4. **Faithful views and corrections (D3/D4).** Complete main Contracts forms/windows/processes using source layout and matching native references; preserve comments/requests through updates. Reuse the Solution renderer/request lifecycle. A field catalog is not form fidelity.
+5. **Changed-only explanation/impact (D5).** Before/after at field/control/action/step level; source-linked explanation, affected routes and required checks. Keep unchanged context available. Deterministic first; optional AI does not authorize external data transfer.
+6. **Continue native DEV2 work (D6), alongside 1-5.** Finish #170 merge safety and the active BUILD-EVIDENCE consumer following merged #176 profile refresh; complete dependency/coverage evidence and current candidate-designation work. elma365 #106/#112/#113 are merged; the old absent-worker blocker is obsolete. Verify the running bridge/exact candidate, then install, read back, exercise routes and recover through the single coordinator. Eligible full exports can use unchanged-original handoff; actual edits/composition require materialization.
+
+P8 Contracts remains open toward native evidence. It does not block inventory, preview, comments or source-delta work. A profile observation does not prove installed state, complete dependencies or business behavior. Preserve exact-candidate authorization, DEV read-only and release safeguards.
+
+## NEXT - complete all four modules
+
+- **D7:** apply the shared renderer/review/delivery loop to Correspondence, Powers of attorney and Bonds. Resolve module-specific gaps and cross-module effects; complete second full capture and changed-only review for each module.
+- Close request -> corrected source -> native-verified result where applicable. Installed-base references advance only from the correct Target/read-back and retain history.
+- Resume #59/#41 only under its existing resumption condition; final owner acceptance remains #38. Automated/Storybook checks cannot close these gates.
+
+## LATER - retained obligations after the four-module milestone
+
+- Broader part/application/Solution/server-configuration release scopes with native adapters, dependency/global coverage and recovery evidence. Adapters needed for D1-D7 are worked now. The #94 working-configuration obligation is retained.
+- Controlled production promotion with separate authorization, Target-specific native acceptance, drift and recovery. Retain existing coordinator logic; this plan authorizes no PROD action.
+- Broader script/native compiler editing, VS Code client, richer trace/replay and component research when assigned.
+- VK Teams request-to-agent-to-DEV2 automation after the manual review/delivery loop works. Reuse [the existing plan](plans/vk-teams-agent-delivery.md), not another coordinator.
+- Optional AI provider after deterministic impact is useful and an approved private-data path exists.
+
+## EXCLUDED
+
+- Public use, public Learn/marketing, Vercel or other public publishing: removed, not deferred.
+- Wiki write-back to donor DEV, arbitrary uploaded-code execution, replacement ELMA Designer/runtime, second ticket/merge/compiler/delivery engine.
+- A separate product-constitution project competing with Solution-first authority. Reconcile concrete conflicts in the existing contract/register during assigned work.
+
+Existing agents should finish aligned bounded work and verification; avoid automatically starting unrelated old-roadmap tasks. The [disposition table](plans/internal-dev2-review-loop.md#existing-work-continue-finish-or-defer) is a recommendation, not a claim workers were paused/reassigned.

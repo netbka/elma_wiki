@@ -20,6 +20,7 @@ Routing, not an always-read checklist.
 | Current implemented truth | STATE.md |
 | Internal hosting only; public publication prohibited | [INTERNAL_HOSTING.md](INTERNAL_HOSTING.md) |
 | DEV -> DEV2 process audit and four-module gaps | [audits/internal-dev2-process-2026-10-17.md](audits/internal-dev2-process-2026-10-17.md) |
+| Four-module DEV -> DEV2 work packages, acceptance and active-agent disposition | [plans/internal-dev2-review-loop.md](plans/internal-dev2-review-loop.md) |
 | Developer portal audit, UX research, and build recommendations (proposal; not runtime status) | [ELMA_PORTAL_AUDIT_AND_BUILD_BRIEF.md](ELMA_PORTAL_AUDIT_AND_BUILD_BRIEF.md) |
 | Open coordination | ROADMAP.md |
 | Source -> Workspace -> Target architecture | SOURCE_TARGET_GATEWAY_AND_ENGINEERING_SYSTEM.md |
