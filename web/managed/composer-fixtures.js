@@ -33,10 +33,16 @@ const failure = (status, body) => Object.assign(Error(body.error || 'synthetic')
 // An admitted observation only removes `unobserved-target-profile`: without a native coverage
 // declaration the plan stays unbound to the profile, so the gate and the build remain blocked.
 const profile = { targetId: 'dev2', digest: 'c'.repeat(64), platformVersion: 'synthetic-2026.10', observedAt: '2026-10-14T09:00:00.000Z' };
-const refreshState = (extra = {}) => ({ configured: true, reason: null, target: 'dev2', operator: true, inProgress: false, current: false, staleInputs: false, last: null, ...extra });
+// Native build evidence held with the profile (lib/target-profile-refresh.mjs `status().buildEvidence` plus the server's `use`).
+const evidenceState = (extra = {}) => ({ configured: true, current: false, expired: false, last: null, use: { status: 'missing', reason: 'missing-build-evidence' }, inputBlockers: [], ...extra });
+const evidenceOf = (outcome, extra = {}) => ({ outcome, at: '2026-10-14T09:00:00.000Z', reason: null, errors: [], missing: [], issuedAt: null, compilerServices: [], ...extra });
+const NOT_ESTABLISHED = ['activation-observation', 'compatibility-observation', 'entitlement-observation', 'native-import-receipt', 'native-installation-observation',
+  'process-runtime-compiler', 'required-bindings'];
+const refreshState = (extra = {}) => ({ configured: true, reason: null, target: 'dev2', operator: true, inProgress: false, current: false, staleInputs: false, last: null,
+  buildEvidence: evidenceState(), ...extra });
 const lastOf = (outcome, extra = {}) => ({ outcome, at: '2026-10-14T09:00:00.000Z', reason: null, errors: [], targetProfile: null, ...extra });
 export const targetProfileFixtures = {
-  unconfigured: refreshState({ configured: false, reason: 'target-profile-observation-unconfigured', target: null, operator: false }),
+  unconfigured: refreshState({ configured: false, reason: 'target-profile-observation-unconfigured', target: null, operator: false, buildEvidence: evidenceState({ configured: false }) }),
   'not-operator': refreshState({ operator: false }),
   ready: refreshState(),
   progress: refreshState({ inProgress: true }),
@@ -44,12 +50,28 @@ export const targetProfileFixtures = {
   stale: refreshState({ staleInputs: true, last: lastOf('observed', { targetProfile: profile }) }),
   unavailable: refreshState({ last: lastOf('unavailable', { reason: 'live-target-access-unavailable' }) }),
   invalid: refreshState({ last: lastOf('invalid', { errors: ['unattested-observation'] }) }),
-  unknown: refreshState({ last: lastOf('unknown', { reason: 'timeout' }) })
+  unknown: refreshState({ last: lastOf('unknown', { reason: 'timeout' }) }),
+  // The same refresh also admitted native build evidence: coverage and compiler are bound; licences and installation are not.
+  'evidence-current': refreshState({ current: true, last: lastOf('observed', { targetProfile: profile }), buildEvidence: evidenceState({ current: true, use: { status: 'current', reason: null },
+    last: evidenceOf('produced', { issuedAt: '2026-10-14T09:00:00.000Z', missing: NOT_ESTABLISHED, compilerServices: ['widgets'] }) }) }),
+  'evidence-unavailable': refreshState({ current: true, last: lastOf('observed', { targetProfile: profile }),
+    buildEvidence: evidenceState({ last: evidenceOf('unavailable', { reason: 'worker-profile-unbound', missing: [...NOT_ESTABLISHED, 'compiler-lock', 'native-coverage-declaration'] }) }) }),
+  'evidence-invalid': refreshState({ current: true, last: lastOf('observed', { targetProfile: profile }),
+    buildEvidence: evidenceState({ last: evidenceOf('invalid', { errors: ['foreign-run', 'request-mismatch'] }) }) })
 };
+// With admitted build evidence the plan binds to the profile: scope and the Target profile are verified, while the
+// paid module's licence, the post-build installation facts and the missing builder still block, each with its reason.
+const evidenceEligibility = { ...eligibilityFixtures.current, gates: [gate('scope', 'verified'),
+  gate('coverage', 'blocked', [{ reason: 'missing-native-evidence', fact: 'native-import-receipt', evidence: 'unknown', unitId: 'package:synthetic_solution' },
+    { reason: 'missing-native-evidence', fact: 'native-installation-observation', evidence: 'unknown', unitId: 'package:synthetic_solution' }]),
+  eligibilityFixtures.gates.gates.find(row => row.id === 'dependencies'), gate('target-profile', 'verified'), materializationGate],
+  evidence: { coverage: 'native', dependencies: 'native-receipt', targetProfile: 'observed' },
+  targetProfile: { targetId: 'dev2', environment: 'dev2', digest: profile.digest, platformVersion: profile.platformVersion } };
 const observedEligibility = { ...eligibilityFixtures.current, gates: eligibilityFixtures.current.gates.map(row => row.id === 'target-profile'
   ? gate('target-profile', 'blocked', [{ reason: 'unbound-plan-target-profile' }]) : row),
   evidence: { ...eligibilityFixtures.current.evidence, targetProfile: 'observed' }, targetProfile: { targetId: 'dev2', environment: 'dev2', digest: profile.digest, platformVersion: profile.platformVersion } };
-export const profileEligibility = mode => ({ ...(mode === 'observed' ? observedEligibility : eligibilityFixtures.current), revision: 3, targetProfileRefresh: targetProfileFixtures[mode] });
+export const profileEligibility = mode => ({ ...(mode === 'evidence-current' ? evidenceEligibility : mode === 'observed' || mode.startsWith('evidence-') ? observedEligibility
+  : eligibilityFixtures.current), revision: 3, targetProfileRefresh: targetProfileFixtures[mode] });
 // What the synthetic refresh route answers per story (null: success), as the page's request() throws it.
 export const profileResponseFixtures = {
   invalid: failure(422, { outcome: 'invalid', errors: ['native-worker-revision-mismatch'] }),
@@ -59,7 +81,8 @@ export const profileResponseFixtures = {
 // Story mode -> [refresh state, click answer].
 export const profileModes = { 'profile-unconfigured': ['unconfigured'], 'profile-not-operator': ['not-operator'], 'profile-ready': ['ready', null],
   'profile-progress': ['progress'], 'profile-observed': ['observed', null], 'profile-stale': ['stale', null], 'profile-unavailable': ['unavailable', null],
-  'profile-invalid': ['invalid', 'invalid'], 'profile-unknown': ['unknown', null], 'profile-moved': ['ready', 'stale'], 'profile-lost': ['ready', 'lost'] };
+  'profile-invalid': ['invalid', 'invalid'], 'profile-unknown': ['unknown', null], 'profile-moved': ['ready', 'stale'], 'profile-lost': ['ready', 'lost'],
+  'profile-evidence': ['evidence-current', null], 'profile-evidence-unavailable': ['evidence-unavailable', null], 'profile-evidence-invalid': ['evidence-invalid', null] };
 // A builder the server reports available, every gate verified: the build-ready shape.
 export const availableBuild = { available: true, reference: 'netbka/elma365#60', contracts: ['elma365-native-materialization@1'], missing: [] };
 export const verifiedEligibility = { ...eligibilityFixtures.gates, eligible: true,

@@ -82,8 +82,26 @@ export function targetProfileView(eligibility) {
   const revision = Number.isInteger(eligibility.revision) ? eligibility.revision : null;
   return { shown: true, state, message: profileLabels.states[state], details, target,
     profile: profile ? `${profileLabels.profile} ${target ?? ''} · ${profileLabels.platform} ${profile.platformVersion} · ${String(profile.digest).slice(0, 12)} · ${profileLabels.observedAt} ${dateLabel(profile.observedAt)}` : '',
+    evidence: refresh.configured === true ? buildEvidenceView(refresh) : null,
     operator: refresh.configured === true && refresh.operator === true, expectedRevision: revision,
     canRefresh: refresh.configured === true && refresh.operator === true && refresh.inProgress !== true && revision !== null };
+}
+// Native build evidence held with the profile, as the server reports it. Only the server's `use`
+// verdict for the current inputs makes it current; anything else names why it does not count.
+const evidenceLabels = profileLabels.evidence;
+export function buildEvidenceView(refresh) {
+  const row = refresh?.buildEvidence;
+  if (!row || typeof row !== 'object' || row.configured !== true) return null;
+  const last = row.last && typeof row.last === 'object' ? row.last : null;
+  const list = value => Array.isArray(value) ? value.filter(item => typeof item === 'string') : [];
+  const state = row.current === true && row.use?.status === 'current' ? 'current' : row.expired === true ? 'expired' : last?.outcome === 'produced' ? 'stale'
+    : ['unavailable', 'invalid', 'unknown', 'not-requested'].includes(last?.outcome) ? last.outcome : 'none';
+  const details = ['unavailable', 'invalid', 'unknown', 'not-requested'].includes(state) ? [...(last?.reason ? [last.reason] : []), ...list(last?.errors)]
+    : state === 'none' ? list(row.inputBlockers) : [];
+  const fact = key => evidenceLabels.facts[key] || `${profileLabels.unknownDetail} ${key}`;
+  return { state, message: evidenceLabels.states[state], details: details.map(profileDetail),
+    compiler: state === 'current' && list(last?.compilerServices).length ? `${evidenceLabels.compiler} ${list(last.compilerServices).map(key => evidenceLabels.services[key] || key).join(', ')}` : '',
+    missing: state === 'current' && list(last?.missing).length ? `${evidenceLabels.missing} ${list(last.missing).map(fact).join(', ')}` : '' };
 }
 // A refused, failed or lost refresh request as one notice. A moved Solution, a running read or an
 // unknown outcome needs a fresh read before another one; nothing is repeated automatically.
@@ -273,6 +291,15 @@ function mountTargetProfile(view, actions, { status, error, link }) {
   root.append(el('h4', profileLabels.heading), el('p', view.message, view.state === 'observed' ? 'managed-accepted' : 'managed-note'));
   if (view.profile) root.append(el('p', view.profile, 'change-text'));
   if (view.details.length) { const list = el('ul'); list.setAttribute('aria-label', profileLabels.reasons); view.details.forEach(text => list.append(el('li', text))); root.append(list); }
+  if (view.evidence) {
+    const evidence = el('div', undefined, 'managed-build-evidence'); evidence.setAttribute('role', 'group'); evidence.setAttribute('aria-label', profileLabels.evidence.heading);
+    evidence.dataset.state = view.evidence.state;
+    evidence.append(el('h5', profileLabels.evidence.heading), el('p', view.evidence.message, view.evidence.state === 'current' ? 'managed-accepted' : 'managed-note'));
+    if (view.evidence.compiler) evidence.append(el('p', view.evidence.compiler, 'change-text'));
+    if (view.evidence.missing) evidence.append(el('p', view.evidence.missing, 'managed-muted'));
+    if (view.evidence.details.length) { const list = el('ul'); list.setAttribute('aria-label', profileLabels.evidence.reasons); view.evidence.details.forEach(text => list.append(el('li', text))); evidence.append(list); }
+    root.append(evidence);
+  }
   if (['target-profile-observation-unconfigured', 'target-not-designated'].includes(view.state)) return root;
   if (!view.operator) { root.append(el('p', profileLabels.operatorOnly, 'managed-muted')); return root; }
   const start = el('button', `${profileLabels.start}${view.target ? ' ' + view.target : ''}`); start.type = 'button';

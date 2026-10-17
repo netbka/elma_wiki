@@ -173,9 +173,13 @@ test('output uploads stream to disk and hold one slot per job: a concurrent uplo
 });
 
 test('timeout or a lost worker is an unknown outcome, never success; a late result stays evidence only', async t => {
-  const env = await materializeServer(t, { timeoutMs: 400 });
+  // The worker must claim the job before the grant expires, or this is the queued (cancelled) case instead.
+  // Under a loaded full suite 400 ms did not cover the claim, so wait for the worker's long-poll and allow 3 s.
+  const env = await materializeServer(t, { timeoutMs: 3000 });
   const worker = env.worker({ handle: async () => ({ skip: true }) });
+  while (!(await env.adapter.health()).healthy) await new Promise(resolve => setTimeout(resolve, 10));
   await assert.rejects(env.adapter.materialize({ envelope: envelope(), originals: ORIGINALS }), { code: 'NATIVE_OUTCOME_UNKNOWN', detail: 'timeout' });
+  assert.equal(worker.seen.length, 1, 'the worker claimed the job before the timeout');
   const [job] = worker.seen;
   // The fenced job releases nothing more and refuses an output.
   assert.equal((await call(env.base, `/api/bridge/jobs/${job.id}/inputs/${job.inputs[0].sha256}`, { token: env.token })).status, 404);

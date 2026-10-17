@@ -85,7 +85,8 @@ test('unconfigured: the composer says why, and a refresh is refused without any 
   const read = await env.eligibility();
   assert.equal(read.status, 200);
   assert.deepEqual({ ...read.body.targetProfileRefresh, last: undefined }, { configured: false, reason: 'target-profile-observation-unconfigured', target: null,
-    operator: false, inProgress: false, current: false, staleInputs: false, last: undefined });
+    operator: false, inProgress: false, current: false, staleInputs: false, last: undefined,
+    buildEvidence: { configured: false, current: false, expired: false, last: null, use: { status: 'missing', reason: 'missing-build-evidence' }, inputBlockers: [] } });
   const refused = await env.refresh();
   assert.equal(refused.status, 409);
   assert.deepEqual(refused.body, { outcome: 'unavailable', reason: 'target-profile-observation-unconfigured' });
