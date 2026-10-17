@@ -11,9 +11,12 @@ const errors = []; page.on('pageerror', error => errors.push(error.message));
 let wiki, directory;
 try {
   const index = await (await fetch(base + '/index.json')).json();
+  const flowGroups = ['system', 'elma', 'review', 'investigation'];
   for (const entry of Object.values(index.entries).filter(entry => entry.type === 'story')) {
     await page.goto(`${base}/iframe.html?id=${entry.id}&viewMode=story`);
     if (entry.id.startsWith('release--')) { await page.locator('.release-shell h1').waitFor(); continue; }
+    // Other groups have their own behavior checks; here every story must at least render without a page error.
+    if (!flowGroups.includes(entry.id.split('--')[0])) { await page.waitForFunction(() => document.querySelector('#storybook-root')?.innerText.trim().length > 0, undefined, { timeout: 15000 }).catch(() => assert.fail('story renders visible content: ' + entry.id)); continue; }
     await page.locator('.flow-stage h2').waitFor();
     await page.locator('.review-status').filter({ hasText: /версия/ }).waitFor();
   }
