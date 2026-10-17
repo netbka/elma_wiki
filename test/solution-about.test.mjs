@@ -6,6 +6,7 @@ import path from 'node:path';
 import { createServer } from '../server.mjs';
 import { zip } from './fixture.mjs';
 import { actorDisplay } from '../lib/actors.mjs';
+import { plural } from '../web/managed/labels.js';
 import { aboutContext } from '../lib/solution-about.mjs';
 
 // UX-05: the purpose paragraph and module descriptions are explanations of
@@ -42,6 +43,8 @@ test('UX-05: purpose and module descriptions are generated from names, saved wit
   const purpose = await request(route + '?scope=solution-purpose', {}, cookie);
   assert.equal(purpose.status, 200, JSON.stringify(purpose.body));
   assert.equal(purpose.body.key, 'solution-purpose'); assert.equal(purpose.body.version, 0); assert.equal(purpose.body.saved, null);
+  assert.match(purpose.body.draft.text, /^Пользователи работают с экранами: «Авансовый отчёт», «Заявка на командировку»\.|^Пользователи работают с экранами: «Заявка на командировку», «Авансовый отчёт»\./, 'the business opens the draft');
+  assert.ok(purpose.body.draft.text.indexOf('Решение объединяет модули') > purpose.body.draft.text.indexOf('Пользователи работают'), 'modules come second');
   assert.match(purpose.body.draft.text, /Решение объединяет модули «expenses», «travel»/);
   assert.match(purpose.body.draft.text, /Экраны: Заявка на командировку/); assert.match(purpose.body.draft.text, /Авансовый отчёт/);
   assert.match(purpose.body.draft.text, /Работа в ELMA не наблюдалась/);
@@ -78,11 +81,13 @@ test('UX-05: purpose and module descriptions are generated from names, saved wit
   assert.equal(overview.status, 200); assert.deepEqual(overview.body.related, []);
 });
 
-test('UX-05: actor display shows a name with initials, never a bare letter, an id or an e-mail only', () => {
-  assert.deepEqual(actorDisplay({ id: 'x', login: 'ivan.petrov@example.org', provider: 'email' }), { name: 'Ivan Petrov', initials: 'IP', login: 'ivan.petrov@example.org' });
-  assert.deepEqual(actorDisplay({ id: 'y', login: 'Мария Сидорова', provider: 'vk-teams' }), { name: 'Мария Сидорова', initials: 'МС', login: 'Мария Сидорова' });
+test('UX-10f: actor display shows a known name with initials; an e-mail login is shown as is, without invented initials', () => {
+  assert.deepEqual(actorDisplay({ id: 'x', login: 'ivan.petrov@example.org', provider: 'email' }), { name: 'ivan.petrov@example.org', initials: '', login: 'ivan.petrov@example.org', known: false });
+  assert.deepEqual(actorDisplay({ id: 'x', login: 'ivan.petrov@example.org', name: 'Иван Петров' }), { name: 'Иван Петров', initials: 'ИП', login: 'ivan.petrov@example.org', known: true });
+  assert.deepEqual(actorDisplay({ id: 'y', login: 'Мария Сидорова', provider: 'vk-teams' }), { name: 'Мария Сидорова', initials: 'МС', login: 'Мария Сидорова', known: true });
   assert.equal(actorDisplay({ id: 'z', login: 'p', provider: 'local' }).initials, 'P');
-  assert.deepEqual(actorDisplay(null), { name: '', initials: '?', login: '' });
+  assert.deepEqual(actorDisplay(null), { name: '', initials: '', login: '', known: false });
+  assert.deepEqual([1, 2, 5, 11, 21, 104].map(n => plural(n, ['экран', 'экрана', 'экранов'])), ['1 экран', '2 экрана', '5 экранов', '11 экранов', '21 экран', '104 экрана']);
 });
 
 test('UX-05 follow-up: the module fingerprint covers the module\'s system objects, so a permission change marks the saved description stale', () => {
