@@ -30,7 +30,7 @@ try {
   };
   const text = async locator => (await locator.textContent()).replace(/\s+/g, ' ');
 
-  for (const id of ['build-blocked', 'build-gates', 'eligibility-load-error', 'list', 'awaiting-approval', 'approved', 'stale', 'missing', 'load-error', 'delivery-prepared', 'partial-outcome', 'unknown-outcome', 'verified', 'verification-failed', 'failed', 'delivery-load-error', 'lost-response']) {
+  for (const id of ['build-blocked', 'build-gates', 'eligibility-load-error', 'list', 'awaiting-approval', 'approved', 'native-pending', 'unknown-evidence', 'stale', 'missing', 'load-error', 'delivery-prepared', 'partial-outcome', 'unknown-outcome', 'verified', 'verification-failed', 'failed', 'delivery-load-error', 'lost-response']) {
     await open(id);
     assert.equal(await page.locator('.managed-shell').count(), 1, id);
     assert.equal(await page.getByRole('link', { name: 'Сборка', exact: true }).getAttribute('aria-current'), 'page', 'composer stays a Solution tab: ' + id);
@@ -80,6 +80,13 @@ try {
       assert.equal(await composer().getByRole('button', { name: 'Отозвать принятие' }).count(), 1);
       assert.match(await text(composer()), /не нативный пакет ELMA, к выпуску не допускается/);
     }
+    if (id === 'native-pending' || id === 'unknown-evidence') {
+      const selected = composer().getByRole('region', { name: 'Выбранная сборка', exact: true });
+      const label = await text(selected);
+      assert.match(label, id === 'native-pending' ? /Нативная сборка: подтверждение установки/ : /Происхождение сборки не подтверждено/);
+      assert.doesNotMatch(label, /Учебная сборка \(синтетический сборщик\)/);
+      assert.match(label, /к выпуску не допускается/);
+    }
     if (id === 'partial-outcome') {
       const units = await delivery().getByRole('list', { name: 'Единицы установки' }).locator('li').allTextContents();
       assert.deepEqual(units.map(row => row.split(':')[0]), ['contract-fields', 'contract-approval', 'contract-forms'], 'receipts in import order');
@@ -104,7 +111,7 @@ try {
     if (['next-build-blocked', 'next-review-build', 'next-verify'].includes(id)) assert.match(await primary.getAttribute('href'), /view=compose/);
     if (['next-review-build', 'next-verify'].includes(id)) assert.match(await primary.getAttribute('href'), /candidate=/);
   }
-  for (const width of [1280, 390]) for (const id of ['partial-outcome', 'build-gates']) {
+  for (const width of [1280, 390]) for (const id of ['partial-outcome', 'build-gates', 'native-pending', 'unknown-evidence']) {
     await page.setViewportSize({ width, height: 900 }); await open(id);
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `no horizontal scroll at ${width}: ${id}`);
   }
