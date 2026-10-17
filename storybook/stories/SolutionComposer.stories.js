@@ -29,6 +29,9 @@ export const EligibilityLoadError = { render: () => story('eligibility-load-erro
 export const List = { render: () => story('list') };
 export const AwaitingApproval = { render: () => story('awaiting-approval') };
 export const Approved = { render: () => story('approved') };
+export const NativePending = { render: () => story('native-pending'), parameters: { docs: { description: { story:
+  'Синтетическая модель нативного кандидата без подтверждения установки: происхождение не подменяется учебным, выпуск не разрешён.' } } } };
+export const UnknownEvidence = { render: () => story('unknown-evidence') };
 export const Stale = { render: () => story('stale') };
 export const Missing = { render: () => story('missing') };
 export const DeliveryPrepared = { render: () => story('delivery-prepared') };

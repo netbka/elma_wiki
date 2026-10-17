@@ -207,6 +207,16 @@ enabled only when the builder is available and every gate is verified. The
 screen never presents a build as working. Storybook: `solution-composer--*`; check:
 `npm run test:composer:storybook`.
 
+Candidate provenance and release eligibility are separate facts. A record with
+`evidenceBasis: 'native'` remains a native build when `releaseEligible` is false
+or `pendingNativeEvidence` is nonempty; the composer states that installation
+and Target verification are incomplete and release is blocked. Only an explicit
+`synthetic` basis receives the training-build label. Missing or unrecognized
+provenance is shown as unconfirmed. The next-action summary uses the same
+distinction. These labels never grant delivery or replace server-side gates.
+The `native-pending` and `unknown-evidence` composer stories are synthetic records
+of these states, not native acceptance evidence.
+
 The Solution next action (`solutionNextAction`) projects the product plan map
 from server state: a stale pending comparison → «Сравнить изменения»
 (`compare`); a conflicting pending change → «Разрешить конфликт»

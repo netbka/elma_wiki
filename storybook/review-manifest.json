@@ -29,6 +29,8 @@
         "solution-composer--list",
         "solution-composer--awaiting-approval",
         "solution-composer--approved",
+        "solution-composer--native-pending",
+        "solution-composer--unknown-evidence",
         "solution-composer--stale",
         "solution-composer--missing",
         "solution-composer--delivery-prepared",

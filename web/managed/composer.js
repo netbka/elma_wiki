@@ -1,9 +1,9 @@
 import { dateLabel } from './model.js';
 import { mountDelivery } from '../releases/delivery.js';
-import { buildEligibility, buildGateLabels, buildGateStatuses, buildBlockReasons, grouping } from './labels.js';
+import { buildEligibility, buildGateLabels, buildGateStatuses, buildBlockReasons, grouping, candidateEvidence } from './labels.js';
 // Solution composer (#94 MR-06): a pure projection of server-frozen composed
 // candidates plus the server's build capability. The server stays authoritative:
-// HTTP never freezes build bytes, so "build" is shown only as the server reports it.
+// The UI does not invoke the build/freeze routes yet; evidence labels never grant delivery.
 export const composerMissingLabels = {
   'native-materialization-worker': 'нативный исполнитель сборки, реализующий опубликованный контракт',
   'versioned-materialization-request-contract': 'версионированный запрос нативной сборки',
@@ -67,14 +67,18 @@ export function buildEligibilityView(eligibility) {
 export function composedCandidateRow(record) {
   const approved = !!record.approval && record.approval.revision === record.revision;
   const status = record.inputsStatus === 'stale' ? 'stale' : approved ? 'approved' : 'awaiting-approval';
-  const native = record.evidenceBasis === 'native' && record.releaseEligible === true;
+  const native = record.evidenceBasis === 'native';
+  const synthetic = record.evidenceBasis === 'synthetic';
+  const releaseEligible = native && record.releaseEligible === true && !(record.pendingNativeEvidence?.length);
   return { id: record.id, revision: record.revision, status, statusLabel: statusLabels[status],
     sha256: record.candidate.sha256, shortSha: record.candidate.sha256.slice(0, 12), size: record.candidate.size,
     createdAt: dateLabel(record.createdAt), frozenBy: record.frozenBy?.login || 'Автор не зафиксирован',
     units: (record.units || []).map(unit => ({ id: unit.id, adapter: unit.adapter })),
-    platformVersion: record.targetProfile?.platformVersion || 'не установлена', native,
-    evidenceLabel: native ? 'Нативная сборка; пригодность к выпуску требует проверки на Target'
-      : 'Учебная сборка (синтетический сборщик): не нативный пакет ELMA, к выпуску не допускается; доставка только на учебный стенд',
+    platformVersion: record.targetProfile?.platformVersion || 'не установлена', native, releaseEligible,
+    evidenceLabel: native ? releaseEligible ? 'Нативная сборка; пригодность к выпуску требует проверки на Target'
+      : candidateEvidence.nativePending
+      : synthetic ? 'Учебная сборка (синтетический сборщик): не нативный пакет ELMA, к выпуску не допускается; доставка только на учебный стенд'
+      : candidateEvidence.unknown,
     approval: approved ? { actor: record.approval.actor?.login || 'Автор не зафиксирован', at: dateLabel(record.approval.at), reason: record.approval.reason } : null,
     canApprove: status === 'awaiting-approval', canRevoke: status === 'approved', deliverable: record.deliverable === true && status === 'approved' };
 }
