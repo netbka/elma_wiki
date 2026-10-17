@@ -46,7 +46,7 @@ One status table is maintained here; detailed acceptance cases remain in the rel
 | Slice | Implemented on main | Remaining exit / evidence |
 | --- | --- | --- |
 | MR-01 | Declared bases, bounded scope and evidence-bound deletion (#95/#103/#110); fixed Source pull supplies a source-sequence base (#130) | Ancestry stays unverified; pull order is not proof of independent changes |
-| MR-02 | Whole-component merge and durable resolutions (#107/#111); explicit process-part merge plan (#149) | Part-merged reference records still need physical file generation; other kinds need proven part adapters |
+| MR-02 | Whole-component merge and durable resolutions (#107/#111); explicit process-part merge plan (#149); same-team declared-base divergence requires a saved resolution | Part-merged reference records still need physical file generation; other kinds need proven part adapters |
 | MR-03 | E1 schema 1.3 pin and opt-in materialization bridge (#113/#122/#127/#135); validated build route (#147) | Native acceptance open. elma365 #112 now produces trusted build evidence; Wiki consumer and actual bridge/profile/coverage/compiler binding still need completion |
 | MR-04 | Scope planner, pinned native coverage contract/catalog and composer eligibility integration (#104/#109/#133/#135/#146) | Merged #176 observes the Target profile; the active build-evidence consumer, actual native declarations and complete required scope coverage remain |
 | MR-05 | Pinned dependency-receipt contract and resolver wired into eligibility (#108/#133/#146) | Merged #176 supplies admitted profile refresh; actual compatible/licensed dependency evidence and native acceptance remain |

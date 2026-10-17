@@ -2,6 +2,8 @@
 
 Internal-only boundary (2026-10-17, not deployed by this task): public build/preview and public-only UI/tests removed; Vercel configuration denies deployment. Guides, showcase, flows and their direct HTML/content routes require authentication. Local synthetic checks do not establish provider-side shutdown; the owner is handling existing Vercel hosting. Four-module fidelity, installed-DEV2 comparison base and impact-explanation gaps are recorded in [the process audit](audits/internal-dev2-process-2026-10-17.md).
 
+MR-02 merge safety: declared-base divergent changes require a current saved resolution even for one team. The reducer refuses unresolved acceptance (409), and the review dialog keeps acceptance disabled until resolution and boundary review. Synthetic tests and same-renderer stories only; no native build or installation is claimed.
+
 Composer evidence labels: native provenance is independent of release eligibility. A native candidate awaiting installation/Target evidence stays labelled native and blocked for release; unknown provenance is unconfirmed rather than synthetic. Overview next actions use the same distinction. Synthetic ViewModel and same-renderer Storybook evidence only; no native build or delivery is claimed.
 
 UX-08 reviewed marks (not deployed): each changed object of a Solution review carries the reviewer's own **Просмотрено** mark, the summary counts "Просмотрено · k из n"; marks are per actor, persist in the Solution record, bind the row digest within the change lineage (a corrected object reads "Изменилось после просмотра" until marked again) and never gate acceptance or touch the revision. Synthetic API, Storybook and browser evidence only. See [shared-solutions contract](contracts/shared-solutions.md).
