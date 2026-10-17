@@ -80,21 +80,23 @@ three roots, including unresolved records after restart.
 
 - **Freeze** (`freeze`, trusted server code). The input is
   one P6 `materializeNative` result plus the P4 coverage, P5 dependency
-  evidence, compiler lock and Target profile it was built from. The store
-  re-derives the materialization request from the current Solution state and
-  its stored originals. It requires `materializationStatus(manifest, request) ===
+  evidence, compiler lock and Target profile it was built from. A candidate is
+  always of the Solution's accepted merged revision: the latest accepted change
+  with a resolution, while that acceptance is the current revision. The store
+  re-derives the materialization request from its stored pre-acceptance state,
+  the accepted change, the recorded resolution and the stored originals. It requires `materializationStatus(manifest, request) ===
   'current'`, a `materialized` manifest with no blockers other than
   `synthetic-evidence-only` or, for a native manifest, a
   `native-installation-evidence-incomplete` naming only the post-build facts
   (`native-import-receipt`, `native-installation-observation`), and output
   bytes equal to the manifest sha256. Such a candidate records those facts as
   `pendingNativeEvidence` and stays `releaseEligible: false`. Given the
-  build's Solution binding (`inputs`), any later revision, resolution or
+  build's Solution binding (`inputs`), any later revision, acceptance or
   review event is refused even when the request is equal. The
   dependency profile must equal the Target profile, and every selected native
   unit needs an import position. An `unavailable` (unpinned) build, tampered
-  bytes or manifest, a relocked compiler, another profile, or a later resolution
-  or review event is refused with 409.
+  bytes or manifest, a relocked compiler, another profile, a change that is
+  still pending, or a later acceptance or review event is refused with 409.
 - **Freeze route** (PLAN-01 B1). `POST /api/solutions/:id/composed` freezes the
   Solution's held validated C2 build (`server.composedBuilds`, see
   [composer build route](native-materialization.md#composer-build-route-plan-01-c2)).
@@ -128,11 +130,10 @@ three roots, including unresolved records after restart.
   deployment permission. `GET /api/solutions/:id/composed[/:candidateId]` shows
   `inputsStatus` (`current | stale`) and `deliverable`.
 - **Stale inputs.** `withCandidate` holds the Solution queue through
-  `managed.withResolvedInputs` and then the candidate queue. Lock order is
-  delivery → Solution → candidate. A new resolution, a review comment or
-  finding, an archived Solution, an accepted or replaced change or a revoked
-  approval fails the final guarded write of prepare, confirm and verify with
-  409. Historical attempts then report `candidateStatus: stale` and
+  `managed.withAcceptedMerge` and then the candidate queue. Lock order is
+  delivery → Solution → candidate. A later accepted change or reconciliation,
+  a review comment or finding, an archived Solution or a revoked approval fails
+  the final guarded write of prepare, confirm and verify with 409. Historical attempts then report `candidateStatus: stale` and
   `verificationCurrent: false`.
 - **Eligibility guards at prepare.** A candidate without `evidenceBasis:
   native` and `releaseEligible: true` reaches only a `synthetic` training

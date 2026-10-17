@@ -95,16 +95,20 @@ async function setup(t, { base = [['div', 0], ['outside', 0]], changed = [['div'
       expectedResolutionId: merge.head?.id ?? null, decisions: {}, reason: 'Synthetic reviewed choice' }, resolver);
     const { status, ...head } = saved.head; return head;
   };
+  // The build is of the accepted merged revision, re-derived from the pre-acceptance state.
+  const before = await managed.get(state.id, SOLUTION_CATALOG);
   const build = async (resolution, extra = {}) => {
-    const current = await managed.get(state.id, SOLUTION_CATALOG), artifact = await managed.artifact(state.id, SOLUTION_CATALOG, change.artifactId);
-    const ids = [...new Set([current.baselineId, change.artifactId, ...current.artifacts.map(row => row.id)])];
+    const artifact = await managed.artifact(state.id, SOLUTION_CATALOG, change.artifactId);
+    const ids = [...new Set([before.baselineId, change.artifactId, ...before.artifacts.map(row => row.id)])];
     const originals = new Map(await Promise.all(ids.map(async id => [id, await managed.original(state.id, SOLUTION_CATALOG, id)])));
     const inputs = { ...evidence(resolution, extra), compiler: COMPILER, targetProfile: PROFILE, ...extra.inputs };
-    const request = await prepareMaterializationRequest({ state: current, artifact, resolution, ...inputs, originals });
+    const request = await prepareMaterializationRequest({ state: before, artifact, resolution, ...inputs, originals });
     assert.equal(request.status, 'ready', JSON.stringify(request.blockers));
     return { inputs, build: await materializeNative({ request, originals, adapter: extra.adapter === undefined ? assembler : extra.adapter, now: NOW }) };
   };
   const resolution = await resolve();
+  await managed.accept(state.id, SOLUTION_CATALOG, change.artifactId, { expectedRevision: before.revision, reviewedDigest: change.artifactDigest,
+    reviewedBoundaryKeys: change.rows.filter(row => row.boundaryCrossing).map(row => row.key) }, resolver);
   const { inputs, build: built } = await build(resolution);
   let candidate = await solutions.composed.freeze(state.id, { artifactId: change.artifactId, build: built, ...inputs }, resolver);
   candidate = await solutions.composed.change(state.id, candidate.id, { action: 'approve', revision: candidate.revision, reason: 'Synthetic review of exact composed bytes' }, reviewer);
@@ -112,8 +116,16 @@ async function setup(t, { base = [['div', 0], ['outside', 0]], changed = [['div'
   const delivery = deliveryStore(directory, legacy, { solutionHandoffs: solutions.handoffs, composedCandidates: solutions.composed,
     adapters: adapters ?? { synthetic: opts => syntheticAdapter({ ...opts, calls }) }, ...options });
   const composed = delivery.forComposed(state.id);
+  // A later accepted change moves the accepted merged revision.
+  const later = async () => {
+    const current = await managed.get(state.id, SOLUTION_CATALOG);
+    const next = await managed.prepare(state.id, SOLUTION_CATALOG, { kind: 'change', snapshot: await upload([['outside', 9]], 'partial'), expectedRevision: current.revision,
+      team: 'C', taskRef: 'SYNTHETIC-LATER', sameSourceConfirmed: true, base: { artifactId: state.baselineId, revision: 0, confirmed: true }, changeScope: { name: 'Later scope', members: [key('outside')], confirmed: true, deletions: [] } }, uploader);
+    return managed.accept(state.id, SOLUTION_CATALOG, next.artifactId, { expectedRevision: current.revision, reviewedDigest: next.artifactDigest,
+      reviewedBoundaryKeys: next.rows.filter(row => row.boundaryCrossing).map(row => row.key) }, resolver);
+  };
   const mutate = async mode => {
-    if (mode === 'resolution') return resolve();
+    if (mode === 'acceptance') return later();
     if (mode === 'revoke') { const current = await solutions.composed.get(state.id, candidate.id);
       return solutions.composed.change(state.id, candidate.id, { action: 'revoke', revision: current.revision, reason: 'Synthetic revocation' }, reviewer); }
     const discussion = (await managed.review(state.id, SOLUTION_CATALOG, change.artifactId)).discussion;
@@ -187,8 +199,8 @@ test('freeze refuses unavailable, unverified, stale or mismatched builds and nev
   await assert.rejects(freeze({ manifest: { ...built.manifest, evidenceBasis: 'native' }, artifacts: built.artifacts }), error => error.statusCode === 409);
   await assert.rejects(freeze(built, { compiler: { ...COMPILER, profileDigest: 'd'.repeat(64) } }), error => error.statusCode === 409);
   await assert.rejects(freeze(built, { targetProfile: { ...PROFILE, digest: 'other-profile' } }), error => error.statusCode === 409);
-  // A later resolution or review event makes the old build stale.
-  await env.mutate('resolution');
+  // A later accepted change or review event makes the old build stale.
+  await env.mutate('acceptance');
   await assert.rejects(freeze(built), error => error.statusCode === 409);
   const listed = await solutions.composed.list(state.id);
   assert.equal(listed.length, 1);
@@ -217,7 +229,7 @@ test('synthetic composed evidence, a mismatched Target profile and missing unit 
 });
 
 test('async prepare, confirm and read-back cannot commit evidence after resolution, review or approval changes', async t => {
-  for (const phase of ['prepare', 'confirm', 'verify']) for (const mode of ['resolution', 'comment', 'revoke']) await t.test(`${phase}/${mode}`, async sub => {
+  for (const phase of ['prepare', 'confirm', 'verify']) for (const mode of ['acceptance', 'comment', 'revoke']) await t.test(`${phase}/${mode}`, async sub => {
     const entered = deferred(), finish = deferred(); let pause = false, imports = 0;
     const adapter = syntheticAdapter({ identity: { host: 'composed.example.invalid', version: PROFILE.platformVersion } });
     const inspect = adapter.inspectSolution.bind(adapter), readBack = adapter.readBack.bind(adapter), deploy = adapter.deployCandidate.bind(adapter);
