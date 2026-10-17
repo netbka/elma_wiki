@@ -148,3 +148,10 @@ mechanics rather than on wording: blocker 4 (modal dialog), blocker 1 (select
 placeholder "Выберите версию"), blocker 3 (decision strip under the counter
 line), blocker 7 (business module names in fixtures). Everything else is a
 wording decision that the human sessions should test as is.
+
+Status 2026-10-17: blockers 1, 3 and 4 are implemented in `web/managed/render.js`
+(select placeholder from `partMerge.chooseVersion`, decision gate and button
+under the counter line, fixture-opened dialog shown with `showModal`). Blocker 7's
+business module names are not a fixture change: the parser derives a module only
+from the namespace code and the export carries no section display name, so it
+stays open as parser work.
