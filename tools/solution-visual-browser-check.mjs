@@ -149,6 +149,13 @@ try {
   assert.equal(await form.getByRole('tab',{name:'Основное',exact:true}).getAttribute('aria-selected'),'true');
   await page.keyboard.press('End');await page.keyboard.press('ArrowLeft');
   assert.equal(await form.getByLabel(/^Участник/).isDisabled(),true,'native control binding is not simulated as a primitive');
+  assert.equal(await form.locator('[role=tabpanel] h5').filter({hasText:/^Основное$/}).count(),0,'the tab title is not repeated inside its panel');
+  const participant=await form.locator('label').filter({hasText:/^Участник/}).innerText();
+  assert.match(participant,/Обязательность: зависит от ELMA; неизвестно/,'an expression-bound requirement is visible inline as unknown');
+  assert.match(participant,/Только чтение: да по экспорту/);
+  assert.match(participant,/Тип поля зависит от ELMA; неизвестен/);
+  assert.doesNotMatch(participant,/не поддерживаются|Представление поля/,'an ordinary row is neither unsupported nor shown as plainly optional');
+  assert.match(await form.locator('label').filter({hasText:/^Номер/}).innerText(),/Только чтение: да по экспорту/);
   assert.equal(await form.getByRole('button',{name:'Согласовать',exact:true}).isDisabled(),true);
   await page.getByRole('button',{name:'Проверить путь по экспорту',exact:true}).click();
   assert.equal(await form.getByLabel(/^Документ/).isEnabled(),true);

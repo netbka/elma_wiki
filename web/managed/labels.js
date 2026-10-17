@@ -373,7 +373,7 @@ export const visualForm = {
   declared: 'по экспорту', runtimeUnknown: 'зависит от ELMA; неизвестно', sourceBindings: 'Привязки из экспорта',
   declarationSource: 'декларация сохранена в источнике', evaluationUnknown: 'Вычисление в ELMA неизвестно.',
   labelUnknown: 'Название зависит от ELMA; неизвестно', styleUnknown: 'Оформление из экспорта не применено; размеры и стили не проверены в ELMA.',
-  bindingUnknown: 'Привязка требует ELMA; значение неизвестно.', group: 'Группа', groupStateUnknown: 'Состояние группы в ELMA неизвестно.',
+  bindingUnknown: 'Привязка требует ELMA; значение неизвестно.', typeUnknown: 'Тип поля зависит от ELMA; неизвестен', group: 'Группа', groupStateUnknown: 'Состояние группы в ELMA неизвестно.',
   actionsUnknown: 'Панель действий: состав и поведение требуют ELMA.', tab: 'Вкладка', tabs: 'Вкладки формы',
   regionUnknown: 'Неизвестная структура области формы', regionsUnknown: 'Неизвестная структура областей формы', bindingNotEvaluated: 'Привязка требует ELMA; значение не вычислялось',
   regions: {footer:'Действия', sidebar:'Боковая область', formInfoPanel:'Информация формы', headerControls:'Действия заголовка', headerCustomization:'Заголовок формы'}

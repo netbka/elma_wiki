@@ -17,7 +17,7 @@ export function mountFormVisual(tree,{simulation=false,values={}}={}) {
       const note=el('small',`${label}: ${d.state==='constant'?(d.value?flowLabels.yes:flowLabels.no)+' '+visualForm.declared:visualForm.runtimeUnknown}`);note.className='visual-declaration';parent.append(note,' ',sourceDetails(d.pointer));
     }
   };
-  const visit=(node,parent,inheritedReadOnly=false)=>{
+  const visit=(node,parent,inheritedReadOnly=false,labelled=false)=>{
     const box=el('section');box.className='visual-form-node';box.dataset.descriptor=node.descriptor;
     const nodeEvidence=sourceDetails(node.pointer);nodeEvidence.querySelector('summary').textContent=node.label||node.descriptor||'Источник';evidence.append(nodeEvidence);
     const readOnly=inheritedReadOnly||node.declarations?.readOnly?.state==='unknown'||node.declarations?.readOnly?.value===true;
@@ -37,7 +37,7 @@ export function mountFormVisual(tree,{simulation=false,values={}}={}) {
         body=el('details');body.className='visual-form-group';body.open=node.expanded?.state==='constant'?node.expanded.value:true;body.append(el('summary',node.label||visualForm.group));box.append(body);
       } else {box.classList.add('visual-form-group');box.append(el('h5',node.label||visualForm.group));}
       if(node.collapsible?.state==='unknown'||node.expanded?.state==='unknown')nodeEvidence.append(el('small',visualForm.groupStateUnknown));
-    } else if(node.label&&node.descriptor!=='button')box.append(el('h5',node.label));
+    } else if(node.label&&node.descriptor!=='button'&&!labelled)box.append(el('h5',node.label));
     if(['row','row-layout'].includes(node.descriptor))body.classList.add('visual-form-row');
     if(node.descriptor==='button'){const button=el('button',node.label||'Действие');button.type='button';button.disabled=true;box.append(button,el('small','Поведение не проверено'));}
     if(node.descriptor==='buttons-panel')box.append(el('p',visualForm.actionsUnknown));
@@ -50,8 +50,15 @@ export function mountFormVisual(tree,{simulation=false,values={}}={}) {
       input.oninput=()=>{values[field.pointer]=input.type==='checkbox'?input.checked:input.value;};
       if(field.type==='table')input.placeholder='Строки и структура таблицы неизвестны';
       if(field.type==='reference')input.placeholder='Ссылка и доступ в ELMA не проверены';
-      label.append(input,el('small',field.required?' · Обязательное по экспорту':' · Представление поля'));
-      if(!['string','text','boolean','date','number','integer','float','file','table','reference'].includes(field.type))label.append(el('small',' · Тип / привязка не поддерживаются'));
+      const marks=field.required?[' · Обязательное по экспорту']:[];
+      for(const [key,name] of [['required',visualForm.required],['readOnly',visualForm.readOnly],['hidden',visualForm.hidden]]){
+        const d=field.declarations?.[key];
+        if(d?.state==='unknown')marks.push(` · ${name}: ${visualForm.runtimeUnknown}`);
+        else if(key!=='required'&&d?.state==='constant'&&d.value)marks.push(` · ${name}: ${flowLabels.yes} ${visualForm.declared}`);
+      }
+      label.append(input,...(marks.length?marks:[' · Представление поля']).map(mark=>{const note=el('small',mark);note.className='visual-field-declaration';return note;}));
+      if(field.type==='unknown')label.append(el('small',' · '+visualForm.typeUnknown));
+      else if(!['string','text','boolean','date','number','integer','float','file','table','reference'].includes(field.type))label.append(el('small',' · Тип / привязка не поддерживаются'));
       body.append(label);const fieldEvidence=sourceDetails(field.pointer);fieldEvidence.querySelector('summary').textContent=field.name||field.code||'Источник';nodeEvidence.append(fieldEvidence);hints(field.declarations,fieldEvidence);
     }
     const children=node.children||[];
@@ -74,7 +81,7 @@ export function mountFormVisual(tree,{simulation=false,values={}}={}) {
           button.type='button';button.id=id;button.setAttribute('role','tab');button.setAttribute('aria-controls',id+'-panel');panel.id=id+'-panel';panel.setAttribute('role','tabpanel');panel.setAttribute('aria-labelledby',id);panel.tabIndex=0;
           buttons.push(button);panels.push(panel);button.onclick=()=>activate(index);
           button.onkeydown=event=>{let next;if(event.key==='ArrowRight')next=(index+1)%buttons.length;if(event.key==='ArrowLeft')next=(index+buttons.length-1)%buttons.length;if(event.key==='Home')next=0;if(event.key==='End')next=buttons.length-1;if(next!==undefined){event.preventDefault();activate(next);buttons[next].focus();}};
-          tabs.append(button);visit(child,panel,readOnly);regionBody.append(panel);
+          tabs.append(button);visit(child,panel,readOnly,true);regionBody.append(panel);
         });activate(0);
       }else regionChildren.forEach(child=>visit(child,regionBody,readOnly));
       body.append(area);
