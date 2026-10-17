@@ -60,6 +60,11 @@ test('DEV is read-only in configuration and code; DEV2 deploys only an owner-des
   assert.throws(() => guardPresetDeploy(dev2, 'c'.repeat(64)), error => error.statusCode === 403 && /назначенного владельцем/.test(error.message));
   assert.doesNotThrow(() => guardPresetDeploy(dev2, designated));
   assert.equal(byId(targetPresets(env({ WIKI_TARGET_DEV2_DEPLOY_CANDIDATES: 'contracts' })))['preset-dev2'].available, false);
+  // An empty list (how prod:update withdraws a designation) equals an unset one: available, nothing designated.
+  for (const withdrawn of [byId(targetPresets(env({ WIKI_TARGET_DEV2_DEPLOY_CANDIDATES: '' })))['preset-dev2'], byId(targetPresets(env()))['preset-dev2']]) {
+    assert.equal(withdrawn.available, true); assert.deepEqual(withdrawn.designatedCandidates, []);
+    assert.throws(() => guardPresetDeploy(withdrawn, designated), error => error.statusCode === 403);
+  }
   // Deploy without its read-back is unprovable and is not a valid configuration.
   assert.equal(byId(targetPresets(env({ WIKI_TARGET_DEV2_OPERATIONS: 'health,inspect,deploy' })))['preset-dev2'].available, false);
   const readOnly = byId(targetPresets(env({ WIKI_TARGET_DEV2_OPERATIONS: 'health,inspect,export,readBack', WIKI_TARGET_DEV2_DEPLOY_CANDIDATES: designated })))['preset-dev2'];

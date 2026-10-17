@@ -42,20 +42,24 @@ of these non-secret settings, put it in the private, ignored file
 | Key | Accepted value |
 | --- | --- |
 | `WIKI_TARGET_DEV2_URL` | lowercase HTTPS origin, no path or credentials, e.g. `https://dev2.example.invalid` |
-| `WIKI_TARGET_DEV2_DEPLOY_CANDIDATES` | the owner-designated frozen candidate SHA-256 values: 64 lowercase hex each, comma-separated without spaces |
+| `WIKI_TARGET_DEV2_DEPLOY_CANDIDATES` | the owner-designated frozen candidate SHA-256 values: 64 lowercase hex each, comma-separated without spaces; an empty value (`WIKI_TARGET_DEV2_DEPLOY_CANDIDATES=`) withdraws every designation |
 | `WIKI_NATIVE_MATERIALIZATION_BRIDGE_ID` | the bridge's UUID (v4, lowercase) |
 | `WIKI_NATIVE_MATERIALIZATION_BRIDGE_OWNER` | the owning Wiki user ID: `vk:` or `email:` plus 64 lowercase hex |
 | `WIKI_NATIVE_MATERIALIZATION_REVISION` | the pinned 40-hex elma365 worker revision |
 | `WIKI_NATIVE_TARGET_PROFILE_TARGET` | `dev2` |
 
-Any other key, an empty or malformed value, or a native materialization configuration
+Any other key, a malformed value, an empty value for any key other than
+`WIKI_TARGET_DEV2_DEPLOY_CANDIDATES`, or a native materialization configuration
 that would remain incomplete after merging is refused before anything changes; the
-message names the key, never a value. Both `--check` and a normal update print the key
+message names the key, never a value. The Wiki server (`lib/target-presets.mjs`)
+reads an empty candidate list exactly like an unset one: DEV2 stays available
+with no designated candidate, so every DEV2 deploy is refused. Setting it empty is
+therefore how a designation is withdrawn. Both `--check` and a normal update print the key
 names that would change (`Runtime settings to change: …` or `no change`). Every other
 environment entry stays byte-identical. After activation the new container must have
 exactly the previous environment plus those changes, otherwise the update rolls back to
 the previous container. Settings already applied report `no change` on later rollouts.
-Removing a setting is not supported by this path. The backup's `container.json` keeps the
+Removing a key from the environment is not supported by this path; the empty candidate list above clears its designations. The backup's `container.json` keeps the
 previous environment and `runtime.env` the one given to the new container.
 
 This updater targets the established CT layout: `/opt/elma-wiki`, container
@@ -71,6 +75,16 @@ curl and tar are required.
 These steps change the production host and credentials, so they are the owner's;
 no agent performs them. Do them in order and keep the old password path until step 5
 passes.
+
+**Production status (recorded 2026-10-17):** the owner has done steps 1–5. A dedicated,
+key-only `wiki-deploy` user exists with the single NOPASSWD rule
+`/usr/bin/python3 /home/wiki-deploy/wiki-update-*/update.py`. The private `.env` sets
+`PROD_USER=wiki-deploy` and `PROD_SSH_KEY_FILE`. The key-mode check passed on
+2026-10-17. The owner deliberately keeps `PROD_PASS` in the private `.env`: it
+is the administrator account's password and key mode does not use it (the updater
+ignores it and reports that it is set). Step 6 is therefore not planned. The password
+fallback in `tools/prod-auth.mjs` and `deploy/prod-ssh.py` stays until its scheduled
+removal date, 2026-11-30.
 
 1. **Create a key** on the owner's machine, for example
    `ssh-keygen -t ed25519 -f ~/.ssh/wiki-deploy_ed25519 -C wiki-deploy`, with a
