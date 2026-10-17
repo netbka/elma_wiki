@@ -44,7 +44,7 @@ export async function call(base, route, { token, method = 'GET', json, bytes, he
 /** Polling worker over the HTTP routes. For each materialize job it downloads every original by sha256,
  * verifies sha256 and size, asks `handle` for {receipt, bytes} and uploads the output before the receipt.
  * `handle` may return {skip: true} to keep the job claimed without answering (lost worker). */
-export function httpWorker({ base, token, handle, capabilities }) {
+export function httpWorker({ base, token, handle, capabilities, profile = null }) {
   let running = true;
   const seen = [];
   const loop = (async () => {
@@ -55,6 +55,8 @@ export function httpWorker({ base, token, handle, capabilities }) {
       const job = polled.body?.job;
       if (!running || !job) continue;
       seen.push(job);
+      // A read-only targetProfile job is answered with `profile(payload)` as the report, when given.
+      if (job.kind === 'targetProfile' && profile) { await call(base, `/api/bridge/jobs/${job.id}/result`, { token, method: 'POST', json: { ok: true, result: { report: profile(job.payload) } } }); continue; }
       if (job.kind !== 'materialize') { await call(base, `/api/bridge/jobs/${job.id}/result`, { token, method: 'POST', json: { ok: true, result: { ok: true } } }); continue; }
       const originals = new Map();
       for (const row of job.payload.originals) {

@@ -17,7 +17,7 @@ import { selectReadBackPolicy } from '../lib/delivery.mjs';
 import { targetPresets, guardPresetDeploy } from '../lib/target-presets.mjs';
 import { createServer } from '../server.mjs';
 import { archive, keyOf, assemble, receiptFor, COMPILER, WIDGET } from './manifest-policy-fixtures.mjs';
-import { hex, nativeDeclaration, observe } from './native-contract-fixtures.mjs';
+import { hex, nativeDeclaration, observe, observedReport } from './native-contract-fixtures.mjs';
 import { httpWorker, call, WORKER_REVISION } from './bridge-worker-fixture.mjs';
 
 // Opt-in native build route (#94 MR-03, PLAN-01 C2). Everything is synthetic and local: a
@@ -77,13 +77,13 @@ const nativeEvidence = observation => async ({ state, artifact, resolution, orig
   return { coverage, dependencies, observation, compiler: COMPILER };
 };
 
-async function setup(t, { configure = true, evidence = true, env = {} } = {}) {
+async function setup(t, { configure = true, evidence = true, env = {}, owner = OWNER } = {}) {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'wiki-composed-build-'));
-  const { bridge, token } = await bridgeStore(directory).create(OWNER, { name: 'Synthetic materializer' });
+  const { bridge, token } = await bridgeStore(directory).create(owner, { name: 'Synthetic materializer' });
   const built = await solution(directory);
   const observed = evidence ? await observe({ targetProfileDigest: PROFILE, observedAt: new Date().toISOString() }) : null;
   if (observed) assert.equal(observed.status, 'observed');
-  const materializationEnv = configure ? { WIKI_NATIVE_MATERIALIZATION_BRIDGE_ID: bridge.id, WIKI_NATIVE_MATERIALIZATION_BRIDGE_OWNER: OWNER,
+  const materializationEnv = configure ? { WIKI_NATIVE_MATERIALIZATION_BRIDGE_ID: bridge.id, WIKI_NATIVE_MATERIALIZATION_BRIDGE_OWNER: owner,
     WIKI_NATIVE_MATERIALIZATION_REVISION: WORKER_REVISION, WIKI_NATIVE_MATERIALIZATION_TIMEOUT_MS: '6000', ...env } : {};
   const server = createServer({ directory, allowLocal: true, materializationEnv, buildEvidence: observed ? nativeEvidence(observed.observation) : null });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
@@ -98,8 +98,8 @@ async function setup(t, { configure = true, evidence = true, env = {} } = {}) {
   const headers = { Cookie: login.headers.get('set-cookie').split(';')[0] };
   const answers = [];
   // Default answer: assemble the exact request and return its validated E1 receipt with the bytes.
-  const worker = (capabilities = advertise()) => {
-    const started = httpWorker({ base, token, capabilities, handle: async ({ envelope, originals }) => {
+  const worker = (capabilities = advertise(), profile = null) => {
+    const started = httpWorker({ base, token, capabilities, profile, handle: async ({ envelope, originals }) => {
       const answer = answers.shift() ?? (row => row);
       const bytes = await assemble(envelope.request, originals);
       return answer({ receipt: receiptFor(envelope.request, bytes), bytes }, envelope);
@@ -241,6 +241,31 @@ test('missing evidence blocks before the worker with every eligibility gate name
   assert.equal((await env.build({ extra: true })).status, 400);
   assert.equal((await call(env.base, `/api/solutions/${env.id}/composed-build`, { headers: env.headers })).status, 405);
   assert.equal((await call(env.base, `/api/solutions/${env.id}/composed-build`, { method: 'POST', json: { artifactId: env.artifactId, expectedRevision: 0 } })).status, 404);
+});
+
+test('the service build evidence carries the operator admitted Target profile observation, and nothing else', async t => {
+  // The local session is the configured bridge owner; the bridge observes its designated dev2.
+  const env = await setup(t, { evidence: false, owner: 'local', env: { WIKI_NATIVE_TARGET_PROFILE_TARGET: 'dev2' } });
+  const profile = payload => observedReport({ targetId: payload.targetId, environment: payload.environment, runId: payload.runId,
+    targetProfileDigest: PROFILE, observedAt: new Date().toISOString(), worker: { id: 'synthetic-native-worker', nativeRevision: WORKER_REVISION } });
+  const worker = env.worker({ ...advertise(), jobKinds: ['health', 'materialize', 'targetProfile'] }, profile);
+  await env.settle(null);
+  const before = await env.build();
+  assert.equal(before.body.outcome, 'blocked');
+  assert.equal(before.body.eligibility.evidence.targetProfile, 'unknown');
+  assert.equal(worker.seen.filter(job => job.kind === 'targetProfile').length, 0, 'a build never observes');
+  const refreshed = await call(env.base, `/api/solutions/${env.id}/target-profile`, { method: 'POST', headers: env.headers, json: { expectedRevision: await env.revision() } });
+  assert.equal(refreshed.status, 201, JSON.stringify(refreshed.body));
+  const after = await env.build();
+  assert.equal(after.status, 409);
+  assert.equal(after.body.outcome, 'blocked');
+  assert.equal(after.body.eligibility.evidence.targetProfile, 'observed');
+  assert.equal(after.body.eligibility.targetProfile.digest, PROFILE);
+  // Native coverage and dependency locks are not acquired: they stay named blockers, and no worker builds.
+  assert.deepEqual(after.body.gates.find(row => row.id === 'coverage').reasons.map(row => row.reason), ['missing-native-coverage']);
+  assert.deepEqual(after.body.gates.find(row => row.id === 'dependencies').reasons.map(row => row.reason), ['missing-dependency-resolution']);
+  assert.equal(worker.seen.filter(job => job.kind === 'materialize').length, 0);
+  assert.equal(worker.seen.filter(job => job.kind === 'targetProfile').length, 1);
 });
 
 test('post-build installation facts are the only coverage reasons a build may proceed with', () => {

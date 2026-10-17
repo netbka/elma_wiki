@@ -98,7 +98,7 @@ test('renderer escapes labels, links only approved references and keeps the refe
 test('every published article renders its declared sources; declared repository paths exist and only safe links are emitted', async () => {
   // The real public generator with the real article data; rendered in memory so this
   // test does not race test/public-site.test.mjs for the shared .public directory.
-  const files = renderPublicFiles({ landing: await fs.readFile(new URL('web/index.html', root), 'utf8'), articles, example: demoData().servers.showcase });
+  const files = renderPublicFiles({ landing: await fs.readFile(new URL('web/public-landing.html', root), 'utf8'), articles, example: demoData().servers.showcase });
   for (const article of articles) {
     const html = files.get(`articles/${article.id}/index.html`);
     assert.ok(html, article.id);

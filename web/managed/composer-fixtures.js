@@ -28,12 +28,43 @@ export const eligibilityFixtures = {
   evidence: { coverage: 'native', dependencies: 'native-receipt', targetProfile: 'observed' },
   targetProfile: { targetId: 'synthetic-target', environment: 'synthetic-target', digest: 'c'.repeat(64), platformVersion: 'synthetic-2026.10' }, publicationReady: false, executionEnabled: false }
 };
+const failure = (status, body) => Object.assign(Error(body.error || 'synthetic'), { status, body, requiresRefresh: false });
+// Operator Target profile refresh states (lib/target-profile-refresh.mjs `status`), synthetic.
+// An admitted observation only removes `unobserved-target-profile`: without a native coverage
+// declaration the plan stays unbound to the profile, so the gate and the build remain blocked.
+const profile = { targetId: 'dev2', digest: 'c'.repeat(64), platformVersion: 'synthetic-2026.10', observedAt: '2026-10-14T09:00:00.000Z' };
+const refreshState = (extra = {}) => ({ configured: true, reason: null, target: 'dev2', operator: true, inProgress: false, current: false, staleInputs: false, last: null, ...extra });
+const lastOf = (outcome, extra = {}) => ({ outcome, at: '2026-10-14T09:00:00.000Z', reason: null, errors: [], targetProfile: null, ...extra });
+export const targetProfileFixtures = {
+  unconfigured: refreshState({ configured: false, reason: 'target-profile-observation-unconfigured', target: null, operator: false }),
+  'not-operator': refreshState({ operator: false }),
+  ready: refreshState(),
+  progress: refreshState({ inProgress: true }),
+  observed: refreshState({ current: true, last: lastOf('observed', { targetProfile: profile }) }),
+  stale: refreshState({ staleInputs: true, last: lastOf('observed', { targetProfile: profile }) }),
+  unavailable: refreshState({ last: lastOf('unavailable', { reason: 'live-target-access-unavailable' }) }),
+  invalid: refreshState({ last: lastOf('invalid', { errors: ['unattested-observation'] }) }),
+  unknown: refreshState({ last: lastOf('unknown', { reason: 'timeout' }) })
+};
+const observedEligibility = { ...eligibilityFixtures.current, gates: eligibilityFixtures.current.gates.map(row => row.id === 'target-profile'
+  ? gate('target-profile', 'blocked', [{ reason: 'unbound-plan-target-profile' }]) : row),
+  evidence: { ...eligibilityFixtures.current.evidence, targetProfile: 'observed' }, targetProfile: { targetId: 'dev2', environment: 'dev2', digest: profile.digest, platformVersion: profile.platformVersion } };
+export const profileEligibility = mode => ({ ...(mode === 'observed' ? observedEligibility : eligibilityFixtures.current), revision: 3, targetProfileRefresh: targetProfileFixtures[mode] });
+// What the synthetic refresh route answers per story (null: success), as the page's request() throws it.
+export const profileResponseFixtures = {
+  invalid: failure(422, { outcome: 'invalid', errors: ['native-worker-revision-mismatch'] }),
+  stale: failure(409, { outcome: 'stale', reason: 'stale-solution-revision' }),
+  lost: Object.assign(Error('Ответ не получен.'), { requiresRefresh: true })
+};
+// Story mode -> [refresh state, click answer].
+export const profileModes = { 'profile-unconfigured': ['unconfigured'], 'profile-not-operator': ['not-operator'], 'profile-ready': ['ready', null],
+  'profile-progress': ['progress'], 'profile-observed': ['observed', null], 'profile-stale': ['stale', null], 'profile-unavailable': ['unavailable', null],
+  'profile-invalid': ['invalid', 'invalid'], 'profile-unknown': ['unknown', null], 'profile-moved': ['ready', 'stale'], 'profile-lost': ['ready', 'lost'] };
 // A builder the server reports available, every gate verified: the build-ready shape.
 export const availableBuild = { available: true, reference: 'netbka/elma365#60', contracts: ['elma365-native-materialization@1'], missing: [] };
 export const verifiedEligibility = { ...eligibilityFixtures.gates, eligible: true,
   gates: ['scope', 'coverage', 'dependencies', 'target-profile', 'materialization'].map(id => gate(id, 'verified')) };
 // Synthetic route responses (POST composed-build / composed): a resolved body or the error the page's request() throws.
-const failure = (status, body) => Object.assign(Error(body.error || 'synthetic'), { status, body, requiresRefresh: false });
 export const buildResponseFixtures = {
   validated: { outcome: 'validated', receipt: { status: 'validated', worker: 'synthetic-worker' },
     manifest: { schemaVersion: 1, status: 'materialized', evidenceBasis: 'native', manifestDigest: 'd'.repeat(64), artifacts: [{ id: 'package' }, { id: 'process-runtime' }], blockers: [] } },
@@ -70,10 +101,11 @@ export function solutionComposerFixture(mode = 'build-blocked') {
   if (mode === 'native-pending' || mode === 'test-install') Object.assign(approved, { evidenceBasis: 'native', releaseEligible: false,
     pendingNativeEvidence: ['native-import-receipt', 'native-installation-observation'], deliverable: false });
   if (mode === 'unknown-evidence') Object.assign(approved, { evidenceBasis: null, releaseEligible: false, deliverable: false });
-  const candidates = { 'build-blocked': [], 'build-gates': [], 'eligibility-load-error': [], list: [stale, awaiting], 'awaiting-approval': [stale, awaiting], stale: [stale] }[mode] || [stale, approved];
-  const explicit = { list: null, 'build-blocked': null, 'build-gates': null, 'eligibility-load-error': null, missing: null, 'awaiting-approval': awaiting, stale };
+  const candidates = { 'build-blocked': [], 'build-gates': [], 'eligibility-load-error': [], ...Object.fromEntries(Object.keys(profileModes).map(key => [key, []])), list: [stale, awaiting], 'awaiting-approval': [stale, awaiting], stale: [stale] }[mode] || [stale, approved];
+  const explicit = { list: null, 'build-blocked': null, 'build-gates': null, 'eligibility-load-error': null, missing: null, ...Object.fromEntries(Object.keys(profileModes).map(key => [key, null])), 'awaiting-approval': awaiting, stale };
   const selected = mode in explicit ? explicit[mode] : approved;
-  const eligibility = mode === 'build-gates' ? eligibilityFixtures.gates : mode === 'eligibility-load-error' ? { loadError: 'Учебная ошибка: проверка сборки не получена.' } : eligibilityFixtures.current;
+  const eligibility = mode === 'build-gates' ? eligibilityFixtures.gates : mode === 'eligibility-load-error' ? { loadError: 'Учебная ошибка: проверка сборки не получена.' }
+    : profileModes[mode] ? profileEligibility(profileModes[mode][0]) : eligibilityFixtures.current;
   model.composed = { candidates, build, eligibility, selected, selectedId: mode === 'missing' ? '99999999-9999-4999-8999-999999999999' : selected?.id };
   if (mode === 'load-error') model.composed = { loadError: 'Учебная ошибка: состояние сборок не получено.' };
   // A builder and every gate verified; `build-no-merge` accepted its last change without a three-way merge.

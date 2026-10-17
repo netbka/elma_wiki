@@ -26,7 +26,8 @@ try {
   page.on('pageerror', error => errors.push(error.message));
   assert.equal((await context.request.post(base + '/auth/local', { headers: { 'X-Elma-Wiki-Request': '1' } })).status(), 200);
   await page.goto(base + '/solutions?id=' + state.id);
-  await page.getByRole('link', { name: 'Передача', exact: true }).click();
+  await page.getByRole('link', { name: 'Для инженеров', exact: true }).click();
+  await page.getByRole('navigation', { name: 'Инструменты для инженеров' }).getByRole('link', { name: 'Передача', exact: true }).click();
   await page.getByLabel('Название передачи', { exact: true }).fill('Проверка принятого экспорта');
   await page.getByLabel('Деловая цель', { exact: true }).fill('Передать точный полный пакет оператору');
   await page.getByLabel('Кому или для чего передать пакет', { exact: true }).fill('Учебный оператор');

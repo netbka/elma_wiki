@@ -18,7 +18,9 @@ export const nouns = {
 };
 
 // Solution tabs, in order
-export const tabs = { about: 'О решении', flows: 'Как работает', screensAndData: 'Экраны и данные', changes: 'Изменения', requests: 'Запросы', build: 'Сборка' };
+export const tabs = { about: 'О решении', flows: 'Как работает', screensAndData: 'Экраны и данные', changes: 'Изменения', requests: 'Запросы', build: 'Сборка',
+  engineering: 'Для инженеров', engineeringSections: 'Инструменты для инженеров',
+  engineeringNote: 'Сборка конфигурации и передача на сервер ELMA. Эти инструменты ещё в разработке и нужны инженерам; для просмотра и разбора изменений они не требуются.' };
 
 // Lifecycle stepper (product plan one-next-action map)
 export const steps = { load: 'Загрузка', compare: 'Сравнение', review: 'Рассмотрение', build: 'Сборка', verify: 'Проверка', release: 'Выпуск' };
@@ -41,6 +43,7 @@ export const actions = {
 };
 
 // Status chips (Solution card and header)
+export const solutionList = { pending: count => count === 1 ? 'Новая версия ждёт решения' : `Ждут решения: ${count}` };
 export const statuses = { working: 'В работе', awaitingReview: 'Ожидает рассмотрения', conflict: 'Конфликт', accepted: 'Принято', archived: 'В архиве' };
 
 // Change kinds: one word, parallel
@@ -110,7 +113,8 @@ export const pull = {
   opaque: 'Содержимое решения зашифровано или непрозрачно. Выберите другое решение.',
   failed: 'Загрузка не завершена. Повторите попытку.', serverNotConfigured: 'Сервер недоступен. Повторите позже или обратитесь к администратору.',
   catalogFailed: 'Список решений не получен.', saved: 'Экспорт сохранён. Открываем решение…', resume: 'Экспорт готов. Нажмите «Продолжить», чтобы открыть решение.',
-  continueLabel: 'Продолжить', manualFile: 'Загрузить файл .e365 вручную', legacyChange: 'Загрузить частичный экспорт файлом',
+  continueLabel: 'Продолжить', manualFile: 'Загрузить файл .e365 вручную',
+  manualTitle: 'Или загрузите файл', manualHint: 'Если сервер недоступен, выгрузите решение из ELMA в файл .e365 и загрузите его здесь.', legacyChange: 'Загрузить частичный экспорт файлом',
   serverNames: { dev: 'DEV', dev2: 'dev2' }
 };
 
@@ -150,6 +154,43 @@ export const buildEligibility = {
   heading: 'Условия сборки', listName: 'Условия сборки конфигурации', notLoaded: 'Проверка состава, покрытия, зависимостей и профиля Target не получена. Сборка недоступна.',
   blockedSummary: 'Изменения приняты. Сборка конфигурации заблокирована: состав, покрытие, зависимости или профиль Target не подтверждены.',
   unknownReason: 'не описанная причина:', unit: 'единица установки', object: 'объект', module: 'модуль', fact: 'не хватает:'
+};
+// Explicit operator Target profile refresh (#94 MR-05, P8): only the configured bridge
+// operator reads the designated DEV2 profile; nothing reads it automatically.
+export const targetProfileRefresh = {
+  heading: 'Профиль Target', start: 'Прочитать профиль Target', refresh: 'Обновить состояние', reasons: 'Причины',
+  running: 'Читаем профиль Target через мост оператора. Это только чтение, без установки; не закрывайте страницу.',
+  done: 'Профиль Target прочитан. Обновляем условия сборки…',
+  operatorOnly: 'Прочитать профиль может только оператор моста. Состав и проверки решения доступны всем участникам.',
+  readOnly: 'Чтение не устанавливает и не меняет конфигурацию на Target. Результат действует для текущей версии решения не дольше суток.',
+  lost: 'Ответ сервера не получен. Обновите состояние перед повтором; чтение не повторяется автоматически.',
+  states: {
+    'target-profile-observation-unconfigured': 'Чтение профиля Target не настроено: на сервере не заданы мост оператора, его владелец и Target.',
+    'target-not-designated': 'Target моста не назначен для чтения профиля: допускается только DEV2.',
+    never: 'Профиль Target ещё не прочитан для этой версии решения. Без него условие «Профиль Target» не выполнено.',
+    'in-progress': 'Профиль Target уже читается. Обновите состояние позже.',
+    observed: 'Профиль Target прочитан для текущей версии решения.',
+    stale: 'Профиль Target прочитан для прежней версии решения и больше не учитывается. Прочитайте его заново.',
+    unavailable: 'Профиль Target не прочитан: мост сообщил, что профиль недоступен.',
+    invalid: 'Отчёт моста о профиле Target не прошёл проверку и не принят.',
+    unknown: 'Результат чтения неизвестен: ответ моста не получен. Профиль не принят.',
+    moved: 'Пока читался профиль, решение изменилось. Профиль не принят.'
+  },
+  outcomes: {
+    unavailable: 'Профиль Target недоступен.', invalid: 'Отчёт о профиле Target не принят.', unknown: 'Результат чтения неизвестен: ответ моста не получен.',
+    stale: 'Решение изменилось. Обновите состояние и прочитайте профиль заново.', 'in-progress': 'Профиль Target уже читается.',
+    refused: 'Чтение профиля Target отклонено.'
+  },
+  details: {
+    'target-profile-observation-unconfigured': 'чтение профиля не настроено', 'target-not-designated': 'Target не назначен для чтения профиля',
+    'operator-only': 'действие доступно только оператору моста', 'invalid-request': 'некорректный запрос', 'no-accepted-capture': 'нет принятого полного экспорта решения',
+    'stale-solution-revision': 'версия решения изменилась', 'stale-solution-binding': 'решение изменилось во время чтения',
+    'target-profile-refresh-in-progress': 'чтение уже выполняется', 'target-profile-bridge-failed': 'мост сообщил об ошибке задания',
+    'target-profile-observation-not-advertised': 'исполнитель моста не умеет читать профиль Target', 'live-target-access-unavailable': 'нет доступа к Target',
+    timeout: 'время ожидания истекло', 'lost-result': 'результат задания потерян',
+    'native-worker-revision-mismatch': 'исполнитель другой версии', 'target-mismatch': 'отчёт о другом Target', 'unattested-observation': 'отчёт не подтверждает это задание чтения'
+  },
+  unknownDetail: 'причина проверки:', profile: 'Профиль', platform: 'платформа', observedAt: 'прочитан'
 };
 // Composer build and freeze of the accepted merged revision. A build is held by the
 // server until it is frozen; only a frozen candidate can be reviewed or delivered.
@@ -259,10 +300,24 @@ export const empty = { purpose: 'Опишите, для чего это реше
 export const classificationLabels = {
   unchanged: 'Без изменений', 'intervention-added': 'Добавлен объект', 'component-modified': 'Объект изменён',
   'known-change-retained': 'Наше изменение сохранится', 'known-change-incorporated': 'Наше изменение включено в снимок',
-  'external-change': 'Изменение из полного снимка', 'component-deleted': 'Удаление заявлено явно', conflict: 'Нужен выбор версии', ambiguous: 'Недостаточно данных'
+  'external-change': 'Изменено в новой версии', 'component-deleted': 'Удаление заявлено явно', conflict: 'Нужен выбор версии', ambiguous: 'Недостаточно данных'
 };
 export const elementClassificationLabels = { ...classificationLabels, 'element-added': 'Добавлен', 'element-removed': 'Удалён', 'element-modified': 'Изменён' };
 export const elementKindLabels = { node: 'Шаг', transition: 'Переход', variable: 'Переменная', lane: 'Дорожка' };
+
+// Review answers "what changed" in plain sentences first; ownership tables,
+// reports and comparison evidence stay one click away under "Подробнее".
+export const reviewPlain = {
+  versionIntro: 'Сравнение новой версии с текущей. Если принять, новая версия станет текущей.',
+  changeIntro: 'Изменение от команды',
+  whatChanged: 'Что изменилось',
+  partsDetails: 'Подробнее: все части процесса и ответственность',
+  responsibility: 'Ответственность',
+  moreParts: count => `И ещё ${count}. Полный список — в «Подробнее».`,
+  conflictSuffix: ' — конфликт с изменением другой команды',
+  partVerbs: { 'element-added': ['добавлен', 'добавлена'], 'element-removed': ['удалён', 'удалена'], changed: ['изменён', 'изменена'] },
+  feminine: new Set(['variable', 'lane'])
+};
 
 // MR-02 part-level merge inside «Совмещение с принятыми изменениями». The server
 // plan is authoritative; part merge is offered, never applied by default.

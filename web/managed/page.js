@@ -61,6 +61,8 @@ const actions = {
     deliveryClient: composedDeliveryClient(id, request),
     change: async (candidateId, input) => { await request(`${composedApi}/${encodeURIComponent(candidateId)}`, input); navigate(composeHref(candidateId)); },
     build: input => request(`${composedApi}-build`, input),
+    // Explicit operator Target profile read; the page re-reads eligibility afterwards, never replays.
+    refreshTargetProfile: async input => { await request(`${api}/${encodeURIComponent(id)}/target-profile`, input); navigate(composeHref()); },
     freeze: async input => {
       const result = await request(composedApi, input);
       if (result?.outcome !== 'frozen' || typeof result.candidate?.id !== 'string' || !result.candidate.id)
