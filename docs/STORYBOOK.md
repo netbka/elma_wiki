@@ -52,7 +52,7 @@ Stories не подключаются к ELMA. Показ Verified в модел
 7. Рабочая копия: поддерживаемый скрипт → сохранение → TypeScript/offline compiler → diff/контрольная точка → восстановление; конфликт вкладок и снятие актуальности Check.
 8. Проверка понятности UX-09 (`design-validation--*`): подготовка → пять секунд на шести синтетических stories → названия раздела 7 плана → сортировка карточек по вкладкам → итог «два из трёх» → замена и повторная проверка. Это проверка дизайна, а не #59/#41; порядок и границы — в [EXPERIENCE_REVIEW.md](EXPERIENCE_REVIEW.md#дополнение-ux-09-проверка-понятности-за-пять-секунд-и-проверка-названий).
 
-storybook/review-manifest.json связывает возможности со stories и обязательными состояниями. check:storybook проверяет источники, stories и достижимость всех шагов. Публичный сайт, вход и прежний viewer имеют явные исключения до переноса их renderer; они не объявляются покрытыми этим каталогом. Исключение не распространяется на два публичных фрагмента с общим renderer: учебный поиск поля (`public-field-guide--*`) и блок источников статьи (`public-article-sources--*`: источники указаны, не указаны, некорректные) — их stories используют тот же код, что и статическая сборка, см. [workflows/public-article-sources.md](workflows/public-article-sources.md).
+storybook/review-manifest.json maps capabilities to their renderer/stories and required states. The public site and its teaching fragments have been removed by the owner's 2026-10-17 direction. Internal entry pages and server authentication gates are checked by the internal-service browser/API checks; Login and object-search retain their shared renderers. Storybook is local synthetic engineering infrastructure and must not be publicly hosted.
 
 ## Рецензия
 

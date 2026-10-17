@@ -5,6 +5,8 @@ Authority: [SOLUTION_FIRST_PRODUCT_PLAN.md](SOLUTION_FIRST_PRODUCT_PLAN.md), wit
 
 ## Current resolutions
 
+Owner 2026-10-17: the immediate loop is full DEV capture -> faithful review of Contracts, Correspondence, Powers of attorney and Bonds -> controlled DEV2 validation -> changed-only explanation of the next update. Wiki acceptance does not establish the installed DEV2 comparison base. See the [product priority](SOLUTION_FIRST_PRODUCT_PLAN.md#current-operating-priority-owner-2026-10-17).
+
 | Area / competing evidence | Current decision | Implementation or evidence action |
 | --- | --- | --- |
 | Audit described review as the complete product and native delivery as optional | Owner explicitly requires comparison, merge/conflict resolution and working configuration release | Correct product/execution/audit; #94 and native elma365#60 implement missing composition, #11 retains delivery |
@@ -31,14 +33,14 @@ Authority: [SOLUTION_FIRST_PRODUCT_PLAN.md](SOLUTION_FIRST_PRODUCT_PLAN.md), wit
 | Review acceptance vs release acceptance | A reviewed change is not a working release | Build, matching native installation/business acceptance and final Target checks remain mandatory |
 | Native historical matching | Equal exported content may match multiple native revisions | Keep #47 bounded identity/author/stale-write gaps; do not guess via time/history markers |
 | Shared handoff vs legacy delivery | Keep correct cross-root 404; add contextual guarded dispatch | Reuse one #11 queue/reservations and trusted operational actor, not shared storage principal |
-| Public/Vercel | Internal product remains priority | Learn secondary; no unassigned Vercel work |
+| Public/Vercel | Owner 2026-10-17 excludes public use and all public hosting, not merely defers it | Remove public build/renderer/CI; require login for teaching surfaces; keep deny-only Vercel config and disconnect/close existing hosting under INTERNAL_HOSTING.md |
 | Wiki-local owner-stop rules vs inherited portfolio governance | AGENTS inherits the portfolio Constitution and Owner Intervention Contract by reference; Wiki adds only the recorded owner triggers | One section, [Owner-reserved matters and blockers](SOLUTION_FIRST_PRODUCT_PLAN.md#owner-reserved-matters-and-blockers), classifies stops by B0-B5; other documents link to it |
 | Declared scope/base/responsibility questions in the Add solution / Add change journey vs the owner's 2026-10-15 fixed-path direction | Primary path is pull-from-named-server only: full snapshot, same Source and base derived by the server; no partial, scope, base or responsibility question in the primary UI. Servers offered: DEV (main) and dev2, read-only export. The engine keeps partial/declared-base support for legacy uploads under "Прежние загрузки" | [plans/intuitive-solution-ui-2026-10-15.md](plans/intuitive-solution-ui-2026-10-15.md) UX-01; `workflows/solutions.md` and acquisition contract updated when UX-01 lands |
 | VK/agent orchestration | Secondary mechanism advancing the same lifecycle | #19/#89 pilot is not prerequisite for manually creating a working release |
 
 ## Shared-content and retention invariants
 
-All signed-in users share configuration content, including historical uploads. Preserve original IDs, bytes, attribution and separate artifact roots. No per-record private/shared selection or migration copy is needed. Do not infer native author or full scope from owner/filename. Public Learn never receives customer content; credentials and external publication keep separate controls. Shared visibility does not authorize deletion, a retention deadline or a lost history. Storage/index changes require a backout plan.
+All signed-in users share configuration content, including historical uploads. Preserve original IDs, bytes, attribution and separate artifact roots. No per-record private/shared selection or migration copy is needed. Do not infer native author or full scope from owner/filename. All product and teaching content requires authentication; credentials and external publication keep separate controls. Shared visibility does not authorize deletion, a retention deadline or a lost history. Storage/index changes require a backout plan.
 
 ## Dyk adaptation retained
 

@@ -6,10 +6,10 @@ import assert from 'node:assert/strict';
 import { createServer } from '../server.mjs';
 import { fixture } from '../test/fixture.mjs';
 import { articles } from '../dist/articles.js';
-import { loginEmail } from '../lib/email.mjs';
+import { vkLoginLinks } from '../lib/vk-login-links.mjs';
 const directory=await fs.mkdtemp(path.join(os.tmpdir(),'e365-browser-test-'));
-const messages=[];
-const server=createServer({directory,allowLocal:false,sendEmail:async message=>messages.push(message)});
+const sendVk = Object.assign(async () => {}, { domain: 'example.org', botUrl: 'https://teams.vk.com/profile/synthetic_login_bot', linkSecret: 'SYNTHETIC_SECRET' });
+const server=createServer({directory,allowLocal:false,sendEmail:undefined,sendVk});
 await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
 const base=`http://127.0.0.1:${server.address().port}`;
 let browser;
@@ -18,21 +18,20 @@ try {
   const page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[],requests=[];
   page.on('pageerror',e=>errors.push(e.message));page.on('request',r=>requests.push(r.url()));
   await fs.mkdir('qa',{recursive:true});
-  // The signed-out service home names Solutions and offers only sign-in; developer material stays on the public site.
+  // The signed-out service home names Solutions and offers only sign-in; developer material requires sign-in.
   await page.goto(base);await page.getByRole('heading',{name:'Решения ELMA365 вашей команды — в одном месте',level:1}).waitFor();
   assert.equal(await page.locator('main a.button').getAttribute('href'),'/login');
   assert.doesNotMatch(await page.locator('main').textContent(),/isAuthor|elma365pm|\.client\.ts|приватную вики/);
   await page.screenshot({path:'qa/service-desktop.png',fullPage:true});
+  await page.goto(base+'/login');await page.locator('#vk-bot-link').waitFor();
+  await page.setViewportSize({width:390,height:844});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+  await page.screenshot({path:'qa/login-mobile.png',fullPage:true});
+  const loginLink=vkLoginLinks({secret:sendVk.linkSecret,domain:sendVk.domain,baseUrl:'http://127.0.0.1:43171'}).issue('person@example.org');
+  await page.goto(base+new URL(loginLink).pathname+new URL(loginLink).search);await page.waitForURL('**/solutions');
   await page.goto(base+'/p/showcase/');await page.getByRole('heading',{name:'Что нужно сделать?'}).waitFor();
   await page.goto(base+'/p/showcase/#/objects');assert.equal(await page.locator('.entity-row').count(),6);
   for (const article of articles) {await page.goto(base+'/p/showcase/#/article/'+article.id);await page.getByRole('heading',{name:article.title,exact:true}).waitFor();}
-  await page.goto(base+'/login');assert.equal(await page.locator('#github-login').isDisabled(),true);
-  await page.setViewportSize({width:390,height:844});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
-  await page.locator('#email').fill('person@example.org');await page.locator('#send-key').click();await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('Ключ отправлен'));
-  await page.locator('#key').fill(messages.at(-1).key);await page.screenshot({path:'qa/email-login-mobile.png',fullPage:true});
-  const emailPreview=await browser.newPage({viewport:{width:680,height:900}});
-  await emailPreview.setContent(loginEmail(messages.at(-1)).html);await emailPreview.screenshot({path:'qa/email-preview.png',fullPage:true});await emailPreview.close();
-  await page.locator('#verify-key').click();await page.waitForURL('**/workspaces');await page.goto(base+'/dashboard');await page.setViewportSize({width:1440,height:1000});
+  await page.goto(base+'/dashboard');await page.setViewportSize({width:1440,height:1000});
   await page.locator('#file').setInputFiles({name:'synthetic.e365',mimeType:'application/octet-stream',buffer:await fixture({secret:'<script>globalThis.pwned=true</script>'})});
   await page.getByRole('button',{name:'Создать проект из файла'}).click();await page.waitForURL(/\/p\/[0-9a-f-]{36}\/$/);
   const projectURL=page.url();await page.getByRole('heading',{name:'Что нужно сделать?'}).waitFor();

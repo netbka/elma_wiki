@@ -19,7 +19,6 @@ for (const flow of flows) manifest.capabilities[flow.id] = {
   catalog: 'web/flows/catalog.js', storyIds: stories[flow.id],
   requiredVisibleStates: flow.states.map(state => state.id), sources: flow.sources
 };
-manifest.capabilities['public-site'].exclusionReason = 'Production public renderer ещё не интегрирован в stories. tools/public-browser-check.mjs проверяет текущий публичный сайт; учебный workflow не заменяет эти проверки.';
 manifest.capabilities['email-authentication'].exclusionReason = 'Production OTP renderer ещё не интегрирован в stories. tools/browser-check.mjs проверяет синтетическую доставку и настоящий login UI.';
 manifest.capabilities['project-viewer'] = { entry: '/p/:id/', actions: ['search', 'preview', 'report', 'reparse'], renderer: ['dist/app.js'], storyIds: [], requiredVisibleStates: ['objects', 'source-preview', 'parse-report'], exclusionReason: 'Текущий viewer проверяется tools/browser-check.mjs. Storybook показывает общий путь загрузки, но не копирует интерфейс viewer.' };
 manifest.version = 2;

@@ -5,13 +5,25 @@ Coordinates: #52, #33, #34, #11, #38, #41, #47, #55, #59, #94.
 
 ## Product sentence and required result
 
-E365 Wiki is a guided collaborative engineering system that compares and merges ELMA configuration changes and produces a working installable configuration for the next server and controlled production release.
+E365 Wiki is an internal collaborative engineering system for our team that compares and merges ELMA configuration changes and produces a working installable configuration for the next server and controlled production release.
 
 A user opens a familiar Solution, understands its current state, compares independently based versions, resolves conflicts, reviews the combined result, and obtains a physical configuration whose installation and affected business behavior have been verified for an explicit target profile.
 
 Understanding, code review, visual review and offline handoff are useful intermediate outcomes. They are not the complete product endpoint. The owner explicitly rejected treating native materialization and working release as optional features outside the product. Missing serializers, partial-package semantics, paid dependencies and platform coverage are engineering work to resolve, not a permanent viewer-only boundary.
 
 Wiki owns the path to the working result; native execution remains in ELMA and its existing adapters. This does not require a second document-process runtime, ELMA Designer, Git host, general IDE, compiler or deployment engine.
+
+## Current operating priority (owner, 2026-10-17)
+
+The interim workflow is **developers and contractors change DEV -> capture a full Solution -> understand and discuss it in Wiki -> controlled transfer to DEV2 -> native checking -> review the next delta**. DEV is the donor; Wiki never writes configuration back to DEV. DEV2 is the explicitly selected technical validation environment. A product priority is not a blanket designation of future install candidates.
+
+The first four business modules are **Contracts, Correspondence, Powers of attorney and Bonds** (Договоры, Корреспонденция, Доверенности, Облигации). Module membership must be established from the actual configuration; a namespace prefix or a similar name alone is not that mapping. A full capture should build navigable forms, windows, processes and functional explanations close to the original, with explicit coverage gaps. A field inventory alone does not satisfy form fidelity. Check supported visual and behavioral reconstruction against the same installed version on DEV2; execute business behavior in ELMA, not arbitrary uploaded code in Wiki.
+
+Comments and correction requests must target the displayed module/object/field/step and version and survive updates with current/stale/removed/ambiguous status. On a later DEV -> DEV2 update, show changed objects by default, before/after values, affected screens/processes, a human explanation of the change and likely consequences, and what needs checking. Preserve access to unchanged context without making people reread the entire Solution. Bind the comparison to the last verified DEV2 installation and the next exact source snapshot; a last accepted Wiki snapshot is a separate fact. Unknown or drifted DEV2 state must be explicit.
+
+AI is optional assistance for source-linked explanation and impact hypotheses. A generated claim must distinguish observed differences, inferred consequences and unknown runtime behavior; it cannot approve itself. No external AI transfer is enabled by this request.
+
+This is a product for our team, not a general public offering. Public use, a separate public Learn/marketing site and publication to Vercel or any other public platform are excluded, not future roadmap items. Internal self-hosting, authenticated team guides and local synthetic Storybook remain. See [internal hosting](INTERNAL_HOSTING.md). The broader working-configuration release obligation remains; prioritize the four-module review/DEV2 loop before unrelated generalization. Current implementation gaps are assessed in [the process audit](audits/internal-dev2-process-2026-10-17.md).
 
 ## One user model
 
@@ -44,7 +56,7 @@ Authentication establishes identity, not authorization tiers, in the current MVP
 - All authenticated users share all historical and new configuration content with equal product permissions. There is no per-user private configuration mode, sharing checkbox, role editor or per-Solution membership UI in this milestone.
 - Preserve original bytes, storage IDs and upload provenance in place. Separate roots protect artifact and lifecycle identity, not personal content visibility.
 - Record trusted actors for uploads, changes, comments, resolutions, review decisions and releases. Uploader, declared team and ELMA-native author/publisher are distinct facts.
-- Public Learn, credentials and operational connection controls remain separate. Shared content access never grants arbitrary Target execution.
+- Team guides require authentication; credentials and operational connection controls remain separate. Shared content access never grants arbitrary Target execution.
 - Stable actor IDs allow future authorization without rewriting history. Future role tiers remain a separate owner decision.
 
 ## Product laws

@@ -6,7 +6,7 @@ Status: research-backed recommendation plus source-level preliminary findings. T
 
 ## Repository integration and authority
 
-This documentation-only change preserves the review brief and makes it discoverable from [the documentation map](INDEX.md). It does not implement the recommendations, change runtime capability status, or supersede [AGENTS.md](../AGENTS.md), [the developer workflow contract](DEVELOPER_VALUE_WORKFLOW.md), [public/private deployment boundaries](PUBLIC_DEPLOYMENT.md), [Storybook authority](STORYBOOK.md), or [the source-target implementation plan](plans/source-target-e2e.md). Follow the current repository authority order when assigning implementation.
+This documentation-only change preserves the review brief and makes it discoverable from [the documentation map](INDEX.md). It does not implement the recommendations, change runtime capability status, or supersede [AGENTS.md](../AGENTS.md), [the developer workflow contract](DEVELOPER_VALUE_WORKFLOW.md), [internal-only hosting boundary](INTERNAL_HOSTING.md), [Storybook authority](STORYBOOK.md), or [the source-target implementation plan](plans/source-target-e2e.md). Follow the current repository authority order when assigning implementation.
 
 The baseline findings below remain dated observations. Proposed priorities, audience hypotheses, and acceptance targets are not measured outcomes or release claims.
 
@@ -32,7 +32,7 @@ Inspected repository material included:
 
 - web/index.html; lib/public-site.mjs; tools/build-public.mjs.
 - dist/developer-articles.js and selected article definitions.
-- docs/PUBLIC_DEPLOYMENT.md; docs/DEVELOPER_VALUE_WORKFLOW.md; docs/STATE.md; docs/STORYBOOK.md.
+- docs/INTERNAL_HOSTING.md; docs/DEVELOPER_VALUE_WORKFLOW.md; docs/STATE.md; docs/STORYBOOK.md.
 - package.json; tools/public-browser-check.mjs.
 - Pull requests #8 and #9.
 - Parent repository elma-development/README.md.

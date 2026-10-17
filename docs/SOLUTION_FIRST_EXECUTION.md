@@ -7,6 +7,17 @@ Coordination: #52 / #91. This plan records required product work; individual wor
 
 Preserve the useful Solution-first review product and complete its missing path from parallel configuration changes to a working, installable, verified release. Review-only acceptance is an intermediate milestone, not the full product endpoint. Production promotion is a required product capability with separate operational authorization.
 
+## Immediate priority: internal DEV -> DEV2 review loop
+
+Owner direction 2026-10-17 narrows the audience to our team and prioritizes Contracts, Correspondence, Powers of attorney and Bonds. Public use/publication is removed from scope. The evidence and gaps are in [the process audit](audits/internal-dev2-process-2026-10-17.md).
+
+1. Establish each module's actual objects and a full capture coverage inventory; tie the original snapshot and current DEV2 installation together without equating acceptance with deployment.
+2. For each module, prove the main forms/windows/processes against the matching native DEV2 version. Fill renderer gaps and show unsupported behavior explicitly. Comments and correction requests stay contextual.
+3. Review a second full capture as changed-only before/after against the verified DEV2 base. Provide source-linked explanations, affected routes and required checks. Optional AI follows the data-transfer policy.
+4. Prove a controlled DEV2 refresh and native read-back/business checks with the existing delivery coordinator. Record the installed version so the next comparison uses the correct base.
+
+These are bounded follow-up outcomes, not a claim that the audit implemented them. Existing native build work below remains necessary; it must serve this loop, not displace the four-module understanding and review work.
+
 ## Retained P0-P5 foundation
 
 | Stage | Existing outcome to retain | Current follow-through |
