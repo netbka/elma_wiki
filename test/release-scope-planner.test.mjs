@@ -31,13 +31,101 @@ test('dependency diamond deduplicates closure and orders dependencies before con
   assert.deepEqual(codes(result.requestedComponents), ['A']);
 });
 
-test('cycles and self references block and never receive an invented order', () => {
-  for (const deps of [[declaration('A', 'B'), declaration('B', 'A')], [declaration('A', 'A')]]) {
-    const result = plan(artifact(['A', 'B'], deps));
+test('cross-unit cycles and self references outside an admitted unit block and never receive an invented order', () => {
+  const stale = unit('A', ['A']); stale.members[0].digest = 'old-digest';
+  for (const [deps, importUnits] of [[[declaration('A', 'B'), declaration('B', 'A')], undefined],
+    [[declaration('A', 'A')], [stale, unit('B', ['B'])]], [[declaration('A', 'A')], [{ ...unit('A', ['A']), status: 'unknown' }, unit('B', ['B'])]]]) {
+    const result = plan(artifact(['A', 'B'], deps), importUnits ? { importUnits } : {});
     assert.ok(reasons(result).includes('dependency-cycle'));
     assert.equal(result.dependencyOrder, null);
+    assert.equal(result.dependencyStages, null);
+    assert.deepEqual(result.internalDependencyGroups, []);
     assert.equal(result.planningComplete, false);
   }
+  const cross = plan(artifact(['A', 'B'], [declaration('A', 'B'), declaration('B', 'A')]));
+  assert.deepEqual(cross.blockers.find(row => row.reason === 'dependency-cycle').unitIds, ['A', 'B']);
+  assert.equal(cross.nativeImportOrder, null);
+});
+
+// A cycle inside one supported, complete, digest-current whole-Solution unit, as the
+// native adapter derives `package:<solution>`, is imported as that unit.
+const packageCycle = () => artifact(['A', 'B', 'C', 'D', 'E'], [declaration('A', 'B'), declaration('B', 'A'), declaration('B', 'C'),
+  declaration('D', 'A'), declaration('A', 'E')]);
+const packageUnits = () => [unit('package:S', ['A', 'B', 'C', 'D']), unit('base', ['E'])];
+
+test('a cycle wholly inside one admitted native unit is a package-internal group without an invented component order', () => {
+  const capture = packageCycle(), importUnits = packageUnits(), before = JSON.stringify({ capture, importUnits });
+  const result = plan(capture, { importUnits });
+  assert.equal(JSON.stringify({ capture, importUnits }), before);
+  assert.deepEqual(result.blockers, []);
+  assert.equal(result.planningComplete, true);
+  assert.equal(result.publicationReady, false);
+  assert.equal(result.executionEnabled, false);
+  assert.deepEqual(result.internalDependencyGroups, [{ unitId: 'package:S', components: [ref('A'), ref('B')] }]);
+  assert.equal(result.dependencyOrder, null);
+  assert.deepEqual(result.dependencyStages, [{ kind: 'component', component: ref('C') }, { kind: 'component', component: ref('E') },
+    { kind: 'package-internal-group', unitId: 'package:S', components: [ref('A'), ref('B')] }, { kind: 'component', component: ref('D') }]);
+  assert.deepEqual(result.nativeImportOrder, ['base', 'package:S']);
+  assert.ok(result.limitations.some(row => row.includes('no component order')));
+  assert.throws(() => result.internalDependencyGroups.push({}), TypeError);
+  const reversed = structuredClone(capture); reversed.components.reverse(); reversed.dependencies.rows.reverse();
+  const reorderedUnits = packageUnits().reverse(); reorderedUnits.forEach(row => row.members.reverse());
+  assert.deepEqual(plan(reversed, { importUnits: reorderedUnits }), result);
+  // Acyclic plans keep their total order and expose one stage per component.
+  const acyclic = plan(artifact(['A', 'B'], [declaration('A', 'B')]));
+  assert.deepEqual(codes(acyclic.dependencyOrder), ['B', 'A']);
+  assert.deepEqual(acyclic.dependencyStages.map(row => row.kind), ['component', 'component']);
+  assert.deepEqual(acyclic.internalDependencyGroups, []);
+  const self = plan(artifact(['A'], [declaration('A', 'A')]));
+  assert.equal(self.planningComplete, true);
+  assert.deepEqual(self.internalDependencyGroups, [{ unitId: 'A', components: [ref('A')] }]);
+  assert.equal(self.dependencyOrder, null);
+});
+
+test('a package-internal cycle stays blocked unless its unit is uniquely, completely and currently covered', () => {
+  const mutations = {
+    stale: units => { units[0].members.find(row => row.key === ref('C').key).digest = 'old-digest'; },
+    unsupported: units => { units[0].status = 'unsupported'; },
+    unadapted: units => { delete units[0].adapter; },
+    incomplete: units => { units[0].members.push({ ...ref('absent'), digest: 'digest-absent' }); },
+    invalid: units => { units[0].members.push(units[0].members[0]); },
+    duplicateUnit: units => { units.push(structuredClone(units[0])); },
+    ambiguousMember: units => { units.push(unit('other', ['B'])); },
+    ambiguousSibling: units => { units.push(unit('other', ['C'])); },
+    uncoveredMember: units => { units[0].members = units[0].members.filter(row => row.key !== ref('B').key); },
+    crossUnit: units => { units[0].members = units[0].members.filter(row => row.key !== ref('B').key); units.push(unit('split', ['B'])); }
+  };
+  for (const [name, mutate] of Object.entries(mutations)) {
+    const importUnits = packageUnits(); mutate(importUnits);
+    const result = plan(packageCycle(), { importUnits });
+    const cycle = result.blockers.find(row => row.reason === 'dependency-cycle');
+    assert.deepEqual(cycle?.components, [ref('A'), ref('B')], name);
+    assert.deepEqual(result.internalDependencyGroups, [], name);
+    assert.equal(result.dependencyOrder, null, name);
+    assert.equal(result.dependencyStages, null, name);
+    assert.equal(result.nativeImportOrder, null, name);
+    assert.equal(result.planningComplete, false, name);
+  }
+});
+
+test('an admitted internal group does not waive Target, coupled-unit or other coverage gates', () => {
+  let importUnits = packageUnits(); delete importUnits[0].targetPrecondition;
+  let result = plan(packageCycle(), { importUnits });
+  assert.equal(result.internalDependencyGroups.length, 1);
+  assert.deepEqual(reasons(result), ['unknown-target-precondition']);
+  assert.equal(result.planningComplete, false);
+  importUnits = packageUnits(); importUnits[1].targetPrecondition.targetProfileDigest = 'different-target';
+  assert.deepEqual(reasons(plan(packageCycle(), { importUnits })), ['inconsistent-target-profile']);
+  // E in another unit also depends back on the package: the units, not the components, cycle.
+  const coupled = packageCycle(); coupled.dependencies = dependencyReport([...coupled.dependencies.rows, declaration('E', 'C')]);
+  result = plan(coupled, { importUnits: packageUnits() });
+  assert.ok(reasons(result).includes('native-import-unit-cycle'));
+  assert.equal(reasons(result).includes('dependency-cycle'), false);
+  assert.equal(result.nativeImportOrder, null);
+  const partial = plan({ ...packageCycle(), scope: 'partial', unclassifiedFiles: [{ path: 'opaque' }] }, { importUnits: packageUnits() });
+  assert.ok(reasons(partial).includes('incomplete-solution-inventory'));
+  assert.ok(reasons(partial).includes('incomplete-capture'));
+  assert.equal(partial.planningComplete, false);
 });
 
 test('missing, paid, system and unknown-schema prerequisites block without catalog entitlement', () => {
