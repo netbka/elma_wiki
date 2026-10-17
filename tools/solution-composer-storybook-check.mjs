@@ -113,6 +113,32 @@ try {
       assert.equal(await delivery().getByRole('button', { name: 'Подготовить учебную доставку' }).isDisabled(), true, 'no replay after a lost response');
     }
   }
+  // Operator Target profile refresh: offered only to the operator, every result and stale input
+  // stated in the same renderer; an observed profile alone never enables the build.
+  const profile = () => composer().getByRole('group', { name: 'Профиль Target', exact: true });
+  const profileButton = () => profile().getByRole('button', { name: 'Прочитать профиль Target DEV2', exact: true });
+  for (const [id, expected] of [['profile-unconfigured', /не настроено/], ['profile-not-operator', /только оператор моста/], ['profile-ready', /ещё не прочитан/],
+    ['profile-progress', /уже читается/], ['profile-observed', /прочитан для текущей версии.*DEV2 · платформа synthetic-2026\.10/], ['profile-stale', /прежней версии решения/],
+    ['profile-unavailable', /профиль недоступен.*нет доступа к Target/], ['profile-invalid', /не прошёл проверку.*не подтверждает это задание/],
+    ['profile-unknown', /Результат чтения неизвестен.*время ожидания истекло/], ['profile-moved', /ещё не прочитан/], ['profile-lost', /ещё не прочитан/]]) {
+    await open(id);
+    assert.match(await text(profile()), expected, id);
+    assert.equal(await composer().getByRole('button', { name: 'Собрать конфигурацию', exact: true }).isDisabled(), true, 'no build from a profile alone: ' + id);
+    const offered = !['profile-unconfigured', 'profile-not-operator'].includes(id);
+    assert.equal(await profileButton().count(), offered ? 1 : 0, id);
+    if (!offered) continue;
+    assert.equal(await profileButton().isDisabled(), id === 'profile-progress', id);
+    if (id === 'profile-observed') assert.match(await text(composer().getByRole('list', { name: 'Профиль Target' })), /состав выпуска не привязан к профилю Target/);
+    if (!['profile-ready', 'profile-invalid', 'profile-moved', 'profile-lost'].includes(id)) continue;
+    await profileButton().click();
+    if (id === 'profile-ready') { await page.getByText(/Учебная навигация: профиль прочитан/).waitFor(); continue; }
+    const alert = profile().locator('[role=alert]');
+    await alert.waitFor();
+    assert.match(await text(alert), { 'profile-invalid': /не принят.*исполнитель другой версии/, 'profile-moved': /Решение изменилось.*версия решения изменилась/, 'profile-lost': /не повторяется автоматически/ }[id], id);
+    // Only a rejected report may be retried as is; a moved Solution or lost response needs a fresh read.
+    assert.equal(await profileButton().isDisabled(), id !== 'profile-invalid', 'no replay: ' + id);
+    assert.equal(await profile().getByRole('link', { name: 'Обновить состояние' }).count(), id === 'profile-invalid' ? 0 : 1, id);
+  }
   // Build then freeze of the accepted merged revision, with every refusal and the lost response.
   for (const id of ['build-ready', 'build-no-merge', 'build-refused', 'build-failed', 'build-stale', 'build-not-accepted', 'build-lost', 'build-malformed', 'freeze-stale', 'freeze-lost']) {
     await open(id);
@@ -150,12 +176,12 @@ try {
     if (['next-build-blocked', 'next-review-build', 'next-verify'].includes(id)) assert.match(await primary.getAttribute('href'), /view=compose/);
     if (['next-review-build', 'next-verify'].includes(id)) assert.match(await primary.getAttribute('href'), /candidate=/);
   }
-  for (const width of [1280, 390]) for (const id of ['partial-outcome', 'build-gates', 'native-pending', 'test-install', 'unknown-evidence', 'build-ready', 'freeze-lost']) {
+  for (const width of [1280, 390]) for (const id of ['partial-outcome', 'build-gates', 'profile-observed', 'profile-invalid', 'native-pending', 'test-install', 'unknown-evidence', 'build-ready', 'freeze-lost']) {
     await page.setViewportSize({ width, height: 900 }); await open(id);
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `no horizontal scroll at ${width}: ${id}`);
   }
   assert.deepEqual(errors, []);
-  console.log('Solution composer stories: build blocked with eligibility gates and reasons, build then freeze with refusals and lost response, candidate review, stale, delivery outcomes, failure/retry and next actions verified.');
+  console.log('Solution composer stories: build blocked with eligibility gates and reasons, operator Target profile refresh states, build then freeze with refusals and lost response, candidate review, stale, delivery outcomes, failure/retry and next actions verified.');
 } finally {
   await browser?.close();
   server.close();

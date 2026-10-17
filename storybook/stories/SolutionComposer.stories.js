@@ -1,5 +1,5 @@
 import { mountManagedWorkspace } from '../../web/managed/render.js';
-import { solutionComposerFixture, composerNextActionFixture, buildFlowModes, buildResponseFixtures } from '../../web/managed/composer-fixtures.js';
+import { solutionComposerFixture, composerNextActionFixture, buildFlowModes, buildResponseFixtures, profileModes, profileResponseFixtures } from '../../web/managed/composer-fixtures.js';
 
 // Same production renderer as /solutions?view=compose; synthetic candidates and a synthetic stand only.
 function story(mode) {
@@ -20,7 +20,13 @@ function story(mode) {
   const answer = key => { const value = buildResponseFixtures[key]; if (value instanceof Error) throw value; return structuredClone(value); };
   const build = async () => answer(built);
   const freeze = async () => { if (frozen) answer(frozen); root.querySelector('[role=status]').textContent = 'Учебная навигация: сборка зафиксирована; откройте состояние «Ожидает решения» в меню Storybook.'; };
-  const root = mountManagedWorkspace(model, { composed: { deliveryClient, change: explain, ...(built ? { build, freeze } : {}) },
+  // Operator Target profile refresh, answered by the synthetic refresh route of this mode.
+  const [, profileAnswer] = profileModes[mode] || [];
+  const refreshTargetProfile = async () => {
+    if (profileAnswer) throw profileResponseFixtures[profileAnswer];
+    root.querySelector('[role=status]').textContent = 'Учебная навигация: профиль прочитан; откройте состояние «Профиль Target прочитан» в меню Storybook.';
+  };
+  const root = mountManagedWorkspace(model, { composed: { deliveryClient, change: explain, refreshTargetProfile, ...(built ? { build, freeze } : {}) },
     navigate: () => { root.querySelector('[role=status]').textContent = 'Учебная навигация: выберите нужное состояние в меню Storybook.'; } });
   return root;
 }
@@ -31,6 +37,21 @@ export const BuildBlocked = { render: () => story('build-blocked'), parameters: 
 export const BuildGates = { render: () => story('build-gates'), parameters: { docs: { description: { story:
   'Условия сборки: каждое условие со своим состоянием и каждой причиной блокировки. Учебный пример: зависимость по кругу, неизвестный вид объекта, платный модуль без подтверждения лицензии и устаревший профиль Target.' } } } };
 export const EligibilityLoadError = { render: () => story('eligibility-load-error') };
+export const ProfileUnconfigured = { render: () => story('profile-unconfigured'), parameters: { docs: { description: { story:
+  'Чтение профиля Target не настроено на сервере: кнопки нет, условие «Профиль Target» остаётся невыполненным с причиной.' } } } };
+export const ProfileNotOperator = { render: () => story('profile-not-operator'), parameters: { docs: { description: { story:
+  'Участник решения видит состояние профиля, но прочитать его может только оператор моста DEV2.' } } } };
+export const ProfileReady = { render: () => story('profile-ready'), parameters: { docs: { description: { story:
+  'Оператор моста может явно прочитать профиль назначенного DEV2. Чтение только читает и выполняется только по нажатию. Ответы учебные.' } } } };
+export const ProfileProgress = { render: () => story('profile-progress') };
+export const ProfileObserved = { render: () => story('profile-observed'), parameters: { docs: { description: { story:
+  'Профиль прочитан для текущей версии решения. Нативное покрытие не получено, поэтому условие профиля и сборка остаются заблокированными с причинами.' } } } };
+export const ProfileStale = { render: () => story('profile-stale') };
+export const ProfileUnavailable = { render: () => story('profile-unavailable') };
+export const ProfileInvalid = { render: () => story('profile-invalid') };
+export const ProfileUnknown = { render: () => story('profile-unknown') };
+export const ProfileMoved = { render: () => story('profile-moved') };
+export const ProfileLost = { render: () => story('profile-lost') };
 export const BuildReady = { render: () => story('build-ready'), parameters: { docs: { description: { story:
   'Сборщик доступен, все условия подтверждены. «Собрать конфигурацию» собирает последнюю принятую версию; проверенная сборка ждёт «Зафиксировать сборку», и только зафиксированные байты попадают в список. Ответы сервера учебные.' } } } };
 export const BuildNoMerge = { render: () => story('build-no-merge'), parameters: { docs: { description: { story:

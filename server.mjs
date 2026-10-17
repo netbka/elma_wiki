@@ -24,6 +24,7 @@ import { solutionBuildEligibility } from './lib/composed-build-eligibility.mjs';
 import { composedBuildCapability, runComposedBuild, freezeComposedBuild } from './lib/composed-build.mjs';
 import { bridgeStore } from './lib/bridge.mjs';
 import { configuredMaterializationAdapter } from './lib/native-materialization-bridge.mjs';
+import { targetProfileRefresh } from './lib/target-profile-refresh.mjs';
 import { targetPresets } from './lib/target-presets.mjs';
 import { demoData } from './lib/demo.mjs';
 import { configSourceClient, configAcquisitions } from './lib/config-source.mjs';
@@ -66,7 +67,9 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
   configSource = configSourceClient({ url: process.env.CONFIG_SOURCE_API_URL, token: process.env.CONFIG_SOURCE_API_TOKEN }),
   requests = requestCoordinator(), bugPublisher = bugGitHub(), materializationEnv = process.env,
   // Trusted source of native build evidence (coverage, dependency resolution, admitted Target profile
-  // observation, compiler lock) for the build route. The service has none, so builds stay blocked.
+  // observation, compiler lock) for the build route. By default only the operator's admitted Target
+  // profile observation of the current Solution state; coverage, dependency locks and compiler stay
+  // absent until the native producer (netbka/elma365#60) supplies them, so builds stay blocked.
   buildEvidence = null } = {}) {
   const actors = actorStore(directory);
   const base = new URL(baseUrl), auth = createAuth({ baseUrl, allowLocal, sendEmail, sendVk, now, onLogin: actors.resolve }), portals = portalStore(directory, { sharedAccess: true }), projects = projectStore(directory, { sharedAccess: true }), oldDemo = demoData(), sample = oldDemo.servers.showcase, demo = {entities:sample.entities,solution:sample.solutions[0],coverage:'structural',parserVersion:'2.0.0',inventory:[],provenance:{},synthetic:true};
@@ -87,6 +90,13 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
   // Native materialization over the bridge is opt-in through explicit WIKI_NATIVE_MATERIALIZATION_* variables
   // (bridge ID, owner, pinned worker revision). Without them it is null and materializeNative stays `unavailable`.
   const nativeMaterialization = configuredMaterializationAdapter({ env: materializationEnv, bridges });
+  // Target profile observation runs only on an explicit operator refresh of one Solution, on the same
+  // configured bridge and its designated Target; admitted observations live in process memory only.
+  const targetProfiles = targetProfileRefresh({ env: materializationEnv, bridges });
+  const trustedBuildEvidence = buildEvidence ?? (async ({ solutionId }) => {
+    const { binding } = await solutions.managed.buildCapture(solutionId, SOLUTION_CATALOG);
+    return { observation: targetProfiles.current(solutionId, binding) };
+  });
   const building = new Set(); // Solutions with a native build in progress: one at a time per Solution.
   // The latest build per Solution when it validated, in process memory only: its manifest and evidence carry
   // in-process provenance marks, so a restart drops it. POST /api/solutions/:id/composed freezes and consumes it (PLAN-01 B1).
@@ -264,17 +274,34 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
         return send(res, releaseId ? 200 : 201, releaseId ? await handoffs.change(id, releaseId, input, session.user) : await handoffs.create(id, input, session.user));
       }
       // Composer build eligibility (#94 MR-04/MR-05): scope, native coverage, dependency locks,
-      // Target profile and materialization, each with its blocking reasons. Read-only: it
-      // requests no Target observation and enables no build.
+      // Target profile and materialization, each with its blocking reasons. Read-only: it uses only
+      // an operator observation already admitted for this exact Solution state, requests none and enables no build.
       const eligibilityRoute = /^\/api\/solutions\/([^/]+)\/composed-eligibility$/.exec(pathname);
       if (eligibilityRoute) {
         if (!session) return send(res, 404, { error: 'Решение не найдено' });
         const [, id] = eligibilityRoute;
         await solutions.managed.authorize(id, SOLUTION_CATALOG);
         if (req.method !== 'GET') return send(res, 405, { error: 'Только чтение' });
-        const { revision, capture } = await solutions.managed.buildCapture(id, SOLUTION_CATALOG);
+        const { revision, capture, binding } = await solutions.managed.buildCapture(id, SOLUTION_CATALOG);
         if (!capture) return send(res, 409, { error: 'Нет принятого полного экспорта решения' });
-        return send(res, 200, { solutionId: id, revision, ...solutionBuildEligibility({ capture, materialization: await composedBuildCapability(nativeMaterialization), now: new Date().toISOString() }) });
+        return send(res, 200, { solutionId: id, revision, ...solutionBuildEligibility({ capture, observation: targetProfiles.current(id, binding),
+          materialization: await composedBuildCapability(nativeMaterialization), now: new Date().toISOString() }),
+          targetProfileRefresh: targetProfiles.status(id, binding, session.user) });
+      }
+      // Explicit operator Target profile refresh (#94 MR-05, P8): the configured bridge owner asks the
+      // configured designated Target for its profile, bound to this Solution's current state. The body
+      // names only the revision it was read at; bridge, owner, Target and requirements are server-derived.
+      const profileRoute = /^\/api\/solutions\/([^/]+)\/target-profile$/.exec(pathname);
+      if (profileRoute) {
+        if (!session) return send(res, 404, { error: 'Решение не найдено' });
+        const [, id] = profileRoute;
+        await solutions.managed.authorize(id, SOLUTION_CATALOG);
+        if (req.method !== 'POST') return send(res, 405, { error: 'Метод не поддерживается' });
+        if (req.headers['content-type']?.split(';')[0] !== 'application/json') return send(res, 415, { error: 'Требуется JSON' });
+        const input = JSON.parse((await body(req, 1024)).toString('utf8'));
+        const { statusCode, body: result } = await targetProfiles.refresh({ solutionId: id, input, actor: session.user,
+          load: () => solutions.managed.buildCapture(id, SOLUTION_CATALOG) });
+        return send(res, statusCode, result);
       }
       // Native build of a resolved change (#94 MR-03, PLAN-01 C2): opt-in through WIKI_NATIVE_MATERIALIZATION_*
       // and a healthy bridge. The body names only the change and revision; inputs, evidence and output are
@@ -291,7 +318,7 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
         building.add(id);
         try {
           const { statusCode, body: result, build } = await runComposedBuild({ solutionId: id, input, managed: solutions.managed, catalog: SOLUTION_CATALOG,
-            adapter: nativeMaterialization, evidence: buildEvidence });
+            adapter: nativeMaterialization, evidence: trustedBuildEvidence });
           if (build) composedBuilds.set(id, build); else composedBuilds.delete(id);
           return send(res, statusCode, result);
         } finally { building.delete(id); }
@@ -658,6 +685,7 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
   });
   server.loginBot = loginBot;
   server.nativeMaterialization = nativeMaterialization;
+  server.targetProfiles = targetProfiles;
   server.composedBuilds = composedBuilds;
   if (loginBot) {
     server.once('listening', () => { void loginBot.run(); });

@@ -1,6 +1,6 @@
 import { dateLabel } from './model.js';
 import { mountDelivery } from '../releases/delivery.js';
-import { buildEligibility, buildGateLabels, buildGateStatuses, buildBlockReasons, grouping, candidateEvidence, composerBuild } from './labels.js';
+import { buildEligibility, buildGateLabels, buildGateStatuses, buildBlockReasons, grouping, candidateEvidence, composerBuild, targetProfileRefresh as profileLabels } from './labels.js';
 // Solution composer (#94 MR-06): a pure projection of server-frozen composed
 // candidates plus the server's build capability. The server stays authoritative:
 // it builds the accepted merged revision, holds the validated build and freezes it
@@ -65,6 +65,36 @@ export function buildEligibilityView(eligibility) {
   return { eligible: eligibility.eligible === true && gates.every(gate => gate.status === 'verified'), loaded: true, gates };
 }
 
+// The operator's Target profile refresh as the server reports it next to eligibility. Only a
+// server-reported configured bridge, an operator session and a known Solution revision offer it.
+const profileDetail = key => profileLabels.details[key] || `${profileLabels.unknownDetail} ${key}`;
+export function targetProfileView(eligibility) {
+  const refresh = eligibility && !eligibility.loadError ? eligibility.targetProfileRefresh : null;
+  if (!refresh || typeof refresh !== 'object') return { shown: false };
+  const last = refresh.last && typeof refresh.last === 'object' ? refresh.last : null;
+  const list = value => Array.isArray(value) ? value.filter(row => typeof row === 'string') : [];
+  const state = refresh.configured !== true ? (refresh.reason === 'target-not-designated' ? 'target-not-designated' : 'target-profile-observation-unconfigured')
+    : refresh.inProgress === true ? 'in-progress' : refresh.current === true ? 'observed' : refresh.staleInputs === true ? 'stale'
+    : last?.outcome === 'stale' ? 'moved' : ['unavailable', 'invalid', 'unknown'].includes(last?.outcome) ? last.outcome : 'never';
+  const details = ['unavailable', 'invalid', 'unknown', 'moved'].includes(state) ? [...(last?.reason ? [last.reason] : []), ...list(last?.errors)].map(profileDetail) : [];
+  const profile = state === 'observed' && last?.targetProfile ? last.targetProfile : null;
+  const target = typeof refresh.target === 'string' ? refresh.target.toUpperCase() : null;
+  const revision = Number.isInteger(eligibility.revision) ? eligibility.revision : null;
+  return { shown: true, state, message: profileLabels.states[state], details, target,
+    profile: profile ? `${profileLabels.profile} ${target ?? ''} · ${profileLabels.platform} ${profile.platformVersion} · ${String(profile.digest).slice(0, 12)} · ${profileLabels.observedAt} ${dateLabel(profile.observedAt)}` : '',
+    operator: refresh.configured === true && refresh.operator === true, expectedRevision: revision,
+    canRefresh: refresh.configured === true && refresh.operator === true && refresh.inProgress !== true && revision !== null };
+}
+// A refused, failed or lost refresh request as one notice. A moved Solution, a running read or an
+// unknown outcome needs a fresh read before another one; nothing is repeated automatically.
+export function targetProfileFailureView(error = {}) {
+  if (!error.status) return { message: error.requiresRefresh ? profileLabels.lost : error.message || profileLabels.outcomes.unknown, reasons: [], refresh: true };
+  const body = error.body && typeof error.body === 'object' ? error.body : {};
+  const reasons = [...(typeof body.reason === 'string' ? [body.reason] : []), ...(Array.isArray(body.errors) ? body.errors.filter(row => typeof row === 'string') : [])].map(profileDetail);
+  return { message: profileLabels.outcomes[body.outcome] || profileLabels.outcomes.refused, reasons,
+    refresh: !!error.requiresRefresh || ['stale', 'in-progress', 'unknown'].includes(body.outcome) };
+}
+
 // A refused or lost build/freeze request as one notice. A request whose inputs
 // moved (or whose response was lost) needs a fresh read before another build;
 // a blocked or failed build may be retried as is.
@@ -116,7 +146,7 @@ export function composerView({ candidates = [], build = null, eligibility = null
     : !current.length ? 'Все сборки устарели. Нужна новая сборка для текущих принятых изменений.'
     : current.some(row => row.status === 'approved') ? 'Есть принятая сборка. Проверьте её доставкой и чтением результата.'
     : 'Есть сборка, ожидающая решения по точным байтам.';
-  return { rows, build: buildView, selected, summary, missingSelection: !!selectedId && !selected };
+  return { rows, build: buildView, targetProfile: targetProfileView(eligibility), selected, summary, missingSelection: !!selectedId && !selected };
 }
 
 export function composerGate(row, action, reason = '') {
@@ -159,6 +189,7 @@ export function mountComposer(model = {}, actions = {}) {
   }
   const outcome = el('div', undefined, 'managed-build-outcome');
   build.append(outcome, mountEligibility(view.build.eligibility));
+  if (view.targetProfile.shown) build.append(mountTargetProfile(view.targetProfile, actions, { status, error, link }));
   root.append(build);
   if (canBuild) mountBuildFlow({ start, outcome, status, error, target, actions, link });
 
@@ -231,6 +262,39 @@ function mountEligibility(eligibility) {
     list.append(item);
   }
   root.append(list);
+  return root;
+}
+
+// The operator's explicit read-only Target profile refresh. One request per click; a lost
+// response or moved Solution disables it until a fresh read of the page.
+function mountTargetProfile(view, actions, { status, error, link }) {
+  const root = el('div', undefined, 'managed-target-profile'); root.setAttribute('role', 'group'); root.setAttribute('aria-label', profileLabels.heading);
+  root.dataset.state = view.state;
+  root.append(el('h4', profileLabels.heading), el('p', view.message, view.state === 'observed' ? 'managed-accepted' : 'managed-note'));
+  if (view.profile) root.append(el('p', view.profile, 'change-text'));
+  if (view.details.length) { const list = el('ul'); list.setAttribute('aria-label', profileLabels.reasons); view.details.forEach(text => list.append(el('li', text))); root.append(list); }
+  if (['target-profile-observation-unconfigured', 'target-not-designated'].includes(view.state)) return root;
+  if (!view.operator) { root.append(el('p', profileLabels.operatorOnly, 'managed-muted')); return root; }
+  const start = el('button', `${profileLabels.start}${view.target ? ' ' + view.target : ''}`); start.type = 'button';
+  const outcome = el('div', undefined, 'managed-profile-outcome');
+  let busy = false, blocked = !view.canRefresh || typeof actions.refreshTargetProfile !== 'function';
+  const sync = () => { start.disabled = busy || blocked; };
+  start.onclick = async () => {
+    if (busy || blocked) return;
+    busy = true; sync(); error.textContent = ''; outcome.replaceChildren(); status.textContent = profileLabels.running;
+    try { await actions.refreshTargetProfile({ expectedRevision: view.expectedRevision }); status.textContent = profileLabels.done; }
+    catch (e) {
+      const failure = targetProfileFailureView(e);
+      blocked = failure.refresh; status.textContent = '';
+      const notice = el('div', undefined, 'managed-error'); notice.setAttribute('role', 'alert');
+      notice.append(el('p', failure.message));
+      if (failure.reasons.length) { const list = el('ul'); list.setAttribute('aria-label', profileLabels.reasons); failure.reasons.forEach(text => list.append(el('li', text))); notice.append(list); }
+      if (failure.refresh) notice.append(link(profileLabels.refresh, actions.listHref, true));
+      outcome.replaceChildren(notice);
+    } finally { busy = false; sync(); }
+  };
+  sync();
+  root.append(start, el('p', profileLabels.readOnly, 'managed-muted'), outcome);
   return root;
 }
 
