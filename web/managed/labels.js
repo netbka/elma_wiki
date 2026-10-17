@@ -28,7 +28,7 @@ export const stepReasons = { noBuilder: 'нет сборщика', builderUnknow
 export const stepStates = { done: 'готово', current: 'сейчас', next: 'далее' };
 
 // Solution header (UX-04): status badge, version line, stepper and tab navigation names
-export const header = { versionFrom: 'Версия от', status: 'Состояние', steps: 'Этапы решения', sections: 'Разделы решения', handoff: 'Передача' };
+export const header = { versionFrom: 'Версия от', reviewingFrom: 'Рассматривается: версия от', reviewingUndated: 'Рассматривается новая версия', currentFrom: 'Текущая: версия от', status: 'Состояние', steps: 'Этапы решения', sections: 'Разделы решения', handoff: 'Передача' };
 
 // Buttons: one primary per page, verb first
 export const actions = {
@@ -36,7 +36,7 @@ export const actions = {
   reviewChanges: 'Рассмотреть изменения', decide: 'Решение по версии', accept: 'Принять',
   requestFixes: 'Запросить доработку', commentOnly: 'Только комментарий', closeNoChanges: 'Закрыть без изменений',
   requestChange: 'Запросить изменение', newRequest: 'Новый запрос', send: 'Отправить',
-  write: 'Написать', open: 'Открыть', openDiagram: 'Открыть схему', explain: 'Объяснить',
+  write: 'Написать', open: 'Открыть', openDiagram: 'Открыть схему', explain: 'Объяснить', openObjects: 'Открыть просмотр объектов', explainModuleHint: 'Короткое объяснение модуля простыми словами',
   explainSolution: 'Объяснить решение', explainProcess: 'Объяснить этот процесс', explainStep: 'Объяснить этот шаг',
   details: 'Подробнее', show: 'показать', hide: 'скрыть', downloadReport: 'Скачать отчёт', toArchive: 'В архив',
   retry: 'Повторить', cancel: 'Отмена', buildConfiguration: 'Собрать конфигурацию', chooseVersion: 'выберите версию'
@@ -55,7 +55,7 @@ export const ribbon = { modified: 'Изменено', added: 'Добавлено
 // Review summary (UX-03)
 export const reviewSummary = {
   filter: 'Показать', filterLabel: 'Фильтр объектов', baseRevision: 'Основа: ревизия', noChangedObjects: 'Изменённых объектов нет',
-  unknownParts: 'Нераспознанных частей', dependencyProblems: 'Зависимостей с вопросами', responsibility: 'Ответственность', uploaded: 'Загрузил'
+  unknownParts: 'Нераспознанных частей', dependencyProblems: 'Зависимостей требует проверки', responsibility: 'Ответственность', uploaded: 'Загрузил'
 };
 
 // Facts shown as chips
@@ -73,7 +73,10 @@ export const facts = {
 export const objectKinds = { process: 'Процесс', processes: 'Процессы', form: 'Экран', forms: 'Экраны', application: 'Приложение', directory: 'Справочник', data: 'Данные', permissions: 'Права', other: 'Прочее', localization: 'Локализация' };
 // Service -> kind group of the Solution tab, in display order.
 export const kindGroups = { processes: 'Процессы', forms: 'Экраны', data: 'Данные', permissions: 'Права', localization: 'Локализация', other: 'Прочее' };
-export const grouping = { module: 'Модуль', withoutModule: 'Без модуля', objects: 'объектов', showAll: 'показать все', code: 'код', andMore: 'и ещё' };
+// Russian count forms [1, 2-4, 5+]: plural(3, ['экран', 'экрана', 'экранов']) is '3 экрана'.
+export const plural = (count, [one, few, many]) => { const n = Math.abs(count) % 100, d = n % 10; return `${count} ${n > 10 && n < 20 ? many : d === 1 ? one : d >= 2 && d <= 4 ? few : many}`; };
+export const pendingChanges = count => `${plural(count, ['изменение ожидает', 'изменения ожидают', 'изменений ожидают'])} рассмотрения.`;
+export const grouping = { module: 'Модуль', withoutModule: 'Без модуля', objects: ['объект', 'объекта', 'объектов'], showAll: 'показать все', code: 'код', andMore: 'и ещё' };
 
 // Change request form (UX-07). Keys follow the stored request: kinds and statuses
 // are the server's enumerations, shown in the product vocabulary.
@@ -127,7 +130,8 @@ export const summaries = {
 // Gate reasons shown on a disabled decision button
 export const gates = { chooseConflictVersions: 'Сначала выберите версию для конфликтов',
   resolveConflict: 'Принятая версия и это изменение содержат разные правки объекта. Разрешите конфликт выше: выберите версию для каждого объекта.',
-  partMergeUnbuildable: 'Объединение по частям пока не создаёт файл конфигурации. Чтобы принять изменение, выберите версию объекта целиком.' };
+  partMergeUnbuildable: 'Объединение по частям пока не создаёт файл конфигурации. Чтобы принять изменение, выберите версию объекта целиком.',
+  confirmChange: 'Подтверждаю изменение', confirmEachChange: 'Подтвердите каждое изменение: отметьте «Подтверждаю изменение» на его карточке.' };
 
 // Decision dialog (UX-03b): one button opens one dialog with three choices.
 export const decision = {
@@ -267,13 +271,14 @@ export const diagram = { changedSteps: 'Изменённые шаги выдел
 
 // "О решении" (UX-05): purpose paragraph, module cards, activity list
 export const about = {
+  leadProcesses: 'Решение ведёт процессы', leadScreens: 'Пользователи работают с экранами', generateDraft: 'Составить черновик по экспорту',
   purposeIntro: 'Решение объединяет модули', purposeLimits: 'Назначение описано по названиям объектов экспорта. Работа в ELMA не наблюдалась; проверьте и дополните описание.',
   noModules: 'Объекты решения не отнесены к модулям.', moduleNoNames: 'Названия объектов в экспорте не указаны.',
   processesList: 'Процессы', screensList: 'Экраны', dataList: 'Данные',
   draftNote: 'Черновик подготовлен по данным экспорта. Проверьте и дополните.', loading: 'Готовим описание…', savedBy: 'Сохранил', edit: 'Изменить', save: 'Сохранить описание',
   text: 'Описание решения', stale: 'Состав решения изменился после сохранения. Проверьте описание.', history: 'История описания',
   archivedReadOnly: 'Решение в архиве. Описание доступно для чтения.', loadFailed: 'Описание не получено', blocked: 'Сохранение заблокировано до обновления. Ваш текст остаётся на странице.',
-  moduleCounts: { processes: 'процессов', forms: 'экранов', data: 'данных', other: 'прочих' }, noActivity: 'Событий пока нет'
+  moduleCounts: { processes: ['процесс', 'процесса', 'процессов'], forms: ['экран', 'экрана', 'экранов'], data: ['объект данных', 'объекта данных', 'объектов данных'], other: ['прочий объект', 'прочих объекта', 'прочих объектов'] }, noActivity: 'Событий пока нет'
 };
 export const activity = {
   events: { created: 'Решение загружено', prepared: 'Версия подготовлена', 'review-comment': 'Комментарий', 'review-reject': 'Запрошена доработка', 'review-resolve': 'Замечание устранено',

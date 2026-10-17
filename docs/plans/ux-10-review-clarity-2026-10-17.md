@@ -25,6 +25,17 @@ only. The 390 px checks in the #41 checklist and the PR rules of section 12 of
 the intuitive-UI plan stop applying to the Solution UI; the checklist row is
 removed in UX-10a's PR.
 
+## Delivery status 2026-10-17
+
+UX-10a to UX-10f are delivered together on one branch, stacked on UX-10g:
+
+- a: while a review is open the headline reads "Рассматривается: версия от …" (or "Рассматривается новая версия" without a snapshot date) with "Текущая: версия от …" on the second line; the badge and stepper projection were already in place. The 390 px checklist step now applies to public pages only.
+- c: the change-card checkbox is "Подтверждаю изменение" and the gate reason quotes it (`gates.confirmChange`, `gates.confirmEachChange`).
+- d: the dependency chip reads "Зависимостей требует проверки: N", appears only when the version changes something and links to `#solution-dependencies`; the stepper reason is no longer bold.
+- e: after acceptance the primary action is "Обновить" (a new version); "Открыть просмотр объектов" is a secondary link on О решении; module cards carry "Короткое объяснение модуля простыми словами" above Объяснить.
+- f: `plural` in `labels.js` gives "1 экран / 3 экрана / 5 экранов" for module counts, search results and pending reviews; an e-mail login is shown as is without invented initials; a known name keeps its initials. "Отправить комментарий" was already the decision-dialog label.
+- b: the "Для чего" draft opens with the declared process and screen names, modules second, limits last; without such names "Написать" opens an empty editor and "Составить черновик по экспорту" is the secondary choice.
+
 ## Order and dependencies
 
 UX-10a -> UX-10c (both touch the review header and gate) -> UX-10d. UX-10b,

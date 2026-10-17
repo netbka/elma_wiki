@@ -62,7 +62,7 @@ test('one next action prioritizes blockers, fresh review and stale recovery over
   reopened.openFindings = [{ artifactId: 'accepted-review', text: 'New evidence' }];
   assert.equal(solutionNextAction(reopened).artifact, 'accepted-review');
   assert.equal(solutionNextAction(reopened).view, 'review');
-  assert.equal(solutionNextAction(managedFixture().workspace).view, 'solution');
+  assert.equal(solutionNextAction(managedFixture().workspace).view, 'full', 'after acceptance the next step is a new version; opening objects is navigation');
   assert.equal(solutionNextAction(ready, { error: 'offline' }).label, 'Обновить состояние');
   ready.delivery = { supported: true, state: 'deployed-unverified' };
   assert.equal(solutionNextAction(ready).state, 'test-awaiting-verification');
@@ -193,7 +193,7 @@ test('UX-05: module cards count business rows by kind, the activity list names p
   assert.deepEqual(cards.map(card => moduleCardView(card).title), [{ text: 'Служебные поездки', technical: false }, { text: 'travel_expenses', technical: false }]);
   const model = managedFixture('about-saved'), feed = activityFeed(model.workspace, 8, model.now);
   assert.deepEqual(feed.map(row => [row.label, row.actor.name, row.actor.initials, row.when]),
-    [['Изменение принято', 'Reviewer', 'R', '2 ч назад'], ['Комментарий', 'Reviewer', 'R', '4 ч назад'], ['Решение загружено', 'Uploader', 'U', '5 ч назад']]);
+    [['Изменение принято', 'reviewer@example.org', '', '2 ч назад'], ['Комментарий', 'reviewer@example.org', '', '4 ч назад'], ['Решение загружено', 'uploader@example.org', '', '5 ч назад']]);
   assert.equal(new Set(feed.map(row => row.actor.name)).size, 2);
   assert.equal(activityFeed({ audit: [] }).length, 0);
   const now = Date.parse('2026-10-15T12:00:00Z');

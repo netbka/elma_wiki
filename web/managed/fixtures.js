@@ -86,7 +86,7 @@ export function managedFixture(mode = 'overview') {
   // UX-03b: a version closed without changes, and the decision dialog open on a review.
   if (mode === 'summary-closed') { review.closedAt = at; review.closedDecision = { actor, reason: 'no-difference' }; }
   if (mode === 'archived') { workspace.status = 'archived'; workspace.history.push({ type: 'archived' }); }
-  if (mode === 'pending') workspace.pending = [{ artifactId: review.artifactId, kind: review.kind, revision: 1, stale: false, options: review.options }];
+  if (mode === 'pending') workspace.pending = [{ artifactId: review.artifactId, kind: review.kind, revision: 1, stale: false, options: review.options, snapshot: { ...base.snapshot, createdAt: '2026-10-07T13:00:00Z' } }];
   const model = { synthetic: true, shared: true, home: '/solutions', api: '/api/solutions', view: 'overview', workspace };
   if (['review', 'conflict', 'overlap', 'ambiguous', 'decision'].includes(mode) || mode.startsWith('review-') || mode.startsWith('elements-') || mode.startsWith('summary-') || mode.startsWith('viewed-')) Object.assign(model, { view: 'review', review });
   if (mode === 'decision') model.decisionOpen = true;

@@ -1,4 +1,4 @@
-import { requests as requestLabels, grouping as groupingLabels, classificationLabels, elementClassificationLabels, elementKindLabels, actions as actionLabels, summaries, kindGroups, displayLabel, isTechnicalKey, ribbon, steps as stepLabels, stepReasons, statuses, activity as activityLabels, buildEligibility, candidateEvidence, gates as gateLabels, composerBuild } from './labels.js';
+import { requests as requestLabels, grouping as groupingLabels, pendingChanges, classificationLabels, elementClassificationLabels, elementKindLabels, actions as actionLabels, summaries, kindGroups, displayLabel, isTechnicalKey, ribbon, steps as stepLabels, stepReasons, statuses, activity as activityLabels, buildEligibility, candidateEvidence, gates as gateLabels, composerBuild } from './labels.js';
 // Review classification wording lives in labels.js (UX-00); these names stay for
 // existing importers.
 export const labels = classificationLabels;
@@ -167,7 +167,7 @@ export function reviewGate(review, boundaryKeys = [], resolutions = {}) {
   if (review.kind === 'change' && !head && review.merge?.plan?.status === 'resolution-required') return gateLabels.resolveConflict;
   if (review.kind === 'change' && !head && review.rows.some(row => row.conflict))
     return review.merge?.available ? gateLabels.resolveConflict : 'Другая команда уже изменила этот объект. Сначала согласуйте изменения через новый полный снимок.';
-  if (review.kind === 'change' && review.rows.some(row => row.boundaryCrossing && !boundaryKeys.includes(row.key))) return 'Подтвердите каждое изменение объекта исходной базы.';
+  if (review.kind === 'change' && review.rows.some(row => row.boundaryCrossing && !boundaryKeys.includes(row.key))) return gateLabels.confirmEachChange;
   if (review.kind === 'reconciliation' && review.rows.some(row => row.classification === 'conflict' && !['keep-working', 'take-snapshot'].includes(resolutions[row.key]))) return 'Выберите версию для каждого конфликта.';
   return '';
 }
@@ -212,7 +212,7 @@ export function solutionNextAction(state, { error, stale, view, composed } = {})
   if (fresh) return {
     state: problem ? problem.attention.conflicts ? 'conflict' : 'unknown' : fixes ? 'needs-fixes' : 'unreviewed',
     summary: problem ? problem.attention.conflicts ? 'В изменении есть конфликт. Выберите версию для каждого объекта.' : 'Часть изменения не распознана. Проверьте исходные данные.'
-      : fixes ? 'Для изменения запрошены исправления.' : `${pending.length} изменений ожидают рассмотрения.`,
+      : fixes ? 'Для изменения запрошены исправления.' : pendingChanges(pending.length),
     label: problem?.attention.conflicts ? 'Разрешить конфликт' : fixes && !problem ? 'Добавить исправление' : 'Рассмотреть изменение',
     view: fixes && !problem ? fresh.kind === 'change' ? 'change' : 'full' : 'review', artifact: fresh.artifactId
   };
@@ -220,7 +220,7 @@ export function solutionNextAction(state, { error, stale, view, composed } = {})
   if (state.openFindings?.length) return { state: 'needs-fixes', summary: 'Есть замечания к принятому изменению.', label: 'Рассмотреть замечания', view: 'review', artifact: state.openFindings[0].artifactId };
   // Delivery states are projected only when the existing delivery capability is supplied.
   if (state.delivery?.supported && state.delivery.state === 'deployed-unverified') return { state: 'test-awaiting-verification', summary: 'Версия отправлена в TEST. Результат ещё не проверен.', label: 'Проверить TEST', view: 'delivery' };
-  if (state.delivery?.supported && state.delivery.state === 'verified') return { state: 'verified', summary: 'TEST проверен. Работа завершена.', label: 'Открыть решение', view: 'solution' };
+  if (state.delivery?.supported && state.delivery.state === 'verified') return { state: 'verified', summary: 'TEST проверен. Работа завершена.', label: actionLabels.refresh, view: 'full' };
   const accepted = state.changes?.length || state.reconciliations?.length;
   if (accepted && composed && !composed.loadError) {
     const current = (composed.candidates || []).filter(row => row.inputsStatus === 'current').sort((a, b) => a.createdAt.localeCompare(b.createdAt)).at(-1);
@@ -241,7 +241,7 @@ export function solutionNextAction(state, { error, stale, view, composed } = {})
       : { state: 'build-blocked', summary: 'Изменения приняты. Сборка конфигурации заблокирована: нативная материализация ELMA недоступна.', label: 'Открыть сборку', view: 'compose' };
   }
   // The fixed path has one way to create a new version: pull again (`full`).
-  return accepted ? { state: 'accepted', summary: summaries.accepted, label: view === 'solution' ? actionLabels.refresh : 'Открыть решение', view: view === 'solution' ? 'full' : 'solution' }
+  return accepted ? { state: 'accepted', summary: summaries.accepted, label: actionLabels.refresh, view: 'full' }
     : { state: 'ready', summary: summaries.ready, label: actionLabels.refresh, view: 'full' };
 }
 
@@ -313,12 +313,15 @@ export function lifecycleSteps(state, next = solutionNextAction(state), composed
 // trusted actor record (login is an e-mail or a messenger login; the id is never
 // shown). Pure: no lookups, no claims about the person beyond their login.
 export function actorDisplay(actor) {
+  // A person's name is known from the actor's name or a login that is not an
+  // e-mail; an e-mail login is shown as is, without initials invented from it.
   const login = typeof actor === 'string' ? actor : actor?.login || '';
-  const local = login.includes('@') ? login.slice(0, login.indexOf('@')) : login;
-  const words = local.split(/[\s._-]+/).filter(Boolean).map(word => word[0].toLocaleUpperCase('ru-RU') + word.slice(1));
-  const name = words.join(' ') || (actor?.id ? '…' : '');
-  const initials = words.slice(0, 2).map(word => word[0]).join('').toLocaleUpperCase('ru-RU') || '?';
-  return { name, initials, login };
+  const given = typeof actor?.name === 'string' ? actor.name.trim() : '';
+  const words = given ? given.split(/\s+/) : login && !login.includes('@') ? login.split(/[\s._-]+/).filter(Boolean).map(word => word[0].toLocaleUpperCase('ru-RU') + word.slice(1)) : [];
+  const known = words.length > 0;
+  const name = known ? words.join(' ') : login || (actor?.id ? '…' : '');
+  const initials = known ? words.slice(0, 2).map(word => word[0]).join('').toLocaleUpperCase('ru-RU') : '';
+  return { name, initials, login, known };
 }
 export function relativeTime(value, now = Date.now()) {
   const at = value ? new Date(value).getTime() : NaN;
@@ -338,6 +341,12 @@ export function moduleCards(rows = []) {
     const systemRows = grouped.system.filter(row => objectModule(row) === module);
     return { module, name, count, processes: of('processes'), forms: of('forms'), data: of('data'), other: of('other'), systemRows, system: systemRows.length };
   });
+}
+// UX-10b: the business names a purpose draft can open with: processes and screens
+// whose export declares a name, not a bare code.
+export function purposeNames(rows = []) {
+  const cards = moduleCards(rows), named = list => list.filter(row => typeof row.name === 'string' && row.name.trim() && row.name.trim() !== row.code).map(row => row.name.trim());
+  return { processes: named(cards.flatMap(card => card.processes)), screens: named(cards.flatMap(card => card.forms)) };
 }
 // Activity list from the attributed audit records the server already keeps; newest first.
 export function activityFeed(state, limit = 8, now = Date.now()) {

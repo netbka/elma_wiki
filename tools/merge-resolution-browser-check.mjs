@@ -89,7 +89,7 @@ try {
       reviewedBoundaryKeys: sameTeam.rows.filter(row => row.boundaryCrossing).map(row => row.key), expectedDiscussionRevision: 0 } });
   assert.equal(refusal.status(), 409); assert.match((await refusal.json()).error, /saved merge resolution/);
   await page.goto(`${base}/solutions?id=${state.id}&view=review&artifact=${sameTeam.artifactId}`);
-  for (const checkbox of await page.getByRole('checkbox', { name: 'Изменение принятого объекта проверено', exact: true }).all()) await checkbox.check();
+  for (const checkbox of await page.getByRole('checkbox', { name: 'Подтверждаю изменение', exact: true }).all()) await checkbox.check();
   await page.getByRole('button', { name: 'Решение по версии', exact: true }).click();
   const decision = page.getByRole('dialog', { name: 'Решение по версии' });
   assert.equal(await decision.getByRole('radio', { name: 'Принять', exact: true }).isDisabled(), true);
@@ -99,7 +99,7 @@ try {
   await section.getByLabel('Причина решения').fill('Проверено совмещение двух изменений одной команды');
   await section.getByRole('button', { name: 'Сохранить решение', exact: true }).click();
   await section.getByText('Действует для текущих версий').waitFor();
-  for (const checkbox of await page.getByRole('checkbox', { name: 'Изменение принятого объекта проверено', exact: true }).all()) await checkbox.check();
+  for (const checkbox of await page.getByRole('checkbox', { name: 'Подтверждаю изменение', exact: true }).all()) await checkbox.check();
   await page.getByRole('button', { name: 'Решение по версии', exact: true }).click();
   assert.equal(await decision.getByRole('radio', { name: 'Принять', exact: true }).isEnabled(), true);
   await decision.getByRole('button', { name: 'Отмена', exact: true }).click();
@@ -125,7 +125,7 @@ try {
       await page.getByRole('status').filter({ hasText: resolved ? /Конфликтов 0/ : /Конфликтов 1/ }).waitFor();
       await page.getByRole('button', { name: resolved ? 'Изменено · 1' : 'Конфликтов · 1', exact: true }).click();
       await page.getByRole('heading', { name: /Лимит командировки/ }).waitFor();
-      for (const checkbox of await page.getByRole('checkbox', { name: 'Изменение принятого объекта проверено', exact: true }).all()) await checkbox.check();
+      for (const checkbox of await page.getByRole('checkbox', { name: 'Подтверждаю изменение', exact: true }).all()) await checkbox.check();
       await page.getByRole('button', { name: 'Решение по версии', exact: true }).click();
       const dialog = page.getByRole('dialog', { name: 'Решение по версии' });
       assert.equal(await dialog.getByRole('radio', { name: 'Принять', exact: true }).isDisabled(), !resolved, mode);

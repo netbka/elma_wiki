@@ -6,7 +6,7 @@ import { mountExplanation } from '../explanations/render.js';
 import { mountRelease } from '../releases/render.js';
 import { hasAcceptedFullExport, requestCounts, fieldRequestCounts, viewedProgress, acceptedMergeTarget } from './model.js';
 import { mountAcquisition, mountSolutionPull, serverFromConnection } from './acquisition.js';
-import { actions as actionLabels, pull as pullLabels, partMerge, reviewPlain, solutionList } from './labels.js';
+import { actions as actionLabels, pull as pullLabels, partMerge, reviewPlain, solutionList, gates as gateLabels } from './labels.js';
 import { mountDependencies } from './dependencies.js';
 import { mountMergeResolution, mergeResolutionView } from './merge.js';
 import { mountComposer } from './composer.js';
@@ -107,8 +107,11 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
     const next = solutionNextAction(state, model), status = solutionStatus(next);
     const headline = el('p', undefined, 'managed-headline'), badge = el('span', status.label, 'managed-badge managed-badge-' + status.key);
     badge.setAttribute('aria-label', `${headerLabels.status}: ${status.label}`);
-    headline.append(badge, ' · ', `${headerLabels.versionFrom} ${dateLabel(state.baselineAcceptedAt)}`);
+    // While a review is open the headline names the reviewed version, not the accepted one.
+    const reviewing = ['awaitingReview', 'conflict'].includes(status.key) ? (state.pending || []).find(row => !row.stale) : null, reviewedAt = reviewing?.snapshot?.createdAt;
+    headline.append(badge, ' · ', reviewing ? reviewedAt ? `${headerLabels.reviewingFrom} ${dateLabel(reviewedAt)}` : headerLabels.reviewingUndated : `${headerLabels.versionFrom} ${dateLabel(state.baselineAcceptedAt)}`);
     context.append(headline);
+    if (reviewing && state.baselineAcceptedAt) context.append(el('p', `${headerLabels.currentFrom} ${dateLabel(state.baselineAcceptedAt)}`, 'managed-muted managed-current-version'));
     const stepper = el('ol', undefined, 'managed-stepper'); stepper.setAttribute('aria-label', headerLabels.steps);
     for (const step of lifecycleSteps(state, next, model.composed)) {
       const item = el('li', undefined, 'managed-step'); item.dataset.state = step.state;
@@ -171,6 +174,8 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
       const actionsBar = el('div', undefined, 'managed-actions');
       if (next.action !== 'reopen') actionsBar.append(link(next.label, next.view === 'compose' ? composeHref(next.candidate) : workspaceUrl(state.id, next.view, next.artifact), true));
       if (state.status !== 'archived' && next.view !== 'full') actionsBar.append(link(model.shared ? actionLabels.refresh : 'Обновить версию', workspaceUrl(state.id, 'full')));
+      // Viewing the objects is navigation, never the next lifecycle step.
+      if (view === 'overview' && state.current?.length) actionsBar.append(link(actionLabels.openObjects, workspaceUrl(state.id, 'solution')));
       context.append(actionsBar);
       // UX-07: Запросы has the same header; the tab body is the list and the selected record.
       if (view === 'requests' && model.shared) {
@@ -518,7 +523,11 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
     if (server) chip(`${facts.server}: ${pullLabels.serverNames[server] || server}`);
     if (review.uploadedBy) chip(`${facts.loadedBy}: ${review.uploadedBy.login}`);
     if (summary.unknownParts) chip(`${summaryLabels.unknownParts}: ${summary.unknownParts}`, 'managed-chip-warn');
-    if (summary.dependencyProblems) chip(`${summaryLabels.dependencyProblems}: ${summary.dependencyProblems}`, 'managed-chip-warn');
+    // Dependencies matter for a version that changes something; the chip leads to the section that explains them.
+    if (summary.dependencyProblems && summary.changed && review.dependencies) {
+      const item = el('li', undefined, 'managed-chip-warn'), jump = el('a', `${summaryLabels.dependencyProblems}: ${summary.dependencyProblems}`, 'managed-link'); jump.href = '#solution-dependencies';
+      item.append(jump); chips.append(item);
+    }
     summaryBlock.append(chips); content.append(summaryBlock);
     const more = el('details', undefined, 'managed-more'); more.append(el('summary', actionLabels.details));
     if (review.uploadedBy) more.append(el('p', `Загрузил: ${review.uploadedBy.login}`));
@@ -688,7 +697,7 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
       }
       if (row.removed) card.append(el('p', 'Объект отсутствует в новом полном снимке. Выбор снимка удалит его из рабочего состояния.'));
       if (!full && row.boundaryCrossing && !review.acceptedAt && !review.stale) {
-        const choice = check(card, 'Изменение принятого объекта проверено'); choice.onchange = () => { choice.checked ? boundaryKeys.add(row.key) : boundaryKeys.delete(row.key); update(); };
+        const choice = check(card, gateLabels.confirmChange); choice.onchange = () => { choice.checked ? boundaryKeys.add(row.key) : boundaryKeys.delete(row.key); update(); };
       }
       if (full && row.classification === 'conflict' && !review.acceptedAt && !review.stale) {
         const label = el('label', 'Какую версию сохранить'), choice = el('select'); choice.id = 'managed-choice-' + ++sequence; label.htmlFor = choice.id;
@@ -729,7 +738,7 @@ export function mountManagedWorkspace(model = {}, actions = {}) {
     if (review.rows.length && !summary.changed) form.append(el('p', summaryLabels.noChangedObjects, 'managed-muted'));
     applyFilter();
     if (!review.rows.length) form.append(el('p', 'Изменений распознанных объектов нет. Проверьте полноту исходного снимка перед принятием.'));
-    if (review.dependencies) form.append(mountDependencies(review.dependencies));
+    if (review.dependencies) { const deps = mountDependencies(review.dependencies); deps.id = 'solution-dependencies'; form.append(deps); }
     if (review.ambiguities.length) technical(form, 'Нераспознанные части', review.ambiguities);
     form.append(link('Скачать исходный файл', `${api}/${state.id}/artifacts/${review.artifactId}/original`));
     const decidable = decisionChoices(review).length > 0 && !closable;

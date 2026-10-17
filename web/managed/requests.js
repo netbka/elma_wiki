@@ -18,7 +18,7 @@ const choice = (parent, name, value, label, checked) => {
   const row = el('div', undefined, 'managed-choice'), caption = el('label'), input = el('input');
   input.type = 'radio'; input.name = name; input.value = value; input.checked = checked; caption.append(input, el('span', label)); row.append(caption); parent.append(row); return input;
 };
-const person = actor => { const view = actorDisplay(actor), node = el('span', undefined, 'managed-person'); node.append(el('span', view.initials, 'managed-initials'), ' ', view.name); return node; };
+const person = actor => { const view = actorDisplay(actor), node = el('span', undefined, 'managed-person'); if (view.initials) node.append(el('span', view.initials, 'managed-initials'), ' '); node.append(view.name); return node; };
 const versionLabel = (state, artifactId) => { const artifact = (state.artifacts || []).find(row => row.id === artifactId); return artifact ? `${headerLabels.versionFrom} ${dateLabel(artifact.snapshot?.createdAt || artifact.uploadedAt)}` : artifactId; };
 const statusChip = request => el('span', formLabels.statuses[request.status] || request.status, 'managed-chip managed-chip-' + request.status);
 const requestHref = (home, state, requestId, objectKey) => `${home}?${new URLSearchParams({ id: state.id, view: 'requests', ...(requestId ? { request: requestId } : {}), ...(objectKey ? { object: objectKey } : {}) })}`;

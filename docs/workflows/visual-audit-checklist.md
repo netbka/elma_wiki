@@ -24,8 +24,10 @@ never into this file. Automated checks (`test:managed:browser`,
    pass of every section must use the integrated working product; the stories
    are for states the synthetic session cannot reach (errors, stale anchors,
    conflicts, GitHub states).
-3. Review each section below at 1920 px, 800 px and 390 px width and at 200 %
-   zoom, with a keyboard only and with a mouse. Record every material finding
+3. Review each section below at 1920 px and 800 px width and at 200 %
+   zoom, with a keyboard only and with a mouse. The Solution UI is desktop
+   only (owner decision 2026-10-17), so the 390 px items below apply to the
+   public pages only. Record every material finding
    with the section number, the state (story id or session step), the width or
    zoom, the actual behavior, the expected behavior and the revision.
 4. A material finding is fixed in the shared renderer, its story is updated and
