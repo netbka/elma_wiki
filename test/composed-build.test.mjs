@@ -30,7 +30,7 @@ const OUTSIDE = { service: 'widgets', code: 'outside', kind: 'widget' };
 const reasons = rows => rows.map(row => row.reason);
 const advertise = (revision = WORKER_REVISION) => ({ jobKinds: ['health', 'materialize'], materialize: { contract: { id: 'elma365-native-materialization', version: 1 }, nativeRevision: revision } });
 
-// A full base and one resolved partial change of the widget `div`.
+// A full base and one resolved, accepted partial change of the widget `div`: the accepted merged revision.
 async function solution(directory) {
   const solutions = solutionStore(directory), managed = solutions.managed;
   const upload = async (rows, scope) => {
@@ -44,7 +44,22 @@ async function solution(directory) {
   const current = await managed.get(state.id, SOLUTION_CATALOG), merge = await managed.merge(state.id, SOLUTION_CATALOG, change.artifactId);
   await managed.resolveMerge(state.id, SOLUTION_CATALOG, change.artifactId, { expectedRevision: current.revision, planDigest: merge.plan.planDigest,
     expectedResolutionId: merge.head?.id ?? null, decisions: {}, reason: 'Synthetic reviewed choice' }, uploader);
-  return { managed, composed: solutions.composed, id: state.id, artifactId: change.artifactId };
+  await managed.accept(state.id, SOLUTION_CATALOG, change.artifactId, { expectedRevision: current.revision, reviewedDigest: change.artifactDigest,
+    reviewedBoundaryKeys: change.rows.filter(row => row.boundaryCrossing).map(row => row.key) }, uploader);
+  // Prepares, resolves and optionally accepts a later change of `outside` against the same base.
+  const later = async (value, { accept = false } = {}) => {
+    const now = await managed.get(state.id, SOLUTION_CATALOG);
+    const next = await managed.prepare(state.id, SOLUTION_CATALOG, { kind: 'change', snapshot: await upload([{ ...OUTSIDE, value }], 'partial'),
+      expectedRevision: now.revision, team: 'C', taskRef: 'SYNTHETIC-LATER', sameSourceConfirmed: true, base: { artifactId: state.baselineId, revision: 0, confirmed: true },
+      changeScope: { name: 'Later scope', members: [keyOf(OUTSIDE)], confirmed: true, deletions: [] } }, uploader);
+    const plan = await managed.merge(state.id, SOLUTION_CATALOG, next.artifactId);
+    await managed.resolveMerge(state.id, SOLUTION_CATALOG, next.artifactId, { expectedRevision: now.revision, planDigest: plan.plan.planDigest,
+      expectedResolutionId: plan.head?.id ?? null, decisions: {}, reason: 'Synthetic later choice' }, uploader);
+    if (accept) await managed.accept(state.id, SOLUTION_CATALOG, next.artifactId, { expectedRevision: now.revision, reviewedDigest: next.artifactDigest,
+      reviewedBoundaryKeys: next.rows.filter(row => row.boundaryCrossing).map(row => row.key) }, uploader);
+    return next.artifactId;
+  };
+  return { managed, composed: solutions.composed, id: state.id, artifactId: change.artifactId, later };
 }
 
 // The server's trusted evidence source in these tests: a native coverage declaration over the
@@ -343,4 +358,27 @@ test('freeze: a build whose inputs moved after validation is stale, and no freez
   // Rebuilt from the current inputs, it freezes.
   assert.equal((await env.build()).body.outcome, 'validated');
   assert.equal((await env.freeze()).status, 201);
+});
+
+test('only the latest accepted merged revision builds: a pending resolved change and a superseded acceptance are refused before the worker', async t => {
+  const env = await setup(t);
+  const worker = env.worker();
+  await env.settle(null);
+  const jobs = () => worker.seen.filter(job => job.kind === 'materialize').length;
+  assert.equal((await env.build()).body.outcome, 'validated');
+  assert.equal((await env.freeze()).status, 201);
+  const built = jobs();
+  // Resolved but not accepted: Build follows acceptance.
+  const pending = await env.later(5);
+  const early = await env.build({ artifactId: pending });
+  assert.equal(early.status, 409); assert.match(early.body.error, /latest accepted merged revision/);
+  assert.equal(jobs(), built, 'no job for a change that is not accepted');
+  assert.equal((await env.candidates())[0].inputsStatus, 'current', 'a pending change leaves the accepted revision current');
+  // A later acceptance supersedes the earlier merged revision and its candidate.
+  const accepted = await env.later(6, { accept: true });
+  const superseded = await env.build();
+  assert.equal(superseded.status, 409); assert.match(superseded.body.error, /latest accepted merged revision/);
+  assert.equal(jobs(), built);
+  assert.equal((await env.candidates())[0].inputsStatus, 'stale');
+  assert.equal((await env.build({ artifactId: accepted })).body.outcome, 'validated');
 });
