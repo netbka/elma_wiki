@@ -47,6 +47,7 @@ of these non-secret settings, put it in the private, ignored file
 | `WIKI_NATIVE_MATERIALIZATION_BRIDGE_OWNER` | the owning Wiki user ID: `vk:` or `email:` plus 64 lowercase hex |
 | `WIKI_NATIVE_MATERIALIZATION_REVISION` | the pinned 40-hex elma365 worker revision |
 | `WIKI_NATIVE_TARGET_PROFILE_TARGET` | `dev2` |
+| `WIKI_TARGET_DEV2_DESIGNATIONS` | `file`: adopt the private designation record ([below](#designate-dev2-candidates-without-restarting-wiki)); requires an empty `WIKI_TARGET_DEV2_DEPLOY_CANDIDATES` |
 
 Any other key, a malformed value, an empty value for any key other than
 `WIKI_TARGET_DEV2_DEPLOY_CANDIDATES`, or a native materialization configuration
@@ -61,6 +62,80 @@ exactly the previous environment plus those changes, otherwise the update rolls 
 the previous container. Settings already applied report `no change` on later rollouts.
 Removing a key from the environment is not supported by this path; the empty candidate list above clears its designations. The backup's `container.json` keeps the
 previous environment and `runtime.env` the one given to the new container.
+
+## Designate DEV2 candidates without restarting Wiki
+
+Sessions live in Wiki's process memory, so every update above logs every user out.
+Changing `WIKI_TARGET_DEV2_DEPLOY_CANDIDATES` is such an update. PLAN-01 P8 needs
+several designation changes (freeze a candidate, designate its digest, later a
+recovery candidate), so after a one-time adoption the designations live in a private
+operator record that the running Wiki re-reads at every delivery check.
+
+**Adopt once (one normal update, one restart).** Put both lines in
+`.local/prod-runtime-settings.env` and run `npm run prod:update`:
+
+```sh
+WIKI_TARGET_DEV2_DESIGNATIONS=file
+WIKI_TARGET_DEV2_DEPLOY_CANDIDATES=
+```
+
+The update refuses `file` while the startup list still holds a digest, and refuses a
+non-empty list afterwards, so no startup grant survives adoption. The deployed image
+must carry the label `org.elma-wiki.dev2-designations=file-v1` (every revision since
+this mode). After adoption DEV2 designates nothing until the first designation.
+Remove both lines from the settings file afterwards; re-sending them reports `no change`.
+Leaving the mode unset keeps the legacy startup list working unchanged.
+
+**Designate (no restart, no build).** From clean `main`:
+
+```sh
+npm run prod:update -- --designate-grant=<sha256>[,<sha256>...]
+npm run prod:update -- --designate-withdraw=<sha256>[,<sha256>...]
+npm run prod:update -- --designate-withdraw-all
+```
+
+Add `--check` to see the resulting revision and count without changing anything.
+Arguments carry only the action and exact 64-hex lowercase digests (up to 32); there
+is no wildcard, path, host, setting or command. The same SSH pin, key and NOPASSWD rule
+are used; no source archive is sent and no runtime settings file is read. On the CT the
+runner takes the rollout lock, then:
+
+1. verifies with `docker inspect` only that the running, healthy container serves the
+   expected origin from the `wiki-data` volume, carries the label above and runs with
+   `WIKI_TARGET_DEV2_DESIGNATIONS=file` and an empty startup list;
+2. reads `<volume>/operator/dev2-designations.json` (root-owned, group of the Wiki
+   user, directory `0750`, file `0640`), refusing links, non-files, group/other-writable
+   directories and records over 8 KiB;
+3. applies the change to the current record, so a concurrent grant is preserved
+   (`withdraw-all` is the only action that may replace an invalid record);
+4. refuses if the record changed since it was read, writes a temporary file, fsyncs and
+   renames it atomically, reads it back and checks the exact bytes and that the
+   container's ID and start time are unchanged;
+5. on any failure restores the previous record (or its absence) and reads it back; if
+   that cannot be verified, it removes the record so DEV2 designates nothing.
+
+It prints only fixed messages, the revision and counts, never a digest or configuration
+value. It does not build, stop, start, rename or re-create a container, call `curl`,
+or read or write any other file of the volume, including authentication state.
+
+Record format (`lib/target-designations.mjs`), one line, keys sorted, candidates sorted
+and unique: `{"candidates":["<sha256>",...],"revision":<n>,"schema":"wiki-dev2-designations","version":1}`.
+In file mode a missing, linked, unreadable, malformed or oversized record designates
+nothing, and so does a record whose revision is lower than one the running process has
+already read (a restored backup cannot resurrect a withdrawn digest). After such a
+rollback, or after a failed designation whose new record the process may have read,
+run another designation: it writes a higher revision. Delivery re-reads the record at
+`prepare`, at its final guarded write, at `confirm`, at the last guard before dispatch
+and in the operator bridge's dispatch call, and selects the read-back policy from it at
+`verify`. A withdrawal never cancels an operation that is already running.
+
+A designation only permits an attempt of an isolated dev2 test install of that exact
+frozen candidate under every existing delivery guard. It is not build, native,
+business or release acceptance. Its regressions (`test/prod-update.test.py`,
+`test/prod-settings.test.mjs`, `test/target-designations.test.mjs`,
+`test/target-presets.test.mjs`) are synthetic: temporary directories, a simulated
+`docker inspect` and stand-in Targets. No live designation, install or read-back has
+been run with this mode.
 
 This updater targets the established CT layout: `/opt/elma-wiki`, container
 `elma-wiki`, volume `wiki-data` at `/app/.local`, loopback port 43171, and Caddy's

@@ -8,6 +8,7 @@ import { createServer } from '../server.mjs';
 import { projectStore } from '../lib/projects.mjs';
 import { parseProject } from '../lib/project-parser.mjs';
 import { fixture, zip } from './fixture.mjs';
+import { targetPresets } from '../lib/target-presets.mjs';
 const headers = {'X-Elma-Wiki-Request':'1'};
 async function instance(t,options={}) {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(),'e365-project-test-'));
@@ -109,4 +110,20 @@ test('legacy owner indexes remain accessible and are explicitly marked without o
   const list=await (await request('/api/projects',{headers:{cookie}})).json();assert.equal(list[0].legacy,true);
   assert.equal((await (await request(`/p/${id}/data.json`,{headers:{cookie}})).json()).legacy,true);
   assert.equal((await request(`/api/projects/${id}/original`,{headers:{cookie}})).status,404);
+});
+test('file-mode DEV2 designations are re-read by the running service: same session, no restart, no write route', async t => {
+  const presets = targetPresets({ WIKI_TARGET_DEV2_URL: 'https://dev2.example.invalid', WIKI_TARGET_DEV2_DESIGNATIONS: 'file', WIKI_TARGET_DEV2_DEPLOY_CANDIDATES: 'e'.repeat(64) });
+  const { request, directory } = await instance(t, { presets }), cookie = await login(request);
+  const dev2 = async () => (await (await request('/api/connections/preset-dev2', { headers: { cookie } })).json()).preset;
+  assert.deepEqual((await dev2()).designatedCandidates, [], 'a startup grant is ignored in file mode');
+  await fs.mkdir(path.join(directory, 'operator'));
+  await fs.writeFile(path.join(directory, 'operator', 'dev2-designations.json'), JSON.stringify({ candidates: ['d'.repeat(64)], revision: 1, schema: 'wiki-dev2-designations', version: 1 }));
+  assert.deepEqual((await dev2()).designatedCandidates, ['d'.repeat(64)]);
+  // An authenticated actor cannot change the designation through the connection API.
+  for (const method of ['PUT', 'PATCH', 'POST'])
+    assert.notEqual((await request('/api/connections/preset-dev2', { method, headers: { ...headers, cookie, 'Content-Type': 'application/json' }, body: JSON.stringify({ preset: { designatedCandidates: ['f'.repeat(64)] } }) })).status, 200);
+  assert.equal((await request('/api/connections/preset-dev2', { method: 'DELETE', headers: { ...headers, cookie } })).status, 403);
+  await fs.writeFile(path.join(directory, 'operator', 'dev2-designations.json'), JSON.stringify({ candidates: [], revision: 2, schema: 'wiki-dev2-designations', version: 1 }));
+  assert.deepEqual((await dev2()).designatedCandidates, []);
+  assert.equal(JSON.parse(await fs.readFile(path.join(directory, 'operator', 'dev2-designations.json'), 'utf8')).revision, 2, 'the service never writes the record');
 });

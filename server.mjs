@@ -25,6 +25,7 @@ import { composedBuildCapability, runComposedBuild, freezeComposedBuild } from '
 import { bridgeStore } from './lib/bridge.mjs';
 import { configuredMaterializationAdapter } from './lib/native-materialization-bridge.mjs';
 import { targetPresets } from './lib/target-presets.mjs';
+import { designationReader, withCurrentDesignations } from './lib/target-designations.mjs';
 import { demoData } from './lib/demo.mjs';
 import { configSourceClient, configAcquisitions } from './lib/config-source.mjs';
 
@@ -87,11 +88,13 @@ export function createServer({ directory = path.join(project, '.local'), baseUrl
   // Native materialization over the bridge is opt-in through explicit WIKI_NATIVE_MATERIALIZATION_* variables
   // (bridge ID, owner, pinned worker revision). Without them it is null and materializeNative stays `unavailable`.
   const nativeMaterialization = configuredMaterializationAdapter({ env: materializationEnv, bridges });
+  // File-mode DEV2 designations are re-read from the operator record under this data root at every check.
+  const readDesignations = designationReader(directory), resolvePreset = preset => withCurrentDesignations(preset, readDesignations);
   const building = new Set(); // Solutions with a native build in progress: one at a time per Solution.
   // The latest build per Solution when it validated, in process memory only: its manifest and evidence carry
   // in-process provenance marks, so a restart drops it. POST /api/solutions/:id/composed freezes and consumes it (PLAN-01 B1).
   const composedBuilds = new Map();
-  delivery = deliveryStore(directory, releases, { solutionHandoffs: solutions.handoffs, composedCandidates: solutions.composed, adapters: { ...(syntheticDelivery ? { synthetic: syntheticAdapter } : {}), bridge: (options, connection) => bridges.adapter(options, connection) }, protectedHosts: protectedTargetHosts, timeoutMs: deliveryTimeoutMs, presets, presetAdapter: (preset, connection) => bridges.presetAdapter(preset, connection) });
+  delivery = deliveryStore(directory, releases, { solutionHandoffs: solutions.handoffs, composedCandidates: solutions.composed, adapters: { ...(syntheticDelivery ? { synthetic: syntheticAdapter } : {}), bridge: (options, connection) => bridges.adapter(options, connection) }, protectedHosts: protectedTargetHosts, timeoutMs: deliveryTimeoutMs, presets, resolvePreset, presetAdapter: (preset, connection, current) => bridges.presetAdapter(preset, connection, current) });
   let uploading = false;
   const loginBot = createVkLoginBot({ directory, issueLink: auth.issueVkLink });
   const server = http.createServer(async (req, res) => {

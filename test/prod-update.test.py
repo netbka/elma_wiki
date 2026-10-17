@@ -1,5 +1,5 @@
 """Synthetic CT regressions; no SSH, Docker, credentials or production writes."""
-import copy, importlib.util, io, json, pathlib, sys, tarfile, tempfile, types, unittest
+import copy, importlib.util, io, json, os, pathlib, sys, tarfile, tempfile, types, unittest
 from unittest.mock import patch
 
 # Windows runs orchestration tests; the actual lock belongs to the Linux CT.
@@ -218,5 +218,261 @@ class SshTransportTests(unittest.TestCase):
         kwargs = ssh.connect_kwargs(config)
         self.assertEqual((kwargs['password'], kwargs['allow_agent']), ('synthetic', False))
         self.assertTrue(ssh.remote_command(self.stage, config).startswith('sudo -S -p "" python3 '))
+
+class DesignationTests(unittest.TestCase):
+    """Designation-only operation on a temporary data root; only `docker inspect` is simulated."""
+    A, B, C = 'a' * 64, 'b' * 64, 'c' * 64
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.data = pathlib.Path(self.tmp.name) / 'data'
+        self.data.mkdir()
+        # Synthetic stand-ins for state the operation must never read or change.
+        for name, content in [('auth/sessions.json', b'{"synthetic":true}'), ('vk-login/state.json', b'{}'),
+                              ('projects/p1/original.e365', b'preserve me'), ('delivery/connections/presets/x.json', b'{}')]:
+            (self.data / name).parent.mkdir(parents=True, exist_ok=True)
+            (self.data / name).write_bytes(content)
+        self.record = self.data / 'operator' / 'dev2-designations.json'
+        self.patches = [patch.object(m, 'DATA_SOURCE', str(self.data))]
+        if hasattr(os, 'getuid'):
+            # The CT runner is root; a test owns its temporary directory instead.
+            self.patches.append(patch.object(m, 'OWNER_UID', os.getuid()))
+        for item in self.patches:
+            item.start()
+
+    def tearDown(self):
+        for item in self.patches:
+            item.stop()
+        self.tmp.cleanup()
+
+    def container(self, adopted=True, label=True, started='2026-10-17T00:00:00Z', candidates=None):
+        value = container()
+        value['Mounts'][0]['Source'] = str(self.data)
+        value['State']['StartedAt'] = started
+        if adopted:
+            value['Config']['Env'].append('WIKI_TARGET_DEV2_DESIGNATIONS=file')
+        if candidates is not None:
+            value['Config']['Env'].append('WIKI_TARGET_DEV2_DEPLOY_CANDIDATES=' + candidates)
+        if label:
+            value['Config']['Labels'][m.DESIGNATION_LABEL] = m.DESIGNATION_SUPPORT
+        return value
+
+    def others(self):
+        """Bytes and modification time of every file outside the record directory."""
+        return {str(p.relative_to(self.data)): (p.read_bytes(), p.stat().st_mtime_ns)
+                for p in self.data.rglob('*') if p.is_file() and 'operator' not in p.relative_to(self.data).parts}
+
+    def designate(self, action, candidates=(), check=False, containers=None, settings=None):
+        sequence = list(containers or [self.container()])
+        inspected = []
+        def inspect():
+            inspected.append(1)
+            return sequence[min(len(inspected), len(sequence)) - 1]
+        def forbidden(*args, **kwargs):
+            raise AssertionError('a designation runs no command')
+        config = {'origin': 'https://wiki.example.org', 'revision': 'a' * 40, 'check': check, 'settings': settings or {},
+                  'designation': {'action': action, 'candidates': list(candidates)}}
+        printed = io.StringIO()
+        before = self.others()
+        with patch.object(m, 'inspect', side_effect=inspect), patch.object(m, 'run', side_effect=forbidden), \
+             patch.object(m.subprocess, 'run', side_effect=forbidden), patch.object(m.subprocess, 'check_output', side_effect=forbidden), \
+             patch('sys.stdout', printed):
+            try:
+                m.designate(config)
+            finally:
+                # Authentication, sessions and every other private file stay untouched, also on refusal.
+                self.assertEqual(self.others(), before)
+                self.output = printed.getvalue()
+                for digest in (self.A, self.B, self.C):
+                    self.assertNotIn(digest, self.output)
+        return self.output
+
+    def current(self):
+        return m.parse_designations(self.record.read_bytes())
+
+    def test_grant_and_withdraw_without_restart_preserving_other_designations(self):
+        output = self.designate('grant', [self.B])
+        self.assertEqual(self.current(), (1, [self.B]))
+        self.assertIn('Wiki was not restarted', output)
+        self.assertIn('no install, read-back or business acceptance was performed', output)
+        # Another operator's grant is preserved: changes are applied to the current record under the lock.
+        self.designate('grant', [self.A])
+        self.assertEqual(self.current(), (2, [self.A, self.B]))
+        self.assertIn('no change', self.designate('grant', [self.A]))
+        self.assertEqual(self.current(), (2, [self.A, self.B]))
+        self.designate('withdraw', [self.B, self.C])
+        self.assertEqual(self.current(), (3, [self.A]))
+        self.designate('withdraw-all')
+        self.assertEqual(self.current(), (4, []))
+        # The exact encoding the Wiki reader accepts; nothing else is left in the directory.
+        self.assertEqual(self.record.read_bytes(), m.encode_designations(4, []))
+        self.assertEqual(sorted(p.name for p in self.record.parent.iterdir()), ['dev2-designations.json'])
+        if hasattr(os, 'getuid'):
+            self.assertEqual(self.record.parent.stat().st_mode & 0o777, 0o750)
+            self.assertEqual(self.record.stat().st_mode & 0o777, 0o640)
+
+    def test_check_reports_without_creating_or_writing(self):
+        output = self.designate('grant', [self.A], check=True)
+        self.assertIn('Nothing was changed', output)
+        self.assertFalse(self.record.parent.exists())
+        self.designate('grant', [self.A])
+        self.designate('withdraw-all', check=True)
+        self.assertEqual(self.current(), (1, [self.A]))
+
+    def test_refuses_unsupported_revision_unadopted_mode_or_startup_grants_before_writing(self):
+        for running in [self.container(label=False), self.container(adopted=False), self.container(candidates=self.A)]:
+            with self.assertRaises(m.DesignationError) as raised:
+                self.designate('grant', [self.A], containers=[running])
+            self.assertNotIn(self.A, str(raised.exception))
+            self.assertFalse(self.record.parent.exists())
+        with self.assertRaises(m.DesignationError):
+            self.designate('grant', [self.A], settings={'WIKI_TARGET_DEV2_URL': 'https://dev2.example.test'})
+        bad_origin = self.container()
+        bad_origin['Config']['Env'][0] = 'PUBLIC_BASE_URL=https://other.example.org'
+        with self.assertRaises(AssertionError):
+            self.designate('grant', [self.A], containers=[bad_origin])
+        self.assertFalse(self.record.parent.exists())
+
+    def test_requests_carry_only_an_action_and_exact_digests(self):
+        bad = [None, [], {'action': 'grant'}, {'action': 'grant', 'candidates': [self.A], 'path': '/etc/passwd'},
+               {'action': 'grant', 'candidates': ['*']}, {'action': 'grant', 'candidates': [self.A.upper()]},
+               {'action': 'grant', 'candidates': [self.A, self.A]}, {'action': 'grant', 'candidates': []},
+               {'action': 'grant', 'candidates': self.A}, {'action': 'withdraw-all', 'candidates': [self.A]},
+               {'action': 'replace', 'candidates': [self.A]}, {'action': 'grant', 'candidates': ['%064x' % i for i in range(33)]}]
+        for request in bad:
+            with self.assertRaises(m.DesignationError):
+                m.parse_designation(request)
+        self.assertEqual(m.parse_designation({'action': 'grant', 'candidates': [self.B, self.A]}), ('grant', [self.A, self.B]))
+
+    def test_at_most_32_designations_after_merging(self):
+        self.record.parent.mkdir(mode=0o750)
+        self.record.write_bytes(m.encode_designations(7, ['%064x' % i for i in range(32)]))
+        with self.assertRaises(m.DesignationError):
+            self.designate('grant', [self.A])
+        self.assertEqual(self.current()[0], 7)
+
+    def test_invalid_record_blocks_grants_but_withdraw_all_replaces_it(self):
+        self.record.parent.mkdir(mode=0o750)
+        for invalid in [b'not json', b'{"schema":"wiki-dev2-designations","version":1,"revision":1,"candidates":["' + self.B.encode() + b'","' + self.A.encode() + b'"]}',
+                        m.encode_designations(1, [self.A])[:-2] + b',"extra":1}', b'x' * 9000]:
+            self.record.write_bytes(invalid)
+            with self.assertRaises(m.DesignationError):
+                self.designate('grant', [self.C])
+            self.assertEqual(self.record.read_bytes(), invalid)
+        self.designate('withdraw-all')
+        self.assertEqual(self.current(), (1, []))
+
+    def test_record_or_directory_links_are_refused(self):
+        outside = pathlib.Path(self.tmp.name) / 'outside'
+        outside.mkdir()
+        try:
+            (self.data / 'operator').symlink_to(outside, target_is_directory=True)
+        except OSError:
+            self.skipTest('creating a symbolic link needs extra privileges on this Windows host')
+        with self.assertRaises(m.DesignationError):
+            self.designate('grant', [self.A])
+        self.assertEqual(list(outside.iterdir()), [])
+        (self.data / 'operator').unlink()
+        self.record.parent.mkdir(mode=0o750)
+        target = outside / 'elsewhere.json'
+        target.write_bytes(m.encode_designations(1, [self.B]))
+        self.record.symlink_to(target)
+        with self.assertRaises(m.DesignationError):
+            self.designate('grant', [self.A])
+        self.assertEqual(target.read_bytes(), m.encode_designations(1, [self.B]))
+        self.assertTrue(self.record.is_symlink())
+
+    @unittest.skipUnless(hasattr(os, 'getuid'), 'ownership and permission bits exist only on POSIX; the CT is Linux')
+    def test_group_writable_directory_is_refused(self):
+        self.record.parent.mkdir(mode=0o750)
+        os.chmod(self.record.parent, 0o770)
+        with self.assertRaises(m.DesignationError):
+            self.designate('grant', [self.A])
+        self.assertFalse(self.record.exists())
+
+    def test_record_changed_by_another_writer_is_never_overwritten(self):
+        self.designate('grant', [self.A])
+        original = m.DesignationDirectory.read
+        calls = []
+        def concurrent(directory):
+            calls.append(1)
+            if len(calls) == 2:
+                self.record.write_bytes(m.encode_designations(2, [self.A, self.C]))
+            return original(directory)
+        with patch.object(m.DesignationDirectory, 'read', concurrent), self.assertRaises(m.DesignationError) as raised:
+            self.designate('grant', [self.B])
+        self.assertIn('changed during the operation', str(raised.exception))
+        self.assertEqual(self.current(), (2, [self.A, self.C]))
+
+    def test_failed_read_back_restores_the_previous_record(self):
+        self.designate('grant', [self.A])
+        prior = self.record.read_bytes()
+        original = m.DesignationDirectory.write
+        def corrupt(directory, raw):
+            original(directory, raw if raw == prior else raw.replace(b'"revision":2', b'"revision":9'))
+        with patch.object(m.DesignationDirectory, 'write', corrupt), self.assertRaises(m.DesignationError):
+            self.designate('grant', [self.B])
+        self.assertEqual(self.record.read_bytes(), prior)
+        self.assertIn('previous record was restored and read back', self.output)
+
+    def test_failed_first_designation_leaves_no_record(self):
+        original = m.DesignationDirectory.write
+        def corrupt(directory, raw):
+            original(directory, raw[:-3] + b'"]}\n')
+        with patch.object(m.DesignationDirectory, 'write', corrupt), self.assertRaises(m.DesignationError):
+            self.designate('grant', [self.B])
+        self.assertFalse(self.record.exists())
+
+    def test_unrestorable_record_is_removed_so_designations_fail_closed(self):
+        self.designate('grant', [self.A])
+        original, calls = m.DesignationDirectory.write, []
+        def failing(directory, raw):
+            calls.append(raw)
+            if len(calls) == 1:
+                original(directory, raw.replace(b'"revision":2', b'"revision":9'))
+            else:
+                raise OSError('disk full')
+        with patch.object(m.DesignationDirectory, 'write', failing), self.assertRaises(m.DesignationError):
+            self.designate('grant', [self.B])
+        self.assertFalse(self.record.exists())
+        self.assertIn('record was removed', self.output)
+
+    def test_a_container_restart_during_the_operation_restores_the_previous_record(self):
+        self.designate('grant', [self.A])
+        prior = self.record.read_bytes()
+        with self.assertRaises(m.DesignationError):
+            self.designate('grant', [self.B], containers=[self.container(), self.container(started='2026-10-17T01:00:00Z')])
+        self.assertEqual(self.record.read_bytes(), prior)
+
+    def test_records_match_the_wiki_schema(self):
+        self.assertEqual(m.parse_designations(m.encode_designations(3, [self.A, self.B])), (3, [self.A, self.B]))
+        for raw in [m.encode_designations(0, []), m.encode_designations(True, []), m.encode_designations(1, [self.A.upper()]),
+                    b'{"schema":"wiki-dev2-designations","version":2,"revision":1,"candidates":[]}',
+                    b'{"schema":"other","version":1,"revision":1,"candidates":[]}', b'[]', b'\xff']:
+            self.assertIsNone(m.parse_designations(raw))
+
+    def test_adopting_file_mode_requires_an_empty_startup_candidate_list(self):
+        previous = ['PUBLIC_BASE_URL=https://wiki.example.org', 'WIKI_TARGET_DEV2_DEPLOY_CANDIDATES=' + self.A]
+        with self.assertRaises(m.SettingsError) as raised:
+            m.apply_settings(previous, {'WIKI_TARGET_DEV2_DESIGNATIONS': 'file'})
+        self.assertNotIn(self.A, str(raised.exception))
+        env, changed = m.apply_settings(previous, {'WIKI_TARGET_DEV2_DESIGNATIONS': 'file', 'WIKI_TARGET_DEV2_DEPLOY_CANDIDATES': ''})
+        self.assertEqual(changed, ['WIKI_TARGET_DEV2_DEPLOY_CANDIDATES', 'WIKI_TARGET_DEV2_DESIGNATIONS'])
+        # Once adopted, no startup grant can be added back.
+        with self.assertRaises(m.SettingsError):
+            m.apply_settings(env, {'WIKI_TARGET_DEV2_DEPLOY_CANDIDATES': self.B})
+        for value in ['env', 'FILE', '']:
+            with self.assertRaises(m.SettingsError):
+                m.apply_settings(previous, {'WIKI_TARGET_DEV2_DESIGNATIONS': value})
+
+    def test_transport_sends_the_designation_and_never_source_for_it(self):
+        base = {'origin': 'https://wiki.example.org', 'revision': 'a' * 40, 'check': False, 'settings': {}, 'password': 'synthetic', 'host': 'ct.example.test'}
+        self.assertEqual(ssh.remote_config(base), {'origin': base['origin'], 'revision': base['revision'], 'check': False, 'settings': {}})
+        self.assertTrue(ssh.uploads_archive(base))
+        request = {'action': 'grant', 'candidates': [self.A]}
+        designation = dict(base, designation=request, archive=None)
+        self.assertEqual(ssh.remote_config(designation)['designation'], request)
+        self.assertNotIn('password', ssh.remote_config(designation))
+        self.assertFalse(ssh.uploads_archive(designation))
 
 if __name__ == '__main__': unittest.main()
