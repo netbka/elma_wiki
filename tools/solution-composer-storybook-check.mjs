@@ -30,7 +30,7 @@ try {
   };
   const text = async locator => (await locator.textContent()).replace(/\s+/g, ' ');
 
-  for (const id of ['build-blocked', 'build-gates', 'eligibility-load-error', 'list', 'awaiting-approval', 'approved', 'native-pending', 'unknown-evidence', 'stale', 'missing', 'load-error', 'delivery-prepared', 'partial-outcome', 'unknown-outcome', 'verified', 'verification-failed', 'failed', 'delivery-load-error', 'lost-response']) {
+  for (const id of ['build-blocked', 'build-gates', 'eligibility-load-error', 'list', 'awaiting-approval', 'approved', 'native-pending', 'test-install', 'unknown-evidence', 'stale', 'missing', 'load-error', 'delivery-prepared', 'partial-outcome', 'unknown-outcome', 'verified', 'verification-failed', 'failed', 'delivery-load-error', 'lost-response']) {
     await open(id);
     assert.equal(await page.locator('.managed-shell').count(), 1, id);
     assert.equal(await page.getByRole('link', { name: 'Сборка', exact: true }).getAttribute('aria-current'), 'page', 'composer stays a Solution tab: ' + id);
@@ -87,6 +87,15 @@ try {
       assert.doesNotMatch(label, /Учебная сборка \(синтетический сборщик\)/);
       assert.match(label, /к выпуску не допускается/);
     }
+    if (id === 'test-install') {
+      // A verified designated DEV2 test install is never shown as a release or offered for promotion.
+      const panel = await text(delivery());
+      assert.match(panel, /Тестовая установка на назначенный владельцем DEV2/);
+      assert.match(panel, /Это не выпуск/);
+      assert.doesNotMatch(panel, /Read-back с Target совпал с кандидатом по политике проверки/);
+      assert.equal(await delivery().getByRole('region', { name: /Продвижение/ }).count(), 0);
+      assert.equal(await delivery().getByRole('button', { name: /Продвинуть|продвижение/i }).count(), 0);
+    }
     if (id === 'partial-outcome') {
       const units = await delivery().getByRole('list', { name: 'Единицы установки' }).locator('li').allTextContents();
       assert.deepEqual(units.map(row => row.split(':')[0]), ['contract-fields', 'contract-approval', 'contract-forms'], 'receipts in import order');
@@ -141,7 +150,7 @@ try {
     if (['next-build-blocked', 'next-review-build', 'next-verify'].includes(id)) assert.match(await primary.getAttribute('href'), /view=compose/);
     if (['next-review-build', 'next-verify'].includes(id)) assert.match(await primary.getAttribute('href'), /candidate=/);
   }
-  for (const width of [1280, 390]) for (const id of ['partial-outcome', 'build-gates', 'native-pending', 'unknown-evidence', 'build-ready', 'freeze-lost']) {
+  for (const width of [1280, 390]) for (const id of ['partial-outcome', 'build-gates', 'native-pending', 'test-install', 'unknown-evidence', 'build-ready', 'freeze-lost']) {
     await page.setViewportSize({ width, height: 900 }); await open(id);
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `no horizontal scroll at ${width}: ${id}`);
   }
