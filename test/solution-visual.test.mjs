@@ -222,5 +222,29 @@ test('D3 layout story is opt-in and preserves the shared source fixture used by 
   assert.equal(shared.forms[0].tree.children[0].descriptor,'dynamic-form');
   assert.equal(layout.forms[0].tree.children[0].descriptor,'groupbox');
   assert.equal(layout.forms[0].tree.regions.some(r=>r.name==='[footer]'),true);
-  assert.equal(layout.issues.some(issue=>issue.reason.includes('ELMA')),true,'explicit layout story retains its runtime binding gaps');
+  assert.deepEqual(layout.issues,[],'ordinary bindings are not unrecoverable process structure');
+  assert.equal(scenarioFields(layout,'review').unknown,true,'the layout story still exposes unknown native behavior');
+});
+
+test('ordinary native rows and action panels retain uncertainty without becoming unsupported process structure',()=>{
+  for(const control of [
+    {descriptor:'dynamic-form-row',values:{displayName:'Amount',control:{path:['Context','amount']}}},
+    {descriptor:'buttons-panel',values:{buttons:{path:['Context','actions']}}}
+  ]){
+    const raw=structuredClone(visualSource);
+    raw.forms[0].content={'': [control]};
+    const process=projectProcess(raw,'synthetic.json'),node=process.forms[0].tree.children[0];
+    assert.deepEqual(process.issues,[]);
+    assert.equal(node.supported,true);assert.equal(node.binding,'unknown');
+    assert.ok(node.bindings.some(binding=>binding.evaluation==='unknown'));
+    assert.equal(scenarioFields(process,'review').unknown,true);
+  }
+  for(const control of [
+    {descriptor:'dynamic-form',values:{fields:{path:['Context','fields']}}},
+    {descriptor:'row',content:{'':{descriptor:'column'}}},
+    {descriptor:'row',content:'unknown'}
+  ]){
+    const raw=structuredClone(visualSource);raw.forms[0].content={'':[control]};
+    assert.ok(projectProcess(raw,'synthetic.json').issues.length,'unreconstructed structure remains explicit');
+  }
 });

@@ -137,6 +137,7 @@ try {
   });
   await page.locator('svg [data-node=review]').click();
   const form=page.locator('.visual-form');
+  assert.equal(await page.locator('.visual-unsupported').count(),0,'ordinary native bindings do not create an unsupported-process list');
   assert.ok(await form.locator('[data-region="[content]"]').count()>0);
   assert.equal(await form.locator('[data-region="[footer]"]').count(),1);
   await form.getByRole('tab',{name:'Основное',exact:true}).waitFor();

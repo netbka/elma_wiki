@@ -35,7 +35,10 @@ export function projectForm(value, pointer, issues = [], budget = {controls:0}, 
   if (fields.length>100) throw Error('Форма превышает ограничения визуального обзора.');
   const binding=descriptor==='dynamic-form' && values.fields!==undefined && !Array.isArray(values.fields)
     || descriptor==='dynamic-form-row' || descriptor==='buttons-panel' && values.buttons!==undefined;
-  if (binding) issues.push({pointer:pointer+'/values',reason:visualForm.bindingNotEvaluated});
+  // An ordinary native binding is runtime uncertainty, not lost structure.
+  // Keep it on the node/scenario; only an unavailable field list is a process issue.
+  if (descriptor==='dynamic-form' && values.fields!==undefined && !Array.isArray(values.fields))
+    issues.push({pointer:pointer+'/values/fields',reason:visualForm.bindingNotEvaluated});
   const label=values.label ?? values.title;
   const bindings=['fields','form','control','buttons','action','onClick','onChangeValue','__hidden','__readOnly','required','label','title','displayName']
     .filter(key=>Object.hasOwn(values,key)&&(values[key]!==null&&typeof values[key]==='object'&&!Array.isArray(values[key])||['action','onClick','onChangeValue'].includes(key)))
