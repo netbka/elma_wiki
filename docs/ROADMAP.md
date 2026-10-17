@@ -4,6 +4,9 @@ Coordination only; a roadmap entry is not an assignment. Owner priority 2026-10-
 
 ## NOW - make the four-module loop useful
 
+Owner content priority (2026-10-17): **#192, business-understanding audit and remediation**, cuts across D3-D5. Establish the actual deployed build; inspect every user-facing surface and generator across all four modules. Lead with purpose, responsibilities, stages and result; put technical IDs/field inventories in secondary details. Follow the [content rule](SOLUTION_FIRST_PRODUCT_PLAN.md#business-meaning-before-technical-detail). This audit must produce prioritized before/after fixes, not another green documentation-only milestone. **#193, comparable-product visual research**, is separate and secondary; feed its proposals with the corrected content. Existing native work continues.
+
+
 1. **Internal boundary (D0).** Complete PR #175 integration and internal rollout through existing gates. Remove public content/build/publishing. Provider shutdown is the owner's separate action; repository configuration alone does not close an existing deployment.
 2. **Actual module/capture inventory (D1).** Identify the four modules from full configuration and account for each main form/window/process and dependencies. Record parsed, opaque and unsupported content. Contracts is the first native-backed slice; inventory all four now.
 3. **Versions and DEV2 base (D2).** Distinguish source changes since the last capture from proposed changes against verified installed DEV2 configuration. Extend snapshots/delivery records; handle unknown base, drift, manual import, partial/failed updates and stale evidence.

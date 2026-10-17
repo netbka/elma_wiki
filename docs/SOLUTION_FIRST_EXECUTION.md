@@ -79,6 +79,12 @@ Steps 1-3 can progress independently where inputs permit. A process-runtime chan
 
 Test with an ELMA-familiar technical user and a technically literate person who did not read repository docs. They should identify bases, compare colleague changes, distinguish conflict-free from verified, resolve a conflict, see the release scope and understand whether a package is built, tested or actually released. Fix misleading UI rather than adding explanatory prose to waive the finding.
 
+## Business-understanding audit and remediation
+
+Owner instruction 2026-10-17: #192 is the content priority across D3-D5, following the [canonical content rule](SOLUTION_FIRST_PRODUCT_PLAN.md#business-meaning-before-technical-detail). Establish the actual deployed revision before judging current behavior. Inventory all business surfaces and generated/saved explanations across the four modules; record question left unanswered, before/after proposal, supporting evidence and owning implementation. Prioritize purpose, responsibilities, meaningful groups, stages/result and useful next actions; disclose technical detail progressively. Preserve saved human work and traceability. Integrate fixes through the existing renderer/generator owners and focused Storybook/behavior checks. Report separately: owner complaint, reproduced finding, implemented correction and observed comprehension. The new audit is assigned for planning; this document does not claim execution or restart previously deferred participant sessions.
+
+#193 researches visual references and proposes a coherent design after the content direction is established. It must not displace #192 or create a competing renderer. Final acceptance #38 remains separate.
+
 ## Cross-cutting audit follow-through
 
 The updated [GitHub audit](audits/github-enterprise-audit-2026-10-08.md) retains EW-01 through EW-11 as supporting work. EW-01 authority consistency, EW-02 behavioral B2/current-state coherence and EW-03 evidence routing accompany the affected MR slices; they are not a long governance project that must finish before useful release engineering starts. EW-04/05/06 feed MR-06/07/08. EW-07 deployed Wiki and EW-09 operational recovery proceed independently. EW-10 AI and EW-11 agent pilot do not block the core merge/build result.

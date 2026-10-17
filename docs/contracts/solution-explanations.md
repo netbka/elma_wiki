@@ -5,6 +5,14 @@ flow element; review/edit the explanation and save it beside that element.
 Authority: Solution-first product plan. Phase: change. Boundaries: UI, domain,
 parser projection, authenticated storage, security and Storybook tooling.
 
+## Required business-facing content
+
+Owner correction 2026-10-17: [the product content rule](../SOLUTION_FIRST_PRODUCT_PLAN.md#business-meaning-before-technical-detail) governs the intended experience; audit #192 owns the gap between that rule and the current generator. Existing name-derived guides below describe implemented behavior, not sufficient business understanding.
+
+Lead with purpose and use, then supported responsibilities, information groups, stages and result. In a card/form distinguish initiator input, participant contributions and automated information only where evidence supports those distinctions; the complete field reference is secondary. Module/process/change explanations answer the user's business question before counts, step lists or structural details. Use ordinary source-link labels; keep exact IDs, hashes and paths in expandable evidence. Apply equally to deterministic generation and any future AI prompt/output.
+
+The current engine's unknown business purpose/participants are an implementation and evidence gap, not a permanent requirement to show only technical inventories. Obtain applicable business descriptions or verified relationships; clearly identify missing facts without guessing. Inventory existing saved explanations, preserve manual edits and history, and offer reviewed replacement drafts rather than bulk overwrites. Source/version truth and native-observation limits remain unchanged. Semantic quality requires inspection of actual text and reader comprehension, beyond schema/identifier checks.
+
 ## User experience
 
 Solution explanations open as readable paragraphs; editing starts explicitly with

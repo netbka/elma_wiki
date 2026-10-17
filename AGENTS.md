@@ -111,6 +111,10 @@ Synthetic fixtures or an explicitly designated non-production environment are de
 - Paid/opaque dependencies use verified licensed Target prerequisites or authorized intact distribution. Never decrypt protected content, remove paid flags or forge entitlement. Missing required dependencies block release and require remediation.
 - Review/build/native/Target evidence binds to the exact inputs and relevant environment profile. A changed base, resolution, compiler/dependency or Target invalidates affected evidence. No known-broken or unverified required behavior is released.
 
+## Business-facing content
+
+Owner instruction 2026-10-17: apply [Business meaning before technical detail](docs/SOLUTION_FIRST_PRODUCT_PLAN.md#business-meaning-before-technical-detail) to every user-facing surface and every deterministic/AI-generated explanation. Start with purpose, supported responsibilities, meaningful information groups, stages/outcome and next action; expose technical identifiers and exhaustive field inventories on demand. Do not infer business duties from labels. Audit #192 covers existing content and generators; design research #193 is secondary. Preserve human text/history and source traceability. Content clarity is part of acceptance, not a styling follow-up.
+
 ## Storybook and visible UI
 
 When visible UI/state changes, update the affected current Storybook authority in the same task. For wired Wiki UI use one renderer with production ViewModel or synthetic Storybook fixture, never copied production markup.
