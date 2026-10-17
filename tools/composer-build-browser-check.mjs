@@ -4,12 +4,12 @@ import fs from 'node:fs/promises';
 import http from 'node:http';
 import path from 'node:path';
 import { chromium } from 'playwright';
-import { solutionComposerFixture, availableBuild, verifiedEligibility, buildResponseFixtures, composedCandidateFixture } from '../web/managed/composer-fixtures.js';
+import { solutionComposerFixture, availableBuild, verifiedEligibility, buildResponseFixtures, composedCandidateFixture, profileEligibility, profileResponseFixtures } from '../web/managed/composer-fixtures.js';
 
 const web = path.resolve('web'), workspace = solutionComposerFixture('build-ready').model.workspace;
 const prefix = `/api/solutions/${workspace.id}`, input = { artifactId: workspace.history.at(-1).id, expectedRevision: workspace.revision };
 const candidate = { ...composedCandidateFixture(), solutionId: workspace.id, evidenceBasis: 'native', pendingNativeEvidence: ['native-import-receipt'], deliverable: false };
-let scenario, writes, heldBuild, heldFreeze, frozen;
+let scenario, writes, heldBuild, heldFreeze, heldProfile, frozen, observed;
 const json = (res, status, body) => { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(body)); };
 const readBody = async req => { const chunks = []; for await (const chunk of req) chunks.push(chunk); return JSON.parse(Buffer.concat(chunks).toString('utf8')); };
 const server = http.createServer(async (req, res) => {
@@ -25,6 +25,13 @@ const server = http.createServer(async (req, res) => {
         };
         return;
       }
+      if (route === `${prefix}/target-profile`) {
+        heldProfile = () => {
+          if (scenario === 'profile-stale') { json(res, 409, profileResponseFixtures.stale.body); return; }
+          observed = true; json(res, 201, { outcome: 'observed' });
+        };
+        return;
+      }
       if (route === `${prefix}/composed`) {
         heldFreeze = () => {
           if (scenario === 'freeze-malformed') { json(res, 201, {}); return; }
@@ -37,7 +44,7 @@ const server = http.createServer(async (req, res) => {
     if (route === prefix) { json(res, 200, workspace); return; }
     if (route === `${prefix}/composed`) { json(res, 200, frozen ? [candidate] : []); return; }
     if (route === `${prefix}/composed/${candidate.id}`) { json(res, 200, candidate); return; }
-    if (route === `${prefix}/composed-eligibility`) { json(res, 200, verifiedEligibility); return; }
+    if (route === `${prefix}/composed-eligibility`) { json(res, 200, scenario.startsWith('profile-') ? profileEligibility(observed ? 'observed' : 'ready') : verifiedEligibility); return; }
     if (route === '/api/delivery/capabilities') { json(res, 200, { composedBuild: availableBuild }); return; }
     if (route === '/solutions') {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
@@ -62,10 +69,11 @@ try {
     const request = route.request(), pathname = new URL(request.url()).pathname;
     const lostBuild = scenario === 'build-lost' && pathname === `${prefix}/composed-build`;
     const lostFreeze = scenario === 'freeze-lost' && pathname === `${prefix}/composed`;
-    if (request.method() === 'POST' && (lostBuild || lostFreeze)) {
+    const lostProfile = scenario === 'profile-lost' && pathname === `${prefix}/target-profile`;
+    if (request.method() === 'POST' && (lostBuild || lostFreeze || lostProfile)) {
       writes.push({ route: pathname, body: request.postDataJSON(), marker: request.headers()['x-elma-wiki-request'] });
       const finish = () => { void route.abort('failed'); };
-      if (lostBuild) heldBuild = finish; else heldFreeze = finish;
+      if (lostBuild) heldBuild = finish; else if (lostFreeze) heldFreeze = finish; else heldProfile = finish;
       return;
     }
     await route.continue();
@@ -73,7 +81,7 @@ try {
   const buildCard = () => page.locator('[aria-label="Новая сборка"]');
   const pending = async kind => {
     for (let attempt = 0; attempt < 100; attempt++) {
-      const operation = kind === 'build' ? heldBuild : heldFreeze;
+      const operation = kind === 'build' ? heldBuild : kind === 'profile' ? heldProfile : heldFreeze;
       if (operation) return operation;
       await new Promise(resolve => setTimeout(resolve, 10));
     }
@@ -115,6 +123,29 @@ try {
       assert.equal(writes.length, 2, 'unknown freeze is never replayed');
     }
   }
+  // Operator Target profile refresh: one exact POST naming only the revision, a re-read afterwards, no replay.
+  for (const mode of ['profile-success', 'profile-stale', 'profile-lost']) {
+    console.log(`Composer page scenario: ${mode}`);
+    scenario = mode; writes = []; heldProfile = null; observed = false;
+    await page.goto(`http://127.0.0.1:${server.address().port}/solutions?id=${workspace.id}&view=compose`);
+    const group = page.getByRole('group', { name: 'Профиль Target', exact: true });
+    const start = group.getByRole('button', { name: 'Прочитать профиль Target DEV2', exact: true });
+    await start.waitFor();
+    assert.equal(writes.length, 0, 'opening the composer never observes');
+    await start.click(); await start.evaluate(button => button.click());
+    const finish = await pending('profile');
+    assert.equal(await start.isDisabled(), true);
+    assert.deepEqual(writes, [{ route: `${prefix}/target-profile`, body: { expectedRevision: 3 }, marker: '1' }]);
+    finish();
+    if (mode === 'profile-success') {
+      await page.getByRole('group', { name: 'Профиль Target', exact: true }).getByText('Профиль Target прочитан для текущей версии решения.').waitFor();
+      assert.equal(await page.getByRole('button', { name: 'Собрать конфигурацию', exact: true }).isDisabled(), true, 'a profile alone never enables the build');
+    } else {
+      await group.getByRole('link', { name: 'Обновить состояние', exact: true }).waitFor();
+      assert.equal(await start.isDisabled(), true, mode);
+    }
+    assert.equal(writes.length, 1, 'no automatic replay');
+  }
   assert.deepEqual(errors, []);
-  console.log('Production composer page: exact build/freeze POSTs, pending double-submit guards, navigation, stale/malformed/lost responses and no replay passed (synthetic HTTP).');
+  console.log('Production composer page: exact build/freeze/profile POSTs, pending double-submit guards, navigation, stale/malformed/lost responses and no replay passed (synthetic HTTP).');
 } finally { await browser?.close(); server.closeAllConnections(); server.close(); }
