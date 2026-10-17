@@ -1,3 +1,5 @@
+import { solutionDeliveryFixture } from './handoff-delivery-fixtures.js';
+
 export function comparisonFixture(mode = 'compared') {
   const source = { connectionId: 'synthetic-dev', solutionRef: 'synthetic-contracts' };
   const capture = (artifactId, checksum) => ({ artifactId, checksum: checksum.repeat(64), scope: 'full', snapshot: { source } });
@@ -25,5 +27,17 @@ export function comparisonFixture(mode = 'compared') {
       if (mode === 'response-lost') throw Error('Synthetic');
       const result = structuredClone(record); result.comparison.status = input.action === 'reconcileInstalled' ? 'reconciled' : 'compared'; records = [result]; return result;
     }
+  } };
+}
+export function comparisonRedrawFixture() {
+  const fixture = comparisonFixture('response-lost'), { model, data } = solutionDeliveryFixture();
+  const release = model.handoff, metrics = { historyReads: 0, probes: 0 };
+  fixture.record.proposed = { candidateId: release.candidate.id, sha256: release.candidate.sha256, releaseRevision: release.revision };
+  data.connections = [fixture.connections[0], { ...fixture.connections[0], id: 'synthetic-alternate', name: 'DEV2 alternate · synthetic' }]
+    .map(row => ({ ...row, environment: 'test', probe: { ok: true, identity: { host: row.id + '.example.invalid' } } }));
+  return { release, metrics, client: { ...fixture.client,
+    load: async () => structuredClone(data),
+    probeConnection: async () => { metrics.probes++; },
+    installedHistory: async id => { metrics.historyReads++; return fixture.client.installedHistory(id); }
   } };
 }

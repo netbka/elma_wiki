@@ -1,5 +1,6 @@
 import { mountSourceComparisons, mountInstalledComparison } from '../../web/managed/comparisons.js';
-import { comparisonFixture } from '../../web/managed/comparison-fixtures.js';
+import { comparisonFixture, comparisonRedrawFixture } from '../../web/managed/comparison-fixtures.js';
+import { mountDelivery } from '../../web/releases/delivery.js';
 export default { id: 'configuration-comparisons', title: 'Решение/Сравнение версий', parameters: { layout: 'fullscreen' } };
 function comparisonStory(mode) {
   const fixture = comparisonFixture(mode), root = document.createElement('div'); root.className = 'managed-content';
@@ -17,3 +18,4 @@ export const ObservationFailed = { render: () => comparisonStory('observation-fa
 export const LoadError = { render: () => comparisonStory('load-error') };
 export const ResponseLost = { render: () => comparisonStory('response-lost') };
 export const VerifiedAfterComparison = { render: () => comparisonStory('verified-after-comparison') };
+export const PanelRedraw = { render: () => mountDelivery(comparisonRedrawFixture()) };

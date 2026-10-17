@@ -15,11 +15,13 @@ import { zip } from '../test/fixture.mjs';
 const root = path.resolve(import.meta.dirname, '..');
 const html = `<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="/web/managed/styles.css"><main class="managed-content"></main><script type="module">
 import { mountSourceComparisons, mountInstalledComparison } from '/web/managed/comparisons.js';
-import { comparisonFixture } from '/web/managed/comparison-fixtures.js';
+import { comparisonFixture, comparisonRedrawFixture } from '/web/managed/comparison-fixtures.js';
+import { mountDelivery } from '/web/releases/delivery.js';
 const mode = new URLSearchParams(location.search).get('mode') || 'compared';
-const fixture = comparisonFixture(mode); window.calls = [];
+const fixture = mode === 'panel-redraw' ? comparisonRedrawFixture() : comparisonFixture(mode); window.calls = []; window.metrics = fixture.metrics;
 const act = fixture.client.installedAction; fixture.client.installedAction = (...args) => { window.calls.push(args); return act(...args); };
-document.querySelector('main').append(mountSourceComparisons({ history: fixture.sourceHistory }), mountInstalledComparison(fixture));
+if (mode === 'panel-redraw') document.querySelector('main').append(mountDelivery(fixture));
+else document.querySelector('main').append(mountSourceComparisons({ history: fixture.sourceHistory }), mountInstalledComparison(fixture));
 </script>`;
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
@@ -43,7 +45,11 @@ try {
     assert.equal(await page.evaluate(() => window.calls.length), 0, 'loading history never reads the Target');
     if (['drifted', 'unresolved-outcome', 'observation-failed', 'reconciled'].includes(mode)) await panel.getByText(text.installedStates[mode], { exact: true }).waitFor();
     if (mode === 'stale') { await panel.getByText(text.stale, { exact: true }).waitFor(); assert.equal(await panel.getByText('widgets/contract.json', { exact: true }).count(), 0); }
-    if (mode === 'verified-after-comparison') { await panel.getByText(text.observed, { exact: true }).waitFor(); await panel.getByText(`${text.observedAt} 2026-10-17T12:00:00Z`, { exact: true }).waitFor(); }
+    if (mode === 'verified-after-comparison') {
+      await panel.getByText(text.observed, { exact: true }).waitFor();
+      assert.equal(await panel.locator('time').getAttribute('datetime'), '2026-10-17T12:00:00Z');
+      assert.notEqual(await panel.locator('time').textContent(), '2026-10-17T12:00:00Z');
+    }
     if (mode === 'load-error') { await panel.getByText(text.loadError, { exact: true }).waitFor(); assert.equal(await panel.getByRole('button', { name: text.compareInstalled, exact: true }).isDisabled(), true); }
     if (mode === 'response-lost') {
       await panel.getByRole('button', { name: text.compareInstalled, exact: true }).click();
@@ -61,6 +67,23 @@ try {
       assert.equal(await panel.getByText('widgets/contract.json', { exact: true }).count(), 0);
     }
   }
+  await page.goto(`${base}/?mode=panel-redraw`);
+  const preserved = page.getByRole('region', { name: text.installedTitle });
+  await preserved.getByRole('button', { name: text.compareInstalled, exact: true }).waitFor();
+  await page.waitForFunction(() => window.metrics?.historyReads === 1);
+  await preserved.getByLabel(text.target, { exact: true }).selectOption('synthetic-alternate');
+  await preserved.getByRole('button', { name: text.compareInstalled, exact: true }).click();
+  await preserved.getByText(text.responseUnknown, { exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Проверить подключение — DEV2 alternate · synthetic', exact: true }).click();
+  await page.waitForFunction(() => window.metrics.probes === 1);
+  await preserved.getByText(text.responseUnknown, { exact: true }).waitFor();
+  assert.equal(await preserved.getByLabel(text.target, { exact: true }).inputValue(), 'synthetic-alternate');
+  assert.equal(await preserved.getByRole('button', { name: text.compareInstalled, exact: true }).isDisabled(), true);
+  assert.equal(await page.evaluate(() => window.metrics.historyReads), 1, 'delivery redraw must not implicitly refetch comparison history');
+  await preserved.getByRole('button', { name: text.refresh, exact: true }).click();
+  await page.waitForFunction(() => window.metrics.historyReads === 2);
+  assert.equal(await preserved.getByRole('button', { name: text.compareInstalled, exact: true }).isDisabled(), false);
+  assert.equal(await page.evaluate(() => window.calls.length), 1, 'redraw and explicit history refresh never replay an action');
   await page.goto(base);
   await page.getByText('widgets/contract.json', { exact: true }).waitFor();
   await fs.mkdir(path.join(root, 'qa'), { recursive: true });
@@ -70,7 +93,7 @@ try {
   await page.screenshot({ path: path.join(root, 'qa/d2-comparisons-mobile.png'), fullPage: true });
   assert.deepEqual(errors, []);
   await integratedJourney(browser);
-  console.log('D2 comparison browser: 12 states, exact action binding, keyboard, response recovery, desktop and 390px passed. Synthetic only.');
+  console.log('D2 comparison browser: 13 states, redraw preserves target/error without implicit history reads, readable machine-bound time, exact actions/recovery, desktop and 390px passed. Synthetic only.');
 } finally { await browser?.close(); await new Promise(resolve => server.close(resolve)); }
 
 async function integratedJourney(browser) {
@@ -135,7 +158,7 @@ async function integratedJourney(browser) {
     await post({ action: 'confirm', attemptId: attempt.id, idempotencyKey: 'synthetic-mixed-history', confirmation: `DEPLOY ${attempt.solutionCode} ${attempt.sha256.slice(0, 12)}` });
     const verified = await post({ action: 'verify', attemptId: attempt.id });
     await page.reload(); await panel.getByText(text.observed, { exact: true }).waitFor();
-    await panel.getByText(`${text.observedAt} ${verified.installedObservation.at}`, { exact: true }).waitFor();
+    assert.equal(await panel.locator('time').getAttribute('datetime'), verified.installedObservation.at);
     await panel.screenshot({ path: path.join(root, 'qa/d2-comparisons-integrated-desktop.png') });
     await page.setViewportSize({ width: 390, height: 844 });
     await panel.screenshot({ path: path.join(root, 'qa/d2-comparisons-integrated-mobile.png') });
