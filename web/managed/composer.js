@@ -197,7 +197,7 @@ function mountBuildFlow({ start, outcome, status, error, target, actions, link }
     const manifest = result?.manifest;
     if (result?.outcome !== 'validated' || manifest?.status !== 'materialized'
       || !/^[a-f0-9]{64}$/.test(manifest?.manifestDigest) || !Array.isArray(manifest.artifacts)) {
-      fail({ status: 409, body: result, requiresRefresh: true }); return;
+      fail({ status: 502, body: { outcome: 'invalid-response' }, requiresRefresh: true }); return;
     }
     const freeze = el('button', composerBuild.freeze); freeze.type = 'button';
     freeze.onclick = async () => {
