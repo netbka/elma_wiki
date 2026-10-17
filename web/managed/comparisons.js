@@ -52,12 +52,26 @@ export function mountSourceComparisons({ history = [], api } = {}) {
   root.append(body); draw(); return root;
 }
 
+export function installedObservationAt(record) {
+  return [record?.createdAt, record?.installedObservation?.at, record?.comparison?.observed?.at,
+    record?.readBack?.at, record?.evidence?.readBack?.at, record?.evidence?.verificationError?.at]
+    .filter(value => Number.isFinite(Date.parse(value))).sort((a, b) => Date.parse(a) - Date.parse(b)).at(-1) || null;
+}
+export function latestInstalledRecord(records, connectionId) {
+  const sequence = record => record.installedObservation?.sequence ?? record.comparison?.before?.sequence ?? 0;
+  return records.filter(row => row.connection?.id === connectionId).sort((a, b) =>
+    (Date.parse(installedObservationAt(a)) || 0) - (Date.parse(installedObservationAt(b)) || 0) ||
+    sequence(a) - sequence(b) || Number(!!a.comparison) - Number(!!b.comparison) ||
+    String(a.createdAt).localeCompare(String(b.createdAt)) || String(a.id).localeCompare(String(b.id))).at(-1);
+}
 export function installedComparisonView(record, release, connectionId) {
   const comparison = record?.comparison;
   const proposed = record?.proposed || comparison?.proposed || record?.installedObservation?.candidate;
   const current = !!record && record.connection?.id === connectionId && proposed?.candidateId === release?.candidate?.id &&
     proposed?.sha256 === release?.candidate?.sha256 && proposed?.releaseRevision === release?.revision;
-  return { current, status: !record ? text.notRead : !current ? text.stale : record.installedObservation && !comparison ? text.observed : text.installedStates[comparison?.status] || text.notRead,
+  const failed = record?.evidence?.verificationError?.at === installedObservationAt(record);
+  const drifted = record?.evidence?.readBack?.at === installedObservationAt(record) && record.evidence.comparison?.match === false;
+  return { current, status: !record ? text.notRead : !current ? text.stale : failed ? text.installedStates['observation-failed'] : drifted ? text.installedStates.drifted : record.installedObservation && !comparison ? text.observed : text.installedStates[comparison?.status] || text.notRead,
     delta: current && comparison?.status === 'compared' ? comparison.delta : null };
 }
 export function mountInstalledComparison({ release, connections = [], client, isBlocked = () => false } = {}) {
@@ -73,12 +87,12 @@ export function mountInstalledComparison({ release, connections = [], client, is
     for (const row of targets) picker.append(option(row.id, row.name)); picker.value = selected; picker.disabled = busy;
     picker.onchange = () => { selected = picker.value; draw(); }; root.append(picker);
     if (!targets.length) root.append(el('p', text.noTarget));
-    const record = records.filter(row => row.connection?.id === selected).at(-1), view = installedComparisonView(record, release, selected);
+    const record = latestInstalledRecord(records, selected), view = installedComparisonView(record, release, selected);
     root.append(el('p', view.status), el('p', text.businessUnknown));
-    if (record?.createdAt) root.append(el('p', `${text.observedAt} ${record.createdAt}`));
+    if (installedObservationAt(record)) root.append(el('p', `${text.observedAt} ${installedObservationAt(record)}`));
     if (record) {
       const detail = el('details'); detail.append(el('summary', text.evidence));
-      for (const value of [record.createdAt, record.targetIdentity?.host, record.proposed?.sha256, record.comparison?.before?.candidate?.sha256, record.comparison?.evidenceBasis]) if (value) detail.append(el('p', value));
+      for (const value of [installedObservationAt(record), record.targetIdentity?.host, record.proposed?.sha256 || record.installedObservation?.candidate?.sha256, record.comparison?.before?.candidate?.sha256, record.comparison?.evidenceBasis || record.installedObservation?.evidenceBasis]) if (value) detail.append(el('p', value));
       root.append(detail);
     }
     if (view.delta && !needsRefresh) for (const key of ['missing', 'different', 'unexpected']) {

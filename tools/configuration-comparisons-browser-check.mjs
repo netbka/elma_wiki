@@ -35,7 +35,7 @@ try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } }), errors = [];
   page.on('pageerror', error => errors.push(error.message));
   const base = `http://127.0.0.1:${server.address().port}`;
-  for (const mode of ['compared', 'first-capture', 'source-ambiguous', 'unknown-base', 'drifted', 'unresolved-outcome', 'reconciled', 'stale', 'observation-failed', 'load-error', 'response-lost']) {
+  for (const mode of ['compared', 'first-capture', 'source-ambiguous', 'unknown-base', 'drifted', 'unresolved-outcome', 'reconciled', 'stale', 'observation-failed', 'load-error', 'response-lost', 'verified-after-comparison']) {
     await page.goto(`${base}/?mode=${mode}`);
     const panel = page.getByRole('region', { name: text.installedTitle });
     await panel.getByRole('button', { name: text.refresh, exact: true }).waitFor();
@@ -43,6 +43,7 @@ try {
     assert.equal(await page.evaluate(() => window.calls.length), 0, 'loading history never reads the Target');
     if (['drifted', 'unresolved-outcome', 'observation-failed', 'reconciled'].includes(mode)) await panel.getByText(text.installedStates[mode], { exact: true }).waitFor();
     if (mode === 'stale') { await panel.getByText(text.stale, { exact: true }).waitFor(); assert.equal(await panel.getByText('widgets/contract.json', { exact: true }).count(), 0); }
+    if (mode === 'verified-after-comparison') { await panel.getByText(text.observed, { exact: true }).waitFor(); await panel.getByText(`${text.observedAt} 2026-10-17T12:00:00Z`, { exact: true }).waitFor(); }
     if (mode === 'load-error') { await panel.getByText(text.loadError, { exact: true }).waitFor(); assert.equal(await panel.getByRole('button', { name: text.compareInstalled, exact: true }).isDisabled(), true); }
     if (mode === 'response-lost') {
       await panel.getByRole('button', { name: text.compareInstalled, exact: true }).click();
@@ -69,7 +70,7 @@ try {
   await page.screenshot({ path: path.join(root, 'qa/d2-comparisons-mobile.png'), fullPage: true });
   assert.deepEqual(errors, []);
   await integratedJourney(browser);
-  console.log('D2 comparison browser: 11 states, exact action binding, keyboard, response recovery, desktop and 390px passed. Synthetic only.');
+  console.log('D2 comparison browser: 12 states, exact action binding, keyboard, response recovery, desktop and 390px passed. Synthetic only.');
 } finally { await browser?.close(); await new Promise(resolve => server.close(resolve)); }
 
 async function integratedJourney(browser) {
@@ -119,10 +120,26 @@ async function integratedJourney(browser) {
     await panel.getByText(text.installedStates.compared, { exact: true }).waitFor();
     assert.deepEqual(actions, ['compareInstalled', 'reconcileInstalled', 'compareInstalled']);
     await page.reload(); await page.getByRole('region', { name: text.installedTitle }).getByText(text.installedStates.compared, { exact: true }).waitFor();
+    // A deliberately synthetic coordinator delivery completes after a comparison
+    // made during its pending state. Attempt creation order must not hide the
+    // newer verification observation on reload.
+    const route = `${base}/api/solutions/${state.id}/handoffs/${release.id}/delivery`;
+    const post = async input => {
+      const response = await context.request.post(route, { headers: { 'X-Elma-Wiki-Request': '1' }, data: input });
+      assert.ok(response.ok(), await response.text()); return response.json();
+    };
+    const target = await connection.json();
+    const attempt = await post({ action: 'prepare', revision: release.revision, connectionId: target.id });
+    await panel.getByRole('button', { name: text.compareInstalled, exact: true }).click();
+    await panel.getByText(text.installedStates['unresolved-outcome'], { exact: true }).waitFor();
+    await post({ action: 'confirm', attemptId: attempt.id, idempotencyKey: 'synthetic-mixed-history', confirmation: `DEPLOY ${attempt.solutionCode} ${attempt.sha256.slice(0, 12)}` });
+    const verified = await post({ action: 'verify', attemptId: attempt.id });
+    await page.reload(); await panel.getByText(text.observed, { exact: true }).waitFor();
+    await panel.getByText(`${text.observedAt} ${verified.installedObservation.at}`, { exact: true }).waitFor();
     await panel.screenshot({ path: path.join(root, 'qa/d2-comparisons-integrated-desktop.png') });
     await page.setViewportSize({ width: 390, height: 844 });
     await panel.screenshot({ path: path.join(root, 'qa/d2-comparisons-integrated-mobile.png') });
     assert.deepEqual(errors, []);
-    console.log('D2 combined HTTP/UI journey: real synthetic capture history, approved candidate, unknown -> reconciled -> compared, reload; no delivery dispatch.');
+    console.log('D2 combined HTTP/UI journey: source history, unknown -> reconciled -> compared; mixed pending-comparison/synthetic delivery verification reload uses observation time. UI sends only comparison/reconciliation actions.');
   } finally { await context.close(); await new Promise(resolve => service.close(resolve)); await fs.rm(directory, { recursive: true, force: true }); }
 }
