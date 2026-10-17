@@ -10,6 +10,7 @@ import { deliveryStore, inventoryOf } from '../lib/delivery.mjs';
 import { readArchive } from '../lib/e365.mjs';
 import { bridgeStore } from '../lib/bridge.mjs';
 import { targetPresets, guardPresetDeploy, workerTarget } from '../lib/target-presets.mjs';
+import { designationFile, designationReader, withCurrentDesignations } from '../lib/target-designations.mjs';
 import { zip } from './fixture.mjs';
 
 // Synthetic hosts only; no live ELMA endpoint is contacted.
@@ -374,4 +375,109 @@ test('a designation withdrawn after deploy never broadens read-back: the exact p
   assert.equal(attempt.evidence.readBack.policy, 'exact-solution-inventory-v1');
   assert.ok(attempt.history.some(entry => /exact-solution-inventory-v1/.test(entry.note || '')));
   assert.ok(!('metadataPaths' in worker.payloads.find(row => row.kind === 'readBack').payload));
+});
+
+// File-mode designations (#94): the operator record is re-read at every authorization boundary of
+// the same running store, so a grant or withdrawal needs no restart. Synthetic records only.
+async function designate(directory, revision, candidates) {
+  await fs.mkdir(path.dirname(designationFile(directory)), { recursive: true });
+  await fs.writeFile(designationFile(directory), JSON.stringify({ candidates: [...candidates].sort(), revision, schema: 'wiki-dev2-designations', version: 1 }) + '\n');
+}
+function fileModeStore(directory, releases, presetAdapter, { startup = '', store = {} } = {}) {
+  const read = designationReader(directory);
+  // `startup` is a legacy grant: file mode must never use it.
+  return deliveryStore(directory, releases, { adapters: {}, presets: targetPresets(env({ WIKI_TARGET_DEV2_DESIGNATIONS: 'file', WIKI_TARGET_DEV2_DEPLOY_CANDIDATES: startup }), { protectedHosts: [PROD] }),
+    resolvePreset: preset => withCurrentDesignations(preset, read), presetAdapter, protectedHosts: [PROD], timeoutMs: 10000, ...store });
+}
+
+test('file mode: a grant and a withdrawal apply to the running store without a restart; missing, invalid and stale records refuse', async t => {
+  const { directory, projects, releases, bridges } = await setup(t, env());
+  const first = await approvedRelease(projects, releases), second = await approvedRelease(projects, releases);
+  const delivery = fileModeStore(directory, releases, (preset, connection, current) => bridges.presetAdapter(preset, connection, current), { startup: `${first.candidate.sha256},${second.candidate.sha256}` });
+  const worker = await dev2Worker(t, bridges);
+  const refused = pattern => error => error.statusCode === 403 && pattern.test(error.message);
+  // Adopted but no record yet: nothing is designated, and the startup list is ignored.
+  await assert.rejects(delivery.prepare(first.id, 'alice', { revision: first.revision, connectionId: 'preset-dev2' }), refused(/запись назначений отсутствует/));
+  assert.ok(!worker.log.includes('inspect'));
+  await designate(directory, 1, [first.candidate.sha256]);
+  assert.deepEqual((await delivery.connections.get('preset-dev2', 'alice')).preset.designatedCandidates, [first.candidate.sha256]);
+  const { prepared, attempt: deployed } = await deploy(delivery, first, 'preset-dev2');
+  assert.deepEqual(prepared.readBackPolicy, { id: 'import-normalized-v1', version: 1, selectedBy: 'dev2-designated-candidate' });
+  assert.equal((await delivery.verify(first.id, deployed.id, 'alice')).state, 'verified');
+  // Withdrawn: the next candidate is refused by the same store.
+  await designate(directory, 2, []);
+  await assert.rejects(delivery.prepare(second.id, 'alice', { revision: second.revision, connectionId: 'preset-dev2' }), refused(/назначенного владельцем/));
+  await designate(directory, 3, [second.candidate.sha256]);
+  const pending = await delivery.prepare(second.id, 'alice', { revision: second.revision, connectionId: 'preset-dev2' });
+  const confirm = key => delivery.confirm(second.id, pending.id, 'alice', { idempotencyKey: key, confirmation: `DEPLOY ${pending.solutionCode} ${pending.sha256.slice(0, 12)}` });
+  const deploys = () => worker.log.filter(kind => kind === 'deploy').length;
+  await fs.writeFile(designationFile(directory), '{"schema":"wiki-dev2-designations"');
+  await assert.rejects(confirm('invalid'), refused(/не соответствует схеме/));
+  // A restored older record cannot resurrect a grant this process already saw replaced.
+  await designate(directory, 2, [second.candidate.sha256, 'f'.repeat(64)]);
+  await assert.rejects(confirm('stale'), refused(/старше уже прочитанной/));
+  await fs.rm(designationFile(directory));
+  await assert.rejects(confirm('missing'), refused(/отсутствует/));
+  assert.equal(deploys(), 1);
+  assert.equal((await delivery.get(second.id, pending.id, 'alice')).state, 'prepared', 'a refused confirmation dispatches nothing');
+  await designate(directory, 4, [second.candidate.sha256]);
+  assert.equal((await confirm('granted')).state, 'deployed-unverified');
+  assert.equal(deploys(), 2);
+});
+
+test('file mode: a designation changed during the asynchronous Target checks refuses before recording or dispatch; an active operation is never cancelled', async t => {
+  const { directory, projects, releases } = await setup(t, env());
+  const release = await approvedRelease(projects, releases), digest = release.candidate.sha256;
+  const before = await inventoryOf(await fixture(false)), after = await inventoryOf((await releases.candidateArtifact(release.id, 'alice')).bytes);
+  const hooks = {}, calls = [];
+  let revision = 0;
+  const set = candidates => designate(directory, ++revision, candidates);
+  // A Target stand-in without its own designation guard: only the coordinator's re-reads protect it.
+  const target = { name: 'bridge', capabilities: async () => ({ inspect: true, deploy: true, readBack: true }), health: async () => ({ ok: true, identity: { host: DEV2, version: '2025.10.97' } }),
+    inspectSolution: async () => { calls.push('inspect'); await hooks.inspect?.(); return { inventory: structuredClone(before), version: 1 }; },
+    deployCandidate: async () => { calls.push('deploy'); await hooks.deploy?.(); return { ok: true, operationId: 'synthetic-op', nativeResult: 'exit 0' }; },
+    readBack: async () => ({ inventory: structuredClone(after), version: 2 }) };
+  const delivery = fileModeStore(directory, releases, () => target, { store: { confirmGraceMs: 20 } });
+  const prepare = () => delivery.prepare(release.id, 'alice', { revision: release.revision, connectionId: 'preset-dev2' });
+
+  // Withdrawn while prepare inspects the Target: refused at the final guard, nothing recorded.
+  await set([digest]);
+  hooks.inspect = () => { hooks.inspect = null; return set([]); };
+  await assert.rejects(prepare(), error => error.statusCode === 403);
+  assert.deepEqual(await delivery.list(release.id, 'alice'), []);
+
+  // Replaced while confirm re-inspects the Target: refused before dispatch; the attempt stays prepared.
+  await set([digest]);
+  const prepared = await prepare();
+  hooks.inspect = () => { hooks.inspect = null; return set(['e'.repeat(64)]); };
+  const confirm = key => delivery.confirm(release.id, prepared.id, 'alice', { idempotencyKey: key, confirmation: `DEPLOY ${prepared.solutionCode} ${prepared.sha256.slice(0, 12)}` });
+  await assert.rejects(confirm('withdrawn'), error => error.statusCode === 403);
+  assert.ok(!calls.includes('deploy'));
+  assert.equal((await delivery.get(release.id, prepared.id, 'alice')).state, 'prepared');
+
+  // Withdrawn while the native operation runs: it is not cancelled and finishes truthfully;
+  // read-back then never uses the normalized policy the withdrawn designation selected.
+  await set([digest]);
+  let finish;
+  hooks.deploy = async () => { await set([]); await new Promise(resolve => { finish = resolve; }); };
+  assert.equal((await confirm('granted')).state, 'deploying');
+  for (const deadline = Date.now() + 5000; !finish && Date.now() < deadline;) await new Promise(resolve => setTimeout(resolve, 10));
+  finish();
+  let attempt;
+  for (const deadline = Date.now() + 5000; Date.now() < deadline; await new Promise(resolve => setTimeout(resolve, 10)))
+    if ((attempt = await delivery.get(release.id, prepared.id, 'alice')).state !== 'deploying') break;
+  assert.equal(attempt.state, 'deployed-unverified');
+  assert.deepEqual(calls.filter(call => call === 'deploy'), ['deploy']);
+  const verified = await delivery.verify(release.id, prepared.id, 'alice');
+  assert.equal(verified.readBackPolicy.id, 'import-normalized-v1', 'the original selection stays recorded');
+  assert.equal(verified.evidence.readBack.policy, 'exact-solution-inventory-v1');
+});
+
+test('the operator bridge re-reads the designation at dispatch instead of trusting the preset it was created with', async t => {
+  const { directory, bridges } = await setup(t, env());
+  const read = designationReader(directory), [, dev2] = targetPresets(env({ WIKI_TARGET_DEV2_DESIGNATIONS: 'file' }));
+  await designate(directory, 1, ['d'.repeat(64)]);
+  const adapter = bridges.presetAdapter(withCurrentDesignations(dev2, read), { owner: 'alice' }, () => withCurrentDesignations(dev2, read));
+  await designate(directory, 2, []);
+  assert.throws(() => adapter.deployCandidate({ sha256: 'd'.repeat(64), code: 'preset_release', bytes: Buffer.alloc(0) }), error => error.statusCode === 403);
 });

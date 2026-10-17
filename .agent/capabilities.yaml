@@ -82,8 +82,8 @@ capabilities:
     routes: ["docs/contracts/source-target-connections.md", "docs/workflows/source-import.md", "docs/contracts/config-source-api.md"]
     boundaries: ["connection", "security", "storage"]
   target-connections:
-    owners: ["lib/delivery.mjs", "server.mjs", "test/delivery.test.mjs"]
-    routes: ["docs/contracts/source-target-connections.md", "docs/contracts/target-deployment.md", "docs/runbooks/target-deployment.md"]
+    owners: ["lib/delivery.mjs", "lib/target-designations.mjs", "server.mjs", "test/delivery.test.mjs", "test/target-designations.test.mjs"]
+    routes: ["docs/contracts/source-target-connections.md", "docs/contracts/target-deployment.md", "docs/runbooks/target-deployment.md", "deploy/README.md"]
     boundaries: ["connection", "security", "ops"]
   developer-workspace:
     owners: ["extensions/e365-workbench/", "lib/", "lib/supported-edits.mjs", "web/releases/edits.js", "test/supported-edits.test.mjs"]

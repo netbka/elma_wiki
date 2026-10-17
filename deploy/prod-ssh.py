@@ -30,6 +30,17 @@ def remote_command(stage, config):
         return 'sudo -n python3 ' + script
     return 'sudo -S -p "" python3 ' + script
 
+def remote_config(config):
+    """The non-secret fields the CT runner reads. `designation` is sent only for a designation-only operation."""
+    remote = {k: config.get(k) for k in ['origin', 'revision', 'check', 'settings']}
+    if config.get('designation') is not None:
+        remote['designation'] = config['designation']
+    return remote
+
+def uploads_archive(config):
+    # A check or a designation-only operation never sends source and never builds.
+    return not config['check'] and config.get('designation') is None
+
 def main():
     config = json.load(sys.stdin)
     client = paramiko.SSHClient()
@@ -44,9 +55,9 @@ def main():
             sftp.put(str(script), stage + '/update.py')
             sftp.chmod(stage + '/update.py', 0o600)
             with sftp.open(stage + '/config.json', 'w') as out:
-                out.write(json.dumps({k: config.get(k) for k in ['origin', 'revision', 'check', 'settings']}))
+                out.write(json.dumps(remote_config(config)))
             sftp.chmod(stage + '/config.json', 0o600)
-            if not config['check']:
+            if uploads_archive(config):
                 sftp.put(config['archive'], stage + '/source.tar.gz')
                 sftp.chmod(stage + '/source.tar.gz', 0o600)
         stdin, stdout, stderr = client.exec_command(remote_command(stage, config), timeout=1800)

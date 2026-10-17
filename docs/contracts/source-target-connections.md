@@ -59,6 +59,19 @@ Rules enforced in code:
   `confirm` re-reads the configuration, so a withdrawn designation refuses a
   prepared attempt. All other delivery guards still apply, including typed
   confirmation and the composed-candidate native eligibility gate.
+- File designation mode (#94). With `WIKI_TARGET_DEV2_DESIGNATIONS=file`,
+  adopted explicitly by the operator, the startup list is ignored (and must be
+  empty) and `lib/target-designations.mjs` re-reads the operator record
+  `<data root>/operator/dev2-designations.json` at every check: `prepare`, its
+  final guarded write, `confirm`, the final guard before dispatch, the bridge's
+  dispatch call and the read-back policy selection at `verify`. Only the
+  operator's `npm run prod:update -- --designate-*` writes it, without
+  restarting Wiki ([deploy/README.md](../../deploy/README.md#designate-dev2-candidates-without-restarting-wiki));
+  no Wiki route changes it. A missing, linked, unreadable, malformed, oversized
+  or stale (lower revision than already read) record designates nothing; deploy
+  is refused with a fixed reason. Any other mode value makes DEV2 unavailable.
+  A designation withdrawn before dispatch refuses; an operation already running
+  is never cancelled.
 - A designated DEV2 delivery is the only one whose read-back uses
   `import-normalized-v1`; every other delivery uses `exact-solution-inventory-v1`.
   The coordinator selects and records the policy
