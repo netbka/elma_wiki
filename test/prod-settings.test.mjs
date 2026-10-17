@@ -8,6 +8,7 @@ import { parseRuntimeSettings, readRuntimeSettings, RUNTIME_SETTINGS } from '../
 
 const valid = {
   WIKI_TARGET_DEV2_URL: 'https://dev2.example.test',
+  WIKI_TARGET_DEV2_DEPLOY_CANDIDATES: `${'d'.repeat(64)},${'e'.repeat(64)}`,
   WIKI_NATIVE_MATERIALIZATION_BRIDGE_ID: '0b0e5c1a-1111-4222-8333-444455556666',
   WIKI_NATIVE_MATERIALIZATION_BRIDGE_OWNER: `vk:${'ab'.repeat(32)}`,
   WIKI_NATIVE_MATERIALIZATION_REVISION: 'c'.repeat(40),
@@ -27,6 +28,9 @@ test('refuses other keys and malformed values, naming only the key', () => {
     ['VK_BOT_AUTH_TOKEN', 'synthetic'], ['PUBLIC_BASE_URL', 'https://other.example.org'], ['WIKI_TARGET_DEV_URL', 'https://dev.example.test'],
     ['WIKI_TARGET_DEV2_URL', 'http://dev2.example.test'], ['WIKI_TARGET_DEV2_URL', 'https://dev2.example.test/path'],
     ['WIKI_TARGET_DEV2_URL', 'https://user:pass@dev2.example.test'], ['WIKI_TARGET_DEV2_URL', '"https://dev2.example.test\\nX=1"'],
+    ['WIKI_TARGET_DEV2_DEPLOY_CANDIDATES', 'D'.repeat(64)], ['WIKI_TARGET_DEV2_DEPLOY_CANDIDATES', 'contracts'],
+    ['WIKI_TARGET_DEV2_DEPLOY_CANDIDATES', `${'d'.repeat(64)}, ${'e'.repeat(64)}`], ['WIKI_TARGET_DEV2_DEPLOY_CANDIDATES', `${'d'.repeat(64)},`],
+    ['WIKI_TARGET_DEV2_DEPLOY_CANDIDATES', ''],
     ['WIKI_NATIVE_MATERIALIZATION_BRIDGE_ID', 'not-a-uuid'], ['WIKI_NATIVE_MATERIALIZATION_REVISION', 'A'.repeat(40)],
     ['WIKI_NATIVE_MATERIALIZATION_BRIDGE_OWNER', 'local'], ['WIKI_NATIVE_TARGET_PROFILE_TARGET', 'main-dev'],
     ['WIKI_NATIVE_TARGET_PROFILE_TARGET', '']
