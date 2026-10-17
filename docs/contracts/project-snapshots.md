@@ -61,11 +61,16 @@ Unclassified/ambiguous evidence stays in the existing review result.
 The single `deliveryStore` also owns trusted `compareInstalled(candidateRef,
 actor, {revision, connectionId})`, `reconcileInstalled` with the same arguments,
 and `installedHistory(candidateRef, actor)`. The contextual `forSolution` and
-`forComposed` facades expose these methods. They are backend consumer methods;
-this slice adds no HTTP route or UI controls. Server wiring remains serialized
-with the D6 server owner. An authenticated adapter must select the contextual
-candidate and execution actor server-side and keep the existing request guards.
-No request may assert inventory, Target identity, profile, policy or installation.
+`forComposed` facades expose these methods. The existing authenticated contextual
+delivery routes (`/api/solutions/:id/handoffs/:releaseId/delivery` and
+`/api/solutions/:id/composed/:candidateId/delivery`) accept POST actions
+`compareInstalled` and `reconcileInstalled` with exactly `revision` and
+`connectionId`, and return history from `GET …/delivery?installed`. The server
+selects the candidate and execution actor and keeps the existing origin/request,
+JSON and key-allowlist guards; any other key is refused with 400. No request may
+assert inventory, Target identity, profile, policy or installation. The legacy
+release route refuses both actions. There are no UI controls yet; visible UI
+belongs to the D3–D5 stream.
 
 Comparison/reconciliation calls perform read-only Target read-back bracketed by
 identity checks, using the existing exact or designated DEV2 normalization
@@ -113,6 +118,6 @@ has no trusted acquisition/snapshot association or verified DEV2 base; this
 implementation assigns it neither.
 
 Focused evidence: `node --test test/source-capture-comparisons.test.mjs
-test/installed-base-comparisons.test.mjs`, plus the existing snapshot, managed
+test/installed-base-comparisons.test.mjs test/installed-base-api.test.mjs`, plus the existing snapshot, managed
 store, handoff, exact/normalized verification, promotion and delivery tests.
 Synthetic tests establish these storage/coordinator contracts only.
