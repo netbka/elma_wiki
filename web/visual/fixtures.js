@@ -28,14 +28,14 @@ export const visualSource = {
     ]}}
   ]
 };
-export function visualFixture(state='source') {
+export function visualFixture(state='source',{layout=false}={}) {
   if(state==='empty')return {processes:[]};
   if(state==='loading')return {loading:true};
   if(state==='error')return {error:'Не удалось загрузить обзор. Исходный снимок сохранён.'};
   const raw=structuredClone(visualSource);
   // Existing source story exercises the same layout/declaration renderer as
   // captured forms. Entirely synthetic; no native observation is implied.
-  if(state==='source'){
+  if(state==='source'&&layout){
     raw.forms[0].content={
       '[content]':[
         {descriptor:'groupbox',values:{title:'Реквизиты',collapsible:true,expanded:true},content:{'':[

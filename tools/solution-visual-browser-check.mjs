@@ -133,7 +133,7 @@ try {
   await page.evaluate(async()=>{
     document.documentElement.style.zoom='1';
     const {mountSnapshotVisual}=await import('/visual/render.js'),{visualFixture}=await import('/visual/fixtures.js');
-    document.querySelector('#managed-root').replaceChildren(mountSnapshotVisual(visualFixture('source')));
+    document.querySelector('#managed-root').replaceChildren(mountSnapshotVisual(visualFixture('source',{layout:true})));
   });
   await page.locator('svg [data-node=review]').click();
   const form=page.locator('.visual-form');

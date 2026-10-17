@@ -113,7 +113,7 @@ export function scenarioFields(process, nodeId) {
   const relation = relatedForm(process, nodeId), fields = [];
   let unknown = relation.status !== 'source-derived';
   const visit = tree => {
-    if (!tree.supported || tree.binding === 'unknown' || Object.values(tree.declarations||{}).some(d=>d.state==='unknown')) unknown = true;
+    if (!tree.supported || tree.binding === 'unknown' || tree.bindings?.some(binding=>binding.evaluation==='unknown') || Object.values(tree.declarations||{}).some(d=>d.state==='unknown')) unknown = true;
     for (const field of tree.fields || [tree.field].filter(Boolean)) {
       const supported = ['string','text','boolean','date','number','integer','float'].includes(field.type);
       if (!supported || Object.values(field.declarations||{}).some(d=>d.state==='unknown')) unknown = true;

@@ -26,3 +26,32 @@ test('ambiguous edges and script-bound fields cannot invent a scenario requireme
   assert.equal(scenarioFields(process, 'review').unknown, true);
   assert.equal(JSON.stringify(process).includes('Context.data.secret'), false);
 });
+
+test('retained action and path bindings on supported forms keep scenario behavior unknown without blocking navigation', () => {
+  // Remove the existing opaque descriptor so it cannot mask a missing binding check.
+  const raw=structuredClone(visualSource);
+  raw.forms[0].content['[content]']=[raw.forms[0].content['[content]'][0]];
+  const known=projectProcess(raw,'synthetic-process');
+  assert.equal(scenarioFields(known,'review').unknown,false);
+  for(const [descriptor,key,value] of [
+    ['dynamic-form','onChangeValue',{script:'PRIVATE_ACTION_BODY'}],
+    ['item-form-complex-popup','action',{script:'PRIVATE_ACTION_BODY'}],
+    ['dynamic-form','onClick',{path:['actions','submit']}],
+    ['item-form-complex-popup','form',{path:['context','form']}],
+    ['item-form-complex-popup','label',{path:['context','caption']}]
+  ]){
+    const bound=structuredClone(raw),target=descriptor==='dynamic-form'?bound.forms[0].content['[content]'][0]:bound.forms[0];
+    target.values??={};target.values[key]=value;
+    const process=projectProcess(bound,'synthetic-process'),{fields,unknown}=scenarioFields(process,'review');
+    assert.equal(unknown,true,descriptor+'/'+key);
+    assert.equal(JSON.stringify(process).includes('PRIVATE_ACTION_BODY'),false);
+    const projected=descriptor==='dynamic-form'?process.forms[0].tree.children[0]:process.forms[0].tree;
+    const reference=projected.bindings.find(binding=>binding.name===key);
+    assert.equal(reference.evaluation,'unknown');
+    if(value.path)assert.deepEqual(reference.path,value.path);
+    const checked=checkScenarioStep(process,'review',{[fields[0].pointer]:'Synthetic value'},'approve');
+    assert.equal(checked.allowed,true,'ordinary supported navigation remains available');
+    assert.equal(checked.unknown,true);assert.equal(checked.nativeObservation,'absent');
+    assert.equal(checkScenarioStep(process,'review',{},'approve').allowed,false,'declared required fields still block missing input');
+  }
+});

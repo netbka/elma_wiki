@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { projectProcess, projectForm, relatedForm, scenarioFields } from '../web/visual/model.js';
-import { visualSource } from '../web/visual/fixtures.js';
+import { visualSource, visualFixture } from '../web/visual/fixtures.js';
 import { snapshotVisual, sourceAnchorIndex, SOURCE_ANCHOR_VERSION } from '../lib/solution-visual.mjs';
 import { zip } from './fixture.mjs';
 import fs from 'node:fs/promises';
@@ -214,4 +214,13 @@ test('D3 bounded forms reject oversized fields and preserve unknown required/rea
   assert.equal(p.forms[0].tree.children[0].fields[0].declarations.required.state,'unknown');
   assert.throws(()=>projectForm({descriptor:'dynamic-form',values:{fields:Array.from({length:101},()=>({code:'x'}))}},'widget#'),/ограничения/);
   assert.throws(()=>projectForm({descriptor:'row',content:{'':Array.from({length:2000},()=>({descriptor:'column'}))}},'widget#'),/ограничения/);
+});
+
+test('D3 layout story is opt-in and preserves the shared source fixture used by managed flows',()=>{
+  const shared=visualFixture('source').processes[0],layout=visualFixture('source',{layout:true}).processes[0];
+  assert.deepEqual(shared.issues,[],'ordinary managed source story keeps its graph support state');
+  assert.equal(shared.forms[0].tree.children[0].descriptor,'dynamic-form');
+  assert.equal(layout.forms[0].tree.children[0].descriptor,'groupbox');
+  assert.equal(layout.forms[0].tree.regions.some(r=>r.name==='[footer]'),true);
+  assert.equal(layout.issues.some(issue=>issue.reason.includes('ELMA')),true,'explicit layout story retains its runtime binding gaps');
 });

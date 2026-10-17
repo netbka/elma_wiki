@@ -1,7 +1,7 @@
 import { mountSnapshotVisual } from '../../web/visual/render.js';
 import { visualFixture } from '../../web/visual/fixtures.js';
 export default {id:'solution-visual',title:'Решение/Процесс и форма',parameters:{layout:'fullscreen'}};
-const story=state=>({render:()=>mountSnapshotVisual(visualFixture(state))});
+const story=state=>({render:()=>mountSnapshotVisual(visualFixture(state,{layout:state==='source'}))});
 export const Source = {...story('source'),parameters:{docs:{description:{story:'Исходные области формы, строки и колонки, сворачиваемая группа и вкладки используют общий renderer. Обязательность, чтение и скрытие показывают декларации; привязки неизвестны, действия не выполняются. Синтетическая реконструкция без native-наблюдения.'}}}};
 export const Unknown = story('unknown');
 export const Duplicate = story('duplicate');
