@@ -43,11 +43,13 @@ export const buildResponseFixtures = {
   notAccepted: failure(409, { error: 'The change is not the latest accepted merged revision of this Solution' }),
   inProgress: failure(409, { outcome: 'in-progress', error: 'synthetic' }),
   staleFreeze: failure(409, { outcome: 'refused', reason: 'stale-build', detail: 'expected-revision', candidate: null }),
+  malformed: { outcome: 'validated', manifest: { manifestDigest: 'bad' } },
   lost: Object.assign(Error('Ответ не получен.'), { requiresRefresh: true })
 };
 // Build-flow story modes: what the synthetic build and freeze routes answer (null: not reached).
 export const buildFlowModes = { 'build-ready': ['validated', null], 'build-no-merge': [null, null], 'build-refused': ['blocked', null], 'build-failed': ['failed', null],
-  'build-stale': ['stale', null], 'build-not-accepted': ['notAccepted', null], 'build-lost': ['lost', null], 'freeze-stale': ['validated', 'staleFreeze'] };
+  'build-stale': ['stale', null], 'build-not-accepted': ['notAccepted', null], 'build-lost': ['lost', null], 'build-malformed': ['malformed', null],
+  'freeze-stale': ['validated', 'staleFreeze'], 'freeze-lost': ['validated', 'lost'] };
 export function composedCandidateFixture({ id = '11111111-1111-4111-8111-111111111111', sha = 'a', status = 'current', approved = false, createdAt = '2026-10-14T09:00:00Z' } = {}) {
   const revision = approved ? 2 : 1;
   return { schemaVersion: 1, id, solutionId: 'synthetic-workspace', code: 'synthetic_solution', revision, createdAt,

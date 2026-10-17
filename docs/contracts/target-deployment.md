@@ -214,7 +214,12 @@ accepted merged revision.
 The button posts `{artifactId, expectedRevision}` to the build route. A
 `validated` response shows the manifest digest and «Зафиксировать сборку», which
 posts the same pair plus `manifestDigest` to the freeze route and opens the
-frozen candidate. A `blocked` or failed build, or a missing or foreign held build,
+frozen candidate. The UI requires a materialized manifest with a SHA-256 digest
+and an artifact list before showing Freeze; a malformed build or freeze success
+requires a fresh read. `npm run test:composer:browser` exercises the production
+page/controller against synthetic HTTP responses, checking the exact payloads,
+pending double-submit guards, navigation and stale/malformed/lost responses.
+It performs no ELMA operation. A `blocked` or failed build, or a missing or foreign held build,
 names its reasons and may be retried. A `stale` build or freeze, a refused
 request with no outcome, `in-progress` or a lost response disables retry and
 asks for a fresh read; neither request is replayed. Without an accepted merged
